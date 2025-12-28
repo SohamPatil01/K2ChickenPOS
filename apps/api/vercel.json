@@ -1,17 +1,11 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "outputDirectory": null,
-  "builds": [
+  "buildCommand": "",
+  "outputDirectory": "",
+  "rewrites": [
     {
-      "src": "api/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.ts"
+      "source": "/(.*)",
+      "destination": "/api/index"
     }
   ],
   "functions": {
