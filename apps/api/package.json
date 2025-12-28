@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "vercel-build": "echo 'No build needed for serverless functions'"
+    "vercel-build": "cd ../.. && pnpm --filter @azela-pos/db build && pnpm --filter @azela-pos/api build"
   },
   "dependencies": {
     "@azela-pos/db": "workspace:*",
