@@ -455,8 +455,8 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
-        const {
+        const { id } = (request.params as any);
+        const { lockStatus } = (request.body as any);
 
         const updated = await prisma.pricingOverride.update({
           where: { id },
