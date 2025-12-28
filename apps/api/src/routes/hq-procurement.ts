@@ -408,7 +408,7 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseId, status } = (request.query as any);
 
         const where: any = { ownerStoreId };
         if (franchiseId) {
