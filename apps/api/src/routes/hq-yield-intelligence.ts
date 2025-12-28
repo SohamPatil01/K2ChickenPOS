@@ -36,7 +36,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseConfigId, productId, periodStart, periodEnd } = (request.body as any);
 
         const config = await prisma.franchiseConfig.findUnique({
           where: { id: franchiseConfigId },
