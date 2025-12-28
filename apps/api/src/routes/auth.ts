@@ -12,7 +12,7 @@ interface LoginBody {
 
 export async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/login', async (request: any, reply: FastifyReply) => {
-    const body = loginSchema.parse(request.body);
+    const body = loginSchema.parse(request.body as any);
 
     const user = await prisma.user.findUnique({
       where: { phone: body.phone },
@@ -69,7 +69,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post('/refresh', async (request: any, reply: FastifyReply) => {
     try {
-      const decoded = fastify.jwt.verify(request.body.refreshToken) as any;
+      const decoded = fastify.jwt.verify((request.body as any).refreshToken) as any;
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         include: { store: true },
@@ -103,7 +103,7 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.get('/me', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const user = await prisma.user.findUnique({
-      where: { id: getUser(request).userId },
+      where: { id: (getUser(request) as any).userId },
       select: {
         id: true,
         name: true,

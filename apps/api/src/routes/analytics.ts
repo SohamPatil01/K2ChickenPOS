@@ -37,7 +37,7 @@ function getDateRange(startDate?: string, endDate?: string) {
 export async function analyticsRoutes(fastify: FastifyInstance) {
 
   fastify.get('/sales-trend', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
     // Get default store (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -78,7 +78,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/top-items', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
     // Get default store (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -132,7 +132,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/time-heatmap', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
     // Get default store (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -173,7 +173,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/payment-mix', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
     // Get default store (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -217,7 +217,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/delivery-kpis', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
     // Get default store (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -268,7 +268,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
   fastify.get('/store-compare', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply): Promise<any> => {
     const { startDate, endDate } = (request.query as any);
-    const ownerStoreId = getUser(request).storeId;
+    const ownerStoreId = (getUser(request) as any).storeId;
 
     const ownerStore = await prisma.store.findUnique({
       where: { id: ownerStoreId },

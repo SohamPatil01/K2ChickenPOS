@@ -88,7 +88,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
 
   fastify.post('/:customerId/addresses', async (request: any, reply: FastifyReply) => {
     const { customerId } = (request.params as any);
-    const data = customerAddressSchema.parse(request.body);
+    const data = customerAddressSchema.parse(request.body as any);
 
     const customer = await prisma.customer.findUnique({
       where: { id: customerId },
@@ -187,7 +187,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
   fastify.get('/:customerId/loyalty', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
-      const storeId = getUser(request).storeId;
+      const storeId = (getUser(request) as any).storeId;
 
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
@@ -270,8 +270,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
     try {
       const { customerId } = (request.params as any);
       const { points, description } = (request.body as any);
-      const storeId = getUser(request).storeId;
-      const userId = getUser(request).userId;
+      const storeId = (getUser(request) as any).storeId;
+      const userId = (getUser(request) as any).userId;
 
       if (points <= 0) {
         reply.code(400).send({ error: 'Points must be greater than 0' });
@@ -347,8 +347,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
     try {
       const { customerId } = (request.params as any);
       const { points, description } = (request.body as any);
-      const storeId = getUser(request).storeId;
-      const userId = getUser(request).userId;
+      const storeId = (getUser(request) as any).storeId;
+      const userId = (getUser(request) as any).userId;
 
       if (!description) {
         reply.code(400).send({ error: 'Description is required' });
