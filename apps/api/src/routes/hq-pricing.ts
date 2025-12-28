@@ -283,7 +283,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseId } = (request.params as any);
 
         // Verify franchise belongs to owner
         const franchise = await prisma.store.findUnique({
