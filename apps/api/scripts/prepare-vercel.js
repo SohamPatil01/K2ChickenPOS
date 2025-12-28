@@ -81,11 +81,20 @@ async function preparePackages() {
   const sharedDist = join(sharedSource, 'dist');
   if (existsSync(sharedDist)) {
     await copyRecursive(sharedDist, join(sharedTarget, 'dist'));
+  } else {
+    console.warn('⚠ Warning: shared/dist does not exist. Make sure @azela-pos/shared is built.');
   }
   
   // Copy package.json
   if (existsSync(join(sharedSource, 'package.json'))) {
     await copyRecursive(join(sharedSource, 'package.json'), join(sharedTarget, 'package.json'));
+  }
+
+  // Verify files were copied
+  const sharedDistTarget = join(sharedTarget, 'dist');
+  if (existsSync(sharedDistTarget)) {
+    const files = await readdir(sharedDistTarget);
+    console.log(`✓ Copied ${files.length} files to shared/dist:`, files.join(', '));
   }
 
   console.log('✓ Workspace packages prepared for Vercel');
