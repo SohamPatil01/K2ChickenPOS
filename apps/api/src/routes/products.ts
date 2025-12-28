@@ -225,7 +225,6 @@ export async function productRoutes(fastify: FastifyInstance) {
   // Price management
   fastify.post('/:id/price', async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
-    const { id } = (request.params as any);
     // Get default store for now (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const storeId = store?.id || '';
