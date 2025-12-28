@@ -388,8 +388,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
-        const {
+        const { id } = (request.params as any);
+        const { paymentReference, notes } = (request.body as any);
 
         const invoice = await prisma.royaltyInvoice.findUnique({
           where: { id },
