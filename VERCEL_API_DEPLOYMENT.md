@@ -260,6 +260,7 @@ If you want to deploy the API as a separate project:
 ### Option 1: Vercel Postgres (Easiest - Recommended)
 
 **Steps:**
+
 1. Go to your **API project** in Vercel
 2. Click **Storage** tab
 3. Click **Create Database** → Select **Postgres**
@@ -269,12 +270,14 @@ If you want to deploy the API as a separate project:
 7. **Redeploy** your API project
 
 **After creating the database:**
+
 - Run migrations: `pnpm db:migrate:deploy` (or use Prisma Studio)
 - Seed the database if needed: `pnpm db:seed`
 
 ### Option 2: Supabase (Free Tier Available)
 
 **Steps:**
+
 1. Go to [supabase.com](https://supabase.com) and create an account
 2. Create a new project
 3. Go to **Settings** → **Database**
@@ -284,6 +287,7 @@ If you want to deploy the API as a separate project:
 7. **Redeploy** your API project
 
 **Connection String Format:**
+
 ```
 postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 ```
@@ -291,6 +295,7 @@ postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 ### Option 3: Neon (Free Tier Available)
 
 **Steps:**
+
 1. Go to [neon.tech](https://neon.tech) and create an account
 2. Create a new project
 3. Copy the connection string from the dashboard
