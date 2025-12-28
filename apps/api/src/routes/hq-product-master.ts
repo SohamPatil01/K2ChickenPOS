@@ -96,7 +96,7 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { productType } = (request.query as any);
 
         const where: any = { ownerStoreId };
         if (productType) {
