@@ -123,31 +123,62 @@ async function build() {
 export default async function handler(req: any, res: any) {
   try {
     const fastifyApp = await build();
-    
-    // Convert Vercel request to Fastify request
     await fastifyApp.ready();
     
+    // Convert Vercel request/response to Fastify format
+    const url = req.url || '/';
+    const method = req.method || 'GET';
+    
+    // Prepare headers (remove host and connection headers)
+    const headers: any = {};
+    Object.keys(req.headers || {}).forEach(key => {
+      if (key.toLowerCase() !== 'host' && key.toLowerCase() !== 'connection') {
+        headers[key] = req.headers[key];
+      }
+    });
+
     // Use Fastify's inject method for serverless
     const response = await fastifyApp.inject({
-      method: req.method,
-      url: req.url,
-      headers: req.headers,
-      payload: req.body,
-      query: req.query,
+      method,
+      url,
+      headers,
+      payload: method !== 'GET' && method !== 'HEAD' ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})) : undefined,
+      query: req.query || {},
     });
 
     // Set response headers
-    Object.keys(response.headers).forEach(key => {
-      res.setHeader(key, response.headers[key]);
-    });
+    const responseHeaders = response.headers;
+    if (responseHeaders) {
+      Object.keys(responseHeaders).forEach(key => {
+        const value = responseHeaders[key];
+        if (value !== undefined) {
+          res.setHeader(key, value);
+        }
+      });
+    }
 
-    // Send response
-    res.status(response.statusCode).send(response.payload);
+    // Send response with proper status code
+    res.status(response.statusCode);
+    
+    // Handle different content types
+    const contentType = responseHeaders?.['content-type'] || '';
+    if (contentType.includes('application/json')) {
+      try {
+        const json = JSON.parse(response.payload);
+        res.json(json);
+      } catch {
+        res.send(response.payload);
+      }
+    } else {
+      res.send(response.payload);
+    }
   } catch (error: any) {
     console.error('Serverless function error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ 
       error: 'Internal Server Error',
-      message: error.message 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
