@@ -43,7 +43,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseConfigId, periodStart, periodEnd } = (request.body as any);
 
         const config = await prisma.franchiseConfig.findUnique({
           where: { id: franchiseConfigId },
@@ -265,7 +265,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseConfigId } = (request.params as any);
 
         const where: any = {};
         if (franchiseConfigId) {
@@ -309,7 +309,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { id } = (request.params as any);
 
         const invoice = await prisma.royaltyInvoice.findUnique({
           where: { id },
@@ -344,7 +344,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { id } = (request.params as any);
 
         const invoice = await prisma.royaltyInvoice.findUnique({
           where: { id },
