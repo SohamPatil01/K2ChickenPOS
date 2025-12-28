@@ -7,7 +7,12 @@ import { dirname, resolve } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 // Load environment variables - Vercel provides these automatically
-config({ path: resolve(__dirname, '../../../.env') });
+// Try multiple paths for .env file
+try {
+  config({ path: resolve(__dirname, '../../../.env') });
+} catch (e) {
+  // Ignore if .env doesn't exist, Vercel uses environment variables
+}
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
@@ -117,6 +122,9 @@ async function build() {
 
   app = fastify;
   return fastify;
+  })();
+  
+  return buildPromise;
 }
 
 // Vercel serverless function handler
@@ -129,8 +137,20 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const fastifyApp = await build();
-    await fastifyApp.ready();
+    let fastifyApp;
+    try {
+      fastifyApp = await build();
+      await fastifyApp.ready();
+    } catch (buildError: any) {
+      console.error('Failed to build Fastify app:', buildError);
+      console.error('Build error stack:', buildError?.stack);
+      res.status(500).json({ 
+        error: 'Failed to initialize application',
+        message: buildError?.message || 'Unknown build error',
+        ...(process.env.NODE_ENV === 'development' ? { stack: buildError?.stack } : {})
+      });
+      return;
+    }
     
     // Convert Vercel request/response to Fastify format
     const method = req.method || 'GET';
