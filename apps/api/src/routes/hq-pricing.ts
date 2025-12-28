@@ -258,7 +258,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
+        const { id } = (request.params as any);
 
         await prisma.pricingRule.delete({
           where: { id },
