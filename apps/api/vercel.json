@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "",
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter @azela-pos/db generate",
   "outputDirectory": "",
   "rewrites": [
     {
