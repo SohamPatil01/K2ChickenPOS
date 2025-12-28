@@ -76,7 +76,6 @@ export default function StoreCartPage() {
     useCartStore.getState().addItem({
       productId: manualItem.sku || 'MANUAL',
       productName: manualItem.description,
-      sku: manualItem.sku || 'MANUAL',
       qtyKg,
       qtyPcs,
       rate,
