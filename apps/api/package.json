@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "vercel-build": "cd ../.. && pnpm --filter @azela-pos/db build && pnpm --filter @azela-pos/api build"
+    "vercel-build": "cd ../.. && pnpm install && pnpm --filter @azela-pos/db build && pnpm --filter @azela-pos/shared build"
   },
   "dependencies": {
     "@azela-pos/db": "workspace:*",
