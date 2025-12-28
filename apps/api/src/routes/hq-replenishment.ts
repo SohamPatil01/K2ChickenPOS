@@ -237,7 +237,6 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
         const { id } = (request.params as any);
         const { approved, adjustedQtyKg, adjustedQtyPcs, adjustmentReason, approvalNotes } = (request.body as any);
 
