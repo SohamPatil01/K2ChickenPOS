@@ -3,11 +3,13 @@
 ## Important: Which Connection String to Use
 
 For **Prisma migrations**, use the **NON-POOLING** connection:
+
 ```
 DATABASE_POSTGRES_URL_NON_POOLING
 ```
 
 For **your application** (in Vercel), use the **PRISMA URL** (with connection pooling):
+
 ```
 DATABASE_POSTGRES_PRISMA_URL
 ```
@@ -21,21 +23,25 @@ DATABASE_POSTGRES_PRISMA_URL
 ### Required Variables:
 
 **DATABASE_URL** (for Prisma - use PRISMA URL with pooling):
+
 ```
 postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true
 ```
 
 **JWT_SECRET** (generate a strong secret, at least 32 characters):
+
 ```
 your-super-secret-jwt-key-here-min-32-chars
 ```
 
 **JWT_REFRESH_SECRET** (generate another strong secret):
+
 ```
 your-super-secret-refresh-key-here-min-32-chars
 ```
 
 **NODE_ENV**:
+
 ```
 production
 ```
@@ -61,7 +67,8 @@ pnpm db:migrate:deploy
 pnpm db:seed
 ```
 
-**Important:** 
+**Important:**
+
 - Use the **NON-POOLING** URL (port 5432) for migrations
 - Use the **PRISMA URL** (port 6543) in Vercel environment variables
 
@@ -86,15 +93,17 @@ pnpm db:seed
 ## Troubleshooting
 
 ### Error: "Connection pooler timeout"
+
 - Make sure you're using the PRISMA URL (port 6543) in Vercel
 - The NON-POOLING URL (port 5432) is only for migrations
 
 ### Error: "SSL required"
+
 - Make sure your connection string includes `?sslmode=require`
 - Supabase requires SSL connections
 
 ### Error: "Authentication failed"
+
 - Verify the password is correct
 - Check that the connection string is complete
 - Make sure you're using the correct project reference
-

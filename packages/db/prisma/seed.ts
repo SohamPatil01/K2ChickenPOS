@@ -16,23 +16,36 @@ async function main() {
 
   // Clear existing data (for development)
   console.log('Clearing existing data...');
-  await prisma.loyaltyTransaction.deleteMany();
-  await prisma.dailyClosing.deleteMany();
-  await prisma.discountOverride.deleteMany();
-  await prisma.deliveryEvent.deleteMany();
-  await prisma.deliveryOrder.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.saleItem.deleteMany();
-  await prisma.sale.deleteMany();
-  await prisma.customerAddress.deleteMany();
-  await prisma.customer.deleteMany();
-  await prisma.scaleBarcodeConfig.deleteMany();
-  await prisma.storeProductPrice.deleteMany();
-  await prisma.inventoryLedger.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.store.deleteMany();
+  // Use try-catch to handle tables that might not exist
+  const clearTable = async (operation: () => Promise<any>, tableName: string) => {
+    try {
+      await operation();
+    } catch (error: any) {
+      if (error.code === 'P2021') {
+        console.log(`Table ${tableName} does not exist, skipping...`);
+      } else {
+        throw error;
+      }
+    }
+  };
+  
+  await clearTable(() => prisma.loyaltyTransaction.deleteMany(), 'LoyaltyTransaction');
+  await clearTable(() => prisma.dailyClosing.deleteMany(), 'DailyClosing');
+  await clearTable(() => prisma.discountOverride.deleteMany(), 'DiscountOverride');
+  await clearTable(() => prisma.deliveryEvent.deleteMany(), 'DeliveryEvent');
+  await clearTable(() => prisma.deliveryOrder.deleteMany(), 'DeliveryOrder');
+  await clearTable(() => prisma.payment.deleteMany(), 'Payment');
+  await clearTable(() => prisma.saleItem.deleteMany(), 'SaleItem');
+  await clearTable(() => prisma.sale.deleteMany(), 'Sale');
+  await clearTable(() => prisma.customerAddress.deleteMany(), 'CustomerAddress');
+  await clearTable(() => prisma.customer.deleteMany(), 'Customer');
+  await clearTable(() => prisma.scaleBarcodeConfig.deleteMany(), 'ScaleBarcodeConfig');
+  await clearTable(() => prisma.storeProductPrice.deleteMany(), 'StoreProductPrice');
+  await clearTable(() => prisma.inventoryLedger.deleteMany(), 'InventoryLedger');
+  await clearTable(() => prisma.product.deleteMany(), 'Product');
+  await clearTable(() => prisma.category.deleteMany(), 'Category');
+  await clearTable(() => prisma.user.deleteMany(), 'User');
+  await clearTable(() => prisma.store.deleteMany(), 'Store');
 
   // Create Owner Store
   const ownerStore = await prisma.store.create({
