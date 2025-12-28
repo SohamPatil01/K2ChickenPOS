@@ -20,9 +20,14 @@
     "resolveJsonModule": true,
     "declaration": false,
     "declarationMap": false,
-    "sourceMap": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@azela-pos/db": ["../../packages/db/src/index.ts"],
+      "@azela-pos/shared": ["../../packages/shared/src/index.ts"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "api/**/*"],
   "exclude": ["node_modules", "dist"],
   "ts-node": {
     "esm": true
