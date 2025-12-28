@@ -80,21 +80,32 @@ async function preparePackages() {
 
   const sharedDist = join(sharedSource, 'dist');
   if (existsSync(sharedDist)) {
-    await copyRecursive(sharedDist, join(sharedTarget, 'dist'));
+    const sharedDistTarget = join(sharedTarget, 'dist');
+    await copyRecursive(sharedDist, sharedDistTarget);
+    
+    // Verify files were copied
+    if (existsSync(sharedDistTarget)) {
+      const files = await readdir(sharedDistTarget);
+      console.log(`✓ Copied ${files.length} files to shared/dist:`, files.join(', '));
+      
+      // Verify critical files exist
+      const requiredFiles = ['index.js', 'schemas.js', 'types.js'];
+      for (const file of requiredFiles) {
+        const filePath = join(sharedDistTarget, file);
+        if (!existsSync(filePath)) {
+          console.error(`✗ Missing required file: ${filePath}`);
+          throw new Error(`Missing required file: ${file}`);
+        }
+      }
+    }
   } else {
-    console.warn('⚠ Warning: shared/dist does not exist. Make sure @azela-pos/shared is built.');
+    console.error('✗ Error: shared/dist does not exist. Make sure @azela-pos/shared is built.');
+    throw new Error('shared/dist does not exist');
   }
   
   // Copy package.json
   if (existsSync(join(sharedSource, 'package.json'))) {
     await copyRecursive(join(sharedSource, 'package.json'), join(sharedTarget, 'package.json'));
-  }
-
-  // Verify files were copied
-  const sharedDistTarget = join(sharedTarget, 'dist');
-  if (existsSync(sharedDistTarget)) {
-    const files = await readdir(sharedDistTarget);
-    console.log(`✓ Copied ${files.length} files to shared/dist:`, files.join(', '));
   }
 
   console.log('✓ Workspace packages prepared for Vercel');
