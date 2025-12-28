@@ -278,7 +278,6 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
         const { id } = (request.params as any);
 
         const po = await prisma.centralPurchaseOrder.findUnique({
