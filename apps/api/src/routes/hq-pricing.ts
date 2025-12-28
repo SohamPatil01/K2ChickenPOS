@@ -101,7 +101,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
+        const { id } = (request.params as any);
         const data = pricingPlanSchema.partial().parse(request.body as any);
 
         const updated = await prisma.pricingPlan.update({
@@ -127,7 +127,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
+        const { planId } = (request.params as any);
 
         const rules = await prisma.pricingRule.findMany({
           where: { pricingPlanId: planId },
@@ -188,7 +188,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
+        const { id } = (request.params as any);
         const data = pricingRuleSchema.partial().parse(request.body as any);
 
         const updateData: any = { ...data };
@@ -218,11 +218,10 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
-        const {
+        const { id } = (request.params as any);
+        const { lockStatus } = (request.body as any);
 
         // Note: PricingRule doesn't have lockStatus field in schema
-        const { id } = (request.params as any);
         
         // This would need to be added to the schema or handled via ProductMaster
         // For now, we'll update the related ProductMaster if it exists

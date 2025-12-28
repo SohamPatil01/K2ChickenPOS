@@ -33,7 +33,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
         const dateFilter = getDateRange(startDate, endDate);
 
         const franchises = await prisma.store.findMany({
@@ -188,7 +188,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
         const dateFilter = getDateRange(startDate, endDate);
 
         const franchises = await prisma.store.findMany({
@@ -259,7 +259,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
         const dateFilter = getDateRange(startDate, endDate);
 
         const franchises = await prisma.store.findMany({
@@ -341,7 +341,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
         const dateFilter = getDateRange(startDate, endDate);
 
         const franchises = await prisma.store.findMany({

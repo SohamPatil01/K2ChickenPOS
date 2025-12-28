@@ -25,7 +25,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const where: any = {};
         if (franchiseConfigId) {
@@ -144,7 +144,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const config = await prisma.franchiseConfig.findUnique({
           where: { id: franchiseConfigId },
@@ -280,7 +280,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const where: any = { ownerStoreId, isActive: true };
         if (checkType) {
@@ -316,7 +316,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const template = await prisma.complianceChecklistTemplate.create({
           data: {
@@ -352,8 +352,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const userId = (getUser(request) as any).userId;
-        const {
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const record = await prisma.complianceRecord.findUnique({
           where: { id },

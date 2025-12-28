@@ -66,7 +66,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
+        const { startDate, endDate } = (request.query as any);
         const dateFilter = getDateRange(startDate, endDate);
         const ownerStoreId = (getUser(request) as any).storeId;
 
@@ -301,7 +301,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const where: any = {
           ownerStoreId,
@@ -347,7 +347,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const alert = await prisma.hQAlert.findUnique({
           where: { id },
@@ -379,7 +379,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const alert = await prisma.hQAlert.findUnique({
           where: { id },
@@ -489,7 +489,6 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
         const body = request.body as any
 
         // Verify franchise belongs to owner
@@ -557,8 +556,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const franchise = await prisma.store.findUnique({
           where: { id: franchiseId },
@@ -649,8 +647,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         // Verify franchise belongs to owner
         const franchise = await prisma.store.findUnique({
@@ -694,8 +691,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const franchise = await prisma.store.findUnique({
           where: { id: franchiseId },

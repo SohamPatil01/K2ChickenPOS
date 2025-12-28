@@ -48,7 +48,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const rule = await prisma.alertRule.create({
           data: {
@@ -88,7 +88,6 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
         const body = request.body as any
 
         const rule = await prisma.alertRule.findUnique({
@@ -120,7 +119,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const rule = await prisma.alertRule.findUnique({
           where: { id },
@@ -394,8 +393,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         if (!notes || notes.trim() === '') {
           reply.code(400).send({ error: 'Acknowledgment notes are required' });

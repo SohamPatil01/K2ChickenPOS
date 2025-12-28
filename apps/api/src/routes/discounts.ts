@@ -20,7 +20,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
       try {
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
+        const { reason, saleId, overrideDiscount } = (request.body as any);
 
         // Get the sale
         const sale = await prisma.sale.findUnique({
@@ -183,7 +183,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
       try {
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const override = await prisma.discountOverride.findUnique({
           where: { id },
@@ -257,8 +257,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
       try {
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const override = await prisma.discountOverride.findUnique({
           where: { id },
@@ -314,7 +313,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const storeId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const where: any = { storeId };
 

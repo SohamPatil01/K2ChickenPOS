@@ -23,7 +23,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
       try {
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
+        const { closingDate, openingCash, cashReceived, closingCash, notes, shiftId } = (request.body as any);
 
         const closingDateObj = new Date(closingDate);
         closingDateObj.setHours(0, 0, 0, 0);
@@ -258,7 +258,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
       try {
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const closing = await prisma.dailyClosing.findUnique({
           where: { id },
@@ -308,7 +308,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const storeId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const closingDate = new Date(date);
         closingDate.setHours(0, 0, 0, 0);
@@ -350,7 +350,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const storeId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const where: any = { storeId };
 

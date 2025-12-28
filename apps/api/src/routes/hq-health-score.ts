@@ -34,7 +34,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const config = await prisma.franchiseConfig.findUnique({
           where: { id: franchiseConfigId },
@@ -361,7 +361,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const where: any = {};
         if (franchiseConfigId) {
@@ -422,7 +422,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const franchises = await prisma.store.findMany({
           where: {

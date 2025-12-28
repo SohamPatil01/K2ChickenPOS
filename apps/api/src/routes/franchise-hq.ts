@@ -35,7 +35,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get overall HQ dashboard summary
   fastify.get('/dashboard', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     try {
-      const {
+      const { id } = (request.params as any);
       const dateFilter = getDateRange(startDate, endDate);
       const ownerStoreId = (getUser(request) as any).storeId;
 
@@ -143,7 +143,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get sales monitoring across all franchises
   fastify.get('/sales-monitoring', async (request: any, reply: FastifyReply) => {
     try {
-      const {
+      const { id } = (request.params as any);
       const dateFilter = getDateRange(startDate, endDate);
 
       const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -216,7 +216,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get inventory monitoring across franchises
   fastify.get('/inventory-monitoring', async (request: any, reply: FastifyReply) => {
     try {
-      const {
+      const { id } = (request.params as any);
 
       const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
       if (!ownerStore) {
@@ -364,7 +364,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get payments and commissions
   fastify.get('/payments-commissions', async (request: any, reply: FastifyReply) => {
     try {
-      const {
+      const { id } = (request.params as any);
       const dateFilter = getDateRange(startDate, endDate);
 
       const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
