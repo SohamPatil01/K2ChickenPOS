@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter @azela-pos/shared build && pnpm --filter @azela-pos/offline build && cd apps/web && pnpm build",
+  "outputDirectory": ".next"
+}
+

@@ -117,13 +117,16 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 If you don't have a web app project yet, create one:
 
 1. **Go to Vercel Dashboard**
+
    - Visit [vercel.com/dashboard](https://vercel.com/dashboard)
    - Click **"Add New..."** → **"Project"**
 
 2. **Import Repository**
+
    - Select your repository: `SohamPatil01/K2ChickenPOS`
 
 3. **Configure Project Settings**
+
    - **Project Name**: `k2chicken-pos-web` (or any name you prefer)
    - **Framework Preset**: Next.js (should auto-detect)
    - **Root Directory**: Click "Edit" → Set to `apps/web` ⚠️ **IMPORTANT**
@@ -140,7 +143,7 @@ If you don't have a web app project yet, create one:
 1. **Update Your Web App Environment Variables**
 
    **Step-by-step:**
-   
+
    a. Go to [Vercel Dashboard](https://vercel.com) and select your **web app project** (not the API project)
 
    b. Click **Settings** (gear icon) in the top navigation
