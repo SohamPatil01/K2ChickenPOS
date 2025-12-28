@@ -1,0 +1,436 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Design System Colors */
+  --brand-900: #7A2E00;
+  --brand-800: #9A3E00;
+  --brand-700: #C04A00;
+  --brand-600: #E65C00;
+  --brand-500: #FF6A00;
+  --brand-400: #FF8A3D;
+  --brand-300: #FFB37A;
+  --brand-200: #FFD5B3;
+  --brand-100: #FFF0E6;
+  
+  /* Accent Colors */
+  --accent-success: #16A34A;
+  --accent-warning: #FACC15;
+  --accent-danger: #DC2626;
+  --accent-info: #2563EB;
+  
+  /* Neutrals */
+  --neutral-black: #0F0F0F;
+  --neutral-gray900: #181818;
+  --neutral-gray700: #2A2A2A;
+  --neutral-gray500: #6B7280;
+  --neutral-gray300: #D1D5DB;
+  --neutral-gray100: #F5F5F5;
+  --neutral-white: #FFFFFF;
+  
+  /* Dark Mode */
+  --dark-background: #0B0B0B;
+  --dark-surface: #181818;
+  --dark-surface-elevated: #1F1F1F;
+  --dark-text-primary: #FFFFFF;
+  --dark-text-secondary: #D1D5DB;
+  --dark-text-tertiary: #9CA3AF;
+  --dark-border: #2A2A2A;
+  
+  /* Shadows */
+  --shadow-card: 0px 6px 20px rgba(0, 0, 0, 0.08);
+  --shadow-orange-glow: 0px 10px 30px rgba(255, 106, 0, 0.4);
+  --shadow-input-focus: 0px 0px 0px 3px rgba(255, 106, 0, 0.35);
+  --shadow-button-hover: 0px 8px 24px rgba(255, 106, 0, 0.35);
+  
+  /* Dark Mode Shadows - Enhanced for visibility */
+  --shadow-card-dark: 0px 6px 20px rgba(0, 0, 0, 0.4);
+  --shadow-orange-glow-dark: 0px 10px 30px rgba(255, 106, 0, 0.6);
+  --shadow-button-hover-dark: 0px 8px 24px rgba(255, 106, 0, 0.6);
+  
+  /* Transitions */
+  --transition-standard: all 180ms ease-out;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  color: var(--neutral-gray900);
+  background: var(--neutral-gray100);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 180ms ease-out, color 180ms ease-out;
+}
+
+/* Dark Mode Support - Comprehensive Theme Matching */
+.dark {
+  --neutral-gray900: var(--dark-surface);
+  --neutral-gray700: var(--dark-text-secondary);
+  --shadow-card: var(--shadow-card-dark);
+  --shadow-orange-glow: var(--shadow-orange-glow-dark);
+  --shadow-button-hover: var(--shadow-button-hover-dark);
+}
+
+.dark body {
+  background: var(--dark-background);
+  color: var(--dark-text-primary);
+}
+
+/* ============================================
+   BACKGROUND COLORS - Light to Dark Mapping
+   ============================================ */
+.dark .bg-white {
+  background-color: var(--dark-surface) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: var(--dark-border) !important;
+}
+
+/* ============================================
+   TEXT COLORS - Matching Light Theme Hierarchy
+   ============================================ */
+.dark .text-gray-900 {
+  color: var(--dark-text-primary) !important;
+}
+
+.dark .text-gray-800 {
+  color: var(--dark-text-primary) !important;
+}
+
+.dark .text-gray-700 {
+  color: var(--dark-text-secondary) !important;
+}
+
+.dark .text-gray-600 {
+  color: var(--dark-text-secondary) !important;
+}
+
+.dark .text-gray-500 {
+  color: var(--dark-text-tertiary) !important;
+}
+
+.dark .text-gray-400 {
+  color: var(--dark-text-tertiary) !important;
+}
+
+.dark .text-gray-300 {
+  color: #6B7280 !important;
+}
+
+/* ============================================
+   BORDER COLORS - Consistent Borders
+   ============================================ */
+.dark .border-gray-200 {
+  border-color: var(--dark-border) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: var(--dark-border) !important;
+}
+
+.dark .border-gray-400 {
+  border-color: #3A3A3A !important;
+}
+
+/* ============================================
+   TABLE STYLES - Matching Light Theme
+   ============================================ */
+.dark table {
+  color: var(--dark-text-primary);
+}
+
+.dark thead {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+.dark thead th {
+  color: var(--dark-text-tertiary) !important;
+  border-color: var(--dark-border) !important;
+}
+
+.dark tbody {
+  background-color: var(--dark-surface) !important;
+}
+
+.dark tbody tr {
+  border-color: var(--dark-border) !important;
+}
+
+.dark tbody tr:hover {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+.dark tbody td {
+  color: var(--dark-text-primary) !important;
+}
+
+.dark tbody td.text-gray-500 {
+  color: var(--dark-text-tertiary) !important;
+}
+
+/* ============================================
+   DIVIDERS - Consistent Separators
+   ============================================ */
+.dark .divide-gray-200,
+.dark .divide-gray-300 {
+  border-color: var(--dark-border) !important;
+}
+
+.dark .divide-y > * + * {
+  border-top-color: var(--dark-border) !important;
+}
+
+/* ============================================
+   SHADOWS - Enhanced for Dark Mode
+   ============================================ */
+.dark .shadow-sm {
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .shadow {
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .shadow-md {
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .shadow-lg {
+  box-shadow: 0px 10px 15px rgba(0, 0, 0, 0.4) !important;
+}
+
+.dark .shadow-xl {
+  box-shadow: 0px 20px 25px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ============================================
+   INPUT FIELDS - Matching Light Theme
+   ============================================ */
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="email"],
+.dark input[type="tel"],
+.dark input[type="date"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark textarea,
+.dark select {
+  background-color: var(--dark-surface-elevated) !important;
+  border-color: var(--dark-border) !important;
+  color: var(--dark-text-primary) !important;
+}
+
+/* Calendar icon visibility in dark mode */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2);
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(1) brightness(1.5);
+}
+
+/* For Firefox */
+.dark input[type="date"]::-moz-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2);
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.dark input[type="date"]::-moz-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(1) brightness(1.5);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--dark-text-tertiary) !important;
+}
+
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--brand-500) !important;
+  background-color: var(--dark-surface-elevated) !important;
+  outline: none;
+}
+
+.dark input:disabled,
+.dark textarea:disabled,
+.dark select:disabled {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text-tertiary) !important;
+  opacity: 0.6;
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.dark button[disabled],
+.dark button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   LINKS
+   ============================================ */
+.dark a {
+  color: var(--brand-400);
+}
+
+.dark a:hover {
+  color: var(--brand-300);
+}
+
+/* ============================================
+   CARDS AND PANELS
+   ============================================ */
+.dark .rounded-lg,
+.dark .rounded-xl,
+.dark .rounded-xl2 {
+  background-color: var(--dark-surface);
+}
+
+/* ============================================
+   BADGES AND STATUS INDICATORS
+   ============================================ */
+.dark .bg-yellow-100 {
+  background-color: rgba(250, 204, 21, 0.15) !important;
+  color: #FACC15 !important;
+}
+
+.dark .bg-yellow-800 {
+  background-color: rgba(250, 204, 21, 0.2) !important;
+  color: #FACC15 !important;
+}
+
+.dark .bg-green-100 {
+  background-color: rgba(22, 163, 74, 0.15) !important;
+  color: #4ADE80 !important;
+}
+
+.dark .bg-green-800 {
+  background-color: rgba(22, 163, 74, 0.2) !important;
+  color: #4ADE80 !important;
+}
+
+.dark .bg-red-100 {
+  background-color: rgba(220, 38, 38, 0.15) !important;
+  color: #F87171 !important;
+}
+
+.dark .bg-red-800 {
+  background-color: rgba(220, 38, 38, 0.2) !important;
+  color: #F87171 !important;
+}
+
+.dark .bg-blue-100 {
+  background-color: rgba(37, 99, 235, 0.15) !important;
+  color: #60A5FA !important;
+}
+
+.dark .bg-blue-800 {
+  background-color: rgba(37, 99, 235, 0.2) !important;
+  color: #60A5FA !important;
+}
+
+.dark .bg-purple-100 {
+  background-color: rgba(147, 51, 234, 0.15) !important;
+  color: #A78BFA !important;
+}
+
+.dark .bg-purple-800 {
+  background-color: rgba(147, 51, 234, 0.2) !important;
+  color: #A78BFA !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: var(--dark-surface-elevated) !important;
+  color: var(--dark-text-secondary) !important;
+}
+
+.dark .bg-gray-800 {
+  background-color: var(--dark-surface-elevated) !important;
+  color: var(--dark-text-secondary) !important;
+}
+
+/* ============================================
+   HOVER STATES - Consistent Interactions
+   ============================================ */
+.dark .hover\:bg-gray-50:hover {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+.dark .hover\:text-gray-700:hover {
+  color: var(--dark-text-secondary) !important;
+}
+
+.dark .hover\:text-gray-900:hover {
+  color: var(--dark-text-primary) !important;
+}
+
+.dark .hover\:border-gray-300:hover {
+  border-color: var(--dark-border) !important;
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-gray-900 dark:text-white;
+    transition: color 180ms ease-out;
+  }
+  
+  a {
+    color: var(--brand-500);
+    transition: var(--transition-standard);
+  }
+  
+  a:hover {
+    color: var(--brand-600);
+    text-decoration: underline;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  /* Design System Utilities */
+  .transition-standard {
+    transition: var(--transition-standard);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  .shadow-orange-glow {
+    box-shadow: var(--shadow-orange-glow);
+  }
+  
+  .shadow-input-focus {
+    box-shadow: var(--shadow-input-focus);
+  }
+  
+  .shadow-button-hover {
+    box-shadow: var(--shadow-button-hover);
+  }
+}

@@ -1,0 +1,728 @@
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { prisma } from '@azela-pos/db';
+
+interface QueryParams {
+  startDate?: string;
+  endDate?: string;
+  storeId?: string;
+  productId?: string;
+  categoryId?: string;
+}
+
+function getDateRange(startDate?: string, endDate?: string) {
+  if (startDate && endDate) {
+    const start = new Date(startDate + 'T00:00:00.000Z');
+    const end = new Date(endDate + 'T23:59:59.999Z');
+    return {
+      gte: start,
+      lte: end,
+    };
+  } else {
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() - 30);
+    start.setUTCHours(0, 0, 0, 0);
+    return {
+      gte: start,
+      lte: end,
+    };
+  }
+}
+
+export async function reportRoutes(fastify: FastifyInstance) {
+  // Stock Report
+  fastify.get('/stock', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const ownerStoreId = store?.type === 'OWNER' ? store.id : store?.parentOwnerStoreId;
+    if (!ownerStoreId) {
+      return [];
+    }
+
+    const products = await prisma.product.findMany({
+      where: {
+        ownerStoreId,
+        isActive: true,
+      },
+      include: {
+        category: true,
+        storeProductPrices: {
+          where: {
+            storeId: userStoreId,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+        inventoryLedgers: {
+          where: { storeId: userStoreId },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    const stockData = products.map((product) => {
+      const inQty = product.inventoryLedgers
+        .filter((l) => l.type === 'IN')
+        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+      const outQty = product.inventoryLedgers
+        .filter((l) => l.type === 'OUT')
+        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+      const currentStock = inQty - outQty;
+
+      return {
+        productId: product.id,
+        name: product.name,
+        sku: product.sku,
+        plu: product.plu,
+        category: product.category.name,
+        unitType: product.unitType,
+        currentStock: currentStock > 0 ? currentStock : 0,
+        price: product.storeProductPrices[0]?.pricePerUnit || 0,
+        stockValue: (currentStock > 0 ? currentStock : 0) * (product.storeProductPrices[0]?.pricePerUnit || 0),
+      };
+    });
+
+    return stockData;
+  });
+
+  // Product Wise Sale Report
+  fastify.get('/product-wise-sale', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: userStoreId,
+        status: 'PAID',
+        createdAt: dateFilter,
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const productStats: Record<string, any> = {};
+
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        const key = item.productId;
+        if (!productStats[key]) {
+          productStats[key] = {
+            productId: item.productId,
+            productName: item.product.name,
+            sku: item.product.sku,
+            category: item.product.category.name,
+            unitType: item.product.unitType,
+            qtyKg: 0,
+            qtyPcs: 0,
+            totalQty: 0,
+            revenue: 0,
+            salesCount: 0,
+          };
+        }
+        productStats[key].qtyKg += item.qtyKg || 0;
+        productStats[key].qtyPcs += item.qtyPcs || 0;
+        productStats[key].totalQty += (item.qtyKg || 0) + (item.qtyPcs || 0);
+        productStats[key].revenue += item.lineTotal;
+        productStats[key].salesCount += 1;
+      }
+    }
+
+    return Object.values(productStats).sort((a, b) => b.revenue - a.revenue);
+  });
+
+  // Bill Wise Sale Report
+  fastify.get('/bill-wise-sale', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: userStoreId,
+        status: 'PAID',
+        createdAt: dateFilter,
+      },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        payments: true,
+        createdBy: {
+          select: {
+            name: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sales.map((sale) => ({
+      saleId: sale.id,
+      saleNo: sale.saleNo,
+      date: sale.createdAt,
+      customerName: sale.customer?.name || 'Walk-in',
+      customerPhone: sale.customer?.phone || 'N/A',
+      itemsCount: sale.items.length,
+      subTotal: sale.subTotal,
+      discount: sale.discountTotal,
+      tax: sale.taxTotal,
+      grandTotal: sale.grandTotal,
+      payments: sale.payments.map((p) => ({
+        method: p.method,
+        amount: p.amount,
+      })),
+      createdBy: sale.createdBy.name,
+      items: sale.items.map((item) => ({
+        productName: item.product.name,
+        sku: item.product.sku,
+        qtyKg: item.qtyKg,
+        qtyPcs: item.qtyPcs,
+        rate: item.rate,
+        lineTotal: item.lineTotal,
+      })),
+    }));
+  });
+
+  // Sales Register Summary
+  fastify.get('/sales-register-summary', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: userStoreId,
+        status: 'PAID',
+        createdAt: dateFilter,
+      },
+      include: {
+        payments: true,
+      },
+    });
+
+    const paymentStats: Record<string, { method: string; count: number; total: number }> = {};
+
+    for (const sale of sales) {
+      for (const payment of sale.payments) {
+        if (!paymentStats[payment.method]) {
+          paymentStats[payment.method] = {
+            method: payment.method,
+            count: 0,
+            total: 0,
+          };
+        }
+        paymentStats[payment.method].count += 1;
+        paymentStats[payment.method].total += payment.amount;
+      }
+    }
+
+    const totalSales = sales.length;
+    const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+    const totalDiscount = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+    const totalTax = sales.reduce((sum, s) => sum + s.taxTotal, 0);
+
+    return {
+      period: {
+        startDate: dateFilter.gte,
+        endDate: dateFilter.lte,
+      },
+      summary: {
+        totalSales,
+        totalRevenue,
+        totalDiscount,
+        totalTax,
+        netRevenue: totalRevenue - totalDiscount,
+      },
+      paymentMethods: Object.values(paymentStats),
+    };
+  });
+
+  // Sales Sub Register (Detailed)
+  fastify.get('/sales-sub-register', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: userStoreId,
+        status: 'PAID',
+        createdAt: dateFilter,
+      },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        payments: true,
+        createdBy: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return sales.map((sale) => ({
+      date: sale.createdAt,
+      saleNo: sale.saleNo,
+      time: sale.createdAt.toLocaleTimeString(),
+      customer: sale.customer?.name || 'Walk-in',
+      items: sale.items.length,
+      subTotal: sale.subTotal,
+      discount: sale.discountTotal,
+      tax: sale.taxTotal,
+      total: sale.grandTotal,
+      paymentMethod: sale.payments.map((p) => p.method).join(', '),
+      cashier: sale.createdBy.name,
+    }));
+  });
+
+  // Bill Wise Sale Cancel
+  fastify.get('/bill-wise-sale-cancel', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const cancelledSales = await prisma.sale.findMany({
+      where: {
+        storeId: userStoreId,
+        status: 'VOID',
+        createdAt: dateFilter,
+      },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        createdBy: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return cancelledSales.map((sale) => ({
+      saleId: sale.id,
+      saleNo: sale.saleNo,
+      date: sale.createdAt,
+      customerName: sale.customer?.name || 'Walk-in',
+      originalTotal: sale.grandTotal,
+      itemsCount: sale.items.length,
+      cancelledBy: sale.createdBy.name,
+      items: sale.items.map((item) => ({
+        productName: item.product.name,
+        qty: item.qtyKg || item.qtyPcs || 0,
+        amount: item.lineTotal,
+      })),
+    }));
+  });
+
+  // PO Report
+  fastify.get('/po-report', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const purchaseOrders = await prisma.purchaseOrder.findMany({
+      where: {
+        franchiseStoreId: userStoreId,
+        createdAt: dateFilter,
+      },
+      include: {
+        franchiseStore: {
+          select: { name: true },
+        },
+        ownerStore: {
+          select: { name: true },
+        },
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        dispatch: {
+          include: {
+            grn: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return purchaseOrders.map((po) => ({
+      poId: po.id,
+      poNo: po.poNo,
+      date: po.createdAt,
+      franchiseStore: po.franchiseStore.name,
+      ownerStore: po.ownerStore.name,
+      status: po.status,
+      itemsCount: po.items.length,
+      items: po.items.map((item) => ({
+        productName: item.product.name,
+        sku: item.product.sku,
+        qtyKg: item.qtyKg,
+        qtyPcs: item.qtyPcs,
+        requestedRate: item.requestedRate,
+      })),
+      hasDispatch: !!po.dispatch,
+      hasGRN: !!po.dispatch?.grn,
+    }));
+  });
+
+  // Helper function to get store IDs for owner (all franchises or specific)
+  async function getStoreIdsForOwner(ownerStoreId: string, queryStoreId?: string) {
+    if (queryStoreId === 'all' || !queryStoreId) {
+      // Get all franchises for owner
+      const franchises = await prisma.store.findMany({
+        where: {
+          type: 'FRANCHISE',
+          parentOwnerStoreId: ownerStoreId,
+        },
+        select: { id: true },
+      });
+      return [ownerStoreId, ...franchises.map(f => f.id)];
+    } else {
+      return [queryStoreId];
+    }
+  }
+
+  // SKU Wise Sales Report
+  fastify.get('/sku-wise-sales', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const ownerStoreId = store?.id || '';
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    // If owner and queryStoreId is 'all', get all franchise store IDs
+    let storeIds = [userStoreId];
+    if (store?.type === 'OWNER' && (queryStoreId === 'all' || !queryStoreId)) {
+      storeIds = await getStoreIdsForOwner(ownerStoreId, queryStoreId);
+    }
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: { in: storeIds },
+        status: 'PAID',
+        createdAt: dateFilter,
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    const skuStats: Record<string, any> = {};
+
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        const sku = item.product.sku;
+        if (!skuStats[sku]) {
+          skuStats[sku] = {
+            sku: sku,
+            productName: item.product.name,
+            plu: item.product.plu,
+            qtyKg: 0,
+            qtyPcs: 0,
+            revenue: 0,
+            salesCount: 0,
+            avgPrice: 0,
+          };
+        }
+        skuStats[sku].qtyKg += item.qtyKg || 0;
+        skuStats[sku].qtyPcs += item.qtyPcs || 0;
+        skuStats[sku].revenue += item.lineTotal;
+        skuStats[sku].salesCount += 1;
+      }
+    }
+
+    // Calculate average price
+    Object.values(skuStats).forEach((stat: any) => {
+      const totalQty = stat.qtyKg + stat.qtyPcs;
+      stat.avgPrice = totalQty > 0 ? stat.revenue / totalQty : 0;
+    });
+
+    return Object.values(skuStats).sort((a: any, b: any) => b.revenue - a.revenue);
+  });
+
+  // Summary Report
+  fastify.get('/summary-report', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { startDate, endDate, storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const dateFilter = getDateRange(startDate, endDate);
+
+    const [sales, products, customers, inventoryMovements] = await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          storeId: userStoreId,
+          status: 'PAID',
+          createdAt: dateFilter,
+        },
+        include: {
+          items: true,
+          payments: true,
+        },
+      }),
+      prisma.product.count({
+        where: {
+          ownerStoreId: store?.id || '',
+          isActive: true,
+        },
+      }),
+      prisma.customer.count({
+        where: {
+          storeId: userStoreId,
+        },
+      }),
+      prisma.inventoryLedger.count({
+        where: {
+          storeId: userStoreId,
+          createdAt: dateFilter,
+        },
+      }),
+    ]);
+
+    const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+    const totalItemsSold = sales.reduce((sum, s) => sum + s.items.length, 0);
+    const avgBillValue = sales.length > 0 ? totalRevenue / sales.length : 0;
+
+    const paymentBreakdown: Record<string, number> = {};
+    sales.forEach((sale) => {
+      sale.payments.forEach((payment) => {
+        paymentBreakdown[payment.method] = (paymentBreakdown[payment.method] || 0) + payment.amount;
+      });
+    });
+
+    return {
+      period: {
+        startDate: dateFilter.gte,
+        endDate: dateFilter.lte,
+      },
+      sales: {
+        totalSales: sales.length,
+        totalRevenue,
+        totalItemsSold,
+        avgBillValue,
+      },
+      inventory: {
+        totalProducts: products,
+        totalMovements: inventoryMovements,
+      },
+      customers: {
+        totalCustomers: customers,
+      },
+      payments: paymentBreakdown,
+    };
+  });
+
+  // Pending Report
+  fastify.get('/pending', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const [pendingPOs, pendingDeliveries, openSales] = await Promise.all([
+      prisma.purchaseOrder.findMany({
+        where: {
+          franchiseStoreId: userStoreId,
+          status: {
+            in: ['DRAFT', 'SUBMITTED', 'APPROVED'],
+          },
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      }),
+      prisma.deliveryOrder.findMany({
+        where: {
+          storeId: userStoreId,
+          status: {
+            in: ['CREATED', 'READY', 'ASSIGNED', 'OUT_FOR_DELIVERY'],
+          },
+        },
+        include: {
+          sale: {
+            select: {
+              saleNo: true,
+              grandTotal: true,
+            },
+          },
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          storeId: userStoreId,
+          status: 'OPEN',
+        },
+        include: {
+          customer: true,
+          items: true,
+        },
+      }),
+    ]);
+
+    return {
+      pendingPurchaseOrders: pendingPOs.map((po) => ({
+        poNo: po.poNo,
+        status: po.status,
+        itemsCount: po.items.length,
+        createdAt: po.createdAt,
+      })),
+      pendingDeliveries: pendingDeliveries.map((delivery) => ({
+        saleNo: delivery.sale.saleNo,
+        status: delivery.status,
+        amount: delivery.sale.grandTotal,
+        createdAt: delivery.createdAt,
+      })),
+      openSales: openSales.map((sale) => ({
+        saleNo: sale.saleNo,
+        customer: sale.customer?.name || 'Walk-in',
+        total: sale.grandTotal,
+        itemsCount: sale.items.length,
+        createdAt: sale.createdAt,
+      })),
+    };
+  });
+
+  // MRN & Balance Confirmation
+  fastify.get('/mrn-balance', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    const { storeId: queryStoreId } = request.query;
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const userStoreId = queryStoreId || store?.id || '';
+
+    const grns = await prisma.gRN.findMany({
+      where: {
+        dispatch: {
+          po: {
+            franchiseStoreId: userStoreId,
+          },
+        },
+      },
+      include: {
+        dispatch: {
+          include: {
+            po: {
+              include: {
+                franchiseStore: true,
+                ownerStore: true,
+              },
+            },
+            items: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        receiver: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: { receivedAt: 'desc' },
+    });
+
+    const products = await prisma.product.findMany({
+      where: {
+        ownerStoreId: store?.id || '',
+        isActive: true,
+      },
+      include: {
+        inventoryLedgers: {
+          where: { storeId: userStoreId },
+        },
+        storeProductPrices: {
+          where: {
+            storeId: userStoreId,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const balanceData = products.map((product) => {
+      const inQty = product.inventoryLedgers
+        .filter((l) => l.type === 'IN')
+        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+      const outQty = product.inventoryLedgers
+        .filter((l) => l.type === 'OUT')
+        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+      const balance = inQty - outQty;
+
+      return {
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        balance: balance > 0 ? balance : 0,
+        unitType: product.unitType,
+        price: product.storeProductPrices[0]?.pricePerUnit || 0,
+        value: (balance > 0 ? balance : 0) * (product.storeProductPrices[0]?.pricePerUnit || 0),
+      };
+    });
+
+    return {
+      mrnList: grns.map((grn) => ({
+        grnId: grn.id,
+        dispatchNo: grn.dispatch.dispatchNo,
+        poNo: grn.dispatch.po.poNo,
+        receivedAt: grn.receivedAt,
+        receivedBy: grn.receiver.name,
+        status: grn.status,
+        items: grn.dispatch.items.map((item) => ({
+          productName: item.product.name,
+          qtyKg: item.qtyKg,
+          qtyPcs: item.qtyPcs,
+        })),
+      })),
+      balanceConfirmation: balanceData,
+    };
+  });
+}
+

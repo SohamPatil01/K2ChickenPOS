@@ -1,0 +1,1254 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StoreType {
+  OWNER
+  FRANCHISE
+}
+
+enum UnitType {
+  KG
+  PCS
+}
+
+enum SaleStatus {
+  OPEN
+  PAID
+  VOID
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+}
+
+enum InventoryReason {
+  SALE
+  RECEIVE
+  WASTAGE
+  ADJUSTMENT
+  TRANSFER
+}
+
+enum POStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  DISPATCHED
+  RECEIVED
+  CLOSED
+}
+
+enum DispatchStatus {
+  CREATED
+  IN_TRANSIT
+  DELIVERED
+}
+
+enum GRNStatus {
+  RECEIVED
+  PARTIAL
+}
+
+enum DeliveryType {
+  PICKUP
+  DELIVERY
+}
+
+enum DeliveryStatus {
+  CREATED
+  READY
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+  RETURNED
+}
+
+enum UserRole {
+  OWNER
+  MANAGER
+  CASHIER
+  DRIVER
+}
+
+enum ChecksumType {
+  NONE
+  MOD10
+  MOD11
+}
+
+enum FranchiseStatus {
+  ACTIVE
+  SUSPENDED
+  UNDER_AUDIT
+  INACTIVE
+}
+
+enum PricingPlanType {
+  STANDARD
+  PREMIUM
+  CUSTOM
+}
+
+enum RoyaltyCalculationBase {
+  GROSS_SALES
+  NET_SALES
+}
+
+enum RoyaltyStatus {
+  PENDING
+  CALCULATED
+  INVOICED
+  PAID
+  OVERDUE
+}
+
+enum ComplianceCheckType {
+  DAILY_CLEANING
+  TEMPERATURE_LOG
+  PHOTO_PROOF
+  LICENSE_EXPIRY
+  DOCUMENT_EXPIRY
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  WARNING
+  NON_COMPLIANT
+}
+
+enum AlertType {
+  ABNORMAL_WASTAGE
+  ABNORMAL_DISCOUNTING
+  WEIGHT_MANIPULATION
+  STOCK_MISMATCH
+  EXPIRED_STOCK
+  PRICING_VIOLATION
+  COMPLIANCE_FAILURE
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProductType {
+  WHOLE_CHICKEN
+  BREAST
+  LEG
+  WINGS
+  LIVER
+  GIZZARD
+  SKIN
+  MINCE
+  CUSTOM_CUT
+}
+
+enum PricingLockStatus {
+  UNLOCKED
+  LOCKED_BY_HQ
+  LOCKED_BY_REGION
+}
+
+model Store {
+  id                String    @id @default(cuid())
+  name              String
+  type              StoreType
+  parentOwnerStoreId String?
+  parentOwnerStore Store?    @relation("StoreOwner", fields: [parentOwnerStoreId], references: [id])
+  franchises       Store[]   @relation("StoreOwner")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  users            User[]
+  customers        Customer[]
+  products         Product[]
+  categories       Category[]
+  storeProductPrices StoreProductPrice[]
+  inventoryLedgers InventoryLedger[]
+  sales            Sale[]
+  shifts           Shift[]
+  scaleBarcodeConfigs ScaleBarcodeConfig[]
+  purchaseOrders   PurchaseOrder[] @relation("FranchiseStore")
+  ownerPurchaseOrders PurchaseOrder[] @relation("OwnerStore")
+  deliveryOrders   DeliveryOrder[]
+  auditLogs        AuditLog[]
+  syncEvents       SyncEvent[]
+  
+  // HQ Console Relations
+  franchiseConfig  FranchiseConfig? @relation("FranchiseConfig")
+  productMasters   ProductMaster[] @relation("ProductMaster")
+  suppliers        Supplier[] @relation("Supplier")
+  centralPOs       CentralPurchaseOrder[] @relation("CentralPO")
+  inwardStocks     InwardStock[] @relation("InwardStock")
+  stockAllocations StockAllocation[] @relation("StockAllocation")
+  hqAlerts         HQAlert[] @relation("HQAlert")
+  allocatedStocks  StockAllocation[] @relation("AllocatedTo")
+  alertFranchises  HQAlert[] @relation("AlertFranchise")
+  discountOverrides DiscountOverride[]
+  dailyClosings    DailyClosing[]
+  loyaltyTransactions LoyaltyTransaction[]
+  checklistTemplates ComplianceChecklistTemplate[] @relation("ChecklistTemplate")
+  alertRules       AlertRule[] @relation("AlertRule")
+  replenishmentRequests ReplenishmentRequest[] @relation("ReplenishmentRequest")
+
+  @@index([parentOwnerStoreId])
+}
+
+model User {
+  id            String   @id @default(cuid())
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String   @unique
+  email         String?
+  role          UserRole
+  passwordHash  String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdSales  Sale[]   @relation("SaleCreator")
+  openedShifts  Shift[]  @relation("ShiftOpener")
+  closedShifts  Shift[]  @relation("ShiftCloser")
+  assignedDeliveries DeliveryOrder[] @relation("Driver")
+  deliveryEvents DeliveryEvent[]
+  auditLogs     AuditLog[]
+  receivedGRNs  GRN[]
+  
+  // HQ Console Relations
+  areaManagedFranchises FranchiseConfig[] @relation("AreaManager")
+  pricingApprovals     PricingOverride[] @relation("PricingApprover")
+  stockReceipts         InwardStock[] @relation("StockReceiver")
+  complianceChecks      ComplianceRecord[] @relation("ComplianceChecker")
+  alertResolutions      HQAlert[] @relation("AlertResolver")
+  alertAcknowledgments HQAlert[] @relation("AlertAcknowledger")
+  discountRequests      DiscountOverride[] @relation("DiscountRequester")
+  discountApprovals     DiscountOverride[] @relation("DiscountApprover")
+  dailyClosings         DailyClosing[] @relation("DailyCloser")
+  replenishmentApprovals ReplenishmentRequest[] @relation("ReplenishmentApprover")
+
+  @@index([storeId])
+  @@index([phone])
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  storeId      String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String
+  email         String?
+  loyaltyPoints Float    @default(0)
+  loyaltyTier   String   @default("BRONZE") // BRONZE, SILVER, GOLD, PLATINUM
+  totalSpent    Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  addresses         CustomerAddress[]
+  sales             Sale[]
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@unique([storeId, phone])
+  @@index([storeId, phone])
+}
+
+model CustomerAddress {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  label      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  zip        String
+  geoLat     Float?
+  geoLng     Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  deliveryOrders DeliveryOrder[]
+
+  @@index([customerId])
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  ownerStoreId String
+  ownerStore   Store    @relation(fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  sku           String
+  plu           String
+  name          String
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  unitType      UnitType
+  taxRate       Float    @default(0)
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  storeProductPrices StoreProductPrice[]
+  inventoryLedgers   InventoryLedger[]
+  saleItems          SaleItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  dispatchItems      DispatchItem[]
+  
+  // HQ Console Relations
+  productMaster      ProductMaster?
+  pricingRules       PricingRule[]
+  pricingOverrides   PricingOverride[]
+  centralPOItems     CentralPOItem[]
+  inwardStockItems   InwardStock[]
+  stockAllocationItems StockAllocation[]
+  yieldIntelligence  YieldIntelligence[]
+  replenishmentRequests ReplenishmentRequest[] @relation("ReplenishmentProduct")
+
+  @@unique([ownerStoreId, sku])
+  @@unique([ownerStoreId, plu])
+  @@index([ownerStoreId, categoryId])
+}
+
+model Category {
+  id            String   @id @default(cuid())
+  ownerStoreId String
+  ownerStore   Store    @relation(fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  name          String
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  products      Product[]
+  
+  // HQ Console Relations
+  pricingRules  PricingRule[]
+
+  @@unique([ownerStoreId, name])
+  @@index([ownerStoreId])
+}
+
+model StoreProductPrice {
+  id            String   @id @default(cuid())
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pricePerUnit  Float
+  effectiveFrom DateTime @default(now())
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([storeId, productId, effectiveFrom])
+  @@index([storeId, productId, isActive])
+}
+
+model InventoryLedger {
+  id        String          @id @default(cuid())
+  storeId   String
+  store     Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type      String          // "IN" or "OUT"
+  qtyKg     Float?
+  qtyPcs    Int?
+  reason    InventoryReason
+  refId     String?         // Reference to Sale, GRN, etc.
+  createdAt DateTime        @default(now())
+
+  @@index([storeId, productId])
+  @@index([storeId, createdAt])
+  @@index([refId])
+}
+
+model Sale {
+  id            String     @id @default(cuid())
+  storeId       String
+  store         Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  saleNo        String
+  customerId    String?
+  customer      Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  status        SaleStatus @default(OPEN)
+  subTotal      Float      @default(0)
+  discountTotal Float      @default(0)
+  taxTotal      Float      @default(0)
+  grandTotal    Float      @default(0)
+  createdByUserId String
+  createdBy     User       @relation("SaleCreator", fields: [createdByUserId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  items         SaleItem[]
+  payments      Payment[]
+  deliveryOrder DeliveryOrder?
+  discountOverride DiscountOverride?
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@unique([storeId, saleNo])
+  @@index([storeId, createdAt])
+  @@index([customerId])
+  @@index([status])
+}
+
+model SaleItem {
+  id        String   @id @default(cuid())
+  saleId    String
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  qtyKg     Float?
+  qtyPcs    Int?
+  rate      Float
+  lineTotal Float
+  taxRate   Float    @default(0)
+  taxAmount Float    @default(0)
+  metaJson  Json?    // For barcode, weight, etc.
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  saleId    String
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method    PaymentMethod
+  amount    Float
+  txnRef    String?
+  createdAt DateTime      @default(now())
+
+  @@index([saleId])
+}
+
+model Shift {
+  id          String   @id @default(cuid())
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  openedByUserId String
+  openedBy    User     @relation("ShiftOpener", fields: [openedByUserId], references: [id])
+  closedByUserId String?
+  closedBy    User?    @relation("ShiftCloser", fields: [closedByUserId], references: [id])
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+  openingCash   Float    @default(0)
+  closingCash   Float?
+  notes         String?
+  dailyClosings DailyClosing[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([storeId, openedAt])
+  @@index([openedByUserId])
+}
+
+model ScaleBarcodeConfig {
+  id            String        @id @default(cuid())
+  storeId       String
+  store         Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name          String
+  prefix        String
+  pluStart      Int
+  pluLength     Int
+  weightStart   Int
+  weightLength  Int
+  weightDecimal Int           @default(2)
+  priceStart    Int?
+  priceLength   Int?
+  priceDecimal  Int?
+  checksumType  ChecksumType  @default(NONE)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([storeId, isActive])
+}
+
+model PurchaseOrder {
+  id                String   @id @default(cuid())
+  franchiseStoreId  String
+  franchiseStore    Store    @relation("FranchiseStore", fields: [franchiseStoreId], references: [id], onDelete: Cascade)
+  ownerStoreId      String
+  ownerStore        Store    @relation("OwnerStore", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  poNo              String
+  status            POStatus @default(DRAFT)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  items             PurchaseOrderItem[]
+  dispatch          Dispatch?
+
+  @@unique([franchiseStoreId, poNo])
+  @@index([franchiseStoreId, status])
+  @@index([ownerStoreId, status])
+}
+
+model PurchaseOrderItem {
+  id            String   @id @default(cuid())
+  poId          String
+  po            PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  qtyKg         Float?
+  qtyPcs        Int?
+  requestedRate Float?
+  createdAt     DateTime @default(now())
+
+  @@index([poId])
+}
+
+model Dispatch {
+  id          String         @id @default(cuid())
+  poId        String         @unique
+  po          PurchaseOrder  @relation(fields: [poId], references: [id], onDelete: Cascade)
+  dispatchNo  String
+  status      DispatchStatus @default(CREATED)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  items       DispatchItem[]
+  grn         GRN?
+
+  @@index([dispatchNo])
+}
+
+model DispatchItem {
+  id          String   @id @default(cuid())
+  dispatchId  String
+  dispatch    Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  qtyKg       Float?
+  qtyPcs      Int?
+  createdAt   DateTime @default(now())
+
+  @@index([dispatchId])
+}
+
+model GRN {
+  id          String     @id @default(cuid())
+  dispatchId  String     @unique
+  dispatch    Dispatch   @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  receivedBy  String
+  receiver    User       @relation(fields: [receivedBy], references: [id])
+  receivedAt  DateTime   @default(now())
+  status      GRNStatus  @default(RECEIVED)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([receivedBy])
+}
+
+model DeliveryOrder {
+  id                String          @id @default(cuid())
+  storeId           String
+  store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  saleId            String          @unique
+  sale              Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  type              DeliveryType
+  status            DeliveryStatus  @default(CREATED)
+  assignedDriverId  String?
+  assignedDriver    User?           @relation("Driver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  deliveryFee       Float           @default(0)
+  addressId         String?
+  address           CustomerAddress? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  otpCodeHash       String?
+  outForDeliveryAt  DateTime?
+  deliveredAt       DateTime?
+  failureReason     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  events            DeliveryEvent[]
+
+  @@index([storeId, status])
+  @@index([assignedDriverId])
+  @@index([status])
+}
+
+model DeliveryEvent {
+  id              String          @id @default(cuid())
+  deliveryOrderId String
+  deliveryOrder   DeliveryOrder   @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  status          DeliveryStatus
+  note            String?
+  createdBy       String
+  creator         User            @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime        @default(now())
+
+  @@index([deliveryOrderId])
+  @@index([createdBy])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  actorUserId String
+  actor       User     @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  action      String   // "VOID_SALE", "REFUND", "PRICE_CHANGE", etc.
+  entityType  String   // "Sale", "Product", etc.
+  entityId    String
+  metaJson    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+}
+
+model SyncEvent {
+  id              String   @id @default(cuid())
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  deviceId        String
+  eventType       String   // "SALE_CREATED", "SALE_PAID", etc.
+  payloadJson     Json
+  clientCreatedAt DateTime
+  serverReceivedAt DateTime? @default(now())
+  ackedAt         DateTime?
+
+  @@index([storeId, deviceId, ackedAt])
+  @@index([storeId, serverReceivedAt])
+}
+
+// ============================================
+// HQ CONSOLE MODELS
+// ============================================
+
+// Franchise Configuration
+model FranchiseConfig {
+  id                    String          @id @default(cuid())
+  franchiseStoreId      String          @unique
+  franchiseStore        Store           @relation("FranchiseConfig", fields: [franchiseStoreId], references: [id], onDelete: Cascade)
+  status                FranchiseStatus @default(ACTIVE)
+  pricingPlanId         String?
+  pricingPlan           PricingPlan?    @relation(fields: [pricingPlanId], references: [id])
+  royaltyPercentage     Float           @default(0)
+  royaltyCalculationBase RoyaltyCalculationBase @default(GROSS_SALES)
+  allowedWastagePercent Float           @default(5.0)
+  allowedDiscountPercent Float           @default(10.0)
+  areaManagerId         String?
+  areaManager           User?           @relation("AreaManager", fields: [areaManagerId], references: [id])
+  onboardingCompletedAt DateTime?
+  onboardingData        Json?           // Store onboarding wizard data
+  
+  // Lock Controls
+  isPricingLocked       Boolean         @default(false)
+  isDiscountLocked       Boolean         @default(false)
+  isWastageLocked       Boolean         @default(false)
+  lockedBy              String?         // User ID who locked
+  lockedAt              DateTime?
+  
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  pricingOverrides      PricingOverride[]
+  royaltyInvoices       RoyaltyInvoice[]
+  royaltyLedgers        RoyaltyLedger[]
+  complianceRecords     ComplianceRecord[]
+  healthScores          FranchiseHealthScore[]
+  yieldIntelligence     YieldIntelligence[]
+
+  @@index([franchiseStoreId])
+  @@index([status])
+  @@index([areaManagerId])
+}
+
+// Pricing Plans
+model PricingPlan {
+  id            String          @id @default(cuid())
+  name          String
+  type          PricingPlanType
+  description   String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  franchises    FranchiseConfig[]
+  pricingRules  PricingRule[]
+
+  @@index([isActive])
+}
+
+// Pricing Rules (for pricing plans)
+model PricingRule {
+  id            String      @id @default(cuid())
+  pricingPlanId String
+  pricingPlan   PricingPlan @relation(fields: [pricingPlanId], references: [id], onDelete: Cascade)
+  productId     String?
+  product       Product?    @relation(fields: [productId], references: [id])
+  categoryId    String?
+  category      Category?   @relation(fields: [categoryId], references: [id])
+  basePrice     Float
+  minPrice      Float?
+  maxPrice      Float?
+  effectiveFrom DateTime    @default(now())
+  effectiveTo   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([pricingPlanId])
+  @@index([productId])
+  @@index([categoryId])
+}
+
+// Pricing Overrides (store-specific or region-specific)
+model PricingOverride {
+  id                String            @id @default(cuid())
+  franchiseConfigId String
+  franchiseConfig   FranchiseConfig   @relation(fields: [franchiseConfigId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product           @relation(fields: [productId], references: [id])
+  overridePrice     Float
+  lockStatus        PricingLockStatus @default(UNLOCKED)
+  approvedByHQ      Boolean          @default(false)
+  approvedByUserId   String?
+  approvedBy         User?            @relation("PricingApprover", fields: [approvedByUserId], references: [id])
+  approvedAt        DateTime?
+  reason             String?
+  effectiveFrom     DateTime         @default(now())
+  effectiveTo       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([franchiseConfigId, productId])
+  @@index([productId])
+}
+
+// Product Master Extensions (Chicken-specific)
+model ProductMaster {
+  id                String      @id @default(cuid())
+  ownerStoreId      String
+  ownerStore        Store       @relation("ProductMaster", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  productId         String      @unique
+  product           Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productType       ProductType
+  expectedYieldPercent Float    @default(100.0) // Expected yield from whole chicken
+  wastageTolerancePercent Float  @default(5.0)   // Allowed wastage %
+  taxCategory       String?
+  hqLockedPrice     Float?      // HQ-locked base price
+  isHQLocked        Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([ownerStoreId])
+  @@index([productId])
+  @@index([productType])
+}
+
+// Supplier Master
+model Supplier {
+  id            String   @id @default(cuid())
+  ownerStoreId  String
+  ownerStore    Store    @relation("Supplier", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  name          String
+  contactName   String?
+  phone         String?
+  email         String?
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  gstin         String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  purchaseOrders CentralPurchaseOrder[]
+  inwardStocks   InwardStock[]
+
+  @@index([ownerStoreId])
+  @@index([isActive])
+}
+
+// Central Purchase Orders (HQ Procurement)
+model CentralPurchaseOrder {
+  id            String   @id @default(cuid())
+  ownerStoreId  String
+  ownerStore    Store    @relation("CentralPO", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  poNo          String
+  orderDate     DateTime @default(now())
+  expectedDate  DateTime?
+  status        POStatus @default(DRAFT)
+  totalAmount   Float    @default(0)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items         CentralPOItem[]
+  inwardStocks  InwardStock[]
+  allocations   StockAllocation[]
+
+  @@unique([ownerStoreId, poNo])
+  @@index([ownerStoreId, status])
+  @@index([supplierId])
+}
+
+// Central PO Items
+model CentralPOItem {
+  id            String              @id @default(cuid())
+  centralPOId   String
+  centralPO     CentralPurchaseOrder @relation(fields: [centralPOId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product             @relation(fields: [productId], references: [id])
+  qtyKg         Float?
+  qtyPcs        Int?
+  unitRate      Float
+  totalAmount   Float
+  createdAt     DateTime            @default(now())
+
+  @@index([centralPOId])
+  @@index([productId])
+}
+
+// Inward Stock (Received at HQ)
+model InwardStock {
+  id                String              @id @default(cuid())
+  ownerStoreId      String
+  ownerStore        Store               @relation("InwardStock", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  centralPOId       String?
+  centralPO         CentralPurchaseOrder? @relation(fields: [centralPOId], references: [id])
+  supplierId        String
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  productId         String
+  product           Product             @relation(fields: [productId], references: [id])
+  batchNo           String?
+  totalWeightKg     Float
+  temperatureCheck  Float?              // Temperature in Celsius
+  receivedBy        String
+  receiver          User                @relation("StockReceiver", fields: [receivedBy], references: [id])
+  receivedAt        DateTime            @default(now())
+  notes             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  allocations       StockAllocation[]
+
+  @@index([ownerStoreId])
+  @@index([centralPOId])
+  @@index([supplierId])
+  @@index([productId])
+  @@index([batchNo])
+}
+
+// Stock Allocation (HQ to Franchise)
+model StockAllocation {
+  id            String        @id @default(cuid())
+  ownerStoreId  String
+  ownerStore    Store         @relation("StockAllocation", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  centralPOId   String?
+  centralPO     CentralPurchaseOrder? @relation(fields: [centralPOId], references: [id])
+  inwardStockId String?
+  inwardStock   InwardStock?  @relation(fields: [inwardStockId], references: [id])
+  franchiseStoreId String
+  franchiseStore Store        @relation("AllocatedTo", fields: [franchiseStoreId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product       @relation(fields: [productId], references: [id])
+  allocatedQtyKg Float
+  allocatedQtyPcs Int?
+  allocatedAt   DateTime      @default(now())
+  dispatchedAt  DateTime?
+  receivedAt    DateTime?     // When franchise received it
+  status        DispatchStatus @default(CREATED)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([ownerStoreId])
+  @@index([franchiseStoreId])
+  @@index([productId])
+  @@index([status])
+}
+
+// Royalty Invoices
+model RoyaltyInvoice {
+  id                    String              @id @default(cuid())
+  franchiseConfigId     String
+  franchiseConfig       FranchiseConfig     @relation(fields: [franchiseConfigId], references: [id], onDelete: Cascade)
+  invoiceNo             String
+  periodStart           DateTime
+  periodEnd             DateTime
+  grossSales            Float               @default(0)
+  netSales              Float               @default(0)
+  totalDiscounts        Float               @default(0)
+  totalWastage           Float               @default(0)
+  wastagePenalty        Float               @default(0)
+  pricingViolationPenalty Float             @default(0)
+  compliancePenalty     Float               @default(0)
+  baseRoyalty           Float               @default(0)
+  totalRoyalty          Float               @default(0)
+  status                RoyaltyStatus       @default(PENDING)
+  dueDate               DateTime
+  paidAt                DateTime?
+  paymentReference      String?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  royaltyLedgers        RoyaltyLedger[]
+
+  @@unique([franchiseConfigId, invoiceNo])
+  @@index([franchiseConfigId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+}
+
+// Royalty Ledger (Transaction history)
+model RoyaltyLedger {
+  id                String          @id @default(cuid())
+  franchiseConfigId String
+  franchiseConfig   FranchiseConfig @relation(fields: [franchiseConfigId], references: [id], onDelete: Cascade)
+  invoiceId         String?
+  invoice           RoyaltyInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  type              String          // ROYALTY, PENALTY, ADJUSTMENT, PAYMENT
+  amount            Float
+  description       String?
+  reference         String?         // Payment reference, adjustment reason, etc.
+  createdAt         DateTime        @default(now())
+  createdBy         String?         // User ID who created the entry
+
+  @@index([franchiseConfigId])
+  @@index([invoiceId])
+  @@index([createdAt])
+}
+
+// Compliance Checklist Templates
+model ComplianceChecklistTemplate {
+  id            String              @id @default(cuid())
+  ownerStoreId String
+  ownerStore    Store               @relation("ChecklistTemplate", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  name          String
+  checkType     ComplianceCheckType
+  items         Json                // Array of checklist items with required/optional flags
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  complianceRecords ComplianceRecord[]
+
+  @@index([ownerStoreId])
+  @@index([checkType])
+}
+
+// Compliance Records
+model ComplianceRecord {
+  id                String              @id @default(cuid())
+  franchiseConfigId String
+  franchiseConfig   FranchiseConfig     @relation(fields: [franchiseConfigId], references: [id], onDelete: Cascade)
+  templateId        String?             // Reference to checklist template used
+  template          ComplianceChecklistTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  checkType         ComplianceCheckType
+  status            ComplianceStatus
+  checkedBy         String
+  checker           User                @relation("ComplianceChecker", fields: [checkedBy], references: [id])
+  checkedAt         DateTime            @default(now())
+  temperature       Float?              // For temperature logs
+  photoUrl          String?             // For photo proofs
+  documentUrl       String?             // For document uploads
+  expiryDate        DateTime?           // For license/document expiry
+  notes             String?
+  score             Int?                // Compliance score (0-100)
+  submissionData    Json?               // Store submission data (checklist responses, etc.)
+  reviewedBy        String?             // HQ user who reviewed
+  reviewedAt        DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([franchiseConfigId])
+  @@index([checkType])
+  @@index([status])
+  @@index([checkedAt])
+  @@index([expiryDate])
+}
+
+// HQ Alerts
+model HQAlert {
+  id            String        @id @default(cuid())
+  ownerStoreId  String
+  ownerStore    Store         @relation("HQAlert", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  franchiseStoreId String?
+  franchiseStore Store?       @relation("AlertFranchise", fields: [franchiseStoreId], references: [id], onDelete: Cascade)
+  alertType     AlertType
+  severity      AlertSeverity
+  title         String
+  message       String
+  metadata      Json?         // Additional alert data
+  isRead        Boolean       @default(false)
+  isResolved    Boolean       @default(false)
+  resolvedBy    String?
+  resolver      User?         @relation("AlertResolver", fields: [resolvedBy], references: [id])
+  resolvedAt    DateTime?
+  acknowledgedBy String?
+  acknowledger  User?         @relation("AlertAcknowledger", fields: [acknowledgedBy], references: [id])
+  acknowledgedAt DateTime?
+  acknowledgmentNotes String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([ownerStoreId])
+  @@index([franchiseStoreId])
+  @@index([alertType])
+  @@index([severity])
+  @@index([isRead, isResolved])
+}
+
+// Alert Rules (for fraud & anomaly detection)
+model AlertRule {
+  id            String        @id @default(cuid())
+  ownerStoreId  String
+  ownerStore    Store         @relation("AlertRule", fields: [ownerStoreId], references: [id], onDelete: Cascade)
+  name          String
+  ruleType      String        // HIGH_WASTAGE, FREQUENT_OVERRIDES, BILL_WEIGHT_ANOMALY, STOCK_MISMATCH
+  threshold     Float         // Threshold value for the rule
+  severity      AlertSeverity @default(MEDIUM)
+  isActive      Boolean       @default(true)
+  description   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([ownerStoreId])
+  @@index([ruleType])
+  @@index([isActive])
+}
+
+// Franchise Health Score
+model FranchiseHealthScore {
+  id                String          @id @default(cuid())
+  franchiseConfigId String
+  franchiseConfig   FranchiseConfig @relation(fields: [franchiseConfigId], references: [id], onDelete: Cascade)
+  scoreDate         DateTime        @default(now())
+  
+  // Score Components (0-100 each)
+  salesGrowthScore  Float           @default(0)
+  yieldEfficiencyScore Float        @default(0)
+  wastageScore      Float           @default(0)
+  discountScore     Float           @default(0)
+  complianceScore   Float           @default(0)
+  stockVarianceScore Float          @default(0)
+  
+  // Overall Health Score (weighted average)
+  overallScore      Float           @default(0)
+  
+  // Component Values (for reference)
+  salesGrowthPercent Float?         // % growth vs previous period
+  yieldEfficiencyPercent Float?     // Actual yield / Expected yield
+  wastagePercent     Float?         // Actual wastage %
+  discountPercent    Float?         // Average discount %
+  compliancePercent  Float?          // Compliance score %
+  stockVariancePercent Float?       // Stock variance %
+  
+  // Metadata
+  metadata          Json?           // Additional calculation details
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([franchiseConfigId, scoreDate])
+  @@index([franchiseConfigId])
+  @@index([scoreDate])
+  @@index([overallScore])
+}
+
+// Yield Intelligence
+model YieldIntelligence {
+  id                String          @id @default(cuid())
+  franchiseConfigId String
+  franchiseConfig   FranchiseConfig @relation(fields: [franchiseConfigId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  periodStart       DateTime
+  periodEnd         DateTime
+  
+  // Expected vs Actual
+  expectedYieldKg   Float           @default(0)
+  actualYieldKg     Float           @default(0)
+  yieldEfficiency   Float           @default(0)  // actual / expected * 100
+  
+  // Loss Attribution
+  cuttingLossKg     Float           @default(0)
+  spoilageLossKg    Float           @default(0)
+  theftSuspicionKg  Float           @default(0)
+  otherLossKg       Float           @default(0)
+  
+  // Total received
+  totalReceivedKg   Float           @default(0)
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([franchiseConfigId, productId, periodStart, periodEnd])
+  @@index([franchiseConfigId])
+  @@index([productId])
+  @@index([periodStart, periodEnd])
+}
+
+// Smart Replenishment Request
+model ReplenishmentRequest {
+  id                String          @id @default(cuid())
+  franchiseStoreId  String
+  franchiseStore    Store           @relation("ReplenishmentRequest", fields: [franchiseStoreId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product         @relation("ReplenishmentProduct", fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Sales Velocity (Sales per day averages)
+  salesVelocity7d   Float           @default(0)
+  salesVelocity14d  Float           @default(0)
+  salesVelocity30d  Float           @default(0)
+  
+  // Current Stock
+  currentStockKg    Float           @default(0)
+  currentStockPcs   Int             @default(0)
+  
+  // Request Details
+  requestedQtyKg    Float?
+  requestedQtyPcs   Int?
+  leadTimeDays      Int             @default(3)
+  safetyBufferDays  Int             @default(2)
+  
+  // Calculated Demand
+  calculatedDemandKg Float          @default(0)
+  calculatedDemandPcs Int           @default(0)
+  
+  // Approval
+  // Status: PENDING, APPROVED, REJECTED, FULFILLED
+  status            String          @default("PENDING")
+  approvedBy        String?
+  approver          User?           @relation("ReplenishmentApprover", fields: [approvedBy], references: [id])
+  approvedAt        DateTime?
+  approvalNotes     String?
+  
+  // Adjustment
+  adjustedQtyKg     Float?
+  adjustedQtyPcs    Int?
+  adjustmentReason  String?
+  
+  requestedAt       DateTime        @default(now())
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([franchiseStoreId])
+  @@index([productId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
+// ============================================
+// FRANCHISE POS FEATURES
+// ============================================
+
+// Discount Override
+model DiscountOverride {
+  id            String   @id @default(cuid())
+  saleId        String   @unique
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  requestedBy   String
+  requester     User     @relation("DiscountRequester", fields: [requestedBy], references: [id])
+  approvedBy    String?
+  approver      User?    @relation("DiscountApprover", fields: [approvedBy], references: [id])
+  originalDiscount Float
+  overrideDiscount Float
+  reason        String
+  status        DiscountOverrideStatus @default(PENDING)
+  approvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([storeId])
+  @@index([requestedBy])
+  @@index([status])
+}
+
+enum DiscountOverrideStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Daily Closing
+model DailyClosing {
+  id              String   @id @default(cuid())
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shiftId         String?
+  shift           Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  closingDate     DateTime
+  closedBy        String
+  closer          User     @relation("DailyCloser", fields: [closedBy], references: [id])
+  
+  // Cash Reconciliation
+  openingCash     Float    @default(0)
+  cashSales       Float    @default(0)
+  cardSales       Float    @default(0)
+  upiSales        Float    @default(0)
+  cashReceived    Float    @default(0)
+  cashExpected    Float    @default(0)
+  cashDifference  Float    @default(0)
+  closingCash     Float    @default(0)
+  
+  // Weight & Wastage
+  totalWeightSoldKg Float  @default(0)
+  totalWastageKg    Float  @default(0)
+  
+  // Stock
+  closingStockJson Json?   // Product-wise closing stock
+  
+  // Summary
+  totalSales       Int     @default(0)
+  totalRevenue     Float   @default(0)
+  totalDiscounts   Float   @default(0)
+  totalTax         Float   @default(0)
+  
+  notes            String?
+  isFinalized      Boolean @default(false)
+  finalizedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([storeId, closingDate])
+  @@index([storeId, closingDate])
+  @@index([closedBy])
+}
+
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  type        String   // EARN, REDEEM, ADJUST
+  points      Float    // Positive for earn, negative for redeem
+  balance     Float    // Points balance after this transaction
+  description String?
+  saleId      String?  // Reference to sale if points earned/redeemed from sale
+  sale        Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  createdBy   String?  // User ID who created the transaction
+
+  @@index([customerId])
+  @@index([storeId])
+  @@index([saleId])
+  @@index([createdAt])
+}
+
