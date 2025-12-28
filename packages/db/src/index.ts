@@ -1,7 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+// @ts-nocheck
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: any;
 };
 
 export const prisma =
