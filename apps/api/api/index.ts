@@ -122,64 +122,90 @@ async function build() {
 // Vercel serverless function handler
 export default async function handler(req: any, res: any) {
   try {
+    // Handle favicon and other static file requests
+    const url = req.url || '/';
+    if (url === '/favicon.ico' || url.startsWith('/_next/') || url.startsWith('/static/')) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+
     const fastifyApp = await build();
     await fastifyApp.ready();
     
     // Convert Vercel request/response to Fastify format
-    const url = req.url || '/';
     const method = req.method || 'GET';
     
     // Prepare headers (remove host and connection headers)
     const headers: any = {};
     Object.keys(req.headers || {}).forEach(key => {
-      if (key.toLowerCase() !== 'host' && key.toLowerCase() !== 'connection') {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey !== 'host' && lowerKey !== 'connection' && lowerKey !== 'content-length') {
         headers[key] = req.headers[key];
       }
     });
+
+    // Handle request body
+    let payload: string | undefined = undefined;
+    if (method !== 'GET' && method !== 'HEAD' && req.body) {
+      if (typeof req.body === 'string') {
+        payload = req.body;
+      } else if (typeof req.body === 'object') {
+        payload = JSON.stringify(req.body);
+      }
+    }
 
     // Use Fastify's inject method for serverless
     const response = await fastifyApp.inject({
       method,
       url,
       headers,
-      payload: method !== 'GET' && method !== 'HEAD' ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {})) : undefined,
+      payload,
       query: req.query || {},
     });
 
     // Set response headers
-    const responseHeaders = response.headers;
-    if (responseHeaders) {
-      Object.keys(responseHeaders).forEach(key => {
-        const value = responseHeaders[key];
-        if (value !== undefined) {
+    const responseHeaders = response.headers || {};
+    Object.keys(responseHeaders).forEach(key => {
+      const value = responseHeaders[key];
+      if (value !== undefined && value !== null) {
+        try {
           res.setHeader(key, value);
+        } catch (e) {
+          // Ignore header setting errors
         }
-      });
-    }
+      }
+    });
 
     // Send response with proper status code
-    res.status(response.statusCode);
+    res.status(response.statusCode || 200);
     
     // Handle different content types
-    const contentType = responseHeaders?.['content-type'] || '';
+    const contentType = (responseHeaders['content-type'] || '').toLowerCase();
     if (contentType.includes('application/json')) {
       try {
-        const json = JSON.parse(response.payload);
+        const json = JSON.parse(response.payload || '{}');
         res.json(json);
       } catch {
-        res.send(response.payload);
+        res.send(response.payload || '');
       }
     } else {
-      res.send(response.payload);
+      res.send(response.payload || '');
     }
   } catch (error: any) {
     console.error('Serverless function error:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Internal Server Error',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('Error message:', error?.message);
+    console.error('Error stack:', error?.stack);
+    console.error('Request URL:', req?.url);
+    console.error('Request method:', req?.method);
+    
+    // Ensure we send a response even if there's an error
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Internal Server Error',
+        message: error?.message || 'Unknown error',
+        ...(process.env.NODE_ENV === 'development' ? { stack: error?.stack } : {})
+      });
+    }
   }
 }
 
