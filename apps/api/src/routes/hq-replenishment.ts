@@ -178,7 +178,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseStoreId, status } = (request.query as any);
 
         const where: any = {};
         if (franchiseStoreId) {
@@ -238,7 +238,8 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         const ownerStoreId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
         const {
-        const {
+        const { id } = (request.params as any);
+        const { approved, adjustedQtyKg, adjustedQtyPcs, adjustmentReason, approvalNotes } = (request.body as any);
 
         const req = await prisma.replenishmentRequest.findUnique({
           where: { id },
@@ -287,7 +288,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { productId } = (request.query as any);
 
         const where: any = {
           status: 'PENDING',

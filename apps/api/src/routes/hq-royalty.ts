@@ -595,7 +595,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { year, month } = (request.body as any);
 
         // Default to previous month if not specified
         const now = new Date();

@@ -140,7 +140,6 @@ export async function storeRoutes(fastify: FastifyInstance) {
   fastify.put('/franchises/:id', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      const { id } = (request.params as any);
 
       if (!name || name.trim() === '') {
         reply.code(400).send({ error: 'Franchise name is required' });
