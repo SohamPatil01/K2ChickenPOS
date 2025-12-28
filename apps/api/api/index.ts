@@ -18,7 +18,21 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
-import { prisma } from '@azela-pos/db';
+// Import prisma directly to avoid workspace resolution issues
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: any;
+};
+
+const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 import { authenticate } from '../src/utils/auth.js';
 import { authRoutes } from '../src/routes/auth.js';
 import { productRoutes } from '../src/routes/products.js';
