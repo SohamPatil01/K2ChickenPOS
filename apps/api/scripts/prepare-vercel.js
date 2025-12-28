@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // Script to prepare workspace packages for Vercel deployment
-import { mkdir, cp, rm } from 'fs/promises';
+import { mkdir, rm, copyFile, readdir, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -14,30 +13,24 @@ const ROOT_DIR = join(API_DIR, '../..');
 const PACKAGES_DIR = join(ROOT_DIR, 'packages');
 
 async function copyRecursive(src, dest) {
-  // Use cp -r for recursive copy (works on Unix-like systems)
-  try {
-    await execSync(`cp -r "${src}" "${dest}"`, { stdio: 'inherit' });
-  } catch (error) {
-    // Fallback: try using Node.js fs methods
-    const { readdir, stat, mkdir: mkdirSync, copyFile } = await import('fs/promises');
-    const { join } = await import('path');
-    
-    const stats = await stat(src);
-    if (stats.isDirectory()) {
-      await mkdir(dest, { recursive: true });
-      const entries = await readdir(src, { withFileTypes: true });
-      for (const entry of entries) {
-        const srcPath = join(src, entry.name);
-        const destPath = join(dest, entry.name);
-        if (entry.isDirectory()) {
-          await copyRecursive(srcPath, destPath);
-        } else {
-          await copyFile(srcPath, destPath);
-        }
+  const { readdir, stat, mkdir, copyFile } = await import('fs/promises');
+  const { join } = await import('path');
+  
+  const stats = await stat(src);
+  if (stats.isDirectory()) {
+    await mkdir(dest, { recursive: true });
+    const entries = await readdir(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = join(src, entry.name);
+      const destPath = join(dest, entry.name);
+      if (entry.isDirectory()) {
+        await copyRecursive(srcPath, destPath);
+      } else {
+        await copyFile(srcPath, destPath);
       }
-    } else {
-      await copyFile(src, dest);
     }
+  } else {
+    await copyFile(src, dest);
   }
 }
 
