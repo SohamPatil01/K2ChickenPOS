@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "vercel-build": "cd ../.. && pnpm install",
+    "vercel-build": "cd ../.. && pnpm install && pnpm --filter @azela-pos/db generate && pnpm --filter @azela-pos/shared build && pnpm --filter @azela-pos/db build && cd apps/api && node scripts/prepare-vercel.js",
     "postinstall": "cd ../.. && pnpm --filter @azela-pos/db generate"
   },
   "dependencies": {
