@@ -12,10 +12,12 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ## Step 1: Create a New Vercel Project for API
 
 1. **Go to Vercel Dashboard**
+
    - Visit [vercel.com](https://vercel.com)
    - Log in with your GitHub account
 
 2. **Add New Project**
+
    - Click "Add New..." → "Project"
    - Select your repository: `SohamPatil01/K2ChickenPOS`
 
@@ -31,6 +33,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ## Step 2: Configure Environment Variables
 
 1. **Before Deploying, Add Environment Variables**
+
    - In the project configuration page, scroll to "Environment Variables"
    - Click "Add" for each variable below
 
@@ -45,11 +48,13 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
    ```
 
    **Important Notes:**
+
    - Replace `DATABASE_URL` with your actual PostgreSQL connection string
    - Generate strong secrets for JWT keys (use a password generator)
    - `API_PORT` is optional for serverless (Vercel handles ports automatically)
 
 3. **Optional Environment Variables** (if you use them):
+
    ```
    REDIS_URL=redis://host:port (if using Redis for queues)
    ```
@@ -61,6 +66,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ## Step 3: Configure Build Settings
 
 1. **In Project Settings → General**
+
    - **Root Directory**: `apps/api`
    - **Framework Preset**: Other
    - **Build Command**: (can be empty, Vercel will auto-detect)
@@ -75,6 +81,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ## Step 4: Deploy
 
 1. **Click "Deploy"**
+
    - Vercel will start the build process
    - Watch the build logs for any errors
 
@@ -86,10 +93,12 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ## Step 5: Verify Deployment
 
 1. **Check Deployment Status**
+
    - Wait for build to complete (usually 2-5 minutes)
    - Look for "Ready" status
 
 2. **Test the Health Endpoint**
+
    - Your API will be available at: `https://your-project-name.vercel.app`
    - Test: `https://your-project-name.vercel.app/health`
    - Should return: `{"status":"ok","timestamp":"..."}`
@@ -101,6 +110,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ## Step 6: Update Frontend API URL
 
 1. **Update Your Web App Environment Variables**
+
    - Go to your web app's Vercel project settings
    - Update `NEXT_PUBLIC_API_URL` to point to your new API URL
    - Example: `NEXT_PUBLIC_API_URL=https://your-api-project.vercel.app`
@@ -113,12 +123,14 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ### Issue 1: "Cannot find module '@azela-pos/db'"
 
 **Solution:**
+
 - Make sure **Install Command** is set to: `cd ../.. && pnpm install`
 - This ensures workspace dependencies are installed from the monorepo root
 
 ### Issue 2: "Prisma Client not generated"
 
 **Solution:**
+
 - Add a build command: `cd ../.. && pnpm db:generate && pnpm build`
 - Or add `postinstall` script in `apps/api/package.json`:
   ```json
@@ -130,6 +142,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ### Issue 3: "Database connection error"
 
 **Solution:**
+
 - Verify `DATABASE_URL` is set correctly in Vercel environment variables
 - Check that your database allows connections from Vercel's IP addresses
 - For cloud databases, you may need to whitelist Vercel IPs
@@ -137,6 +150,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ### Issue 4: "Function timeout"
 
 **Solution:**
+
 - Vercel free tier has 10-second timeout for serverless functions
 - For longer operations, consider:
   - Using Vercel Pro (60-second timeout)
@@ -146,6 +160,7 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ### Issue 5: "Module not found" errors
 
 **Solution:**
+
 - Ensure all dependencies are in `apps/api/package.json`
 - Check that workspace dependencies (`@azela-pos/db`, `@azela-pos/shared`) are properly linked
 - Verify `pnpm-workspace.yaml` is in the root
@@ -153,7 +168,9 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 ### Issue 6: "500 Internal Server Error"
 
 **Solution:**
+
 1. Check Vercel Function Logs:
+
    - Go to your deployment → "Functions" tab
    - Click on the function → "View Logs"
    - Look for error messages
@@ -176,6 +193,7 @@ If you want to deploy the API as a separate project:
 ## Database Setup Options
 
 ### Option 1: External PostgreSQL (Recommended for Production)
+
 - Use services like:
   - **Supabase** (free tier available)
   - **Neon** (free tier available)
@@ -184,11 +202,13 @@ If you want to deploy the API as a separate project:
   - **Google Cloud SQL** (paid)
 
 ### Option 2: Vercel Postgres
+
 - Vercel offers managed Postgres
 - Go to your project → "Storage" → "Create Database"
 - Automatically provides `DATABASE_URL` environment variable
 
 ### Option 3: Local Database (Not Recommended for Production)
+
 - Only for development/testing
 - Use ngrok or similar to expose local database (not secure)
 
@@ -206,6 +226,7 @@ If you want to deploy the API as a separate project:
 ## Getting Your API URL
 
 After deployment, your API will be available at:
+
 - **Production**: `https://your-project-name.vercel.app`
 - **Preview**: `https://your-project-name-git-branch.vercel.app`
 - **Custom Domain**: If you configure one in Vercel settings
@@ -213,11 +234,13 @@ After deployment, your API will be available at:
 ## Next Steps
 
 1. **Set up custom domain** (optional):
+
    - Go to Project Settings → Domains
    - Add your custom domain
    - Follow DNS configuration instructions
 
 2. **Set up monitoring**:
+
    - Use Vercel Analytics (Pro feature)
    - Set up error tracking (Sentry, etc.)
    - Monitor function logs
@@ -238,6 +261,7 @@ After deployment, your API will be available at:
 ## Support
 
 If you encounter issues:
+
 1. Check Vercel Function Logs first
 2. Verify all environment variables are set
 3. Check build logs for compilation errors
@@ -247,4 +271,3 @@ If you encounter issues:
 ---
 
 **Note**: The serverless function handler is located at `apps/api/api/index.ts` and is automatically used by Vercel based on the `vercel.json` configuration.
-
