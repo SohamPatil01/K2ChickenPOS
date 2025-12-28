@@ -12,6 +12,7 @@
   },
   "scripts": {
     "build": "prisma generate && tsc",
+    "postinstall": "prisma generate",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
