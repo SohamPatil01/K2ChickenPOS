@@ -22,8 +22,8 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const {
-        
+        const { productId } = (request.query as any);
+
         if (!productId) {
           reply.code(400).send({ error: 'productId is required' });
           return;
