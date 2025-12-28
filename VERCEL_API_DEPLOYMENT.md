@@ -257,20 +257,53 @@ If you want to deploy the API as a separate project:
 
 ## Database Setup Options
 
-### Option 1: External PostgreSQL (Recommended for Production)
+### Option 1: Vercel Postgres (Easiest - Recommended)
 
-- Use services like:
-  - **Supabase** (free tier available)
-  - **Neon** (free tier available)
-  - **Railway** (free tier available)
-  - **AWS RDS** (paid)
-  - **Google Cloud SQL** (paid)
+**Steps:**
+1. Go to your **API project** in Vercel
+2. Click **Storage** tab
+3. Click **Create Database** → Select **Postgres**
+4. Choose a name and region
+5. Click **Create**
+6. Vercel will automatically add the `DATABASE_URL` environment variable
+7. **Redeploy** your API project
 
-### Option 2: Vercel Postgres
+**After creating the database:**
+- Run migrations: `pnpm db:migrate:deploy` (or use Prisma Studio)
+- Seed the database if needed: `pnpm db:seed`
 
-- Vercel offers managed Postgres
-- Go to your project → "Storage" → "Create Database"
-- Automatically provides `DATABASE_URL` environment variable
+### Option 2: Supabase (Free Tier Available)
+
+**Steps:**
+1. Go to [supabase.com](https://supabase.com) and create an account
+2. Create a new project
+3. Go to **Settings** → **Database**
+4. Copy the **Connection String** (URI format)
+5. In Vercel API project → **Settings** → **Environment Variables**
+6. Add `DATABASE_URL` with the connection string from Supabase
+7. **Redeploy** your API project
+
+**Connection String Format:**
+```
+postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+```
+
+### Option 3: Neon (Free Tier Available)
+
+**Steps:**
+1. Go to [neon.tech](https://neon.tech) and create an account
+2. Create a new project
+3. Copy the connection string from the dashboard
+4. In Vercel API project → **Settings** → **Environment Variables**
+5. Add `DATABASE_URL` with the connection string from Neon
+6. **Redeploy** your API project
+
+### Option 4: Other Cloud Providers
+
+- **Railway** (free tier available)
+- **AWS RDS** (paid)
+- **Google Cloud SQL** (paid)
+- **Azure Database** (paid)
 
 ### Option 3: Local Database (Not Recommended for Production)
 
