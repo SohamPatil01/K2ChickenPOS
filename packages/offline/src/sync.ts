@@ -21,8 +21,7 @@ export async function queueEvent(
 
 export async function getPendingEvents(): Promise<QueuedEvent[]> {
   return await offlineDB.queuedEvents
-    .where('ackedAt')
-    .equals(undefined)
+    .filter((event) => event.ackedAt === undefined || event.ackedAt === null)
     .toArray();
 }
 
