@@ -204,7 +204,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseConfigId, productId, startDate, endDate } = (request.query as any);
 
         const where: any = {};
         if (franchiseConfigId) {
