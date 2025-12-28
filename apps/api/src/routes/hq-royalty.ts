@@ -772,7 +772,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { franchiseConfigId, status, startDate, endDate } = (request.query as any);
 
         const where: any = {};
         if (franchiseConfigId) {
