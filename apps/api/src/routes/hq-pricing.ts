@@ -222,6 +222,8 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
         const {
 
         // Note: PricingRule doesn't have lockStatus field in schema
+        const { id } = (request.params as any);
+        
         // This would need to be added to the schema or handled via ProductMaster
         // For now, we'll update the related ProductMaster if it exists
         const rule = await prisma.pricingRule.findUnique({
