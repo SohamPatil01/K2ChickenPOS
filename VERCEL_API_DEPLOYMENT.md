@@ -25,10 +25,12 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
    - **Project Name**: `k2chicken-pos-api` (or any name you prefer)
    - **Framework Preset**: Other (or leave blank)
    - **Root Directory**: `apps/api`
-   - **Build Command**: Leave empty (or `pnpm build` if needed)
-   - **Output Directory**: Leave empty
+   - **Build Command**: Leave empty or set to `null` (serverless functions don't need build output)
+   - **Output Directory**: Leave empty or set to `null` (IMPORTANT: This must be empty!)
    - **Install Command**: `cd ../.. && pnpm install`
    - **Node.js Version**: Select `20.x`
+   
+   **Critical**: Make sure **Output Directory** is completely empty/removed. If Vercel shows an error about "public" directory, go to Settings → General → Build & Development Settings and clear the Output Directory field.
 
 ## Step 2: Configure Environment Variables
 
