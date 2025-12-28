@@ -440,7 +440,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { periodStart, periodEnd } = (request.body as any);
 
         const franchises = await prisma.store.findMany({
           where: {
