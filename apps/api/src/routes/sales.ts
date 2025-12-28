@@ -494,7 +494,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
   fastify.post('/:id/void', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
-    const { id } = (request.params as any);
     const storeId = (getUser(request) as any).storeId;
     const userId = (getUser(request) as any).userId;
 
@@ -532,7 +531,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/:id/refund', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
-    const { id } = (request.params as any);
     const { id } = (request.params as any);
     const storeId = (getUser(request) as any).storeId;
     const userId = (getUser(request) as any).userId;
