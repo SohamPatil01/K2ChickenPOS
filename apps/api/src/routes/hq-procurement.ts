@@ -506,7 +506,6 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
         const { id } = (request.params as any);
 
         const allocation = await prisma.stockAllocation.findUnique({
