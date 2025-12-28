@@ -78,7 +78,7 @@ export default function StoreDashboardPage() {
       // Only load top items for Manager and Owner
       if (userRole === 'MANAGER' || userRole === 'OWNER') {
         promises.push(
-          api.get('/api/v1/analytics/top-items?startDate=' + new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]).catch(() => ({ data: [] }))
+          api.get('/api/v1/analytics/top-items?startDate=' + new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]).catch(() => ({ data: null }))
         );
       }
 
