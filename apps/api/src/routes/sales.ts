@@ -325,7 +325,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
   fastify.post('/:id/pay', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
-      const {
+      const { id } = (request.params as any);
       const { payments } = paySaleSchema.parse(request.body as any);
       const storeId = (getUser(request) as any).storeId;
       const userId = (getUser(request) as any).userId;
