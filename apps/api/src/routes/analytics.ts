@@ -267,7 +267,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/store-compare', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);
+    const query = request.query as any;
+    const { startDate, endDate } = query;
     const ownerStoreId = (getUser(request) as any).storeId;
 
     const ownerStore = await prisma.store.findUnique({
