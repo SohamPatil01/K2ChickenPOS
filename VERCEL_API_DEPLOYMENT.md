@@ -110,42 +110,72 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
    - Try: `https://your-project-name.vercel.app/api/v1/auth/login`
    - Should return a response (even if it's an error, it means the API is working)
 
-## Step 6: Update Frontend API URL
+## Step 6: Deploy Web App and Update API URL
+
+### First: Create Web App Project (if not already created)
+
+If you don't have a web app project yet, create one:
+
+1. **Go to Vercel Dashboard**
+   - Visit [vercel.com/dashboard](https://vercel.com/dashboard)
+   - Click **"Add New..."** → **"Project"**
+
+2. **Import Repository**
+   - Select your repository: `SohamPatil01/K2ChickenPOS`
+
+3. **Configure Project Settings**
+   - **Project Name**: `k2chicken-pos-web` (or any name you prefer)
+   - **Framework Preset**: Next.js (should auto-detect)
+   - **Root Directory**: Click "Edit" → Set to `apps/web` ⚠️ **IMPORTANT**
+   - **Build Command**: Leave empty (auto-detects `next build`)
+   - **Output Directory**: Leave empty (auto-detects `.next`)
+   - **Install Command**: Click "Edit" → Set to `cd ../.. && pnpm install` ⚠️ **IMPORTANT**
+   - **Node.js Version**: Select `20.x`
+
+4. **Click "Deploy"**
+   - Wait for the build to complete
+
+### Then: Update Your Web App Environment Variables
 
 1. **Update Your Web App Environment Variables**
 
    **Step-by-step:**
    
    a. Go to [Vercel Dashboard](https://vercel.com) and select your **web app project** (not the API project)
-   
+
    b. Click **Settings** (gear icon) in the top navigation
-   
+
    c. Click **Environment Variables** in the left sidebar
-   
+
    d. Either:
-      - **If `NEXT_PUBLIC_API_URL` exists**: Click the edit icon (pencil) next to it
-      - **If it doesn't exist**: Click **Add New** button
-   
+
+   - **If `NEXT_PUBLIC_API_URL` exists**: Click the edit icon (pencil) next to it
+   - **If it doesn't exist**: Click **Add New** button
+
    e. Enter:
-      - **Key**: `NEXT_PUBLIC_API_URL`
-      - **Value**: Your API URL (e.g., `https://k2-chicken-pos-api.vercel.app` or your actual API project URL)
-      - **Environments**: Check all three (Production, Preview, Development)
-   
+
+   - **Key**: `NEXT_PUBLIC_API_URL`
+   - **Value**: Your API URL (e.g., `https://k2-chicken-pos-api.vercel.app` or your actual API project URL)
+   - **Environments**: Check all three (Production, Preview, Development)
+
    f. Click **Save**
 
 2. **Redeploy Web App**
-   
+
    **Option 1: Redeploy from Vercel**
+
    - Go to **Deployments** tab
    - Click the three dots (⋯) on the latest deployment
    - Click **Redeploy**
    - Confirm the redeploy
-   
+
    **Option 2: Trigger via Git**
+
    - Push any commit to your repository
    - Vercel will automatically redeploy with the new environment variable
 
 **Finding Your API URL:**
+
 - Go to your **API project** in Vercel
 - The URL is shown at the top (e.g., `https://k2-chicken-pos-api.vercel.app`)
 - Or check the **Domains** section in Settings
