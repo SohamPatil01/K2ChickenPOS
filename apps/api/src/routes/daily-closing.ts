@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const dailyClosingSchema = z.object({
   closingDate: z.string(),
@@ -17,10 +18,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/daily-closing',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof dailyClosingSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const storeId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { closingDate, shiftId, openingCash, cashReceived, closingCash, notes } = request.body;
 
         const closingDateObj = new Date(closingDate);
@@ -65,28 +66,28 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
 
         // Calculate totals
         const totalSales = sales.length;
-        const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-        const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
-        const totalTax = sales.reduce((sum, s) => sum + s.taxTotal, 0);
+        const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+        const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
+        const totalTax = sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0);
 
         // Calculate payment method breakdown
-        const cashSales = sales.reduce((sum, s) => {
-          const cashPayments = s.payments.filter((p) => p.method === 'CASH');
+        const cashSales = sales.reduce((sum: any, s: any) => {
+          const cashPayments = s.payments.filter((p: any) => p.method === 'CASH');
           return sum + cashPayments.reduce((pSum, p) => pSum + p.amount, 0);
         }, 0);
 
-        const cardSales = sales.reduce((sum, s) => {
-          const cardPayments = s.payments.filter((p) => p.method === 'CARD');
+        const cardSales = sales.reduce((sum: any, s: any) => {
+          const cardPayments = s.payments.filter((p: any) => p.method === 'CARD');
           return sum + cardPayments.reduce((pSum, p) => pSum + p.amount, 0);
         }, 0);
 
-        const upiSales = sales.reduce((sum, s) => {
-          const upiPayments = s.payments.filter((p) => p.method === 'UPI');
+        const upiSales = sales.reduce((sum: any, s: any) => {
+          const upiPayments = s.payments.filter((p: any) => p.method === 'UPI');
           return sum + upiPayments.reduce((pSum, p) => pSum + p.amount, 0);
         }, 0);
 
         // Calculate total weight sold
-        const totalWeightSoldKg = sales.reduce((sum, s) => {
+        const totalWeightSoldKg = sales.reduce((sum: any, s: any) => {
           return (
             sum +
             s.items.reduce((itemSum, item) => {
@@ -252,10 +253,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/daily-closing/:id/finalize',
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const storeId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
 
         const closing = await prisma.dailyClosing.findUnique({
@@ -303,9 +304,9 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/daily-closing/:date',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Params: { date: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
+        const storeId = getUser(request).storeId;
         const { date } = request.params;
 
         const closingDate = new Date(date);
@@ -345,9 +346,9 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/daily-closing',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
+        const storeId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
 
         const where: any = { storeId };

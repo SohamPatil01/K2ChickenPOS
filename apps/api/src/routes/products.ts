@@ -8,7 +8,7 @@ interface QueryParams {
 
 export async function productRoutes(fastify: FastifyInstance) {
 
-  fastify.get('/', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/', async (request: any, reply: FastifyReply) => {
     const { search, categoryId } = request.query;
     // Get default store for now (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -62,7 +62,7 @@ export async function productRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const result = products.map((p) => ({
+    const result = products.map((p: any) => ({
       id: p.id,
       name: p.name,
       sku: p.sku,
@@ -79,7 +79,7 @@ export async function productRoutes(fastify: FastifyInstance) {
     return result;
   });
 
-  fastify.get('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.get('/:id', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const storeId = store?.id || '';
@@ -149,7 +149,7 @@ export async function productRoutes(fastify: FastifyInstance) {
   });
 
   // Product CRUD routes
-  fastify.post('/', async (request: FastifyRequest<{ Body: { sku: string; plu: string; name: string; categoryId: string; unitType: 'KG' | 'PCS'; taxRate: number; imageUrl?: string } }>, reply: FastifyReply) => {
+  fastify.post('/', async (request: any, reply: FastifyReply) => {
     const { sku, plu, name, categoryId, unitType, taxRate, imageUrl } = request.body;
     // Get default store for now (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -190,7 +190,7 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.put('/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: { sku?: string; plu?: string; name?: string; categoryId?: string; unitType?: 'KG' | 'PCS'; taxRate?: number; imageUrl?: string; isActive?: boolean } }>, reply: FastifyReply) => {
+  fastify.put('/:id', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const updates = request.body;
 
@@ -207,7 +207,7 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.delete('/:id', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
 
     try {
@@ -223,7 +223,7 @@ export async function productRoutes(fastify: FastifyInstance) {
   });
 
   // Price management
-  fastify.post('/:id/price', async (request: FastifyRequest<{ Params: { id: string }; Body: { pricePerUnit: number; effectiveFrom?: string } }>, reply: FastifyReply) => {
+  fastify.post('/:id/price', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const { pricePerUnit, effectiveFrom } = request.body;
     // Get default store for now (since auth is disabled)
@@ -254,7 +254,7 @@ export async function productRoutes(fastify: FastifyInstance) {
   });
 
   // Category management
-  fastify.post('/categories', async (request: FastifyRequest<{ Body: { name: string; sortOrder?: number } }>, reply: FastifyReply) => {
+  fastify.post('/categories', async (request: any, reply: FastifyReply) => {
     const { name, sortOrder } = request.body;
     // Get default store for now (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -289,7 +289,7 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.put('/categories/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: { name?: string; sortOrder?: number } }>, reply: FastifyReply) => {
+  fastify.put('/categories/:id', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const updates = request.body;
 
@@ -305,7 +305,7 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete('/categories/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.delete('/categories/:id', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
 
     try {

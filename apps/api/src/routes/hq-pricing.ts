@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const pricingPlanSchema = z.object({
   name: z.string().min(1),
@@ -77,12 +78,12 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/pricing-plans',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof pricingPlanSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const data = pricingPlanSchema.parse(request.body);
 
         const pricingPlan = await prisma.pricingPlan.create({
-          data,
+          data: data as any,
         });
 
         return pricingPlan;
@@ -97,7 +98,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/pricing-plans/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<z.infer<typeof pricingPlanSchema>> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { id } = request.params;
         const data = pricingPlanSchema.partial().parse(request.body);
@@ -123,7 +124,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/pricing-plans/:planId/rules',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { planId: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { planId } = request.params;
 
@@ -152,7 +153,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/pricing-rules',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof pricingRuleSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const data = pricingRuleSchema.parse(request.body);
 
@@ -161,7 +162,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
             ...data,
             effectiveFrom: data.effectiveFrom ? new Date(data.effectiveFrom) : new Date(),
             effectiveTo: data.effectiveTo ? new Date(data.effectiveTo) : null,
-          },
+          } as any,
           include: {
             product: {
               select: { id: true, name: true, sku: true },
@@ -184,7 +185,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/pricing-rules/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<z.infer<typeof pricingRuleSchema>> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { id } = request.params;
         const data = pricingRuleSchema.partial().parse(request.body);
@@ -214,7 +215,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/pricing-rules/:id/lock',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: { lockStatus: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { id } = request.params;
         const { lockStatus } = request.body;
@@ -254,7 +255,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/pricing-rules/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { id } = request.params;
 
@@ -278,9 +279,9 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/franchises/:franchiseId/pricing-overrides',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { franchiseId: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseId } = request.params;
 
         // Verify franchise belongs to owner
@@ -326,11 +327,11 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/pricing-overrides',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof pricingOverrideSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const data = pricingOverrideSchema.parse(request.body);
-        const userId = request.user!.userId;
-        const storeId = request.user!.storeId;
+        const userId = getUser(request).userId;
+        const storeId = getUser(request).storeId;
 
         // Check if pricing is locked for this franchise
         const config = await prisma.franchiseConfig.findUnique({
@@ -386,8 +387,8 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
               productId: data.productId,
               overridePrice: data.overridePrice,
               reason: data.reason,
-            },
-          },
+            } as any,
+          } as any,
         });
 
         const override = await prisma.pricingOverride.create({
@@ -396,7 +397,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
             effectiveFrom: data.effectiveFrom ? new Date(data.effectiveFrom) : new Date(),
             effectiveTo: data.effectiveTo ? new Date(data.effectiveTo) : null,
             lockStatus: 'UNLOCKED', // Override starts as unlocked, HQ can lock it
-          },
+          } as any,
           include: {
             product: {
               select: { id: true, name: true, sku: true },
@@ -416,9 +417,9 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/pricing-overrides/:id/approve',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const userId = request.user!.userId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
 
         const override = await prisma.pricingOverride.findUnique({
@@ -451,7 +452,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/pricing-overrides/:id/lock',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: { lockStatus: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { id } = request.params;
         const { lockStatus } = request.body;

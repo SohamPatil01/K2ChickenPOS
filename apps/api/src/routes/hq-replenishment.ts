@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
@@ -21,19 +22,9 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/replenishment/calculate',
     { preHandler: [fastify.authenticate] },
-    async (
-      request: FastifyRequest<{
-        Body: {
-          franchiseStoreId: string;
-          productId: string;
-          leadTimeDays?: number;
-          safetyBufferDays?: number;
-        };
-      }>,
-      reply: FastifyReply
-    ) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
+        const storeId = getUser(request).storeId;
         const { franchiseStoreId, productId, leadTimeDays = 3, safetyBufferDays = 2 } = request.body;
 
         // Verify store access
@@ -95,7 +86,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         });
 
         const calculateVelocity = (sales: any[], days: number) => {
-          const totalQty = sales.reduce((sum, s) => {
+          const totalQty = sales.reduce((sum: any, s: any) => {
             return sum + s.items.reduce((itemSum: number, item: any) => itemSum + (item.qtyKg || 0) + (item.qtyPcs || 0), 0);
           }, 0);
           return days > 0 ? totalQty / days : 0;
@@ -137,7 +128,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         const calculatedDemandPcs = Math.ceil(calculatedDemandKg); // Simplified
 
         // Create replenishment request
-        const request = await prisma.replenishmentRequest.create({
+        const replenishmentRequest = await prisma.replenishmentRequest.create({
           data: {
             franchiseStoreId,
             productId,
@@ -158,12 +149,12 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
               select: { id: true, name: true, sku: true },
             },
             franchiseStore: {
-              select: { id: true, name: true },
+              select: { id: true, name: true, parentOwnerStoreId: true },
             },
           },
         });
 
-        return request;
+        return replenishmentRequest;
       } catch (error: any) {
         console.error('Failed to calculate replenishment:', error);
         reply.code(500).send({ error: 'Failed to calculate replenishment' });
@@ -185,7 +176,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseStoreId, status } = request.query;
 
         const where: any = {};
@@ -203,7 +194,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
               select: { id: true, name: true, sku: true },
             },
             franchiseStore: {
-              select: { id: true, name: true },
+              select: { id: true, name: true, parentOwnerStoreId: true },
             },
             approver: {
               select: { id: true, name: true },
@@ -243,8 +234,8 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const ownerStoreId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
         const { approved, adjustedQtyKg, adjustedQtyPcs, adjustmentReason, approvalNotes } = request.body;
 
@@ -294,7 +285,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { productId } = request.query;
 
         const where: any = {
@@ -312,7 +303,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
               select: { id: true, name: true, sku: true },
             },
             franchiseStore: {
-              select: { id: true, name: true },
+              select: { id: true, name: true, parentOwnerStoreId: true },
             },
           },
         });
@@ -323,7 +314,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         );
 
         // Aggregate by product
-        const aggregated = filtered.reduce((acc, req) => {
+        const aggregated = filtered.reduce((acc: any, req) => {
           const key = req.productId;
           if (!acc[key]) {
             acc[key] = {

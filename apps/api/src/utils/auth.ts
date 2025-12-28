@@ -1,17 +1,15 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import type { UserRole } from '@azela-pos/shared';
+import type { AuthUser } from '../types/fastify.js';
 
-export interface AuthUser {
-  userId: string;
-  storeId: string;
-  role: UserRole;
-}
-
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: AuthUser;
+// Helper to safely get user from request
+export function getUser(request: FastifyRequest): AuthUser {
+  const user = (request as any).user;
+  if (!user) {
+    throw new Error('User not authenticated');
   }
+  return user;
 }
 
 export async function authenticate(
@@ -37,12 +35,14 @@ export async function authenticate(
 
 export function requireRole(...allowedRoles: UserRole[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!request.user) {
+    try {
+      const user = getUser(request);
+      if (!allowedRoles.includes(user.role)) {
+        reply.code(403).send({ error: 'Forbidden' });
+        return;
+      }
+    } catch {
       reply.code(401).send({ error: 'Unauthorized' });
-      return;
-    }
-    if (!allowedRoles.includes(request.user.role)) {
-      reply.code(403).send({ error: 'Forbidden' });
       return;
     }
   };

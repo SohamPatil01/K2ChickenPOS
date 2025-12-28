@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
   // ============================================
@@ -13,7 +14,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const rules = await prisma.alertRule.findMany({
           where: { ownerStoreId },
@@ -45,7 +46,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { name, ruleType, threshold, severity, description } = request.body;
 
         const rule = await prisma.alertRule.create({
@@ -85,7 +86,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
         const body = request.body;
 
@@ -100,7 +101,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
 
         const updated = await prisma.alertRule.update({
           where: { id },
-          data: body,
+          data: body as any,
         });
 
         return updated;
@@ -115,9 +116,9 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/alert-rules/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const rule = await prisma.alertRule.findUnique({
@@ -151,7 +152,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const rules = await prisma.alertRule.findMany({
           where: {
@@ -210,8 +211,8 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
                     },
                   });
 
-                  const totalWastage = wastageLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-                  const totalReceived = receivedLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+                  const totalWastage = wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+                  const totalReceived = receivedLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
                   const wastagePercent = totalReceived > 0 ? (totalWastage / totalReceived) * 100 : 0;
 
                   shouldAlert = wastagePercent > rule.threshold;
@@ -256,7 +257,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
                   });
 
                   const avgBillWeight = sales.length > 0
-                    ? sales.reduce((sum, s) => {
+                    ? sales.reduce((sum: any, s: any) => {
                         const billWeight = s.items.reduce((itemSum, item) => {
                           if (item.product.unitType === 'KG') {
                             return itemSum + (item.qtyKg || 0);
@@ -308,7 +309,7 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
                     // Get expected from allocations
                     const allocations = await prisma.stockAllocation.findMany({
                       where: {
-                        allocatedToStoreId: franchise.id,
+                        franchiseStoreId: franchise.id,
                         productId: product.id,
                       },
                     });
@@ -390,8 +391,8 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const ownerStoreId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
         const { notes } = request.body;
 

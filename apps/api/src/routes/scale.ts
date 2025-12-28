@@ -2,11 +2,12 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { scaleBarcodeConfigSchema, parseBarcodeSchema } from '@azela-pos/shared';
 import { parseScaleBarcode } from '../utils/barcode.js';
+import { getUser } from '../utils/auth.js';
 
 export async function scaleRoutes(fastify: FastifyInstance) {
 
   fastify.get('/config', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     const configs = await prisma.scaleBarcodeConfig.findMany({
       where: {
@@ -21,12 +22,23 @@ export async function scaleRoutes(fastify: FastifyInstance) {
   fastify.post('/config', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const data = scaleBarcodeConfigSchema.parse(request.body);
-      const storeId = request.user!.storeId;
+      const storeId = getUser(request).storeId;
 
       const config = await prisma.scaleBarcodeConfig.create({
         data: {
           storeId,
-          ...data,
+          name: data.name,
+          prefix: data.prefix,
+          pluStart: data.pluStart,
+          pluLength: data.pluLength,
+          weightStart: data.weightStart,
+          weightLength: data.weightLength,
+          weightDecimal: data.weightDecimal,
+          priceStart: data.priceStart,
+          priceLength: data.priceLength,
+          priceDecimal: data.priceDecimal,
+          checksumType: data.checksumType,
+          isActive: data.isActive,
         },
       });
 
@@ -48,10 +60,10 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.put('/config/:id', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Params: { id: string }; Body: any }>, reply: FastifyReply) => {
+  fastify.put('/config/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const data = scaleBarcodeConfigSchema.parse(request.body);
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     // Verify config belongs to user's store
     const existing = await prisma.scaleBarcodeConfig.findUnique({
@@ -71,9 +83,9 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     return config;
   });
 
-  fastify.delete('/config/:id', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.delete('/config/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     // Verify config belongs to user's store
     const existing = await prisma.scaleBarcodeConfig.findUnique({
@@ -94,7 +106,7 @@ export async function scaleRoutes(fastify: FastifyInstance) {
 
   fastify.post('/parse', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { barcode, configId } = parseBarcodeSchema.parse(request.body);
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     const result = await parseScaleBarcode(barcode, storeId, configId);
 

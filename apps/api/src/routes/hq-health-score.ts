@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
@@ -31,7 +32,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, scoreDate } = request.body;
 
         const config = await prisma.franchiseConfig.findUnique({
@@ -104,7 +105,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalReceivedKg = receivedLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        const totalReceivedKg = receivedLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
 
         const soldLedgers = await prisma.inventoryLedger.findMany({
           where: {
@@ -118,7 +119,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalSoldKg = soldLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        const totalSoldKg = soldLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
 
         // Get expected yield from ProductMaster
         const productMasters = await prisma.productMaster.findMany({
@@ -151,7 +152,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalWastageKg = wastageLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        const totalWastageKg = wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
         const wastagePercent = totalReceivedKg > 0 ? (totalWastageKg / totalReceivedKg) * 100 : 0;
         const allowedWastage = config.allowedWastagePercent || 5.0;
         // Score: 100 if wastage = 0, 50 if wastage = allowed, 0 if wastage = 2x allowed
@@ -169,8 +170,8 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-        const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+        const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+        const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
         const discountPercent = totalRevenue > 0 ? (totalDiscounts / totalRevenue) * 100 : 0;
         const allowedDiscount = config.allowedDiscountPercent || 10.0;
         // Score: 100 if discount = 0, 50 if discount = allowed, 0 if discount = 2x allowed
@@ -187,9 +188,9 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const complianceScores = complianceRecords.filter((r) => r.score !== null).map((r) => r.score!);
+        const complianceScores = complianceRecords.filter((r: any) => r.score !== null).map((r) => r.score!);
         const compliancePercent = complianceScores.length > 0
-          ? complianceScores.reduce((sum, s) => sum + s, 0) / complianceScores.length
+          ? complianceScores.reduce((sum: any, s: any) => sum + s, 0) / complianceScores.length
           : 100; // Default to 100 if no records
         const complianceScore = compliancePercent;
 
@@ -240,7 +241,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const expectedSold = recentSales.reduce((sum, s) => {
+          const expectedSold = recentSales.reduce((sum: any, s: any) => {
             return sum + s.items.reduce((itemSum, item) => itemSum + (item.qtyKg || 0), 0);
           }, 0);
 
@@ -328,7 +329,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -358,7 +359,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, scoreDate, limit } = request.query;
 
         const where: any = {};
@@ -377,7 +378,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -419,7 +420,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { scoreDate } = request.body;
 
         const franchises = await prisma.store.findMany({

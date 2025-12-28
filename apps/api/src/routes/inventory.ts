@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { inventoryAdjustSchema, wastageSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 export async function inventoryRoutes(fastify: FastifyInstance) {
 
@@ -34,7 +35,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const summary = products.map((product) => {
+    const summary = products.map((product: any) => {
       let totalQtyKg = 0;
       let totalQtyPcs = 0;
 
@@ -66,8 +67,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
   fastify.post('/adjust', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const data = inventoryAdjustSchema.parse(request.body);
-      const storeId = request.user!.storeId;
-      const userId = request.user!.userId;
+      const storeId = getUser(request).storeId;
+      const userId = getUser(request).userId;
 
       // Determine if it's IN or OUT based on quantity sign
       const qty = data.qtyKg || data.qtyPcs || 0;
@@ -88,7 +89,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           type,
           qtyKg: absQtyKg,
           qtyPcs: absQtyPcs,
-          reason: data.reason || 'ADJUSTMENT',
+          reason: (data.reason as any) || 'ADJUSTMENT',
         },
       });
 
@@ -116,8 +117,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
   fastify.post('/wastage', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const data = wastageSchema.parse(request.body);
-      const storeId = request.user!.storeId;
-      const userId = request.user!.userId;
+      const storeId = getUser(request).storeId;
+      const userId = getUser(request).userId;
 
       // Get franchise config to check wastage lock
       const store = await prisma.store.findUnique({
@@ -210,10 +211,11 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
   });
 
   // Get ledger entries
-  fastify.get('/ledger', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Querystring: any }>, reply: FastifyReply) => {
+  fastify.get('/ledger', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
-      const storeId = request.user!.storeId;
-      const { startDate, endDate, type, reason, productId } = request.query;
+      const storeId = getUser(request).storeId;
+      const query = request.query as any;
+      const { startDate, endDate, type, reason, productId } = query;
 
       const where: any = { storeId };
       if (type) where.type = type;
@@ -252,8 +254,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
   // Create ledger entry (for opening stock, etc.)
   fastify.post('/ledger', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const storeId = request.user!.storeId;
-      const userId = request.user!.userId;
+      const storeId = getUser(request).storeId;
+      const userId = getUser(request).userId;
       const { productId, type, reason, qtyKg, qtyPcs } = request.body as any;
 
       if (!productId || !type || !reason) {

@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
@@ -33,7 +34,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, productId, periodStart, periodEnd } = request.body;
 
         const config = await prisma.franchiseConfig.findUnique({
@@ -87,7 +88,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const totalReceivedKg = receivedLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+          const totalReceivedKg = receivedLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
           const expectedYieldKg = totalReceivedKg * (expectedYieldPercent / 100);
 
           // Get actual yield (sold)
@@ -101,7 +102,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const actualYieldKg = soldLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+          const actualYieldKg = soldLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
           const yieldEfficiency = expectedYieldKg > 0 ? (actualYieldKg / expectedYieldKg) * 100 : 0;
 
           // Get wastage (loss attribution)
@@ -114,7 +115,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const totalWastageKg = wastageLedgers.reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+          const totalWastageKg = wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
 
           // Loss attribution (simplified - in production, track specific loss types)
           const totalLossKg = totalReceivedKg - actualYieldKg;
@@ -201,7 +202,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, productId, startDate, endDate } = request.query;
 
         const where: any = {};
@@ -224,7 +225,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -262,7 +263,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
 
         const dateFilter = getDateRange(startDate, endDate);
@@ -279,8 +280,8 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
 
         const rankings = await Promise.all(
           franchises
-            .filter((f) => f.franchiseConfig)
-            .map(async (franchise) => {
+            .filter((f: any) => f.franchiseConfig)
+            .map(async (franchise: any) => {
               const intelligence = await prisma.yieldIntelligence.findMany({
                 where: {
                   franchiseConfigId: franchise.franchiseConfig!.id,
@@ -290,7 +291,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
 
               const avgEfficiency =
                 intelligence.length > 0
-                  ? intelligence.reduce((sum, i) => sum + i.yieldEfficiency, 0) / intelligence.length
+                  ? intelligence.reduce((sum: any, i) => sum + i.yieldEfficiency, 0) / intelligence.length
                   : 0;
 
               return {
@@ -302,7 +303,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             })
         );
 
-        rankings.sort((a, b) => b.averageEfficiency - a.averageEfficiency);
+        rankings.sort((a: any, b: any) => b.averageEfficiency - a.averageEfficiency);
 
         return rankings;
       } catch (error: any) {

@@ -53,7 +53,7 @@ export async function poRoutes(fastify: FastifyInstance) {
         status: 'DRAFT',
         notes: data.notes,
         items: {
-          create: data.items.map((item) => ({
+          create: data.items.map((item: any) => ({
             productId: item.productId,
             qtyKg: item.qtyKg,
             qtyPcs: item.qtyPcs,
@@ -71,7 +71,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     return po;
   });
 
-  fastify.get('/', async (request: FastifyRequest<{ Querystring: { status?: string } }>, reply: FastifyReply) => {
+  fastify.get('/', async (request: any, reply: FastifyReply) => {
     const { status } = request.query;
     // Get default store (since auth is disabled for now)
     const defaultStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -118,7 +118,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     return pos;
   });
 
-  fastify.post('/:id/submit', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.post('/:id/submit', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     // Get default store (since auth is disabled for now)
     const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
@@ -146,7 +146,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  fastify.post('/:id/approve', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.post('/:id/approve', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     // Get default store (since auth is disabled for now)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -174,7 +174,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  fastify.post('/:id/reject', async (request: FastifyRequest<{ Params: { id: string }; Body: { reason?: string } }>, reply: FastifyReply) => {
+  fastify.post('/:id/reject', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     // Get default store (since auth is disabled for now)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -205,7 +205,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  fastify.post('/:id/dispatch', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.post('/:id/dispatch', async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     // Get default store (since auth is disabled for now)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -244,7 +244,7 @@ export async function poRoutes(fastify: FastifyInstance) {
         dispatchNo,
         status: 'CREATED',
         items: {
-          create: po.items.map((item) => ({
+          create: po.items.map((item: any) => ({
             productId: item.productId,
             qtyKg: item.qtyKg,
             qtyPcs: item.qtyPcs,
@@ -266,7 +266,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     return dispatch;
   });
 
-  fastify.post('/dispatch/:dispatchId/receive', async (request: FastifyRequest<{ Params: { dispatchId: string } }>, reply: FastifyReply) => {
+  fastify.post('/dispatch/:dispatchId/receive', async (request: any, reply: FastifyReply) => {
     const { dispatchId } = request.params;
     // Get default store and user (since auth is disabled for now)
     const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });

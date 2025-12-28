@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 export async function storeRoutes(fastify: FastifyInstance) {
   // Get all franchises for owner
@@ -39,7 +40,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // Get single franchise details
-  fastify.get('/franchises/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.get('/franchises/:id', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       
@@ -81,7 +82,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // Create new franchise
-  fastify.post('/franchises', async (request: FastifyRequest<{ Body: { name: string } }>, reply: FastifyReply) => {
+  fastify.post('/franchises', async (request: any, reply: FastifyReply) => {
     try {
       const { name } = request.body;
 
@@ -135,7 +136,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // Update franchise
-  fastify.put('/franchises/:id', async (request: FastifyRequest<{ Params: { id: string }; Body: { name: string } }>, reply: FastifyReply) => {
+  fastify.put('/franchises/:id', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       const { name } = request.body;
@@ -188,7 +189,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // Delete franchise (soft delete - deactivate)
-  fastify.delete('/franchises/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.delete('/franchises/:id', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = request.params;
 
@@ -221,7 +222,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // Get franchise statistics
-  fastify.get('/franchises/:id/stats', async (request: FastifyRequest<{ Params: { id: string }; Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+  fastify.get('/franchises/:id/stats', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       const { startDate, endDate } = request.query;
@@ -331,7 +332,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
       start.setUTCHours(0, 0, 0, 0);
 
       const franchisesWithStats = await Promise.all(
-        franchises.map(async (franchise) => {
+        franchises.map(async (franchise: any) => {
           const revenue = await prisma.sale.aggregate({
             where: {
               storeId: franchise.id,
@@ -366,7 +367,7 @@ export async function storeRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
+        const storeId = getUser(request).storeId;
 
         const store = await prisma.store.findUnique({
           where: { id: storeId },

@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const complianceRecordSchema = z.object({
   franchiseConfigId: z.string(),
@@ -20,9 +21,9 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/compliance/records',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { franchiseConfigId?: string; checkType?: string; status?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, checkType, status } = request.query;
 
         const where: any = {};
@@ -42,7 +43,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -70,10 +71,10 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/compliance/records',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof complianceRecordSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const ownerStoreId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const data = complianceRecordSchema.parse(request.body);
 
         // Verify franchise config belongs to owner
@@ -94,12 +95,12 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
             ...data,
             checkedBy: userId,
             expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
-          },
+          } as any,
           include: {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -139,9 +140,9 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/compliance/score/:franchiseConfigId',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { franchiseConfigId: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId } = request.params;
 
         const config = await prisma.franchiseConfig.findUnique({
@@ -170,16 +171,16 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
         });
 
         // Calculate average score
-        const scores = records.filter((r) => r.score !== null).map((r) => r.score!);
-        const avgScore = scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0;
+        const scores = records.filter((r: any) => r.score !== null).map((r) => r.score!);
+        const avgScore = scores.length > 0 ? scores.reduce((sum: any, s: any) => sum + s, 0) / scores.length : 0;
 
         // Count by status
-        const compliantCount = records.filter((r) => r.status === 'COMPLIANT').length;
-        const warningCount = records.filter((r) => r.status === 'WARNING').length;
-        const nonCompliantCount = records.filter((r) => r.status === 'NON_COMPLIANT').length;
+        const compliantCount = records.filter((r: any) => r.status === 'COMPLIANT').length;
+        const warningCount = records.filter((r: any) => r.status === 'WARNING').length;
+        const nonCompliantCount = records.filter((r: any) => r.status === 'NON_COMPLIANT').length;
 
         // Count by check type
-        const checkTypeCounts = records.reduce((acc, r) => {
+        const checkTypeCounts = records.reduce((acc: any, r) => {
           acc[r.checkType] = (acc[r.checkType] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
@@ -208,7 +209,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const franchises = await prisma.store.findMany({
           where: {
@@ -234,17 +235,17 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
 
         const summary = await Promise.all(
           franchises
-            .filter((f) => f.franchiseConfig)
-            .map(async (franchise) => {
+            .filter((f: any) => f.franchiseConfig)
+            .map(async (franchise: any) => {
               const config = franchise.franchiseConfig!;
               const records = config.complianceRecords;
 
-              const scores = records.filter((r) => r.score !== null).map((r) => r.score!);
-              const avgScore = scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0;
+              const scores = records.filter((r: any) => r.score !== null).map((r) => r.score!);
+              const avgScore = scores.length > 0 ? scores.reduce((sum: any, s: any) => sum + s, 0) / scores.length : 0;
 
-              const compliantCount = records.filter((r) => r.status === 'COMPLIANT').length;
-              const warningCount = records.filter((r) => r.status === 'WARNING').length;
-              const nonCompliantCount = records.filter((r) => r.status === 'NON_COMPLIANT').length;
+              const compliantCount = records.filter((r: any) => r.status === 'COMPLIANT').length;
+              const warningCount = records.filter((r: any) => r.status === 'WARNING').length;
+              const nonCompliantCount = records.filter((r: any) => r.status === 'NON_COMPLIANT').length;
 
               return {
                 franchiseId: franchise.id,
@@ -275,9 +276,9 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/compliance/templates',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { checkType?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { checkType } = request.query;
 
         const where: any = { ownerStoreId, isActive: true };
@@ -313,7 +314,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { name, checkType, items } = request.body;
 
         const template = await prisma.complianceChecklistTemplate.create({
@@ -349,7 +350,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const userId = request.user!.userId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
         const { status, score, notes } = request.body;
 
@@ -392,9 +393,9 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/compliance/expiry-alerts',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { daysAhead?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const daysAhead = parseInt(request.query.daysAhead || '30');
 
         const alertDate = new Date();
@@ -414,7 +415,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -438,7 +439,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
             where: {
               ownerStoreId,
               franchiseStoreId: record.franchiseConfig.franchiseStoreId,
-              alertType: 'DOCUMENT_EXPIRY',
+              alertType: 'DOCUMENT_EXPIRY' as any,
               metadata: {
                 path: ['complianceRecordId'],
                 equals: record.id,
@@ -452,7 +453,7 @@ export async function hqComplianceRoutes(fastify: FastifyInstance) {
               data: {
                 ownerStoreId,
                 franchiseStoreId: record.franchiseConfig.franchiseStoreId,
-                alertType: 'DOCUMENT_EXPIRY',
+                alertType: 'DOCUMENT_EXPIRY' as any,
                 severity: daysUntilExpiry <= 7 ? 'HIGH' : daysUntilExpiry <= 14 ? 'MEDIUM' : 'LOW',
                 title: `Document Expiring: ${record.checkType}`,
                 message: `${record.franchiseConfig.franchiseStore.name} has ${record.checkType} expiring in ${daysUntilExpiry} days`,

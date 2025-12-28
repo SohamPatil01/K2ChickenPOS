@@ -2,11 +2,12 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 export async function saleRoutes(fastify: FastifyInstance) {
 
   // Get sales list
-  fastify.get('/', async (request: FastifyRequest<{ Querystring: { limit?: string; status?: string } }>, reply: FastifyReply) => {
+  fastify.get('/', async (request: any, reply: FastifyReply) => {
     const limit = parseInt(request.query.limit || '50');
     const status = request.query.status;
     
@@ -53,7 +54,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const todayRevenue = todaySales.reduce((sum, s) => sum + s.grandTotal, 0);
+    const todayRevenue = todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
     const todayCount = todaySales.length;
     const todayAvgBill = todayCount > 0 ? todayRevenue / todayCount : 0;
 
@@ -67,7 +68,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const monthRevenue = monthSales.reduce((sum, s) => sum + s.grandTotal, 0);
+    const monthRevenue = monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
     const monthCount = monthSales.length;
 
     // Recent sales
@@ -106,8 +107,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const data = createSaleSchema.parse(request.body);
-      const storeId = request.user!.storeId;
-      const userId = request.user!.userId;
+      const storeId = getUser(request).storeId;
+      const userId = getUser(request).userId;
 
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
@@ -151,7 +152,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           create: {
             storeId,
             phone: data.customerPhone,
-            name: data.customerName || 'Customer',
+            name: (data as any).customerName || 'Customer',
           },
         });
         customerId = customer.id;
@@ -208,7 +209,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             grandTotal: subTotal + taxTotal,
             createdByUserId: userId,
             items: {
-              create: data.items.map((item) => ({
+              create: data.items.map((item: any) => ({
                 productId: item.productId,
                 qtyKg: item.qtyKg,
                 qtyPcs: item.qtyPcs,
@@ -279,7 +280,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           grandTotal,
           createdByUserId: userId,
           items: {
-            create: data.items.map((item) => ({
+            create: data.items.map((item: any) => ({
               productId: item.productId,
               qtyKg: item.qtyKg,
               qtyPcs: item.qtyPcs,
@@ -321,12 +322,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/:id/pay', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Params: { id: string }; Body: any }>, reply: FastifyReply) => {
+  fastify.post('/:id/pay', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { id } = request.params;
       const { payments } = paySaleSchema.parse(request.body);
-      const storeId = request.user!.storeId;
-      const userId = request.user!.userId;
+      const storeId = getUser(request).storeId;
+      const userId = getUser(request).userId;
 
       if (!storeId || !userId) {
         reply.code(400).send({ error: 'Store ID and User ID are required' });
@@ -375,7 +376,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.warn('Could not check discount override, proceeding with payment:', err);
       }
 
-      const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+      const totalPaid = payments.reduce((sum: any, p) => sum + p.amount, 0);
       if (Math.abs(totalPaid - sale.grandTotal) > 0.01) {
         reply.code(400).send({ error: 'Payment amount mismatch' });
         return;
@@ -383,7 +384,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Create payments
       await prisma.payment.createMany({
-        data: payments.map((p) => ({
+        data: payments.map((p: any) => ({
           saleId: id,
           method: p.method,
           amount: p.amount,
@@ -490,11 +491,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/:id/void', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest<{ Params: { id: string }; Body: { reason: string } }>, reply: FastifyReply) => {
+  fastify.post('/:id/void', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const { reason } = request.body;
-    const storeId = request.user!.storeId;
-    const userId = request.user!.userId;
+    const storeId = getUser(request).storeId;
+    const userId = getUser(request).userId;
 
     const sale = await prisma.sale.findUnique({
       where: { id },
@@ -529,11 +530,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
     return updatedSale;
   });
 
-  fastify.post('/:id/refund', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest<{ Params: { id: string }; Body: { reason: string; amount?: number } }>, reply: FastifyReply) => {
+  fastify.post('/:id/refund', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const { reason, amount } = request.body;
-    const storeId = request.user!.storeId;
-    const userId = request.user!.userId;
+    const storeId = getUser(request).storeId;
+    const userId = getUser(request).userId;
 
     const sale = await prisma.sale.findUnique({
       where: { id },

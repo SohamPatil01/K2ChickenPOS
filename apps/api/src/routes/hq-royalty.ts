@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
@@ -40,7 +41,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, periodStart, periodEnd } = request.body;
 
         const config = await prisma.franchiseConfig.findUnique({
@@ -67,13 +68,22 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
         });
 
         // Calculate gross sales (total revenue before any deductions)
-        const grossSales = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+        const grossSales = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
         
         // Calculate total discounts
-        const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+        const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
+        
+        // Calculate wastage (must be fetched before using it)
+        const wastageLedgers = await prisma.inventoryLedger.findMany({
+          where: {
+            storeId: config.franchiseStoreId,
+            reason: 'WASTAGE',
+            createdAt: dateFilter,
+          },
+        });
         
         // Calculate total wastage value (cost of wasted inventory)
-        const wastageValue = wastageLedgers.reduce((sum, ledger) => {
+        const wastageValue = wastageLedgers.reduce((sum: any, ledger) => {
           // Get product price at time of wastage (simplified - use current price)
           // In production, you'd want to track the actual cost at time of wastage
           return sum + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100; // Placeholder: ₹100/kg
@@ -85,15 +95,6 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
         const netSales = config.royaltyCalculationBase === 'NET_SALES' 
           ? grossSales - totalDiscounts - wastageValue
           : grossSales;
-
-        // Calculate wastage
-        const wastageLedgers = await prisma.inventoryLedger.findMany({
-          where: {
-            storeId: config.franchiseStoreId,
-            reason: 'WASTAGE',
-            createdAt: dateFilter,
-          },
-        });
 
         const totalWastage = wastageLedgers.reduce(
           (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
@@ -190,7 +191,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -205,7 +206,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             type: 'ROYALTY',
             amount: baseRoyalty,
             description: `Base royalty for period ${new Date(periodStart).toLocaleDateString()} - ${new Date(periodEnd).toLocaleDateString()}`,
-            createdBy: request.user!.userId,
+            createdBy: getUser(request).userId,
           },
         });
 
@@ -217,7 +218,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               type: 'PENALTY',
               amount: -wastagePenalty,
               description: `Wastage penalty: ${excessWastage.toFixed(2)}% excess (allowed: ${allowedWastagePercent}%)`,
-              createdBy: request.user!.userId,
+              createdBy: getUser(request).userId,
             },
           });
         }
@@ -230,7 +231,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               type: 'PENALTY',
               amount: -pricingViolationPenalty,
               description: 'Pricing violation penalty',
-              createdBy: request.user!.userId,
+              createdBy: getUser(request).userId,
             },
           });
         }
@@ -243,7 +244,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               type: 'PENALTY',
               amount: -compliancePenalty,
               description: `Compliance penalty: ${complianceRecords.length} violation(s)`,
-              createdBy: request.user!.userId,
+              createdBy: getUser(request).userId,
             },
           });
         }
@@ -260,9 +261,9 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/royalty/invoices',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { franchiseConfigId?: string; status?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, status } = request.query;
 
         const where: any = {};
@@ -279,7 +280,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -304,9 +305,9 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/royalty/invoices/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const invoice = await prisma.royaltyInvoice.findUnique({
@@ -315,7 +316,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },
@@ -339,9 +340,9 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/royalty/invoices/:id/invoice',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const invoice = await prisma.royaltyInvoice.findUnique({
@@ -385,7 +386,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
         const { paymentReference, notes } = request.body;
 
@@ -437,7 +438,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { periodStart, periodEnd } = request.body;
 
         const franchises = await prisma.store.findMany({
@@ -452,8 +453,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
 
         const results = await Promise.allSettled(
           franchises
-            .filter((f) => f.franchiseConfig)
-            .map(async (franchise) => {
+            .filter((f: any) => f.franchiseConfig)
+            .map(async (franchise: any) => {
               const config = franchise.franchiseConfig!;
 
               // Reuse calculation logic from calculate endpoint
@@ -467,8 +468,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
                 },
               });
 
-              const grossSales = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-              const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+              const grossSales = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+              const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
               const netSales = grossSales - totalDiscounts;
 
               const wastageLedgers = await prisma.inventoryLedger.findMany({
@@ -558,8 +559,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             })
         );
 
-        const successful = results.filter((r) => r.status === 'fulfilled').length;
-        const failed = results.filter((r) => r.status === 'rejected').length;
+        const successful = results.filter((r: any) => r.status === 'fulfilled').length;
+        const failed = results.filter((r: any) => r.status === 'rejected').length;
 
         return {
           message: `Calculated royalties for ${successful} franchises`,
@@ -592,7 +593,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { year, month } = request.body;
 
         // Default to previous month if not specified
@@ -643,8 +644,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const grossSales = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-            const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+            const grossSales = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+            const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
 
             const wastageLedgers = await prisma.inventoryLedger.findMany({
               where: {
@@ -654,7 +655,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const wastageValue = wastageLedgers.reduce((sum, ledger) => {
+            const wastageValue = wastageLedgers.reduce((sum: any, ledger) => {
               return sum + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100;
             }, 0);
 
@@ -769,7 +770,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseConfigId, status, startDate, endDate } = request.query;
 
         const where: any = {};
@@ -792,7 +793,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             franchiseConfig: {
               include: {
                 franchiseStore: {
-                  select: { id: true, name: true },
+                  select: { id: true, name: true, parentOwnerStoreId: true },
                 },
               },
             },

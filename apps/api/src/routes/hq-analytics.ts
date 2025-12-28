@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
@@ -28,9 +29,9 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/analytics/store-comparison',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
         const dateFilter = getDateRange(startDate, endDate);
 
@@ -51,7 +52,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
         });
 
         const comparison = await Promise.all(
-          franchises.map(async (franchise) => {
+          franchises.map(async (franchise: any) => {
             const sales = await prisma.sale.findMany({
               where: {
                 storeId: franchise.id,
@@ -60,7 +61,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const revenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+            const revenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
             const salesCount = sales.length;
 
             // Calculate yield efficiency
@@ -80,7 +81,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const soldWeightKg = saleItems.reduce((sum, item) => sum + (item.qtyKg || 0), 0);
+            const soldWeightKg = saleItems.reduce((sum: any, item) => sum + (item.qtyKg || 0), 0);
 
             // Get received inventory
             const receivedLedgers = await prisma.inventoryLedger.findMany({
@@ -115,7 +116,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
             const wastagePercent = receivedWeightKg > 0 ? (wastageKg / receivedWeightKg) * 100 : 0;
 
             // Calculate discount abuse
-            const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+            const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
             const discountPercent = revenue > 0 ? (totalDiscounts / revenue) * 100 : 0;
 
             const config = franchise.franchiseConfig;
@@ -138,7 +139,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
         );
 
         // Group by area manager (region)
-        const regionGroups = comparison.reduce((acc, store) => {
+        const regionGroups = comparison.reduce((acc: any, store) => {
           const regionKey = store.areaManager?.name || 'Unassigned';
           if (!acc[regionKey]) {
             acc[regionKey] = {
@@ -169,7 +170,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
         });
 
         return {
-          storeComparison: comparison.sort((a, b) => b.revenue - a.revenue),
+          storeComparison: comparison.sort((a: any, b: any) => b.revenue - a.revenue),
           regionComparison: Object.values(regionGroups),
         };
       } catch (error: any) {
@@ -183,9 +184,9 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/analytics/yield-leaderboard',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
         const dateFilter = getDateRange(startDate, endDate);
 
@@ -197,7 +198,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
         });
 
         const leaderboard = await Promise.all(
-          franchises.map(async (franchise) => {
+          franchises.map(async (franchise: any) => {
             const saleItems = await prisma.saleItem.findMany({
               where: {
                 sale: {
@@ -214,7 +215,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const soldWeightKg = saleItems.reduce((sum, item) => sum + (item.qtyKg || 0), 0);
+            const soldWeightKg = saleItems.reduce((sum: any, item) => sum + (item.qtyKg || 0), 0);
 
             const receivedLedgers = await prisma.inventoryLedger.findMany({
               where: {
@@ -242,7 +243,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
           })
         );
 
-        return leaderboard.sort((a, b) => b.yieldEfficiency - a.yieldEfficiency);
+        return leaderboard.sort((a: any, b: any) => b.yieldEfficiency - a.yieldEfficiency);
       } catch (error: any) {
         console.error('Failed to load yield leaderboard:', error);
         reply.code(500).send({ error: 'Failed to load yield leaderboard' });
@@ -254,9 +255,9 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/analytics/wastage-heatmap',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
         const dateFilter = getDateRange(startDate, endDate);
 
@@ -271,7 +272,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
         });
 
         const heatmap = await Promise.all(
-          franchises.map(async (franchise) => {
+          franchises.map(async (franchise: any) => {
             const receivedLedgers = await prisma.inventoryLedger.findMany({
               where: {
                 storeId: franchise.id,
@@ -336,9 +337,9 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/analytics/discount-abuse',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
         const dateFilter = getDateRange(startDate, endDate);
 
@@ -353,7 +354,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
         });
 
         const abuseDetection = await Promise.all(
-          franchises.map(async (franchise) => {
+          franchises.map(async (franchise: any) => {
             const sales = await prisma.sale.findMany({
               where: {
                 storeId: franchise.id,
@@ -362,8 +363,8 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const revenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-            const totalDiscounts = sales.reduce((sum, s) => sum + s.discountTotal, 0);
+            const revenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+            const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
             const discountPercent = revenue > 0 ? (totalDiscounts / revenue) * 100 : 0;
 
             const config = franchise.franchiseConfig;
@@ -373,7 +374,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
 
             // Get sales with high discounts
             const highDiscountSales = sales
-              .filter((s) => s.discountTotal > 0 && (s.discountTotal / s.grandTotal) * 100 > allowedDiscountPercent)
+              .filter((s: any) => s.discountTotal > 0 && (s.discountTotal / s.grandTotal) * 100 > allowedDiscountPercent)
               .map((s) => ({
                 saleNo: s.saleNo,
                 discountAmount: s.discountTotal,
@@ -395,7 +396,7 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
           })
         );
 
-        return abuseDetection.filter((d) => d.isAbusing).sort((a, b) => b.excessDiscount - a.excessDiscount);
+        return abuseDetection.filter((d: any) => d.isAbusing).sort((a: any, b: any) => b.excessDiscount - a.excessDiscount);
       } catch (error: any) {
         console.error('Failed to load discount abuse detection:', error);
         reply.code(500).send({ error: 'Failed to load discount abuse detection' });

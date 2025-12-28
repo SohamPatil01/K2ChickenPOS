@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const productMasterSchema = z.object({
   productId: z.string(),
@@ -18,7 +19,7 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/product-master',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Querystring: { productId?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { productId } = request.query;
         
@@ -91,9 +92,9 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/product-masters',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { productType?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { productType } = request.query;
 
         const where: any = { ownerStoreId };
@@ -164,9 +165,9 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/product-masters/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const productMaster = await prisma.productMaster.findUnique({
@@ -197,9 +198,9 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/product-masters',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof productMasterSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const data = productMasterSchema.parse(request.body);
 
         // Verify product belongs to owner
@@ -254,9 +255,9 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/product-masters/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: Partial<z.infer<typeof productMasterSchema>> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
         const data = productMasterSchema.partial().parse(request.body);
 
@@ -293,9 +294,9 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/product-masters/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const productMaster = await prisma.productMaster.findUnique({

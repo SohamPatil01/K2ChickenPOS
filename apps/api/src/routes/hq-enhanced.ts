@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 interface QueryParams {
   startDate?: string;
@@ -62,11 +63,11 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/dashboard/enhanced',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
         const { startDate, endDate } = request.query;
         const dateFilter = getDateRange(startDate, endDate);
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const ownerStore = await prisma.store.findUnique({ where: { id: ownerStoreId } });
         if (!ownerStore || ownerStore.type !== 'OWNER') {
@@ -142,7 +143,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalSoldWeightKg = saleItems.reduce((sum, item) => sum + (item.qtyKg || 0), 0);
+        const totalSoldWeightKg = saleItems.reduce((sum: any, item) => sum + (item.qtyKg || 0), 0);
         const totalProcuredWeightKg = inwardStockData._sum.totalWeightKg || 0;
 
         // Yield Loss = (Procured - Sold) / Procured * 100
@@ -153,7 +154,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
 
         // Wastage by store (from InventoryLedger with WASTAGE reason)
         const wastageData = await Promise.all(
-          franchises.map(async (franchise) => {
+          franchises.map(async (franchise: any) => {
             const wastageLedgers = await prisma.inventoryLedger.findMany({
               where: {
                 storeId: franchise.id,
@@ -202,7 +203,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
 
         // Top/Bottom performing stores
         const franchisePerformance = await Promise.all(
-          franchises.map(async (franchise) => {
+          franchises.map(async (franchise: any) => {
             const sales = await prisma.sale.findMany({
               where: {
                 storeId: franchise.id,
@@ -211,7 +212,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const revenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+            const revenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
             const salesCount = sales.length;
 
             return {
@@ -225,10 +226,10 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
         );
 
         const topStores = [...franchisePerformance]
-          .sort((a, b) => b.revenue - a.revenue)
+          .sort((a: any, b: any) => b.revenue - a.revenue)
           .slice(0, 5);
         const bottomStores = [...franchisePerformance]
-          .sort((a, b) => a.revenue - b.revenue)
+          .sort((a: any, b: any) => a.revenue - b.revenue)
           .slice(0, 5);
 
         // Get active alerts
@@ -296,9 +297,9 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/alerts',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { isResolved?: string; severity?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { isResolved, severity } = request.query;
 
         const where: any = {
@@ -342,9 +343,9 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/alerts/:id/read',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const alert = await prisma.hQAlert.findUnique({
@@ -373,10 +374,10 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/alerts/:id/resolve',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const ownerStoreId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
 
         const alert = await prisma.hQAlert.findUnique({
@@ -415,7 +416,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const franchises = await prisma.store.findMany({
           where: {
@@ -486,7 +487,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseId } = request.params;
         const body = request.body;
 
@@ -553,8 +554,8 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const ownerStoreId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { franchiseId } = request.params;
         const { isPricingLocked, isDiscountLocked, isWastageLocked } = request.body;
 
@@ -646,7 +647,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseId } = request.params;
         const { status } = request.body;
 
@@ -691,7 +692,7 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseId } = request.params;
         const { onboardingData } = request.body;
 

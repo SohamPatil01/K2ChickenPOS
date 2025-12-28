@@ -32,7 +32,7 @@ function getDateRange(startDate?: string, endDate?: string) {
 
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
-  fastify.get('/stock', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/stock', async (request: any, reply: FastifyReply) => {
     const { storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -64,13 +64,13 @@ export async function reportRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const stockData = products.map((product) => {
+    const stockData = products.map((product: any) => {
       const inQty = product.inventoryLedgers
-        .filter((l) => l.type === 'IN')
-        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        .filter((l: any) => l.type === 'IN')
+        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
       const outQty = product.inventoryLedgers
-        .filter((l) => l.type === 'OUT')
-        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        .filter((l: any) => l.type === 'OUT')
+        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
       const currentStock = inQty - outQty;
 
       return {
@@ -90,7 +90,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // Product Wise Sale Report
-  fastify.get('/product-wise-sale', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/product-wise-sale', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -143,11 +143,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return Object.values(productStats).sort((a, b) => b.revenue - a.revenue);
+    return Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue);
   });
 
   // Bill Wise Sale Report
-  fastify.get('/bill-wise-sale', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/bill-wise-sale', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -189,12 +189,12 @@ export async function reportRoutes(fastify: FastifyInstance) {
       discount: sale.discountTotal,
       tax: sale.taxTotal,
       grandTotal: sale.grandTotal,
-      payments: sale.payments.map((p) => ({
+      payments: sale.payments.map((p: any) => ({
         method: p.method,
         amount: p.amount,
       })),
       createdBy: sale.createdBy.name,
-      items: sale.items.map((item) => ({
+      items: sale.items.map((item: any) => ({
         productName: item.product.name,
         sku: item.product.sku,
         qtyKg: item.qtyKg,
@@ -206,7 +206,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // Sales Register Summary
-  fastify.get('/sales-register-summary', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/sales-register-summary', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -241,9 +241,9 @@ export async function reportRoutes(fastify: FastifyInstance) {
     }
 
     const totalSales = sales.length;
-    const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-    const totalDiscount = sales.reduce((sum, s) => sum + s.discountTotal, 0);
-    const totalTax = sales.reduce((sum, s) => sum + s.taxTotal, 0);
+    const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+    const totalDiscount = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
+    const totalTax = sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0);
 
     return {
       period: {
@@ -262,7 +262,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // Sales Sub Register (Detailed)
-  fastify.get('/sales-sub-register', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/sales-sub-register', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -298,13 +298,13 @@ export async function reportRoutes(fastify: FastifyInstance) {
       discount: sale.discountTotal,
       tax: sale.taxTotal,
       total: sale.grandTotal,
-      paymentMethod: sale.payments.map((p) => p.method).join(', '),
+      paymentMethod: sale.payments.map((p: any) => p.method).join(', '),
       cashier: sale.createdBy.name,
     }));
   });
 
   // Bill Wise Sale Cancel
-  fastify.get('/bill-wise-sale-cancel', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/bill-wise-sale-cancel', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -341,7 +341,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       originalTotal: sale.grandTotal,
       itemsCount: sale.items.length,
       cancelledBy: sale.createdBy.name,
-      items: sale.items.map((item) => ({
+      items: sale.items.map((item: any) => ({
         productName: item.product.name,
         qty: item.qtyKg || item.qtyPcs || 0,
         amount: item.lineTotal,
@@ -350,7 +350,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // PO Report
-  fastify.get('/po-report', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/po-report', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -391,7 +391,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       ownerStore: po.ownerStore.name,
       status: po.status,
       itemsCount: po.items.length,
-      items: po.items.map((item) => ({
+      items: po.items.map((item: any) => ({
         productName: item.product.name,
         sku: item.product.sku,
         qtyKg: item.qtyKg,
@@ -421,7 +421,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   }
 
   // SKU Wise Sales Report
-  fastify.get('/sku-wise-sales', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/sku-wise-sales', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const ownerStoreId = store?.id || '';
@@ -484,7 +484,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // Summary Report
-  fastify.get('/summary-report', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/summary-report', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -522,13 +522,13 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }),
     ]);
 
-    const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
-    const totalItemsSold = sales.reduce((sum, s) => sum + s.items.length, 0);
+    const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+    const totalItemsSold = sales.reduce((sum: any, s: any) => sum + s.items.length, 0);
     const avgBillValue = sales.length > 0 ? totalRevenue / sales.length : 0;
 
     const paymentBreakdown: Record<string, number> = {};
     sales.forEach((sale) => {
-      sale.payments.forEach((payment) => {
+      sale.payments.forEach((payment: any) => {
         paymentBreakdown[payment.method] = (paymentBreakdown[payment.method] || 0) + payment.amount;
       });
     });
@@ -556,7 +556,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // Pending Report
-  fastify.get('/pending', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/pending', async (request: any, reply: FastifyReply) => {
     const { storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -629,7 +629,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
   });
 
   // MRN & Balance Confirmation
-  fastify.get('/mrn-balance', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/mrn-balance', async (request: any, reply: FastifyReply) => {
     const { storeId: queryStoreId } = request.query;
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
@@ -687,13 +687,13 @@ export async function reportRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const balanceData = products.map((product) => {
+    const balanceData = products.map((product: any) => {
       const inQty = product.inventoryLedgers
-        .filter((l) => l.type === 'IN')
-        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        .filter((l: any) => l.type === 'IN')
+        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
       const outQty = product.inventoryLedgers
-        .filter((l) => l.type === 'OUT')
-        .reduce((sum, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        .filter((l: any) => l.type === 'OUT')
+        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
       const balance = inQty - outQty;
 
       return {
@@ -715,7 +715,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         receivedAt: grn.receivedAt,
         receivedBy: grn.receiver.name,
         status: grn.status,
-        items: grn.dispatch.items.map((item) => ({
+        items: grn.dispatch.items.map((item: any) => ({
           productName: item.product.name,
           qtyKg: item.qtyKg,
           qtyPcs: item.qtyPcs,

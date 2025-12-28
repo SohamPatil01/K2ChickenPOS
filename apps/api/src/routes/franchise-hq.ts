@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 interface QueryParams {
   startDate?: string;
@@ -31,11 +32,11 @@ function getDateRange(startDate?: string, endDate?: string) {
 
 export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get overall HQ dashboard summary
-  fastify.get('/dashboard', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/dashboard', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate } = request.query;
       const dateFilter = getDateRange(startDate, endDate);
-      const ownerStoreId = request.user!.storeId;
+      const ownerStoreId = getUser(request).storeId;
 
       const ownerStore = await prisma.store.findUnique({ where: { id: ownerStoreId } });
       if (!ownerStore || ownerStore.type !== 'OWNER') {
@@ -90,7 +91,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
 
       // Get franchise-wise breakdown
       const franchiseBreakdown = await Promise.all(
-        franchises.map(async (franchise) => {
+        franchises.map(async (franchise: any) => {
           const sales = await prisma.sale.findMany({
             where: {
               storeId: franchise.id,
@@ -99,7 +100,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const revenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+          const revenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
           const customers = await prisma.customer.count({
             where: {
               storeId: franchise.id,
@@ -126,7 +127,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           totalCustomers: totalCustomers,
           avgRevenuePerFranchise: franchises.length > 0 ? (totalRevenue._sum.grandTotal || 0) / franchises.length : 0,
         },
-        franchiseBreakdown: franchiseBreakdown.sort((a, b) => b.revenue - a.revenue),
+        franchiseBreakdown: franchiseBreakdown.sort((a: any, b: any) => b.revenue - a.revenue),
         period: {
           startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           endDate: endDate || new Date().toISOString().split('T')[0],
@@ -139,7 +140,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   });
 
   // Get sales monitoring across all franchises
-  fastify.get('/sales-monitoring', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/sales-monitoring', async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate, franchiseId } = request.query;
       const dateFilter = getDateRange(startDate, endDate);
@@ -212,7 +213,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   });
 
   // Get inventory monitoring across franchises
-  fastify.get('/inventory-monitoring', async (request: FastifyRequest<{ Querystring: { franchiseId?: string } }>, reply: FastifyReply) => {
+  fastify.get('/inventory-monitoring', async (request: any, reply: FastifyReply) => {
     try {
       const { franchiseId } = request.query;
 
@@ -360,7 +361,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   });
 
   // Get payments and commissions
-  fastify.get('/payments-commissions', async (request: FastifyRequest<{ Querystring: QueryParams }>, reply: FastifyReply) => {
+  fastify.get('/payments-commissions', async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate, franchiseId } = request.query;
       const dateFilter = getDateRange(startDate, endDate);
@@ -396,15 +397,25 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
               status: 'PAID',
               createdAt: dateFilter,
             },
+            include: {
+              payments: {
+                select: {
+                  method: true,
+                  amount: true,
+                },
+              },
+            },
           });
 
-          const totalRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+          const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
           const commission = totalRevenue * COMMISSION_RATE;
           const netPayment = totalRevenue - commission;
 
           // Payment method breakdown
-          const paymentBreakdown = sales.reduce((acc, sale) => {
-            acc[sale.paymentMethod] = (acc[sale.paymentMethod] || 0) + sale.grandTotal;
+          const paymentBreakdown = sales.reduce((acc: any, sale: any) => {
+            sale.payments?.forEach((payment: any) => {
+              acc[payment.method] = (acc[payment.method] || 0) + payment.amount;
+            });
             return acc;
           }, {} as Record<string, number>);
 
@@ -420,8 +431,8 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         })
       );
 
-      const totalRevenue = franchisePayments.reduce((sum, p) => sum + p.totalRevenue, 0);
-      const totalCommission = franchisePayments.reduce((sum, p) => sum + p.commission, 0);
+      const totalRevenue = franchisePayments.reduce((sum: any, p) => sum + p.totalRevenue, 0);
+      const totalCommission = franchisePayments.reduce((sum: any, p) => sum + p.commission, 0);
 
       return {
         summary: {
@@ -430,7 +441,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           totalNetPayment: totalRevenue - totalCommission,
           commissionRate: COMMISSION_RATE * 100,
         },
-        franchisePayments: franchisePayments.sort((a, b) => b.totalRevenue - a.totalRevenue),
+        franchisePayments: franchisePayments.sort((a: any, b: any) => b.totalRevenue - a.totalRevenue),
         period: {
           startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           endDate: endDate || new Date().toISOString().split('T')[0],

@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const supplierSchema = z.object({
   name: z.string().min(1),
@@ -62,7 +63,7 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const suppliers = await prisma.supplier.findMany({
           where: { ownerStoreId },
@@ -81,17 +82,25 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/suppliers',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof supplierSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const data = supplierSchema.parse(request.body);
 
-        const supplier = await prisma.supplier.create({
-          data: {
-            ownerStoreId,
-            ...data,
-          },
-        });
+      const supplier = await prisma.supplier.create({
+        data: {
+          ownerStoreId,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          city: data.city,
+          state: data.state,
+          zip: data.zip,
+          address: data.address,
+          contactName: data.contactName,
+          gstin: data.gstin,
+        },
+      });
 
         return supplier;
       } catch (error: any) {
@@ -105,9 +114,9 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.put(
     '/suppliers/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: z.infer<typeof supplierSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
         const data = supplierSchema.parse(request.body);
 
@@ -137,9 +146,9 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.delete(
     '/suppliers/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
 
         const supplier = await prisma.supplier.findUnique({
@@ -171,9 +180,9 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/central-pos',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { status?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { status } = request.query;
 
         const where: any = { ownerStoreId };
@@ -208,16 +217,16 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/central-pos',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof centralPOSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const data = centralPOSchema.parse(request.body);
 
         // Generate PO number if not provided
         const poNo = data.poNo || `CPO-${Date.now()}`;
 
         // Calculate total amount
-        const totalAmount = data.items.reduce((sum, item) => {
+        const totalAmount = data.items.reduce((sum: any, item) => {
           const qty = item.qtyKg || item.qtyPcs || 0;
           return sum + qty * item.unitRate;
         }, 0);
@@ -232,7 +241,7 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
             totalAmount,
             notes: data.notes,
             items: {
-              create: data.items.map((item) => ({
+              create: data.items.map((item: any) => ({
                 productId: item.productId,
                 qtyKg: item.qtyKg,
                 qtyPcs: item.qtyPcs,
@@ -265,9 +274,9 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/central-pos/:id/status',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: { status: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
         const { status } = request.body;
 
@@ -303,7 +312,7 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
 
         const inwardStocks = await prisma.inwardStock.findMany({
           where: { ownerStoreId },
@@ -341,10 +350,10 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/inward-stock',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof inwardStockSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const ownerStoreId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const data = inwardStockSchema.parse(request.body);
 
         const inwardStock = await prisma.inwardStock.create({
@@ -395,9 +404,9 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/stock-allocations',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Querystring: { franchiseId?: string; status?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { franchiseId, status } = request.query;
 
         const where: any = { ownerStoreId };
@@ -439,9 +448,9 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/stock-allocations',
     { preHandler: [fastify.authenticate, requireRole('OWNER')] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof stockAllocationSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const data = stockAllocationSchema.parse(request.body);
 
         // Verify franchise belongs to owner
@@ -495,7 +504,7 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       try {
-        const ownerStoreId = request.user!.storeId;
+        const ownerStoreId = getUser(request).storeId;
         const { id } = request.params;
         const { status, dispatchedAt, receivedAt } = request.body;
 

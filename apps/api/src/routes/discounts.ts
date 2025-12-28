@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const discountOverrideSchema = z.object({
   saleId: z.string(),
@@ -14,10 +15,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/discounts/override/request',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Body: z.infer<typeof discountOverrideSchema> }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const storeId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { saleId, overrideDiscount, reason } = request.body;
 
         // Get the sale
@@ -143,7 +144,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
+        const storeId = getUser(request).storeId;
 
         const overrides = await prisma.discountOverride.findMany({
           where: {
@@ -177,10 +178,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/discounts/override/:id/approve',
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const storeId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
 
         const override = await prisma.discountOverride.findUnique({
@@ -251,10 +252,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
   fastify.patch(
     '/discounts/override/:id/reject',
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
-    async (request: FastifyRequest<{ Params: { id: string }; Body: { rejectionReason?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
-        const userId = request.user!.userId;
+        const storeId = getUser(request).storeId;
+        const userId = getUser(request).userId;
         const { id } = request.params;
         const { rejectionReason } = request.body;
 
@@ -309,9 +310,9 @@ export async function discountRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/discounts/override/history',
     { preHandler: [fastify.authenticate] },
-    async (request: FastifyRequest<{ Querystring: { startDate?: string; endDate?: string } }>, reply: FastifyReply) => {
+    async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = request.user!.storeId;
+        const storeId = getUser(request).storeId;
         const { startDate, endDate } = request.query;
 
         const where: any = { storeId };

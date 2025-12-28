@@ -3,12 +3,13 @@ import crypto from 'crypto';
 import { prisma } from '@azela-pos/db';
 import { createDeliverySchema, assignDriverSchema, updateDeliveryStatusSchema, verifyOTPSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 export async function deliveryRoutes(fastify: FastifyInstance) {
 
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const data = createDeliverySchema.parse(request.body);
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     const sale = await prisma.sale.findUnique({
       where: { id: data.saleId },
@@ -54,22 +55,22 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       data: {
         deliveryOrderId: delivery.id,
         status: 'CREATED',
-        createdBy: request.user!.userId,
+        createdBy: getUser(request).userId,
       },
     });
 
     return { ...delivery, otp }; // Return OTP only on creation
   });
 
-  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Querystring: { status?: string; driverId?: string; date?: string } }>, reply: FastifyReply) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { status, driverId, date } = request.query;
-    const storeId = request.user!.storeId;
-    const userRole = request.user!.role;
+    const storeId = getUser(request).storeId;
+    const userRole = getUser(request).role;
 
     const where: any = {};
 
     if (userRole === 'DRIVER') {
-      where.assignedDriverId = request.user!.userId;
+      where.assignedDriverId = getUser(request).userId;
     } else {
       where.storeId = storeId;
     }
@@ -117,10 +118,10 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     return deliveries;
   });
 
-  fastify.post('/:id/assign-driver', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest<{ Params: { id: string }; Body: any }>, reply: FastifyReply) => {
+  fastify.post('/:id/assign-driver', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const { driverId } = assignDriverSchema.parse(request.body);
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     const delivery = await prisma.deliveryOrder.findUnique({
       where: { id },
@@ -153,18 +154,18 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
         deliveryOrderId: id,
         status: 'ASSIGNED',
         note: `Assigned to ${driver.name}`,
-        createdBy: request.user!.userId,
+        createdBy: getUser(request).userId,
       },
     });
 
     return updated;
   });
 
-  fastify.post('/:id/status', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Params: { id: string }; Body: any }>, reply: FastifyReply) => {
+  fastify.post('/:id/status', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const data = updateDeliveryStatusSchema.parse(request.body);
-    const userId = request.user!.userId;
-    const userRole = request.user!.role;
+    const userId = getUser(request).userId;
+    const userRole = getUser(request).role;
 
     const delivery = await prisma.deliveryOrder.findUnique({
       where: { id },
@@ -210,10 +211,10 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  fastify.post('/:id/otp/verify', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest<{ Params: { id: string }; Body: any }>, reply: FastifyReply) => {
+  fastify.post('/:id/otp/verify', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = request.params;
     const { otp } = verifyOTPSchema.parse(request.body);
-    const userId = request.user!.userId;
+    const userId = getUser(request).userId;
 
     const delivery = await prisma.deliveryOrder.findUnique({
       where: { id },
@@ -255,9 +256,9 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     return updated;
   });
 
-  fastify.get('/driver/my-deliveries', { preHandler: [fastify.authenticate, requireRole('DRIVER')] }, async (request: FastifyRequest<{ Querystring: { status?: string } }>, reply: FastifyReply) => {
+  fastify.get('/driver/my-deliveries', { preHandler: [fastify.authenticate, requireRole('DRIVER')] }, async (request: any, reply: FastifyReply) => {
     const { status } = request.query;
-    const userId = request.user!.userId;
+    const userId = getUser(request).userId;
 
     const where: any = {
       assignedDriverId: userId,

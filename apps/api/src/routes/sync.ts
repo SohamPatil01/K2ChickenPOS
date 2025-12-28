@@ -1,14 +1,15 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { getUser } from '../utils/auth.js';
 import { syncEventsSchema } from '@azela-pos/shared';
 
 export async function syncRoutes(fastify: FastifyInstance) {
 
   fastify.post('/events', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const data = syncEventsSchema.parse(request.body);
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
-    const ackedIds: number[] = [];
+    const ackedIds: string[] = [];
 
     for (const event of data.events) {
       try {
@@ -44,7 +45,7 @@ export async function syncRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/bootstrap', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const storeId = request.user!.storeId;
+    const storeId = getUser(request).storeId;
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },
@@ -96,7 +97,7 @@ export async function syncRoutes(fastify: FastifyInstance) {
     });
 
     return {
-      products: products.map((p) => ({
+      products: products.map((p: any) => ({
         productId: p.id,
         sku: p.sku,
         plu: p.plu,

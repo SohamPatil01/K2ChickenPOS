@@ -3,6 +3,7 @@ import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { requireRole } from '../utils/auth.js';
+import { getUser } from '../utils/auth.js';
 
 const createUserSchema = z.object({
   name: z.string().min(1),
@@ -27,7 +28,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.get('/', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     // Get default store (owner store)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || request.user!.storeId;
+    const storeId = store?.id || getUser(request).storeId;
 
     const users = await prisma.user.findMany({
       where: { storeId },
@@ -48,10 +49,10 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // Create new user (staff) - Only OWNER can create
-  fastify.post('/', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest<{ Body: z.infer<typeof createUserSchema> }>, reply: FastifyReply) => {
+  fastify.post('/', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || request.user!.storeId;
+    const storeId = store?.id || getUser(request).storeId;
     const data = createUserSchema.parse(request.body);
 
     // Check if phone already exists
@@ -93,10 +94,10 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // Update user (staff) - Only OWNER can update
-  fastify.put('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest<{ Params: { id: string }; Body: z.infer<typeof updateUserSchema> }>, reply: FastifyReply) => {
+  fastify.put('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || request.user!.storeId;
+    const storeId = store?.id || getUser(request).storeId;
     const { id } = request.params;
     const data = updateUserSchema.parse(request.body);
 
@@ -157,10 +158,10 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // Delete user (staff) - Only OWNER can delete
-  fastify.delete('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.delete('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || request.user!.storeId;
+    const storeId = store?.id || getUser(request).storeId;
     const { id } = request.params;
 
     // Check if user exists and belongs to the same store
@@ -179,7 +180,7 @@ export async function userRoutes(fastify: FastifyInstance) {
     }
 
     // Prevent deleting yourself
-    if (existingUser.id === request.user!.userId) {
+    if (existingUser.id === getUser(request).userId) {
       reply.code(400).send({ error: 'Cannot delete your own account' });
       return;
     }
@@ -192,10 +193,10 @@ export async function userRoutes(fastify: FastifyInstance) {
   });
 
   // Get single user - Only OWNER can access
-  fastify.get('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  fastify.get('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || request.user!.storeId;
+    const storeId = store?.id || getUser(request).storeId;
     const { id } = request.params;
 
     const user = await prisma.user.findUnique({
