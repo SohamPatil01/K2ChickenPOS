@@ -122,9 +122,6 @@ async function build() {
 
   app = fastify;
   return fastify;
-  })();
-  
-  return buildPromise;
 }
 
 // Vercel serverless function handler

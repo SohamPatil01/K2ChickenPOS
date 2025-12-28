@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd ../.. && pnpm install && pnpm --filter @azela-pos/db build && pnpm --filter @azela-pos/shared build",
+  "buildCommand": "",
   "outputDirectory": "",
   "rewrites": [
     {
