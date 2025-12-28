@@ -265,7 +265,7 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { startDate, endDate } = (request.query as any);
 
         const dateFilter = getDateRange(startDate, endDate);
 
