@@ -114,12 +114,41 @@ This guide will walk you through deploying the Fastify API server to Vercel as s
 
 1. **Update Your Web App Environment Variables**
 
-   - Go to your web app's Vercel project settings
-   - Update `NEXT_PUBLIC_API_URL` to point to your new API URL
-   - Example: `NEXT_PUBLIC_API_URL=https://your-api-project.vercel.app`
+   **Step-by-step:**
+   
+   a. Go to [Vercel Dashboard](https://vercel.com) and select your **web app project** (not the API project)
+   
+   b. Click **Settings** (gear icon) in the top navigation
+   
+   c. Click **Environment Variables** in the left sidebar
+   
+   d. Either:
+      - **If `NEXT_PUBLIC_API_URL` exists**: Click the edit icon (pencil) next to it
+      - **If it doesn't exist**: Click **Add New** button
+   
+   e. Enter:
+      - **Key**: `NEXT_PUBLIC_API_URL`
+      - **Value**: Your API URL (e.g., `https://k2-chicken-pos-api.vercel.app` or your actual API project URL)
+      - **Environments**: Check all three (Production, Preview, Development)
+   
+   f. Click **Save**
 
 2. **Redeploy Web App**
-   - Trigger a new deployment so it picks up the new API URL
+   
+   **Option 1: Redeploy from Vercel**
+   - Go to **Deployments** tab
+   - Click the three dots (⋯) on the latest deployment
+   - Click **Redeploy**
+   - Confirm the redeploy
+   
+   **Option 2: Trigger via Git**
+   - Push any commit to your repository
+   - Vercel will automatically redeploy with the new environment variable
+
+**Finding Your API URL:**
+- Go to your **API project** in Vercel
+- The URL is shown at the top (e.g., `https://k2-chicken-pos-api.vercel.app`)
+- Or check the **Domains** section in Settings
 
 ## Troubleshooting Common Issues
 
