@@ -298,7 +298,7 @@ export async function hqProductMasterRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const ownerStoreId = (getUser(request) as any).storeId;
-        const {
+        const { id } = (request.params as any);
 
         const productMaster = await prisma.productMaster.findUnique({
           where: { id },
