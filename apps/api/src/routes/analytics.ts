@@ -64,7 +64,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     });
 
     // Group by date
-    const grouped = sales.reduce((acc: Record<string, { date: string; total: number; count: number }>, sale: any) => {
+    const grouped = sales.reduce((acc: Record<string, { date: string; total: number; count: number }>, sale: any): Record<string, { date: string; total: number; count: number }> => {
       const date = sale.createdAt.toISOString().split('T')[0];
       if (!acc[date]) {
         acc[date] = { date, total: 0, count: 0 };
@@ -244,13 +244,13 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     });
 
     const total = deliveries.length;
-    const delivered = deliveries.filter((d: any) => d.status === 'DELIVERED').length;
-    const failed = deliveries.filter((d: any) => d.status === 'FAILED').length;
-    const inProgress = deliveries.filter((d: any) => ['ASSIGNED', 'OUT_FOR_DELIVERY'].includes(d.status)).length;
+    const delivered = deliveries.filter((d: any): boolean => d.status === 'DELIVERED').length;
+    const failed = deliveries.filter((d: any): boolean => d.status === 'FAILED').length;
+    const inProgress = deliveries.filter((d: any): boolean => ['ASSIGNED', 'OUT_FOR_DELIVERY'].includes(d.status)).length;
 
-    const deliveredDeliveries = deliveries.filter((d: any) => d.status === 'DELIVERED' && d.outForDeliveryAt && d.deliveredAt);
+    const deliveredDeliveries = deliveries.filter((d: any): boolean => d.status === 'DELIVERED' && d.outForDeliveryAt && d.deliveredAt);
     const avgDeliveryTime = deliveredDeliveries.length > 0
-      ? deliveredDeliveries.reduce((sum: number, d: any) => {
+      ? deliveredDeliveries.reduce((sum: number, d: any): number => {
           const time = d.deliveredAt!.getTime() - d.outForDeliveryAt!.getTime();
           return sum + time;
         }, 0) / deliveredDeliveries.length / (1000 * 60) // minutes
@@ -266,7 +266,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     };
   });
 
-  fastify.get('/store-compare', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply): Promise<any> => {
+  fastify.get('/store-compare', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { startDate, endDate } = (request.query as any);
     const ownerStoreId = (getUser(request) as any).storeId;
 

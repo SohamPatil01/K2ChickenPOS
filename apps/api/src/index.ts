@@ -57,9 +57,9 @@ async function build() {
           timeWindow: '1 minute',
           skipOnError: true,
           // Skip rate limiting for health check and login endpoints
-          skip: (request: any): boolean => {
+          skip: ((request: any): boolean => {
             return (request as any).url === '/health' || (request as any).url === '/api/v1/auth/login';
-          },
+          }) as any,
           addHeaders: {
             'x-ratelimit-limit': true,
             'x-ratelimit-remaining': true,
