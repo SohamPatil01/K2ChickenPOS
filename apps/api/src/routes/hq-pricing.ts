@@ -421,7 +421,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const userId = (getUser(request) as any).userId;
-        const {
+        const { id } = (request.params as any);
 
         const override = await prisma.pricingOverride.findUnique({
           where: { id },
