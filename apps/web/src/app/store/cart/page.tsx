@@ -188,8 +188,7 @@ export default function StoreCartPage() {
       
       setNotification({ 
         message: errorMessage, 
-        type: 'error',
-        duration: 5000 
+        type: 'error'
       });
       
       // Keep modal open on error so user can see the error and retry if needed
@@ -436,7 +435,7 @@ export default function StoreCartPage() {
         <Notification
           message={notification.message}
           type={notification.type}
-          duration={notification.type === 'success' ? 2000 : 4000}
+          duration={notification.type === 'success' ? 2000 : notification.type === 'error' ? 5000 : 4000}
           onClose={() => setNotification(null)}
         />
       )}
