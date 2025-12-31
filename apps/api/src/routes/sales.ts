@@ -11,6 +11,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request: any, reply: FastifyReply) => {
     const limit = parseInt((request.query as any).limit || '50');
     const status = (request.query as any).status;
+    const startDate = (request.query as any).startDate;
+    const endDate = (request.query as any).endDate;
     
     // Get default store (since auth is disabled)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
@@ -20,6 +22,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
     if (status) {
       where.status = status;
     }
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lte = new Date(endDate);
+      }
+    }
 
     const sales = await prisma.sale.findMany({
       where,
@@ -27,6 +38,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
         items: { include: { product: true } },
         customer: true,
         payments: true,
+        createdBy: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -586,6 +602,125 @@ export async function saleRoutes(fastify: FastifyInstance) {
     });
 
     return updatedSale;
+  });
+
+  // Update sale (for editing orders)
+  fastify.put('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = (request.params as any);
+      const data = request.body as any;
+      const storeId = (getUser(request) as any).storeId;
+      const userId = (getUser(request) as any).userId;
+
+      if (!storeId || !userId) {
+        reply.code(400).send({ error: 'Store ID and User ID are required' });
+        return;
+      }
+
+      // Check if user is OWNER
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user || user.role !== 'OWNER') {
+        reply.code(403).send({ error: 'Only owners can edit orders' });
+        return;
+      }
+
+      // Fetch existing sale
+      const existingSale = await prisma.sale.findFirst({
+        where: {
+          id,
+          storeId,
+        },
+        include: {
+          items: true,
+          payments: true,
+        },
+      });
+
+      if (!existingSale) {
+        reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+
+      // Validate items
+      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+        reply.code(400).send({ error: 'At least one item is required' });
+        return;
+      }
+
+      // Calculate totals
+      let subTotal = 0;
+      let taxTotal = 0;
+
+      for (const item of data.items) {
+        const qty = item.qtyKg || item.qtyPcs || 0;
+        const lineTotal = qty * item.rate;
+        subTotal += lineTotal;
+        taxTotal += lineTotal * (item.taxRate / 100);
+      }
+
+      const discountTotal = parseFloat(data.discountTotal) || 0;
+      const grandTotal = subTotal + taxTotal - discountTotal;
+
+      // Delete existing items
+      await prisma.saleItem.deleteMany({
+        where: { saleId: id },
+      });
+
+      // Create new items
+      await prisma.saleItem.createMany({
+        data: data.items.map((item: any) => ({
+          saleId: id,
+          productId: item.productId,
+          qtyKg: item.qtyKg,
+          qtyPcs: item.qtyPcs,
+          rate: item.rate,
+          lineTotal: (item.qtyKg || item.qtyPcs || 0) * item.rate,
+          taxRate: item.taxRate,
+          taxAmount: ((item.qtyKg || item.qtyPcs || 0) * item.rate) * (item.taxRate / 100),
+        })),
+      });
+
+      // Update sale totals
+      const updatedSale = await prisma.sale.update({
+        where: { id },
+        data: {
+          subTotal,
+          taxTotal,
+          discountTotal,
+          grandTotal,
+        },
+        include: {
+          items: {
+            include: { product: true },
+          },
+          customer: true,
+          payments: true,
+        },
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          storeId,
+          actorUserId: userId,
+          action: 'SALE_UPDATED',
+          entityType: 'Sale',
+          entityId: id,
+          metaJson: { saleNo: updatedSale.saleNo, grandTotal },
+        },
+      });
+
+      return updatedSale;
+    } catch (error: any) {
+      console.error('Failed to update sale:', error);
+      reply.code(500).send({
+        error: 'Failed to update sale',
+        details: error.message,
+      });
+    }
   });
 }
 

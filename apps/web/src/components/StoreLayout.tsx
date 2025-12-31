@@ -128,6 +128,12 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           roles: ["MANAGER", "OWNER"],
         },
         {
+          label: "Orders",
+          href: "/store/orders",
+          icon: "📝",
+          roles: ["OWNER"],
+        },
+        {
           label: "Purchase Orders",
           href: "/po",
           icon: "📋",
@@ -409,8 +415,8 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 overflow-x-hidden min-h-0 w-full lg:w-auto h-full">
-          <div className="h-full w-full p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 overflow-hidden">
+        <main className="flex-1 overflow-x-hidden min-h-0 w-full lg:w-auto">
+          <div className="h-full w-full p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 overflow-y-auto min-h-0">
             {children}
           </div>
         </main>

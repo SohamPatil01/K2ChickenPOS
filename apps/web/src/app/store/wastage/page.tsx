@@ -270,8 +270,8 @@ export default function WastageManagementPage() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 flex-shrink-0">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Wastage Management</h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Record and track wastage</p>
@@ -286,7 +286,7 @@ export default function WastageManagementPage() {
 
       {/* HQ Lock Warning */}
       {franchiseConfig?.isWastageLocked && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-yellow-600 dark:text-yellow-400">🔒</span>
             <p className="text-xs sm:text-sm text-yellow-800 dark:text-yellow-300">
@@ -298,7 +298,7 @@ export default function WastageManagementPage() {
 
       {/* Threshold Info */}
       {franchiseConfig && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
           <h2 className="text-base sm:text-lg font-semibold dark:text-white mb-3 sm:mb-4">Wastage Thresholds</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
@@ -318,11 +318,11 @@ export default function WastageManagementPage() {
       )}
 
       {/* Recent Wastage */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <h2 className="text-lg font-semibold dark:text-white">Recent Wastage Entries (Last 7 Days)</h2>
         </div>
-        <div className="overflow-x-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>

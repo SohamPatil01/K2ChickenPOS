@@ -514,9 +514,9 @@ export default function StoreInventoryPage() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       {/* Header Section - Stacked on mobile */}
-      <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4 flex-shrink-0">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">Inventory</h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
@@ -546,9 +546,9 @@ export default function StoreInventoryPage() {
         </div>
       </div>
       
-      {/* Table Container - Responsive with horizontal scroll on mobile */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="overflow-x-auto -mx-3 sm:mx-0">
+      {/* Table Container - Responsive with horizontal scroll on mobile and vertical scroll on iPad */}
+      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex-1 overflow-y-auto overflow-x-auto -mx-3 sm:mx-0 min-h-0">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900/50">

@@ -319,8 +319,8 @@ export default function YieldTrackingPage() {
   const expectedYield = products.find((p) => p.productMaster)?.productMaster?.expectedYieldPercent || 100;
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 flex-shrink-0">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Yield Tracking</h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Track whole chicken to cut yield</p>
@@ -334,7 +334,7 @@ export default function YieldTrackingPage() {
       </div>
 
       {/* Daily Summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3 sm:gap-0">
           <h2 className="text-base sm:text-lg font-semibold dark:text-white">Daily Yield Summary</h2>
           <input
@@ -381,11 +381,11 @@ export default function YieldTrackingPage() {
 
       {/* Recent Entries */}
       {dailySummary && dailySummary.entries.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             <h2 className="text-lg font-semibold dark:text-white">Yield Entries</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>

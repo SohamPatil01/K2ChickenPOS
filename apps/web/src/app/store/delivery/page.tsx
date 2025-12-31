@@ -54,8 +54,8 @@ export default function StoreDeliveryPage() {
   }, {} as Record<string, Delivery[]>);
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 lg:mb-6 gap-3 sm:gap-4">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3 sm:gap-4 flex-shrink-0">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Delivery Management</h1>
         <select
           value={statusFilter}
@@ -71,6 +71,7 @@ export default function StoreDeliveryPage() {
           <option value="FAILED">Failed</option>
         </select>
       </div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {['CREATED', 'READY', 'ASSIGNED', 'OUT_FOR_DELIVERY', 'DELIVERED'].map((status) => (
           <div key={status} className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 min-h-[200px] dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
@@ -131,6 +132,7 @@ export default function StoreDeliveryPage() {
             </div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );

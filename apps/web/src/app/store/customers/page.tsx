@@ -314,7 +314,8 @@ export default function StoreCustomersPage() {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
         <div>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2 sm:gap-3">
@@ -344,8 +345,8 @@ export default function StoreCustomersPage() {
               </button>
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4">
-            <div className="space-y-2">
+          <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4">
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
               {customers.length === 0 ? (
                 <p className="text-center py-8 text-gray-500 dark:text-gray-400">No customers found</p>
               ) : (
@@ -907,6 +908,7 @@ export default function StoreCustomersPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -230,8 +230,8 @@ export default function StoreDashboardPage() {
   const userRole = user?.role as string;
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 flex-shrink-0">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">
             {userRole === 'OWNER' ? 'Admin Console' : userRole === 'MANAGER' ? 'Manager Console' : 'Store Dashboard'}
@@ -246,6 +246,7 @@ export default function StoreDashboardPage() {
       </div>
 
       {/* Key Metrics - Console Style */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
         <StatCard
           title="Today's Revenue"
@@ -422,6 +423,7 @@ export default function StoreDashboardPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

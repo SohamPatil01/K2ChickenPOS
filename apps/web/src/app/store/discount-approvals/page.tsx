@@ -90,13 +90,13 @@ export default function StoreDiscountApprovalsPage() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="mb-4 sm:mb-6">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="mb-3 sm:mb-4 flex-shrink-0">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Discount Approvals</h1>
         <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Review and approve discount override requests</p>
       </div>
 
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-4 sm:mb-6">
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-3 sm:mb-4 flex-shrink-0">
         <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
           <button
             onClick={() => setActiveTab('pending')}
@@ -121,6 +121,7 @@ export default function StoreDiscountApprovalsPage() {
         </nav>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {activeTab === 'pending' && (
         <div className="space-y-4">
           {pendingOverrides.length === 0 ? (
@@ -270,6 +271,7 @@ export default function StoreDiscountApprovalsPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

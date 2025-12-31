@@ -109,14 +109,14 @@ export default function StockLedgerPage() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="mb-4 sm:mb-6">
+    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      <div className="mb-3 sm:mb-4 flex-shrink-0">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Stock Ledger</h1>
         <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Track all inventory movements</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
@@ -182,8 +182,8 @@ export default function StockLedgerPage() {
       </div>
 
       {/* Ledger Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="overflow-x-auto -mx-3 sm:mx-0">
+      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex-1 overflow-y-auto overflow-x-auto -mx-3 sm:mx-0 min-h-0">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
