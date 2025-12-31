@@ -55,6 +55,41 @@ export async function customerRoutes(fastify: FastifyInstance) {
     return customers;
   });
 
+  fastify.get('/:customerId', async (request: any, reply: FastifyReply) => {
+    try {
+      const { customerId } = (request.params as any);
+      // Get default store (since auth is disabled)
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const storeId = store?.id || '';
+
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId },
+        include: {
+          addresses: true,
+          sales: {
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              items: {
+                include: { product: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!customer || customer.storeId !== storeId) {
+        reply.code(404).send({ error: 'Customer not found' });
+        return;
+      }
+
+      return customer;
+    } catch (error: any) {
+      console.error('Failed to get customer:', error);
+      reply.code(500).send({ error: 'Failed to get customer' });
+    }
+  });
+
   fastify.post('/', async (request: any, reply: FastifyReply) => {
     const data = customerSchema.parse(request.body as any);
     // Get default store (since auth is disabled)
@@ -84,6 +119,70 @@ export async function customerRoutes(fastify: FastifyInstance) {
     });
 
     return customer;
+  });
+
+  fastify.put('/:customerId', async (request: any, reply: FastifyReply) => {
+    try {
+      const { customerId } = (request.params as any);
+      const data = customerSchema.parse(request.body as any);
+      // Get default store (since auth is disabled)
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const storeId = store?.id || '';
+
+      // Check if customer exists and belongs to store
+      const existingCustomer = await prisma.customer.findUnique({
+        where: { id: customerId },
+      });
+
+      if (!existingCustomer || existingCustomer.storeId !== storeId) {
+        reply.code(404).send({ error: 'Customer not found' });
+        return;
+      }
+
+      // If phone is being changed, check if new phone already exists
+      if (data.phone && data.phone !== existingCustomer.phone) {
+        const phoneExists = await prisma.customer.findUnique({
+          where: {
+            storeId_phone: {
+              storeId,
+              phone: data.phone,
+            },
+          },
+        });
+
+        if (phoneExists) {
+          reply.code(400).send({ error: 'Phone number already exists for another customer' });
+          return;
+        }
+      }
+
+      // Update customer
+      const customer = await prisma.customer.update({
+        where: { id: customerId },
+        data: {
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+        },
+        include: {
+          addresses: true,
+          sales: {
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              items: {
+                include: { product: true },
+              },
+            },
+          },
+        },
+      });
+
+      return customer;
+    } catch (error: any) {
+      console.error('Failed to update customer:', error);
+      reply.code(500).send({ error: 'Failed to update customer', details: error.message });
+    }
   });
 
   fastify.post('/:customerId/addresses', async (request: any, reply: FastifyReply) => {

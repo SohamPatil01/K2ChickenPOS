@@ -7,6 +7,8 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import Link from 'next/link';
 import Notification from '@/components/Notification';
+import NumPad from '@/components/NumPad';
+import VirtualKeyboard from '@/components/VirtualKeyboard';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -37,6 +39,15 @@ export default function StoreCartPage() {
   });
   const [products, setProducts] = useState<any[]>([]);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+  const [showNumPad, setShowNumPad] = useState(false);
+  const [showKeyboard, setShowKeyboard] = useState(false);
+  const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  const [tempCustomerPhone, setTempCustomerPhone] = useState(customerPhone || '');
+  const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
+  const [allCustomers, setAllCustomers] = useState<any[]>([]);
+  const [showNameDropdown, setShowNameDropdown] = useState(false);
+  const [nameSearchQuery, setNameSearchQuery] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -45,7 +56,17 @@ export default function StoreCartPage() {
     }
     loadCart();
     loadProducts();
+    loadAllCustomers();
   }, [user, router]);
+
+  const loadAllCustomers = async () => {
+    try {
+      const response = await api.get('/api/v1/customers');
+      setAllCustomers(response.data || []);
+    } catch (error: any) {
+      console.error('Failed to load customers:', error);
+    }
+  };
 
   const loadProducts = async () => {
     try {
@@ -57,6 +78,85 @@ export default function StoreCartPage() {
       console.error('Failed to load products:', error);
     }
   };
+
+  const searchCustomers = async (phone: string) => {
+    try {
+      const response = await api.get(`/api/v1/customers?phone=${phone}`);
+      if (response.data) {
+        // If exact match found, set it
+        setCustomer(response.data.id, response.data.phone, response.data.name || null);
+        setTempCustomerPhone(response.data.phone);
+        setTempCustomerName(response.data.name || '');
+        setShowCustomerSearch(false);
+        setCustomerSearchResults([]);
+      } else {
+        // Search for similar phone numbers
+        const allCustomers = await api.get('/api/v1/customers');
+        const filtered = (allCustomers.data || []).filter((c: any) => 
+          c.phone.includes(phone) || phone.includes(c.phone)
+        ).slice(0, 5);
+        setCustomerSearchResults(filtered);
+        setShowCustomerSearch(filtered.length > 0);
+      }
+    } catch (error: any) {
+      console.error('Failed to search customers:', error);
+      setShowCustomerSearch(false);
+      setCustomerSearchResults([]);
+    }
+  };
+
+  const createOrUpdateCustomer = async (phone: string, name: string) => {
+    if (!phone || phone.length < 6 || !name || name.trim().length === 0) {
+      return;
+    }
+
+    try {
+      const response = await api.post('/api/v1/customers', {
+        phone,
+        name: name.trim(),
+      });
+      if (response.data) {
+        setCustomer(response.data.id, response.data.phone, response.data.name);
+        setTempCustomerPhone(response.data.phone);
+        setTempCustomerName(response.data.name);
+      }
+    } catch (error: any) {
+      console.error('Failed to create/update customer:', error);
+    }
+  };
+
+  const searchCustomersByName = async (name: string) => {
+    try {
+      const filtered = allCustomers.filter((c: any) => 
+        c.name.toLowerCase().includes(name.toLowerCase())
+      ).slice(0, 5);
+      setCustomerSearchResults(filtered);
+      setShowCustomerSearch(filtered.length > 0);
+    } catch (error: any) {
+      console.error('Failed to search customers by name:', error);
+      setShowCustomerSearch(false);
+      setCustomerSearchResults([]);
+    }
+  };
+
+  // Sync temp values with cart store
+  useEffect(() => {
+    setTempCustomerPhone(customerPhone || '');
+    setTempCustomerName(customerName || '');
+  }, [customerPhone, customerName]);
+
+  // Create/update customer when both name and phone are provided
+  useEffect(() => {
+    if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+      // Only create if we don't have a customer ID (new customer)
+      if (!customerId) {
+        const timeoutId = setTimeout(() => {
+          createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+        }, 500); // Debounce to avoid too many API calls
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [tempCustomerPhone, tempCustomerName, customerId]);
 
   const handleManualItemSubmit = () => {
     // Validation - standardized with POS page
@@ -582,48 +682,141 @@ export default function StoreCartPage() {
 
         {/* Customer */}
         <div className="mb-3 sm:mb-4 bg-gray-50/30 dark:bg-gray-700/15 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-200/40 dark:border-gray-700/40">
-          <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            Customer Phone
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Enter phone number"
-              value={customerPhone || ''}
-              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
-              onChange={(e) => {
-                const phone = e.target.value;
-                setCustomer(null, phone || null, null);
-                if (phone && phone.length >= 6) {
-                  api
-                    .get(`/api/v1/customers?phone=${phone}`)
-                    .then((res) => {
-                      if (res.data) {
-                        setCustomer(res.data.id, phone, res.data.name || null);
-                      }
-                    })
-                    .catch(() => {
-                      // ignore lookup errors
-                    });
-                }
-              }}
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
+          <div className="space-y-3">
+            {/* Customer Phone */}
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Customer Number
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Tap to enter phone number"
+                  value={tempCustomerPhone}
+                  readOnly
+                  onClick={() => setShowNumPad(true)}
+                  className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40 cursor-pointer"
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+              </div>
             </div>
+
+            {/* Customer Name */}
+            <div className="relative">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Customer Name
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Type name or tap for keyboard"
+                  value={tempCustomerName}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setTempCustomerName(newName);
+                    setNameSearchQuery(newName);
+                    setCustomer(customerId, tempCustomerPhone || null, newName || null);
+                    
+                    // Show dropdown if there's a query
+                    if (newName.length >= 1) {
+                      const filtered = allCustomers.filter((c: any) => 
+                        c.name.toLowerCase().startsWith(newName.toLowerCase())
+                      ).slice(0, 5);
+                      setCustomerSearchResults(filtered);
+                      setShowNameDropdown(filtered.length > 0);
+                    } else {
+                      setShowNameDropdown(false);
+                      setCustomerSearchResults([]);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (tempCustomerName.length >= 1) {
+                      const filtered = allCustomers.filter((c: any) => 
+                        c.name.toLowerCase().startsWith(tempCustomerName.toLowerCase())
+                      ).slice(0, 5);
+                      setCustomerSearchResults(filtered);
+                      setShowNameDropdown(filtered.length > 0);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay to allow click on dropdown item
+                    setTimeout(() => {
+                      setShowNameDropdown(false);
+                    }, 200);
+                  }}
+                  className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKeyboard(true)}
+                  className="absolute right-10 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  title="Open keyboard"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </button>
+                {customerId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Allow editing
+                      setTempCustomerName('');
+                      setCustomer(null, tempCustomerPhone || null, null);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Edit customer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              
+              {/* Name Dropdown */}
+              {showNameDropdown && customerSearchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {customerSearchResults.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onClick={() => {
+                        setCustomer(customer.id, customer.phone, customer.name);
+                        setTempCustomerPhone(customer.phone);
+                        setTempCustomerName(customer.name);
+                        setShowNameDropdown(false);
+                        setCustomerSearchResults([]);
+                        setNameSearchQuery('');
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                    >
+                      <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Customer Info Display */}
+            {customerName && customerPhone && (
+              <div className="mt-2 p-2 bg-brand-50/50 dark:bg-brand-900/10 border border-brand-200/40 dark:border-brand-800/30 rounded-lg">
+                <p className="text-xs sm:text-sm text-brand-600 dark:text-brand-400 font-medium">
+                  Billing to: <span className="font-semibold">{customerName}</span> ({customerPhone})
+                </p>
+              </div>
+            )}
+            {!customerName && tempCustomerPhone && tempCustomerPhone.length >= 6 && (
+              <p className="mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                New customer – will be saved by phone.
+              </p>
+            )}
           </div>
-          {customerName && (
-            <p className="mt-2 text-xs sm:text-sm text-brand-600 dark:text-brand-400 font-medium">
-              Billing to: <span className="font-semibold">{customerName}</span>
-            </p>
-          )}
-          {!customerName && customerPhone && customerPhone.length >= 6 && (
-            <p className="mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-              New customer – will be saved by phone.
-            </p>
-          )}
         </div>
 
         {/* Cart Items */}
@@ -730,6 +923,76 @@ export default function StoreCartPage() {
           discountTotal={discountTotal}
           onClose={() => setShowPaymentModal(false)}
           onPay={handleCreateSale}
+        />
+      )}
+
+      {/* Num Pad Modal */}
+      {showNumPad && (
+        <NumPad
+          value={tempCustomerPhone}
+          onChange={(value) => {
+            setTempCustomerPhone(value);
+            setCustomer(null, value || null, tempCustomerName || null);
+            if (value && value.length >= 6) {
+              searchCustomers(value);
+            } else {
+              setShowCustomerSearch(false);
+              setCustomerSearchResults([]);
+            }
+          }}
+          onClose={() => {
+            setShowNumPad(false);
+            setCustomer(null, tempCustomerPhone || null, tempCustomerName || null);
+            // Create/update customer if both name and phone are provided
+            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+            }
+          }}
+          onSubmit={() => {
+            setShowNumPad(false);
+            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+            }
+          }}
+          placeholder="Enter phone number"
+          maxLength={15}
+        />
+      )}
+
+      {/* Virtual Keyboard Modal */}
+      {showKeyboard && (
+        <VirtualKeyboard
+          value={tempCustomerName}
+          onChange={(value) => {
+            setTempCustomerName(value);
+            setNameSearchQuery(value);
+            setCustomer(customerId, tempCustomerPhone || null, value || null);
+            if (value && value.length >= 1) {
+              const filtered = allCustomers.filter((c: any) => 
+                c.name.toLowerCase().startsWith(value.toLowerCase())
+              ).slice(0, 5);
+              setCustomerSearchResults(filtered);
+              setShowNameDropdown(filtered.length > 0);
+            } else {
+              setShowNameDropdown(false);
+              setCustomerSearchResults([]);
+            }
+          }}
+          onClose={() => {
+            setShowKeyboard(false);
+            setCustomer(customerId, tempCustomerPhone || null, tempCustomerName || null);
+            // Create/update customer if both name and phone are provided
+            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+            }
+          }}
+          onSubmit={() => {
+            setShowKeyboard(false);
+            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+            }
+          }}
+          placeholder="Enter customer name"
         />
       )}
 
