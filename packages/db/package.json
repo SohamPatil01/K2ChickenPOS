@@ -17,10 +17,14 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "delete-all-sales": "tsx prisma/delete-all-sales.ts",
+    "add-product-images": "tsx prisma/add-product-images.ts",
+    "fetch-images-from-live": "tsx prisma/fetch-images-from-live.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
+    "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.2.3"
   },

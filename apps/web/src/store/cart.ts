@@ -62,8 +62,11 @@ export const useCartStore = create<CartState>((set, get) => ({
     let taxTotal = 0;
 
     for (const item of items) {
-      subTotal += item.lineTotal;
-      taxTotal += item.lineTotal * (item.taxRate / 100);
+      // Calculate base line total (qty * rate) - matching backend logic
+      const baseLineTotal = (item.qtyKg || item.qtyPcs || 0) * item.rate;
+      subTotal += baseLineTotal;
+      // Calculate tax on base amount - matching backend logic
+      taxTotal += baseLineTotal * (item.taxRate / 100);
     }
 
     const grandTotal = subTotal + taxTotal - discountTotal;

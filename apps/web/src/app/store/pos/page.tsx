@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useCartStore } from '@/store/cart';
+import { useNotificationStore } from '@/store/notification';
 import api from '@/lib/api';
 import { parseScaleBarcode } from '@/lib/barcode';
 import Link from 'next/link';
@@ -40,6 +41,7 @@ export default function StorePOSPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { items, addItem } = useCartStore();
+  const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -69,6 +71,9 @@ export default function StorePOSPage() {
     productName: string;
     productImage?: string | null;
   } | null>(null);
+  const [isCategoriesVisible, setIsCategoriesVisible] = useState(false);
+  const [loading, setLoading] = useState({ products: false, categories: false, config: false });
+  const [error, setError] = useState<{ products?: string; categories?: string; config?: string }>({});
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -87,6 +92,8 @@ export default function StorePOSPage() {
   }, [user, router]);
 
   const loadProducts = async () => {
+    setLoading(prev => ({ ...prev, products: true }));
+    setError(prev => ({ ...prev, products: undefined }));
     try {
       const response = await api.get('/api/v1/products');
       const productsData = response.data || [];
@@ -109,22 +116,39 @@ export default function StorePOSPage() {
       setProducts(productsWithMaster);
     } catch (error: any) {
       console.error('Failed to load products:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to load products. Please try again.';
+      setError(prev => ({ ...prev, products: errorMessage }));
+      showNotification(errorMessage, 'error', 5000);
+    } finally {
+      setLoading(prev => ({ ...prev, products: false }));
     }
   };
 
   const loadCategories = async () => {
+    setLoading(prev => ({ ...prev, categories: true }));
+    setError(prev => ({ ...prev, categories: undefined }));
     try {
       const response = await api.get('/api/v1/products/categories');
       setCategories(response.data || []);
     } catch (error: any) {
       console.error('Failed to load categories:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to load categories. Please try again.';
+      setError(prev => ({ ...prev, categories: errorMessage }));
+      showNotification(errorMessage, 'error', 5000);
+    } finally {
+      setLoading(prev => ({ ...prev, categories: false }));
     }
   };
 
   const loadFranchiseConfig = async () => {
+    setLoading(prev => ({ ...prev, config: true }));
+    setError(prev => ({ ...prev, config: undefined }));
     try {
       const storeId = user?.storeId;
-      if (!storeId) return;
+      if (!storeId) {
+        setLoading(prev => ({ ...prev, config: false }));
+        return;
+      }
 
       const response = await api.get('/api/v1/stores/franchise-config').catch(() => ({ data: null }));
       const config = response.data;
@@ -136,17 +160,25 @@ export default function StorePOSPage() {
       }
     } catch (error: any) {
       console.error('Failed to load franchise config:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to load franchise configuration.';
+      setError(prev => ({ ...prev, config: errorMessage }));
+      // Don't show notification for config errors as they're not critical
+    } finally {
+      setLoading(prev => ({ ...prev, config: false }));
     }
   };
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim()) return;
+    if (!barcodeInput.trim()) {
+      showNotification('Please enter or scan a barcode', 'warning', 3000);
+      return;
+    }
 
     try {
       const storeId = user?.storeId || user?.store?.id;
       if (!storeId) {
-        alert('Store ID not found');
+        showNotification('Store ID not found. Please contact administrator.', 'error', 5000);
         return;
       }
 
@@ -162,6 +194,8 @@ export default function StorePOSPage() {
             barcodeInputRef.current.focus();
           }
           return;
+        } else {
+          showNotification(`Product not found for barcode: ${barcodeInput}`, 'error', 4000);
         }
       }
 
@@ -177,6 +211,7 @@ export default function StorePOSPage() {
       }
 
       // If not found, open manual entry with SKU pre-filled
+      showNotification(`Product not found. Opening manual entry for: ${barcodeInput}`, 'info', 3000);
       setManualItem({
         sku: barcodeInput,
         description: '',
@@ -189,6 +224,8 @@ export default function StorePOSPage() {
       setBarcodeInput('');
     } catch (error: any) {
       console.error('Failed to process barcode:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to process barcode. Please try again.';
+      showNotification(errorMessage, 'error', 5000);
       // On error, open manual entry modal
       setManualItem({
         sku: barcodeInput,
@@ -240,11 +277,10 @@ export default function StorePOSPage() {
       return;
     }
 
-    // Calculate line total
+    // Calculate line total (base amount without tax) - matching backend logic
     const qty = qtyKg || qtyPcs || 1;
     const rate = overridePrice || lockedPrice || product.pricePerUnit;
-    const lineTotal = qty * rate;
-    const taxAmount = lineTotal * (product.taxRate / 100);
+    const lineTotal = qty * rate; // Base amount without tax
 
     await addItem({
       productId: product.id,
@@ -253,7 +289,7 @@ export default function StorePOSPage() {
       qtyPcs: qtyPcs,
       rate,
       taxRate: product.taxRate,
-      lineTotal: lineTotal + taxAmount,
+      lineTotal, // Store base amount, tax calculated separately
       metaJson: {
         isPriceLocked,
         lockedPrice,
@@ -274,26 +310,34 @@ export default function StorePOSPage() {
     const qtyPcs = parseFloat(manualItem.weight) || 1; // For PCS, weight field is used as quantity
     const total = parseFloat(manualItem.total) || 0;
 
+    // Validation - standardized with cart page
     if (!manualItem.description.trim()) {
-      alert('Please enter description');
+      showNotification('Please enter item description', 'warning', 3000);
       return;
     }
 
     if (manualItem.unitType === 'KG' && weight <= 0) {
-      alert('Please enter valid weight');
+      showNotification('Please enter valid weight', 'warning', 3000);
       return;
     }
 
-    if (rate <= 0 && total <= 0) {
-      alert('Please enter rate or total amount');
+    if (manualItem.unitType === 'PCS' && qtyPcs <= 0) {
+      showNotification('Please enter valid quantity', 'warning', 3000);
+      return;
+    }
+
+    if (!rate || rate <= 0) {
+      showNotification('Please enter a valid rate', 'warning', 3000);
       return;
     }
 
     // Find product by SKU if exists
     const product = products.find((p) => p.sku === manualItem.sku);
 
+    // Calculate base line total (qty * rate) - matching backend logic
     const finalRate = rate || total / (manualItem.unitType === 'KG' ? weight : qtyPcs);
-    const finalTotal = total || finalRate * (manualItem.unitType === 'KG' ? weight : qtyPcs);
+    const qty = manualItem.unitType === 'KG' ? weight : qtyPcs;
+    const lineTotal = qty * finalRate; // Base amount without tax
 
     addItem({
       productId: product?.id || 'manual',
@@ -302,7 +346,7 @@ export default function StorePOSPage() {
       qtyPcs: manualItem.unitType === 'PCS' ? qtyPcs : undefined,
       rate: finalRate,
       taxRate: product?.taxRate || 0,
-      lineTotal: finalTotal,
+      lineTotal, // Store base amount, tax calculated separately
       metaJson: {
         sku: manualItem.sku,
         manualEntry: true,
@@ -331,28 +375,27 @@ export default function StorePOSPage() {
 
   const handlePriceOverride = async () => {
     if (!priceOverrideData || !priceOverrideData.managerPin) {
-      alert('Please enter manager PIN');
+      showNotification('Please enter manager PIN', 'warning', 3000);
       return;
     }
 
     try {
       // Verify manager PIN (simplified - in production, verify against user's PIN)
       if (user?.role !== 'MANAGER' && user?.role !== 'OWNER') {
-        alert('Only managers can override locked prices');
+        showNotification('Only managers can override locked prices', 'error', 3000);
         return;
       }
 
       // Find product and add to cart with override price
       const product = products.find((p) => p.id === priceOverrideData!.productId);
       if (!product) {
-        alert('Product not found');
+        showNotification('Product not found', 'error', 3000);
         return;
       }
 
       const qty = 1; // Default, would come from barcode/input
       const rate = priceOverrideData.requestedPrice;
-      const lineTotal = qty * rate;
-      const taxAmount = lineTotal * (product.taxRate / 100);
+      const lineTotal = qty * rate; // Base amount without tax
 
       await addItem({
         productId: product.id,
@@ -361,7 +404,7 @@ export default function StorePOSPage() {
         qtyPcs: product.unitType === 'PCS' ? qty : undefined,
         rate,
         taxRate: product.taxRate,
-        lineTotal: lineTotal + taxAmount,
+        lineTotal, // Store base amount, tax calculated separately
         metaJson: {
           isPriceLocked: true,
           lockedPrice: priceOverrideData.lockedPrice,
@@ -374,7 +417,7 @@ export default function StorePOSPage() {
       setShowPriceOverrideModal(false);
       setPriceOverrideData(null);
     } catch (error: any) {
-      alert('Failed to override price: ' + (error.response?.data?.error || error.message));
+      showNotification('Failed to override price: ' + (error.response?.data?.error || error.message), 'error', 5000);
     }
   };
 
@@ -390,7 +433,7 @@ export default function StorePOSPage() {
   });
 
   return (
-    <div className="h-[calc(100vh-8rem)] sm:h-[calc(100vh-9rem)] flex flex-col">
+    <div className="flex flex-col h-full min-h-0 w-full">
       {/* Cart Animation */}
       {cartAnimation && (
         <CartAnimation
@@ -401,32 +444,41 @@ export default function StorePOSPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-4 border-b border-gray-200/60 dark:border-gray-700/60 gap-3 sm:gap-0 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200/40 dark:border-gray-700/40 gap-2 sm:gap-3 flex-shrink-0">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-1.5 bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-0.5 sm:mb-1 leading-tight tracking-tight truncate">
             Point of Sale
           </h1>
-          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Select products and add to cart</p>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">Browse products and build your order</p>
         </div>
-        <div className="flex gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto">
+        <div className="flex gap-2 sm:gap-2.5 flex-shrink-0 w-full sm:w-auto">
+          <button
+            onClick={() => setIsCategoriesVisible(!isCategoriesVisible)}
+            className="flex-1 sm:flex-none px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-[0.98] font-medium flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow transition-all duration-200 touch-target text-xs sm:text-sm backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50"
+            aria-label="Toggle categories"
+          >
+            <span className="text-base sm:text-lg">📁</span>
+            <span className="hidden sm:inline">Categories</span>
+            <span className="sm:hidden">Cat</span>
+          </button>
           <button
             onClick={() => setShowAddItemModal(true)}
-            className="flex-1 sm:flex-none px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl hover:from-brand-600 hover:to-brand-700 active:scale-95 font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 touch-target text-sm sm:text-base backdrop-blur-sm"
+            className="flex-1 sm:flex-none px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-all duration-200 touch-target text-xs sm:text-sm"
           >
-            <span className="text-xl sm:text-2xl font-bold text-white animate-pulse">+</span>
-            <span className="text-white hidden sm:inline">Add Item</span>
-            <span className="text-white sm:hidden">Add</span>
+            <span className="text-base sm:text-lg">+</span>
+            <span className="hidden sm:inline">Add Item</span>
+            <span className="sm:hidden">Add</span>
           </button>
           <Link
             href="/store/cart"
-            className="flex-1 sm:flex-none px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl hover:from-brand-600 hover:to-brand-700 active:scale-95 font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 relative touch-target text-sm sm:text-base backdrop-blur-sm group"
+            className="flex-1 sm:flex-none px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-all duration-200 relative touch-target text-xs sm:text-sm group"
           >
-            <span className="text-xl sm:text-2xl text-white group-hover:scale-110 transition-transform duration-300">🛒</span>
-            <span className="text-white hidden sm:inline">Cart</span>
-            <span className={`rounded-full px-2.5 sm:px-3 py-1 text-xs font-bold min-w-[24px] sm:min-w-[28px] text-center transition-all duration-300 ${
+            <span className="text-base sm:text-lg group-hover:scale-105 transition-transform duration-200">🛒</span>
+            <span className="hidden sm:inline">Cart</span>
+            <span className={`rounded-full px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium min-w-[20px] sm:min-w-[24px] text-center transition-all duration-200 ${
               items.length > 0 
-                ? 'bg-white text-brand-600 shadow-md scale-110 animate-bounce' 
-                : 'bg-white/30 text-white'
+                ? 'bg-white/90 text-brand-600 shadow-sm' 
+                : 'bg-white/20 text-white/70'
             }`}>
               {items.length}
             </span>
@@ -434,83 +486,68 @@ export default function StorePOSPage() {
         </div>
       </div>
 
+      {/* Categories Bar - Top (Hidden by default, shown when clicked) */}
+      {isCategoriesVisible && (
+        <div className="mb-3 sm:mb-4 flex-shrink-0">
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl shadow-sm dark:shadow-md p-3 sm:p-4 border border-gray-200/40 dark:border-gray-700/40">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <h2 className="font-medium text-gray-700 dark:text-gray-300 text-sm sm:text-base tracking-tight">Categories</h2>
+              <button
+                onClick={() => setIsCategoriesVisible(false)}
+                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                aria-label="Hide categories"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md transition-all duration-200 font-medium text-xs sm:text-sm ${
+                  !selectedCategory
+                    ? 'bg-brand-500/90 text-white shadow-sm'
+                    : 'bg-gray-100/80 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/60 border border-gray-200/50 dark:border-gray-600/50'
+                }`}
+              >
+                All Products
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-md transition-all duration-200 font-medium text-xs sm:text-sm ${
+                    selectedCategory === cat.id
+                      ? 'bg-brand-500/90 text-white shadow-sm'
+                      : 'bg-gray-100/80 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/60 border border-gray-200/50 dark:border-gray-600/50'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:flex-row gap-3 sm:gap-4 min-h-0">
-        {/* Left: Categories Sidebar */}
-        <div className="hidden md:block w-52 flex-shrink-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-5 overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-slide-in-left">
-          <h2 className="font-bold mb-5 text-gray-900 dark:text-gray-100 text-lg">Categories</h2>
-          <div className="space-y-2">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${
-                !selectedCategory
-                  ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold shadow-lg scale-105'
-                  : 'bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600'
-              }`}
-            >
-              All
-            </button>
-            {categories.map((cat, index) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 ${
-                  selectedCategory === cat.id
-                    ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold shadow-lg scale-105'
-                    : 'bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600'
-                }`}
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Mobile Categories - Horizontal Scroll */}
-        <div className="md:hidden w-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 overflow-x-auto mb-4 border border-gray-200/50 dark:border-gray-700/50">
-          <div className="flex space-x-2 min-w-max">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-4 py-2.5 rounded-xl whitespace-nowrap transition-all duration-300 touch-target text-sm transform hover:scale-105 ${
-                !selectedCategory
-                  ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold shadow-lg scale-105'
-                  : 'bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
-              }`}
-            >
-              All
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-2.5 rounded-xl whitespace-nowrap transition-all duration-300 touch-target text-sm transform hover:scale-105 ${
-                  selectedCategory === cat.id
-                    ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold shadow-lg scale-105'
-                    : 'bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
+      <div className="flex-1 flex flex-col gap-2 sm:gap-3 md:gap-4 min-h-0 overflow-hidden">
         {/* Center: Products Area */}
-        <div className="flex-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6 overflow-y-auto flex flex-col min-h-0 border border-gray-200/50 dark:border-gray-700/50 animate-fade-in">
+        <div className="flex-1 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl shadow-sm dark:shadow-md p-3 sm:p-4 md:p-5 overflow-hidden flex flex-col min-h-0 h-full border border-gray-200/30 dark:border-gray-700/30">
           {/* Search and Barcode Inputs */}
-          <div className="mb-4 sm:mb-6 space-y-3 flex-shrink-0">
+          <div className="mb-3 sm:mb-4 md:mb-6 space-y-2 sm:space-y-3 flex-shrink-0">
             <form onSubmit={handleBarcodeSubmit} className="relative">
               <input
                 ref={barcodeInputRef}
                 type="text"
-                placeholder="Scan barcode..."
+                placeholder="Scan barcode or enter SKU..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-base border-2 border-brand-400 dark:border-brand-500 rounded-xl dark:bg-gray-700/50 dark:text-white focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 touch-target transition-all duration-300 shadow-sm hover:shadow-md"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 rounded-lg dark:bg-gray-700/40 dark:text-white focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-500">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                <svg className="w-4 h-4 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                 </svg>
               </div>
@@ -525,7 +562,7 @@ export default function StorePOSPage() {
                       setIsSearchExpanded(true);
                       setTimeout(() => searchInputRef.current?.focus(), 100);
                     }}
-                    className="w-12 h-12 flex items-center justify-center rounded-xl bg-white/80 dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 hover:border-brand-400 dark:hover:border-brand-500 hover:bg-brand-50/50 dark:hover:bg-brand-900/20 transition-all duration-300 shadow-sm hover:shadow-md touch-target"
+                    className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-white/60 dark:bg-gray-800/40 border border-gray-300/60 dark:border-gray-600/60 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50/80 dark:hover:bg-gray-700/40 transition-all duration-200 shadow-sm hover:shadow touch-target"
                     aria-label="Search products"
                   >
                     <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -551,7 +588,7 @@ export default function StorePOSPage() {
                           }, 200);
                         }
                       }}
-                      className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pl-12 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 touch-target transition-all duration-300 shadow-sm hover:shadow-md"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 pl-9 sm:pl-10 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg dark:placeholder-gray-400 focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -559,18 +596,18 @@ export default function StorePOSPage() {
                       </svg>
                     </div>
                     {searchQuery && (
-                      <button
-                        onClick={() => {
-                          setSearchQuery('');
-                          setIsSearchExpanded(false);
-                        }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-                        aria-label="Clear search"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setIsSearchExpanded(false);
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 p-2 rounded-xl hover:bg-gray-100/80 dark:hover:bg-gray-700/80 hover:scale-110"
+                      aria-label="Clear search"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                     )}
                   </div>
                 )}
@@ -580,10 +617,10 @@ export default function StorePOSPage() {
 
           {/* Price Lock Indicator */}
           {franchiseConfig?.isPricingLocked && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2.5 mb-4 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-yellow-600 dark:text-yellow-400">🔒</span>
-                <p className="text-xs text-yellow-800 dark:text-yellow-300">
+            <div className="bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200/40 dark:border-amber-800/30 rounded-md p-2 mb-3 flex-shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-600 dark:text-amber-500 text-sm">🔒</span>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
                   Pricing is locked by HQ. Manager PIN required for price overrides.
                 </p>
               </div>
@@ -592,7 +629,24 @@ export default function StorePOSPage() {
 
           {/* Products Grid */}
           <div className="flex-1 overflow-y-auto">
-            {products.length === 0 ? (
+            {loading.products ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-brand-400/40 border-t-brand-500 mb-3"></div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading products...</p>
+                </div>
+              </div>
+            ) : error.products ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-3">{error.products}</p>
+                <button
+                  onClick={loadProducts}
+                  className="px-3 py-1.5 text-sm bg-brand-500/90 text-white rounded-md hover:bg-brand-500 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : products.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500 dark:text-gray-400 mb-4">No products found</p>
                 <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
@@ -606,7 +660,7 @@ export default function StorePOSPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 lg:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 sm:gap-2.5 md:gap-3 overflow-y-auto">
                 {filteredProducts.map((product, index) => {
                   const isLocked = product.productMaster?.isHQLocked;
                   const displayPrice = product.productMaster?.hqLockedPrice || product.pricePerUnit;
@@ -614,65 +668,71 @@ export default function StorePOSPage() {
                     <button
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
-                      className="group flex flex-col h-full p-4 sm:p-5 border-2 border-gray-200/60 dark:border-gray-700/60 rounded-2xl hover:border-brand-400 dark:hover:border-brand-500 hover:bg-gradient-to-br hover:from-brand-50/60 hover:to-white dark:hover:from-brand-900/20 dark:hover:to-gray-800/50 hover:shadow-2xl transition-all duration-300 bg-white/80 dark:bg-gray-800/80 active:scale-[0.97] touch-target backdrop-blur-sm animate-fade-in-up"
-                      style={{ animationDelay: `${index * 30}ms` }}
+                      className="group flex flex-col h-full p-2.5 sm:p-3 border border-gray-200/40 dark:border-gray-700/40 rounded-lg sm:rounded-xl hover:border-brand-300/60 dark:hover:border-brand-500/40 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 hover:shadow-md transition-all duration-200 bg-white/70 dark:bg-gray-800/50 active:scale-[0.98] touch-target backdrop-blur-sm overflow-hidden"
                     >
                       {/* Product Image */}
-                      <div className="mb-4 flex justify-center items-center transform group-hover:scale-105 transition-transform duration-300">
+                      <div className="mb-2 sm:mb-3 flex justify-center items-center transform group-hover:scale-105 transition-all duration-200 flex-shrink-0">
                         {product.imageUrl ? (
                           <img
                             src={product.imageUrl}
                             alt={product.name}
-                            className="w-full max-w-[100px] h-[100px] sm:h-[110px] object-cover rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-300"
+                            className="w-full max-w-[60px] sm:max-w-[70px] md:max-w-[80px] h-[60px] sm:h-[70px] md:h-[80px] object-cover rounded-lg shadow-sm group-hover:shadow-md transition-all duration-200"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
+                              // Show placeholder instead of hiding
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) {
+                                placeholder.style.display = 'flex';
+                              }
                             }}
                           />
-                        ) : (
-                          <div className="w-full max-w-[100px] h-[100px] sm:h-[110px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
-                            <span className="text-gray-400 dark:text-gray-500 text-4xl">📦</span>
-                          </div>
-                        )}
+                        ) : null}
+                        <div 
+                          className={`w-full max-w-[60px] sm:max-w-[70px] md:max-w-[80px] h-[60px] sm:h-[70px] md:h-[80px] bg-gray-100 dark:bg-gray-700/50 rounded-lg flex items-center justify-center shadow-sm ${product.imageUrl ? 'hidden' : ''}`}
+                        >
+                          <span className="text-gray-400 dark:text-gray-500 text-2xl sm:text-3xl">📦</span>
+                        </div>
                       </div>
 
                       {/* Product Details */}
-                      <div className="flex-1 flex flex-col justify-between space-y-2">
+                      <div className="flex-1 flex flex-col justify-between min-h-0 space-y-1 sm:space-y-2">
                         {/* Product Name */}
-                        <div className="font-bold text-base sm:text-lg mb-1 line-clamp-2 dark:text-white text-left group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors duration-300 text-gray-900 leading-tight">
+                        <div className="font-medium text-xs sm:text-sm mb-1.5 line-clamp-2 dark:text-gray-100 text-left transition-colors duration-200 text-gray-800 leading-tight min-h-[2.5rem]">
                           {product.name}
                         </div>
 
                         {/* Price Section */}
-                        <div className="flex items-baseline gap-1.5 mb-2">
-                          <span className="text-lg sm:text-xl font-extrabold text-brand-600 dark:text-brand-400">
+                        <div className="flex items-baseline gap-1 mb-1.5 flex-wrap">
+                          <span className="text-sm sm:text-base md:text-lg font-semibold text-brand-600 dark:text-brand-400 whitespace-nowrap">
                             ₹{displayPrice.toFixed(2)}
                           </span>
-                          <span className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">
                             /{product.unitType}
                           </span>
                           {isLocked && (
-                            <span className="ml-auto text-sm animate-pulse" title="Price Locked">
+                            <span className="ml-auto text-xs flex-shrink-0 opacity-60" title="Price Locked">
                               🔒
                             </span>
                           )}
                         </div>
 
                         {/* SKU and Category */}
-                        <div className="space-y-1 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] sm:text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+                        <div className="space-y-1 pt-1.5 border-t border-gray-200/40 dark:border-gray-700/40 mt-auto">
+                          <div className="flex items-center justify-between bg-gray-50/40 dark:bg-gray-700/20 rounded px-1.5 py-1 min-w-0">
+                            <span className="text-[9px] sm:text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-shrink-0">
                               SKU
                             </span>
-                            <span className="text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-400">
+                            <span className="text-[9px] sm:text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate ml-1.5 min-w-0">
                               {product.sku}
                             </span>
                           </div>
                           {product.categoryName && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] sm:text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                                Category
+                            <div className="flex items-center justify-between bg-gray-50/40 dark:bg-gray-700/20 rounded px-1.5 py-1 min-w-0">
+                              <span className="text-[9px] sm:text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-shrink-0">
+                                Cat
                               </span>
-                              <span className="text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-400 truncate ml-2">
+                              <span className="text-[9px] sm:text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate ml-1.5 min-w-0">
                                 {product.categoryName}
                               </span>
                             </div>
@@ -738,8 +798,8 @@ export default function StorePOSPage() {
 
       {/* Price Override Modal */}
       {showPriceOverrideModal && priceOverrideData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-3 md:p-4 safe-top safe-bottom">
+          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-6 w-full max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] mx-2 sm:mx-4">
             <h2 className="text-xl sm:text-2xl font-bold dark:text-white mb-3 sm:mb-4">Price Override Required</h2>
             <div className="space-y-4">
               <div>
@@ -824,13 +884,36 @@ function AddItemModal({
     }
   };
 
+  // Calculate totals for display
+  const weight = parseFloat(item.weight) || 0;
+  const qtyPcs = parseFloat(item.weight) || 1;
+  const rate = parseFloat(item.rate) || 0;
+  const total = parseFloat(item.total) || (item.unitType === 'KG' ? weight * rate : qtyPcs * rate);
+  const calculatedTotal = item.unitType === 'KG' ? weight * rate : qtyPcs * rate;
+  const showAutoCalc = (item.weight && item.rate && !item.total) || (item.total && Math.abs(parseFloat(item.total) - calculatedTotal) < 0.01);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <h2 className="text-xl sm:text-2xl font-bold dark:text-white mb-3 sm:mb-4">Add Item</h2>
-        <div className="space-y-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-3 md:p-4 safe-top safe-bottom">
+      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-lg dark:shadow-xl w-full max-w-lg max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50">
+        {/* Header */}
+        <div className="sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-gray-100">Add Item to Cart</h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+            aria-label="Close"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
+          {/* SKU / Barcode */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               SKU / Barcode
             </label>
             <input
@@ -838,16 +921,16 @@ function AddItemModal({
               value={item.sku}
               onChange={(e) => handleSkuChange(e.target.value)}
               placeholder="Enter SKU or scan barcode"
-              className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
+              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               autoFocus
             />
             {products.length > 0 && (
               <select
                 value={item.sku}
                 onChange={(e) => handleSkuChange(e.target.value)}
-                className="w-full mt-2 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full mt-2 px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               >
-                <option value="">Select from products...</option>
+                <option value="">Or select from products...</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.sku}>
                     {p.sku} - {p.name}
@@ -857,37 +940,39 @@ function AddItemModal({
             )}
           </div>
 
+          {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Description <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={item.description}
               onChange={(e) => onChange('description', e.target.value)}
-              placeholder="Product description"
-              className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
+              placeholder="Enter product description"
+              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Unit Type and Quantity */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Unit Type
               </label>
               <select
                 value={item.unitType}
                 onChange={(e) => onChange('unitType', e.target.value)}
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               >
                 <option value="KG">KG</option>
                 <option value="PCS">PCS</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {item.unitType === 'KG' ? 'Weight (kg)' : 'Quantity'}
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                {item.unitType === 'KG' ? 'Weight (kg)' : 'Quantity'} <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -896,16 +981,17 @@ function AddItemModal({
                 placeholder={item.unitType === 'KG' ? '0.00' : '1'}
                 step={item.unitType === 'KG' ? '0.01' : '1'}
                 min="0"
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
                 required
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Rate and Total */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Rate
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Rate (₹) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -914,35 +1000,55 @@ function AddItemModal({
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Total
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Total (₹)
               </label>
-              <input
-                type="number"
-                value={item.total}
-                onChange={(e) => onChange('total', e.target.value)}
-                placeholder="0.00"
-                step="0.01"
-                min="0"
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  value={item.total}
+                  onChange={(e) => onChange('total', e.target.value)}
+                  placeholder={showAutoCalc ? calculatedTotal.toFixed(2) : '0.00'}
+                  step="0.01"
+                  min="0"
+                  className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+                />
+                {showAutoCalc && !item.total && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-gray-500">
+                    Auto: ₹{calculatedTotal.toFixed(2)}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 mt-4 sm:mt-6">
+          {/* Summary Card */}
+          {(item.weight && item.rate) && (
+            <div className="bg-brand-50/50 dark:bg-brand-900/10 border border-brand-200/40 dark:border-brand-800/30 rounded-lg p-3 sm:p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Subtotal:</span>
+                <span className="text-sm sm:text-base font-semibold text-brand-600 dark:text-brand-400">
+                  ₹{total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white touch-target"
+              className="flex-1 px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 dark:text-white touch-target font-medium transition-colors duration-200"
             >
               Cancel
             </button>
             <button
               onClick={onSubmit}
-              className="flex-1 px-4 py-3 text-base bg-brand-500 text-white rounded hover:bg-brand-600 touch-target font-semibold"
+              className="flex-1 px-4 py-2.5 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg touch-target font-medium shadow-sm hover:shadow transition-all duration-200"
             >
               Add to Cart
             </button>
