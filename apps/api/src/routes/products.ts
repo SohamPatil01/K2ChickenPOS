@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { getUser } from '../utils/auth.js';
 
 interface QueryParams {
   search?: string;
@@ -10,10 +11,21 @@ interface QueryParams {
 export async function productRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+    const { search, categoryId } = (request.query as any);
+    
+    // Try to get user's store, fallback to first store if not authenticated
+    let store;
+    let storeId = '';
+    
+    try {
+      const user = getUser(request);
+      store = await prisma.store.findUnique({ where: { id: user.storeId } });
+      storeId = user.storeId;
+    } catch {
+      // Not authenticated, use first store as fallback
+      store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      storeId = store?.id || '';
+    }
 
     if (!store) {
       reply.code(404).send({ error: 'Store not found' });
