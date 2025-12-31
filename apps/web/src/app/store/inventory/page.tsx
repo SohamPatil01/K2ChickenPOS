@@ -478,8 +478,9 @@ export default function StoreInventoryPage() {
       </div>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900/50">
+          <div className="table-wrapper -mx-3 sm:mx-0">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                   Image
@@ -610,6 +611,7 @@ export default function StoreInventoryPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

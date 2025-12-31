@@ -87,9 +87,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 px-4">
-      <div className="bg-white p-6 sm:p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6">AzelaPOS</h1>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 px-4 py-8 safe-top safe-bottom">
+      <div className="bg-white p-5 sm:p-6 lg:p-8 rounded-lg shadow-md w-full max-w-md">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-3 sm:mb-4 lg:mb-6">AzelaPOS</h1>
         <h2 className="text-lg sm:text-xl text-center mb-4 sm:mb-6 text-gray-600">Login</h2>
 
         {error && (
@@ -100,11 +100,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
             <input
               type="text"
               {...register('phone')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 touch-target"
               placeholder="Enter phone number"
               autoComplete="tel"
             />
@@ -116,11 +116,11 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
             <input
               type="password"
               {...register('password')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 touch-target"
               placeholder="Enter password"
               autoComplete="current-password"
             />
@@ -134,17 +134,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-base font-semibold"
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
         
-        <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600">
-          <p className="font-semibold mb-1">Test Credentials:</p>
-          <p>Owner: 9999999999 / owner123</p>
-          <p>Manager: 8888888888 / manager123</p>
-          <p>Cashier: 7777777777 / cashier123</p>
+        <div className="mt-4 p-3 bg-gray-50 rounded text-xs sm:text-sm text-gray-600">
+          <p className="font-semibold mb-1.5">Test Credentials:</p>
+          <div className="space-y-1">
+            <p>Owner: 9999999999 / owner123</p>
+            <p>Manager: 8888888888 / manager123</p>
+            <p>Cashier: 7777777777 / cashier123</p>
+          </div>
         </div>
       </div>
     </div>

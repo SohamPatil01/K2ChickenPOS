@@ -181,13 +181,13 @@ export default function StoreCartPage() {
     const change = parseFloat(amountPaid) - grandTotal;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-          <h2 className="text-2xl font-bold mb-6 dark:text-white text-gray-900">Payment Details</h2>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 dark:text-white text-gray-900">Payment Details</h2>
           
           {/* Payment Summary */}
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-5 mb-5 border-2 border-gray-200 dark:border-gray-600">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wide">Payment Summary</h3>
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5 border-2 border-gray-200 dark:border-gray-600">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3 uppercase tracking-wide">Payment Summary</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Subtotal:</span>
@@ -220,7 +220,7 @@ export default function StoreCartPage() {
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all touch-target"
               >
                 <option value="CASH">💵 Cash</option>
                 <option value="CARD">💳 Card</option>
@@ -236,7 +236,7 @@ export default function StoreCartPage() {
                 type="number"
                 value={amountPaid}
                 onChange={(e) => setAmountPaid(e.target.value)}
-                className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all text-lg font-semibold"
+                className="w-full px-4 py-3 text-lg border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all font-semibold touch-target"
                 step="0.01"
                 min="0"
                 placeholder={grandTotal.toFixed(2)}
@@ -262,17 +262,17 @@ export default function StoreCartPage() {
             )}
           </div>
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-4 sm:mt-6">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-semibold transition-all"
+              className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-semibold transition-all touch-target text-base"
             >
               Cancel
             </button>
             <button
               onClick={() => onPay(paymentMethod, parseFloat(amountPaid))}
               disabled={change < 0}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 font-semibold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 font-semibold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed touch-target text-base"
             >
               Pay ₹{parseFloat(amountPaid).toFixed(2)}
             </button>
@@ -309,7 +309,7 @@ export default function StoreCartPage() {
                 type="text"
                 value={item.description}
                 onChange={(e) => onChange('description', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
                 placeholder="Enter item description"
                 required
               />
@@ -321,7 +321,7 @@ export default function StoreCartPage() {
               <select
                 value={item.unitType}
                 onChange={(e) => onChange('unitType', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
               >
                 <option value="KG">KG</option>
                 <option value="PCS">PCS</option>
@@ -335,7 +335,7 @@ export default function StoreCartPage() {
                 type="number"
                 value={item.weight}
                 onChange={(e) => onChange('weight', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
                 placeholder={item.unitType === 'KG' ? 'Enter weight' : 'Enter quantity'}
                 step={item.unitType === 'KG' ? '0.01' : '1'}
                 required
@@ -349,7 +349,7 @@ export default function StoreCartPage() {
                 type="number"
                 value={item.rate}
                 onChange={(e) => onChange('rate', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
                 placeholder="Enter rate"
                 step="0.01"
                 required
@@ -363,21 +363,21 @@ export default function StoreCartPage() {
                 type="number"
                 value={item.total}
                 onChange={(e) => onChange('total', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
                 placeholder="Auto-calculated"
                 step="0.01"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
+                className="flex-1 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 touch-target"
               >
                 Cancel
               </button>
               <button
                 onClick={onSubmit}
-                className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600"
+                className="flex-1 px-4 py-3 text-base bg-brand-500 text-white rounded-md hover:bg-brand-600 touch-target font-semibold"
               >
                 Add Item
               </button>
@@ -399,26 +399,26 @@ export default function StoreCartPage() {
         />
       )}
       <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Shopping Cart</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Review items and proceed to payment</p>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-0">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">Shopping Cart</h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Review items and proceed to payment</p>
         </div>
         <button
           onClick={() => router.push('/store/pos')}
-          className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
+          className="px-3 sm:px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all touch-target flex-shrink-0"
         >
           ← Back to POS
         </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="font-bold text-2xl dark:text-white text-gray-900">Cart Items</h2>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-0">
+          <h2 className="font-bold text-xl sm:text-2xl dark:text-white text-gray-900">Cart Items</h2>
           <button
             onClick={() => setShowAddItemModal(true)}
-            className="px-5 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 font-semibold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center gap-2"
+            className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 font-semibold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 touch-target text-sm sm:text-base"
           >
             <span className="text-lg">+</span>
             <span>Add Item</span>
@@ -427,13 +427,14 @@ export default function StoreCartPage() {
 
         {/* Customer */}
         <div className="mb-4">
-          <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+          <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1.5">
             Customer phone
           </label>
           <input
             type="text"
             placeholder="Enter phone number"
             value={customerPhone || ''}
+            className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent touch-target"
             onChange={(e) => {
               const phone = e.target.value;
               setCustomer(null, phone || null, null);
@@ -450,7 +451,6 @@ export default function StoreCartPage() {
                   });
               }
             }}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base"
           />
           {customerName && (
             <p className="mt-1 text-xs sm:text-sm text-brand-700 dark:text-brand-400">
@@ -524,7 +524,7 @@ export default function StoreCartPage() {
               type="number"
               value={discountTotal}
               onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-              className="w-24 sm:w-32 px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-right text-sm sm:text-base"
+              className="w-24 sm:w-32 px-3 py-2 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-right touch-target"
               step="0.01"
               min="0"
             />
@@ -536,7 +536,7 @@ export default function StoreCartPage() {
           <button
             onClick={() => setShowPaymentModal(true)}
             disabled={items.length === 0}
-            className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white py-3.5 rounded-xl hover:from-brand-600 hover:to-brand-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 text-base font-semibold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:active:scale-100"
+            className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white py-3.5 sm:py-4 rounded-xl hover:from-brand-600 hover:to-brand-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:active:scale-100 touch-target"
           >
             Pay ₹{grandTotal.toFixed(2)}
           </button>

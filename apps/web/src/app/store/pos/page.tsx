@@ -370,28 +370,29 @@ export default function StorePOSPage() {
   });
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
+    <div className="h-[calc(100vh-8rem)] sm:h-[calc(100vh-9rem)] flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Point of Sale</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Select products and add to cart</p>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-0">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">Point of Sale</h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Select products and add to cart</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 sm:gap-3 flex-shrink-0">
           <button
             onClick={() => setShowAddItemModal(true)}
-            className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 active:bg-brand-700 font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 border-2 border-brand-400"
+            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 active:bg-brand-700 font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 border-2 border-brand-400 touch-target text-sm sm:text-base"
           >
-            <span className="text-xl font-bold text-white">+</span>
-            <span className="text-white">Add Item</span>
+            <span className="text-lg sm:text-xl font-bold text-white">+</span>
+            <span className="text-white hidden sm:inline">Add Item</span>
+            <span className="text-white sm:hidden">Add</span>
           </button>
           <Link
             href="/store/cart"
-            className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 active:bg-brand-700 font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 relative border-2 border-brand-400"
+            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 active:bg-brand-700 font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 relative border-2 border-brand-400 touch-target text-sm sm:text-base"
           >
-            <span className="text-xl text-white">🛒</span>
-            <span className="text-white">Cart</span>
-            <span className={`rounded-full px-2.5 py-1 text-xs font-bold min-w-[24px] text-center ${
+            <span className="text-lg sm:text-xl text-white">🛒</span>
+            <span className="text-white hidden sm:inline">Cart</span>
+            <span className={`rounded-full px-2 sm:px-2.5 py-1 text-xs font-bold min-w-[20px] sm:min-w-[24px] text-center ${
               items.length > 0 
                 ? 'bg-white text-brand-600 shadow-sm' 
                 : 'bg-white/30 text-white'
@@ -403,7 +404,7 @@ export default function StorePOSPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex gap-4 min-h-0">
+      <div className="flex-1 flex flex-col md:flex-row gap-3 sm:gap-4 min-h-0">
         {/* Left: Categories Sidebar */}
         <div className="hidden md:block w-48 flex-shrink-0 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 overflow-y-auto">
           <h2 className="font-bold mb-4 text-gray-900 dark:text-gray-100 text-base">Categories</h2>
@@ -435,11 +436,11 @@ export default function StorePOSPage() {
         </div>
 
         {/* Mobile Categories - Horizontal Scroll */}
-        <div className="md:hidden w-full bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-2 overflow-x-auto mb-4">
+        <div className="md:hidden w-full bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-2 overflow-x-auto mb-3 sm:mb-4 -mx-3 sm:-mx-4 px-3 sm:px-4">
           <div className="flex space-x-2 min-w-max">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-4 py-2 rounded-md whitespace-nowrap transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-md whitespace-nowrap transition-all touch-target text-sm ${
                 !selectedCategory
                   ? 'bg-brand-500 text-white font-semibold shadow-sm'
                   : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600'
@@ -451,7 +452,7 @@ export default function StorePOSPage() {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-2 rounded-md whitespace-nowrap transition-all ${
+                className={`px-3 sm:px-4 py-2 rounded-md whitespace-nowrap transition-all touch-target text-sm ${
                   selectedCategory === cat.id
                     ? 'bg-brand-500 text-white font-semibold shadow-sm'
                     : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600'
@@ -464,9 +465,9 @@ export default function StorePOSPage() {
         </div>
 
         {/* Center: Products Area */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 overflow-y-auto flex flex-col min-h-0">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 overflow-y-auto flex flex-col min-h-0">
           {/* Search and Barcode Inputs */}
-          <div className="mb-4 space-y-2 flex-shrink-0">
+          <div className="mb-3 sm:mb-4 space-y-2 flex-shrink-0">
             <form onSubmit={handleBarcodeSubmit}>
               <input
                 ref={barcodeInputRef}
@@ -474,7 +475,7 @@ export default function StorePOSPage() {
                 placeholder="Scan barcode..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                className="w-full px-4 py-2.5 border-2 border-brand-500 dark:border-brand-400 rounded-md dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-base border-2 border-brand-500 dark:border-brand-400 rounded-md dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 touch-target"
               />
             </form>
             <input
@@ -482,7 +483,7 @@ export default function StorePOSPage() {
               placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent touch-target"
             />
           </div>
 
@@ -514,7 +515,7 @@ export default function StorePOSPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
                 {filteredProducts.map((product) => {
                   const isLocked = product.productMaster?.isHQLocked;
                   const displayPrice = product.productMaster?.hqLockedPrice || product.pricePerUnit;
@@ -522,21 +523,21 @@ export default function StorePOSPage() {
                     <button
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
-                      className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-brand-500 dark:hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:shadow-md transition-all bg-white dark:bg-gray-800"
+                      className="p-2 sm:p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-brand-500 dark:hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:shadow-md transition-all bg-white dark:bg-gray-800 active:scale-95 touch-target"
                     >
                       {/* Product Image */}
-                      <div className="mb-2 flex justify-center">
+                      <div className="mb-1.5 sm:mb-2 flex justify-center">
                         {product.imageUrl ? (
                           <img
                             src={product.imageUrl}
                             alt={product.name}
-                            className="w-24 h-24 object-cover rounded"
+                            className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 object-cover rounded"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
                             }}
                           />
                         ) : (
-                          <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
                             <span className="text-gray-400 dark:text-gray-500 text-xs">No Image</span>
                           </div>
                         )}
@@ -544,18 +545,18 @@ export default function StorePOSPage() {
 
                       {/* Product Details */}
                       <div>
-                        <div className="font-semibold text-sm mb-1 line-clamp-2 dark:text-white text-left">
+                        <div className="font-semibold text-xs sm:text-sm mb-1 line-clamp-2 dark:text-white text-left">
                           {product.name}
                         </div>
-                        <div className="text-sm font-bold text-brand-600 dark:text-brand-400 mb-1 text-left">
+                        <div className="text-xs sm:text-sm font-bold text-brand-600 dark:text-brand-400 mb-0.5 sm:mb-1 text-left">
                           ₹{displayPrice.toFixed(2)}/{product.unitType}
                           {isLocked && <span className="ml-1 text-xs">🔒</span>}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 text-left">
+                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 text-left truncate">
                           SKU: {product.sku}
                         </div>
                         {product.categoryName && (
-                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 text-left">
+                          <div className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 text-left truncate">
                             {product.categoryName}
                           </div>
                         )}
@@ -619,9 +620,9 @@ export default function StorePOSPage() {
 
       {/* Price Override Modal */}
       {showPriceOverrideModal && priceOverrideData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-            <h2 className="text-2xl font-bold dark:text-white mb-4">Price Override Required</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+            <h2 className="text-xl sm:text-2xl font-bold dark:text-white mb-3 sm:mb-4">Price Override Required</h2>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Product:</p>
@@ -645,23 +646,23 @@ export default function StorePOSPage() {
                   onChange={(e) =>
                     setPriceOverrideData({ ...priceOverrideData, managerPin: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-brand-500 touch-target"
                   placeholder="Enter your PIN"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                 <button
                   onClick={() => {
                     setShowPriceOverrideModal(false);
                     setPriceOverrideData(null);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
+                  className="flex-1 px-4 py-3 text-base bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 touch-target"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handlePriceOverride}
-                  className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600"
+                  className="flex-1 px-4 py-3 text-base bg-brand-500 text-white rounded-md hover:bg-brand-600 touch-target font-semibold"
                 >
                   Override
                 </button>
@@ -706,9 +707,9 @@ function AddItemModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <h2 className="text-2xl font-bold dark:text-white mb-4">Add Item</h2>
+        <h2 className="text-xl sm:text-2xl font-bold dark:text-white mb-3 sm:mb-4">Add Item</h2>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -719,14 +720,14 @@ function AddItemModal({
               value={item.sku}
               onChange={(e) => handleSkuChange(e.target.value)}
               placeholder="Enter SKU or scan barcode"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               autoFocus
             />
             {products.length > 0 && (
               <select
                 value={item.sku}
                 onChange={(e) => handleSkuChange(e.target.value)}
-                className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full mt-2 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               >
                 <option value="">Select from products...</option>
                 {products.map((p) => (
@@ -747,7 +748,7 @@ function AddItemModal({
               value={item.description}
               onChange={(e) => onChange('description', e.target.value)}
               placeholder="Product description"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               required
             />
           </div>
@@ -760,7 +761,7 @@ function AddItemModal({
               <select
                 value={item.unitType}
                 onChange={(e) => onChange('unitType', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               >
                 <option value="KG">KG</option>
                 <option value="PCS">PCS</option>
@@ -777,7 +778,7 @@ function AddItemModal({
                 placeholder={item.unitType === 'KG' ? '0.00' : '1'}
                 step={item.unitType === 'KG' ? '0.01' : '1'}
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
                 required
               />
             </div>
@@ -795,7 +796,7 @@ function AddItemModal({
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               />
             </div>
             <div>
@@ -809,21 +810,21 @@ function AddItemModal({
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               />
             </div>
           </div>
 
-          <div className="flex gap-2 mt-6">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 mt-4 sm:mt-6">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+              className="flex-1 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white touch-target"
             >
               Cancel
             </button>
             <button
               onClick={onSubmit}
-              className="flex-1 px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-600"
+              className="flex-1 px-4 py-3 text-base bg-brand-500 text-white rounded hover:bg-brand-600 touch-target font-semibold"
             >
               Add to Cart
             </button>

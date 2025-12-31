@@ -215,14 +215,14 @@ export default function StoreDashboardPage() {
   }
 
   const StatCard = ({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle?: string; icon: string }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2 truncate">{value}</p>
+          {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{subtitle}</p>}
         </div>
-        <div className="text-4xl">{icon}</div>
+        <div className="text-3xl sm:text-4xl flex-shrink-0 ml-2">{icon}</div>
       </div>
     </div>
   );
@@ -231,22 +231,22 @@ export default function StoreDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold dark:text-white">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">
             {userRole === 'OWNER' ? 'Admin Console' : userRole === 'MANAGER' ? 'Manager Console' : 'Store Dashboard'}
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {user?.name}</p>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {user?.name}</p>
         </div>
         {userRole && (
-          <div className="px-4 py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-lg font-medium">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-lg font-medium text-sm sm:text-base flex-shrink-0">
             {userRole}
           </div>
         )}
       </div>
 
       {/* Key Metrics - Console Style */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
         <StatCard
           title="Today's Revenue"
           value={`₹${stats.today.revenue.toFixed(2)}`}
@@ -267,27 +267,27 @@ export default function StoreDashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Recent Sales */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold dark:text-white">Recent Sales</h2>
-            <Link href="/store/pos" className="text-brand-600 dark:text-brand-400 text-sm hover:underline">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6">
+          <div className="flex justify-between items-center mb-3 sm:mb-4">
+            <h2 className="text-lg sm:text-xl font-semibold dark:text-white">Recent Sales</h2>
+            <Link href="/store/pos" className="text-brand-600 dark:text-brand-400 text-xs sm:text-sm hover:underline touch-target">
               Go to POS →
             </Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {stats.recentSales.length > 0 ? (
               stats.recentSales.map((sale) => (
-                <div key={sale.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                  <div>
-                    <p className="font-medium text-sm dark:text-white">{sale.saleNo}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                <div key={sale.id} className="flex justify-between items-center p-2.5 sm:p-3 bg-gray-50 dark:bg-gray-700 rounded gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-xs sm:text-sm dark:text-white truncate">{sale.saleNo}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
                       {sale.customerName} • {sale.itemCount} items
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold dark:text-white">₹{sale.grandTotal.toFixed(2)}</p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-semibold text-sm sm:text-base dark:text-white">₹{sale.grandTotal.toFixed(2)}</p>
                     <p className={`text-xs ${sale.status === 'PAID' ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                       {sale.status}
                     </p>
@@ -295,7 +295,7 @@ export default function StoreDashboardPage() {
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-4">No recent sales</p>
+              <p className="text-gray-500 dark:text-gray-400 text-center py-4 text-sm">No recent sales</p>
             )}
           </div>
         </div>

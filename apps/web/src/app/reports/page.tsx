@@ -66,32 +66,32 @@ export default function ReportsPage() {
     <Layout>
       <div className="max-w-4xl mx-auto">
         {/* Primary Header - matching the image */}
-        <div className="bg-primary-500 text-white py-4 px-6 shadow-md">
-          <h1 className="text-2xl font-bold text-white">Reports</h1>
+        <div className="bg-primary-500 text-white py-3 sm:py-4 px-4 sm:px-6 shadow-md">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Reports</h1>
         </div>
 
         {/* Report Items List */}
-        <div className="bg-white shadow-md overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 shadow-md overflow-hidden">
           {reportItems.map((item, index) => (
             <div key={item.id}>
               <button
                 onClick={() => handleReportClick(item)}
-                className={`w-full text-left py-4 px-6 hover:bg-gray-50 active:bg-gray-100 transition-colors ${
-                  selectedReport === item.id ? 'bg-primary-50' : ''
+                className={`w-full text-left py-3 sm:py-4 px-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors touch-target ${
+                  selectedReport === item.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
                 }`}
               >
-                <span className="text-gray-800 font-medium text-base">{item.label}</span>
+                <span className="text-gray-800 dark:text-gray-200 font-medium text-sm sm:text-base">{item.label}</span>
               </button>
               {index < reportItems.length - 1 && (
-                <hr className="border-gray-200" />
+                <hr className="border-gray-200 dark:border-gray-700" />
               )}
             </div>
           ))}
         </div>
 
         {/* Info Message */}
-        <div className="mt-6 p-4 bg-primary-50 border border-primary-200 rounded-lg">
-          <p className="text-sm text-primary-700">
+        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
+          <p className="text-xs sm:text-sm text-primary-700 dark:text-primary-300">
             <strong>Note:</strong> Click on any report to view detailed information. Reports are being developed and will be available soon.
           </p>
         </div>
