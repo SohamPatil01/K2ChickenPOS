@@ -34,7 +34,8 @@ function getDateRange(startDate?: string, endDate?: string) {
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
   fastify.get('/stock', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const ownerStoreId = store?.type === 'OWNER' ? store.id : store?.parentOwnerStoreId;
@@ -91,7 +92,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Product Wise Sale Report
   fastify.get('/product-wise-sale', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -147,7 +149,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Bill Wise Sale Report
   fastify.get('/bill-wise-sale', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -205,7 +208,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Sales Register Summary
   fastify.get('/sales-register-summary', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -260,7 +264,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Sales Sub Register (Detailed)
   fastify.get('/sales-sub-register', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -301,7 +306,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Bill Wise Sale Cancel
   fastify.get('/bill-wise-sale-cancel', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -346,7 +352,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // PO Report
   fastify.get('/po-report', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -416,7 +423,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // SKU Wise Sales Report
   fastify.get('/sku-wise-sales', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const ownerStoreId = store?.id || '';
     const userStoreId = queryStoreId || store?.id || '';
 
@@ -478,7 +486,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Summary Report
   fastify.get('/summary-report', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const dateFilter = getDateRange(startDate, endDate);
@@ -549,7 +558,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // Pending Report
   fastify.get('/pending', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const [pendingPOs, pendingDeliveries, openSales] = await Promise.all([
@@ -621,7 +631,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
   // MRN & Balance Confirmation
   fastify.get('/mrn-balance', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate } = (request.query as any);    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
     const userStoreId = queryStoreId || store?.id || '';
 
     const grns = await prisma.gRN.findMany({
