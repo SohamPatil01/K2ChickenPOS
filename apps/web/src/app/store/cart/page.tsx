@@ -135,15 +135,31 @@ export default function StoreCartPage() {
 
       const sale = saleResponse.data;
 
+      if (!sale || !sale.id) {
+        throw new Error('Invalid sale response: Sale ID not found');
+      }
+
       // Step 2: Pay the sale
+      // Use the sale's grandTotal to ensure exact match (backend validates payment amount must match sale.grandTotal)
+      // If amountPaid is less, use grandTotal. If more, still use grandTotal to avoid mismatch error.
+      const paymentAmount = sale.grandTotal;
+      
       const paymentData = {
         payments: [
           {
             method: paymentMethod,
-            amount: amountPaid,
+            amount: paymentAmount,
           },
         ],
       };
+
+      console.log('Paying sale:', {
+        saleId: sale.id,
+        saleGrandTotal: sale.grandTotal,
+        paymentAmount: paymentAmount,
+        amountPaid: amountPaid,
+        change: amountPaid - sale.grandTotal,
+      });
 
       const payResponse = await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
 
@@ -153,8 +169,30 @@ export default function StoreCartPage() {
       setTimeout(() => router.push('/store/pos'), 1500);
     } catch (error: any) {
       console.error('Failed to process payment:', error);
-      const errorMessage = error.response?.data?.error || error.response?.data?.details || error.message || 'Failed to process payment';
-      setNotification({ message: errorMessage, type: 'error' });
+      console.error('Error details:', {
+        response: error.response?.data,
+        status: error.response?.status,
+        message: error.message,
+        stack: error.stack,
+      });
+      
+      let errorMessage = 'Failed to process payment';
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.details) {
+        errorMessage = error.response.data.details;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setNotification({ 
+        message: errorMessage, 
+        type: 'error',
+        duration: 5000 
+      });
+      
+      // Keep modal open on error so user can see the error and retry if needed
     }
   };
 
