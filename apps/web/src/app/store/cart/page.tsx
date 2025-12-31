@@ -551,7 +551,7 @@ export default function StoreCartPage() {
           onClose={() => setNotification(null)}
         />
       )}
-      <div className="w-full max-w-7xl mx-auto min-h-0 overflow-hidden flex flex-col">
+      <div className="w-full max-w-7xl mx-auto h-full min-h-0 overflow-hidden flex flex-col">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200/40 dark:border-gray-700/40 gap-2 sm:gap-3 flex-shrink-0">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-0.5 sm:mb-1 leading-tight tracking-tight truncate">
@@ -567,7 +567,7 @@ export default function StoreCartPage() {
           </button>
         </div>
 
-        <div className="flex-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-sm dark:shadow-md p-3 sm:p-4 md:p-6 lg:p-8 border border-gray-200/40 dark:border-gray-700/40 overflow-y-auto min-h-0">
+        <div className="flex-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-sm dark:shadow-md p-3 sm:p-4 md:p-6 lg:p-8 border border-gray-200/40 dark:border-gray-700/40 min-h-0 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200/40 dark:border-gray-700/40 gap-2 sm:gap-3">
             <h2 className="font-semibold text-lg sm:text-xl lg:text-2xl dark:text-white text-gray-800">Cart Items</h2>
@@ -627,7 +627,7 @@ export default function StoreCartPage() {
         </div>
 
         {/* Cart Items */}
-        <div className="mb-3 sm:mb-4 max-h-[40vh] sm:max-h-[450px] overflow-y-auto">
+        <div className="flex-1 mb-3 sm:mb-4 overflow-y-auto min-h-0">
           {items.length === 0 ? (
             <div className="text-center py-8 sm:py-12">
               <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">🛒</div>
@@ -686,7 +686,7 @@ export default function StoreCartPage() {
         </div>
 
         {/* Totals */}
-        <div className="border-t border-gray-200/40 dark:border-gray-700/40 pt-3 sm:pt-4 space-y-2 sm:space-y-3 bg-gray-50/30 dark:bg-gray-700/15 rounded-lg sm:rounded-xl p-3 sm:p-4 -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8 flex-shrink-0">
+        <div className="border-t border-gray-200/40 dark:border-gray-700/40 pt-3 sm:pt-4 space-y-2 sm:space-y-3 bg-gray-50/30 dark:bg-gray-700/15 rounded-lg sm:rounded-xl p-3 sm:p-4 -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8 flex-shrink-0 mt-auto">
           <div className="flex justify-between text-sm sm:text-base dark:text-white font-medium">
             <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
             <span className="text-gray-900 dark:text-white truncate ml-2">₹{subTotal.toFixed(2)}</span>

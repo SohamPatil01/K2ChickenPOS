@@ -106,8 +106,7 @@ export default function GlobalBarcodeScanner() {
           // Add to cart
           const qty = parsed.weightKg || parsed.qtyPcs || 1;
           const rate = parsed.pricePerKg || product.pricePerUnit;
-          const lineTotal = qty * rate;
-          const taxAmount = lineTotal * (product.taxRate / 100);
+          const lineTotal = qty * rate; // Base amount without tax
 
           await addItem({
             productId: product.id,
@@ -116,7 +115,7 @@ export default function GlobalBarcodeScanner() {
             qtyPcs: parsed.qtyPcs,
             rate,
             taxRate: product.taxRate,
-            lineTotal: lineTotal + taxAmount,
+            lineTotal, // Store base amount, tax calculated separately
           });
 
           // Trigger cart animation
@@ -153,8 +152,7 @@ export default function GlobalBarcodeScanner() {
         // Add to cart with default quantity
         const qty = 1;
         const rate = product.pricePerUnit;
-        const lineTotal = qty * rate;
-        const taxAmount = lineTotal * (product.taxRate / 100);
+        const lineTotal = qty * rate; // Base amount without tax
 
         await addItem({
           productId: product.id,
@@ -163,7 +161,7 @@ export default function GlobalBarcodeScanner() {
           qtyPcs: product.unitType === 'PCS' ? 1 : undefined,
           rate,
           taxRate: product.taxRate,
-          lineTotal: lineTotal + taxAmount,
+          lineTotal, // Store base amount, tax calculated separately
         });
 
         // Trigger cart animation
