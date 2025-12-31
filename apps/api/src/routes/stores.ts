@@ -362,12 +362,14 @@ export async function storeRoutes(fastify: FastifyInstance) {
   });
 
   // Get franchise config for the current store (for franchise store users)
+  // Returns default config for OWNER stores
   fastify.get(
     '/franchise-config',
     { preHandler: [fastify.authenticate] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const storeId = (getUser(request) as any).storeId;
+        const user = getUser(request);
+        const storeId = user.storeId;
 
         const store = await prisma.store.findUnique({
           where: { id: storeId },
@@ -383,30 +385,67 @@ export async function storeRoutes(fastify: FastifyInstance) {
           },
         });
 
-        if (!store || store.type !== 'FRANCHISE') {
-          reply.code(404).send({ error: 'Franchise store not found' });
+        if (!store) {
+          reply.code(404).send({ error: 'Store not found' });
           return;
         }
 
-        if (!store.franchiseConfig) {
-          reply.code(404).send({ error: 'Franchise config not found' });
-          return;
+        // For OWNER stores, return default config (no restrictions)
+        if (store.type === 'OWNER') {
+          return {
+            id: null,
+            franchiseStoreId: store.id,
+            status: 'ACTIVE',
+            pricingPlan: null,
+            royaltyPercentage: 0,
+            allowedWastagePercent: 100.0, // No restriction for owner
+            allowedDiscountPercent: 100.0, // No restriction for owner
+            isPricingLocked: false,
+            isDiscountLocked: false,
+            isWastageLocked: false,
+            areaManager: null,
+            onboardingCompleted: true,
+          };
         }
 
-        return {
-          id: store.franchiseConfig.id,
-          franchiseStoreId: store.id,
-          status: store.franchiseConfig.status,
-          pricingPlan: store.franchiseConfig.pricingPlan,
-          royaltyPercentage: store.franchiseConfig.royaltyPercentage || 0,
-          allowedWastagePercent: store.franchiseConfig.allowedWastagePercent || 5.0,
-          allowedDiscountPercent: store.franchiseConfig.allowedDiscountPercent || 10.0,
-          isPricingLocked: store.franchiseConfig.isPricingLocked || false,
-          isDiscountLocked: store.franchiseConfig.isDiscountLocked || false,
-          isWastageLocked: store.franchiseConfig.isWastageLocked || false,
-          areaManager: store.franchiseConfig.areaManager,
-          onboardingCompleted: !!store.franchiseConfig.onboardingCompletedAt,
-        };
+        // For FRANCHISE stores, return their config or default if not found
+        if (store.type === 'FRANCHISE') {
+          if (!store.franchiseConfig) {
+            // Return default config for franchise without config
+            return {
+              id: null,
+              franchiseStoreId: store.id,
+              status: 'ACTIVE',
+              pricingPlan: null,
+              royaltyPercentage: 0,
+              allowedWastagePercent: 5.0,
+              allowedDiscountPercent: 10.0,
+              isPricingLocked: false,
+              isDiscountLocked: false,
+              isWastageLocked: false,
+              areaManager: null,
+              onboardingCompleted: false,
+            };
+          }
+
+          return {
+            id: store.franchiseConfig.id,
+            franchiseStoreId: store.id,
+            status: store.franchiseConfig.status,
+            pricingPlan: store.franchiseConfig.pricingPlan,
+            royaltyPercentage: store.franchiseConfig.royaltyPercentage || 0,
+            allowedWastagePercent: store.franchiseConfig.allowedWastagePercent || 5.0,
+            allowedDiscountPercent: store.franchiseConfig.allowedDiscountPercent || 10.0,
+            isPricingLocked: store.franchiseConfig.isPricingLocked || false,
+            isDiscountLocked: store.franchiseConfig.isDiscountLocked || false,
+            isWastageLocked: store.franchiseConfig.isWastageLocked || false,
+            areaManager: store.franchiseConfig.areaManager,
+            onboardingCompleted: !!store.franchiseConfig.onboardingCompletedAt,
+          };
+        }
+
+        // Unknown store type
+        reply.code(400).send({ error: 'Invalid store type' });
       } catch (error: any) {
         console.error('Failed to fetch franchise config:', error);
         reply.code(500).send({ error: 'Failed to fetch franchise config' });

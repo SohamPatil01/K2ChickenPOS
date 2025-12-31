@@ -215,14 +215,14 @@ export default function StoreDashboardPage() {
   }
 
   const StatCard = ({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle?: string; icon: string }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-5 lg:p-6">
       <div className="flex items-center justify-between">
         <div className="flex-1 min-w-0">
           <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
-          <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2 truncate">{value}</p>
+          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2 truncate">{value}</p>
           {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{subtitle}</p>}
         </div>
-        <div className="text-3xl sm:text-4xl flex-shrink-0 ml-2">{icon}</div>
+        <div className="text-2xl sm:text-3xl lg:text-4xl flex-shrink-0 ml-2">{icon}</div>
       </div>
     </div>
   );
@@ -230,23 +230,23 @@ export default function StoreDashboardPage() {
   const userRole = user?.role as string;
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto">
       <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold dark:text-white">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">
             {userRole === 'OWNER' ? 'Admin Console' : userRole === 'MANAGER' ? 'Manager Console' : 'Store Dashboard'}
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Welcome, {user?.name}</p>
         </div>
         {userRole && (
-          <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-lg font-medium text-sm sm:text-base flex-shrink-0">
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-lg font-medium text-xs sm:text-sm lg:text-base flex-shrink-0 touch-target">
             {userRole}
           </div>
         )}
       </div>
 
       {/* Key Metrics - Console Style */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
         <StatCard
           title="Today's Revenue"
           value={`₹${stats.today.revenue.toFixed(2)}`}
@@ -267,11 +267,11 @@ export default function StoreDashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
         {/* Recent Sales */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 lg:p-6">
           <div className="flex justify-between items-center mb-3 sm:mb-4">
-            <h2 className="text-lg sm:text-xl font-semibold dark:text-white">Recent Sales</h2>
+            <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white">Recent Sales</h2>
             <Link href="/store/pos" className="text-brand-600 dark:text-brand-400 text-xs sm:text-sm hover:underline touch-target">
               Go to POS →
             </Link>
@@ -302,10 +302,10 @@ export default function StoreDashboardPage() {
 
         {/* Top Products - Show 7 days for Manager/Owner, Today for others */}
         {(userRole === 'MANAGER' || userRole === 'OWNER') && stats.topItems.length > 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold dark:text-white">Top Products (Last 7 Days)</h2>
-              <Link href="/store/reports" className="text-brand-600 dark:text-brand-400 text-sm hover:underline">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 lg:p-6">
+            <div className="flex justify-between items-center mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white">Top Products (Last 7 Days)</h2>
+              <Link href="/store/reports" className="text-brand-600 dark:text-brand-400 text-xs sm:text-sm hover:underline touch-target">
                 View All →
               </Link>
             </div>
@@ -343,8 +343,8 @@ export default function StoreDashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-            <h2 className="text-xl font-bold dark:text-white mb-4">Top Products Today</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+            <h2 className="text-base sm:text-lg lg:text-xl font-bold dark:text-white mb-3 sm:mb-4">Top Products Today</h2>
             <div className="space-y-3">
               {stats.topProducts.length > 0 ? (
                 stats.topProducts.map((product, index) => (
@@ -368,56 +368,56 @@ export default function StoreDashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <h2 className="text-xl font-bold dark:text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="mt-4 sm:mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <h2 className="text-base sm:text-lg lg:text-xl font-bold dark:text-white mb-3 sm:mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <Link
             href="/store/pos"
-            className="flex flex-col items-center justify-center p-4 bg-brand-50 dark:bg-brand-900/20 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-brand-50 dark:bg-brand-900/20 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors touch-target"
           >
-            <span className="text-3xl mb-2">🛒</span>
-            <span className="font-medium text-brand-600 dark:text-brand-400">New Sale</span>
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🛒</span>
+            <span className="font-medium text-xs sm:text-sm text-brand-600 dark:text-brand-400 text-center">New Sale</span>
           </Link>
           <Link
             href="/store/inventory"
-            className="flex flex-col items-center justify-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target"
           >
-            <span className="text-3xl mb-2">📦</span>
-            <span className="font-medium text-blue-600 dark:text-blue-400">Inventory</span>
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📦</span>
+            <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">Inventory</span>
           </Link>
           <Link
             href="/store/stock-ledger"
-            className="flex flex-col items-center justify-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors touch-target"
           >
-            <span className="text-3xl mb-2">📋</span>
-            <span className="font-medium text-green-600 dark:text-green-400">Stock Ledger</span>
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📋</span>
+            <span className="font-medium text-xs sm:text-sm text-green-600 dark:text-green-400 text-center">Stock Ledger</span>
           </Link>
           <Link
             href="/store/reports"
-            className="flex flex-col items-center justify-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors touch-target"
           >
-            <span className="text-3xl mb-2">📈</span>
-            <span className="font-medium text-purple-600 dark:text-purple-400">Reports</span>
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📈</span>
+            <span className="font-medium text-xs sm:text-sm text-purple-600 dark:text-purple-400 text-center">Reports</span>
           </Link>
         </div>
         {/* Manager-Only Actions */}
         {(user?.role === 'MANAGER' || user?.role === 'OWNER') && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Manager Tools</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Manager Tools</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               <Link
                 href="/store/wastage"
-                className="flex flex-col items-center justify-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors touch-target"
               >
-                <span className="text-3xl mb-2">🗑️</span>
-                <span className="font-medium text-red-600 dark:text-red-400">Wastage Management</span>
+                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🗑️</span>
+                <span className="font-medium text-xs sm:text-sm text-red-600 dark:text-red-400 text-center">Wastage Management</span>
               </Link>
               <Link
                 href="/store/yield"
-                className="flex flex-col items-center justify-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors touch-target"
               >
-                <span className="text-3xl mb-2">📊</span>
-                <span className="font-medium text-orange-600 dark:text-orange-400">Yield Tracking</span>
+                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📊</span>
+                <span className="font-medium text-xs sm:text-sm text-orange-600 dark:text-orange-400 text-center">Yield Tracking</span>
               </Link>
             </div>
           </div>

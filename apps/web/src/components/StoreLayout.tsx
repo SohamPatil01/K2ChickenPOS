@@ -167,6 +167,30 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
     }))
     .filter((section) => section.items.length > 0);
 
+  // Collect all visible items to determine the most specific active route
+  const allVisibleItems = visibleSections.flatMap((section) => section.items);
+
+  // Find the most specific matching route
+  const getActiveItem = () => {
+    if (!pathname) return null;
+    
+    // First, try exact matches
+    const exactMatch = allVisibleItems.find((item) => pathname === item.href);
+    if (exactMatch) return exactMatch;
+    
+    // Then, find the longest matching path (most specific)
+    const matches = allVisibleItems
+      .filter((item) => {
+        if (item.href === '/store') return false; // Dashboard only matches exactly
+        return pathname.startsWith(item.href + '/') || pathname === item.href;
+      })
+      .sort((a, b) => b.href.length - a.href.length); // Sort by length, longest first
+    
+    return matches[0] || null;
+  };
+
+  const activeItem = getActiveItem();
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Global Barcode Scanner */}
@@ -244,33 +268,30 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
             isMenuOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 sm:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 ease-in-out lg:transition-none`}
         >
-          <div className="h-full overflow-y-auto py-4 pb-20 lg:pb-4">
-            <nav className="space-y-4 sm:space-y-6 px-2 sm:px-3">
-              {visibleSections.map((section, sectionIndex) => (
-                <div key={section.title}>
-                  <h3 className="px-3 mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div className="h-full overflow-y-auto py-1 pb-20 lg:pb-1">
+            <nav className="px-2">
+              {visibleSections.map((section) => (
+                <div key={section.title} className="mb-2">
+                  <h3 className="px-3 mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {section.title}
                   </h3>
-                  <div className="space-y-1">
+                  <div className="flex flex-col space-y-0.5">
                     {section.items.map((item) => {
-                      // For Dashboard (/store), only match exact path, not child routes
-                      // For other routes, match exact path or child routes
-                      const isActive = item.href === '/store' 
-                        ? pathname === item.href
-                        : pathname === item.href || pathname?.startsWith(item.href + '/');
+                      // Check if this item is the active one
+                      const isActive = activeItem?.href === item.href;
                       return (
                         <Link
                           key={item.href}
                           href={item.href}
                           onClick={() => setIsMenuOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-md text-sm font-medium transition-colors touch-target ${
+                          className={`flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors touch-target w-full ${
                             isActive
                               ? 'bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600'
                           }`}
                         >
-                          <span className="text-lg sm:text-base flex-shrink-0">{item.icon}</span>
-                          <span className="truncate">{item.label}</span>
+                          <span className="text-base flex-shrink-0 w-5 text-center">{item.icon}</span>
+                          <span className="truncate flex-1">{item.label}</span>
                         </Link>
                       );
                     })}

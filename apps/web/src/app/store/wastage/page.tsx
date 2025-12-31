@@ -270,15 +270,15 @@ export default function WastageManagementPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
         <div>
-          <h1 className="text-3xl font-bold dark:text-white">Wastage Management</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Record and track wastage</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Wastage Management</h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Record and track wastage</p>
         </div>
         <button
           onClick={() => setShowEntryModal(true)}
-          className="px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600"
+          className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 touch-target font-medium"
         >
           + Record Wastage
         </button>
@@ -286,10 +286,10 @@ export default function WastageManagementPage() {
 
       {/* HQ Lock Warning */}
       {franchiseConfig?.isWastageLocked && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
           <div className="flex items-center gap-2">
             <span className="text-yellow-600 dark:text-yellow-400">🔒</span>
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+            <p className="text-xs sm:text-sm text-yellow-800 dark:text-yellow-300">
               Wastage thresholds are locked by HQ. Excess wastage entries will be rejected.
             </p>
           </div>
@@ -298,9 +298,9 @@ export default function WastageManagementPage() {
 
       {/* Threshold Info */}
       {franchiseConfig && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-          <h2 className="text-lg font-semibold dark:text-white mb-4">Wastage Thresholds</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+          <h2 className="text-base sm:text-lg font-semibold dark:text-white mb-3 sm:mb-4">Wastage Thresholds</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Franchise Allowed Wastage:</p>
               <p className="text-2xl font-bold text-brand-600 dark:text-brand-400">

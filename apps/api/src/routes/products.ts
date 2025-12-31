@@ -220,17 +220,66 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete('/:id', async (request: any, reply: FastifyReply) => {
+  fastify.delete('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
+    
+    console.log('DELETE /api/v1/products/:id - Product ID:', id);
+    
     try {
-      await prisma.product.update({
+      const user = getUser(request);
+      console.log('DELETE - User:', user.userId, 'Store:', user.storeId);
+      
+      // Check if product exists and belongs to user's store
+      const product = await prisma.product.findUnique({
         where: { id },
-        data: { isActive: false },
+        include: {
+          ownerStore: true,
+        },
       });
 
-      return { success: true };
-    } catch (error) {
-      reply.code(500).send({ error: 'Failed to delete product' });
+      console.log('DELETE - Product found:', product ? 'Yes' : 'No');
+      
+      if (!product) {
+        console.log('DELETE - Product not found with ID:', id);
+        reply.code(404).send({ error: 'Product not found', productId: id });
+        return;
+      }
+
+      // Verify user has access to this product's store
+      const store = await prisma.store.findUnique({ where: { id: user.storeId } });
+      if (!store) {
+        console.log('DELETE - Store not found:', user.storeId);
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+      console.log('DELETE - Owner Store ID:', ownerStoreId, 'Product Owner Store ID:', product.ownerStoreId);
+      
+      if (product.ownerStoreId !== ownerStoreId) {
+        console.log('DELETE - Access denied: Product belongs to different store');
+        reply.code(403).send({ error: 'Access denied' });
+        return;
+      }
+
+      // Actually delete the product (cascade will handle related records)
+      console.log('DELETE - Attempting to delete product:', id);
+      await prisma.product.delete({
+        where: { id },
+      });
+
+      console.log('DELETE - Product deleted successfully:', id);
+      return { success: true, message: 'Product deleted successfully' };
+    } catch (error: any) {
+      console.error('DELETE - Failed to delete product:', error);
+      console.error('DELETE - Error code:', error.code);
+      console.error('DELETE - Error message:', error.message);
+      
+      if (error.code === 'P2025') {
+        reply.code(404).send({ error: 'Product not found', productId: id });
+        return;
+      }
+      reply.code(500).send({ error: 'Failed to delete product', details: error.message });
     }
   });
 

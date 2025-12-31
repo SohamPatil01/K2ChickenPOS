@@ -67,6 +67,10 @@ export default function StoreInventoryPage() {
   });
   const [addProductImagePreview, setAddProductImagePreview] = useState<string | null>(null);
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<InventoryItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   useEffect(() => {
     if (user === undefined) return;
 
@@ -102,15 +106,38 @@ export default function StoreInventoryPage() {
 
   const loadInventory = async () => {
     setLoading(true);
+    // Clear inventory state first to force UI update
+    setInventory([]);
     try {
-      const response = await api.get('/api/v1/inventory/summary');
-      if (response.data && Array.isArray(response.data)) {
-        setInventory(response.data);
-      } else {
+      // Force fresh data by adding cache-busting timestamp
+      const response = await api.get('/api/v1/inventory/summary', {
+        params: { _t: Date.now() },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      console.log('Inventory API response:', response.data);
+      console.log('Inventory loaded:', response.data?.length || 0, 'items');
+      
+      // Always set to empty array if response is not valid
+      if (!response.data || !Array.isArray(response.data)) {
+        console.warn('Invalid response format, setting inventory to empty');
         setInventory([]);
+        return;
+      }
+      
+      // Set inventory data
+      setInventory(response.data);
+      
+      if (response.data.length === 0) {
+        console.log('No products found in inventory');
       }
     } catch (error: any) {
       console.error('Failed to load inventory:', error);
+      console.error('Error details:', error.response?.data);
+      // Always set to empty on error
       setInventory([]);
     } finally {
       setLoading(false);
@@ -195,6 +222,46 @@ export default function StoreInventoryPage() {
       reason: 'ADJUSTMENT',
     });
     setShowAdjustModal(true);
+  };
+
+  const openDeleteModal = (item: InventoryItem) => {
+    console.log('Opening delete modal for:', item);
+    setProductToDelete(item);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
+
+    setDeleteLoading(true);
+    try {
+      console.log('Deleting product:', productToDelete.productId);
+      const response = await api.delete(`/api/v1/products/${productToDelete.productId}`);
+      console.log('Delete response:', response);
+      
+      // Check for success (response.data?.success or just status 200)
+      if (response.status === 200 || response.status === 204 || response.data?.success) {
+        // Refresh inventory list
+        await loadInventory();
+        setShowDeleteModal(false);
+        setProductToDelete(null);
+        alert('Product deleted successfully');
+      } else {
+        throw new Error('Delete operation did not succeed');
+      }
+    } catch (error: any) {
+      console.error('Failed to delete product:', error);
+      console.error('Error response:', error?.response);
+      const message =
+        error?.response?.data?.error ||
+        error?.response?.data?.details ||
+        error?.response?.data?.message ||
+        error.message ||
+        'Failed to delete product';
+      alert(`Error: ${message}`);
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const resetAddProductForm = () => {
@@ -447,38 +514,42 @@ export default function StoreInventoryPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+    <div className="w-full max-w-7xl mx-auto">
+      {/* Header Section - Stacked on mobile */}
+      <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Inventory</h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">Inventory</h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             Click "Adjust" on any product to add or subtract inventory
           </p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        {/* Action Buttons - Stacked on mobile, row on desktop */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={openAddProductModal}
-            className="flex-1 sm:flex-none px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
           >
             Add Product
           </button>
           <button
             onClick={loadInventory}
-            className="flex-1 sm:flex-none px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 text-sm sm:text-base transition-colors"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 text-sm sm:text-base transition-colors touch-target font-medium"
           >
             Refresh
           </button>
           <Link
             href="/store/stock-ledger"
-            className="flex-1 sm:flex-none px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors text-center"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors text-center touch-target font-medium"
           >
             Stock Ledger
           </Link>
         </div>
       </div>
+      
+      {/* Table Container - Responsive with horizontal scroll on mobile */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="overflow-x-auto">
-          <div className="table-wrapper -mx-3 sm:mx-0">
+        <div className="overflow-x-auto -mx-3 sm:mx-0">
+          <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
@@ -500,7 +571,7 @@ export default function StoreInventoryPage() {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                   Stock
                 </th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <th className="px-2 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase min-w-[150px]">
                   Actions
                 </th>
               </tr>
@@ -533,40 +604,42 @@ export default function StoreInventoryPage() {
                 </tr>
               ) : (
                 inventory.map((item) => (
-                  <tr key={item.productId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                  <tr key={item.productId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
                       {item.imageUrl ? (
                         <img
                           src={item.imageUrl}
                           alt={item.productName}
-                          className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
+                          className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 object-cover rounded"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center text-gray-400 dark:text-gray-500 text-xs">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center text-gray-400 dark:text-gray-500 text-xs">
                           No Image
                         </div>
                       )}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 font-medium">
-                      <div className="text-sm sm:text-base dark:text-white">{item.productName}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 sm:hidden mt-1">SKU: {item.sku}</div>
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 font-medium min-w-[120px]">
+                      <div className="text-sm sm:text-base lg:text-lg dark:text-white font-semibold">{item.productName}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 sm:hidden mt-1">SKU: {item.sku} | PLU: {item.plu}</div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 hidden sm:table-cell">
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm sm:text-base text-gray-500 dark:text-gray-400 hidden sm:table-cell">
                       {item.sku}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm sm:text-base text-gray-500 dark:text-gray-400 hidden md:table-cell">
                       {item.plu}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {item.unitType}
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm sm:text-base text-gray-500 dark:text-gray-400">
+                      <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs sm:text-sm font-medium">
+                        {item.unitType}
+                      </span>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
                       {item.unitType === 'KG' ? (
                         <span
-                          className={`font-semibold text-sm sm:text-base ${
+                          className={`font-semibold text-sm sm:text-base lg:text-lg ${
                             item.currentQtyKg < 0
                               ? 'text-red-600 dark:text-red-400'
                               : item.currentQtyKg === 0
@@ -578,7 +651,7 @@ export default function StoreInventoryPage() {
                         </span>
                       ) : (
                         <span
-                          className={`font-semibold text-sm sm:text-base ${
+                          className={`font-semibold text-sm sm:text-base lg:text-lg ${
                             item.currentQtyPcs < 0
                               ? 'text-red-600 dark:text-red-400'
                               : item.currentQtyPcs === 0
@@ -590,19 +663,35 @@ export default function StoreInventoryPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex flex-col sm:flex-row gap-1 sm:gap-2">
+                    <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-sm min-w-[140px] sm:min-w-[180px]">
+                      <div className="flex flex-col gap-1.5 sm:gap-2">
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium bg-brand-500 text-white rounded hover:bg-brand-600 active:bg-brand-700 transition-colors touch-target whitespace-nowrap"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openAdjustModal(item)}
+                            className="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium bg-orange-500 text-white rounded hover:bg-orange-600 active:bg-orange-700 transition-colors touch-target whitespace-nowrap"
+                          >
+                            Adjust
+                          </button>
+                        </div>
                         <button
-                          onClick={() => openEditModal(item)}
-                          className="px-2 sm:px-3 py-1 text-xs bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Delete button clicked for product:', item.productName, item.productId);
+                            openDeleteModal(item);
+                          }}
+                          className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold bg-red-500 text-white rounded hover:bg-red-600 active:bg-red-700 transition-colors touch-target whitespace-nowrap"
                         >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => openAdjustModal(item)}
-                          className="px-2 sm:px-3 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
-                        >
-                          Adjust
+                          Delete
                         </button>
                       </div>
                     </td>
@@ -1174,6 +1263,51 @@ export default function StoreInventoryPage() {
               >
                 {editLoading ? 'Updating...' : 'Update Product'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && productToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white text-red-600 dark:text-red-400">
+              Delete Product
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                  Are you sure you want to delete this product? This action cannot be undone.
+                </p>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mt-3">
+                  <p className="font-semibold text-base dark:text-white mb-1">
+                    {productToDelete.productName}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    SKU: {productToDelete.sku} | PLU: {productToDelete.plu}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setProductToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white transition-colors touch-target"
+                  disabled={deleteLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteProduct}
+                  className="flex-1 px-4 py-3 text-base bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-60 transition-colors touch-target font-semibold"
+                  disabled={deleteLoading}
+                >
+                  {deleteLoading ? 'Deleting...' : 'Delete Product'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

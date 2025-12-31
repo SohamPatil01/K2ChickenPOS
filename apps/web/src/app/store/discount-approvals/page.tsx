@@ -90,17 +90,17 @@ export default function StoreDiscountApprovalsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold dark:text-white">Discount Approvals</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Review and approve discount override requests</p>
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Discount Approvals</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Review and approve discount override requests</p>
       </div>
 
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <nav className="-mb-px flex space-x-8">
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-4 sm:mb-6">
+        <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
           <button
             onClick={() => setActiveTab('pending')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm touch-target whitespace-nowrap ${
               activeTab === 'pending'
                 ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -110,7 +110,7 @@ export default function StoreDiscountApprovalsPage() {
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm touch-target whitespace-nowrap ${
               activeTab === 'history'
                 ? 'border-brand-500 text-brand-600 dark:text-brand-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -159,7 +159,7 @@ export default function StoreDiscountApprovalsPage() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                       <div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">Subtotal</p>
                         <p className="font-semibold dark:text-white">₹{override.sale.subTotal.toLocaleString()}</p>
@@ -191,11 +191,11 @@ export default function StoreDiscountApprovalsPage() {
                       </p>
                     </div>
 
-                    <div className="flex gap-2">
-                      <Button variant="primary" onClick={() => handleApprove(override.id)}>
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      <Button variant="primary" onClick={() => handleApprove(override.id)} className="w-full sm:w-auto touch-target">
                         Approve
                       </Button>
-                      <Button variant="danger" onClick={() => handleReject(override.id)}>
+                      <Button variant="danger" onClick={() => handleReject(override.id)} className="w-full sm:w-auto touch-target">
                         Reject
                       </Button>
                     </div>
@@ -247,7 +247,7 @@ export default function StoreDiscountApprovalsPage() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                       <div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">Subtotal</p>
                         <p className="font-semibold dark:text-white">₹{override.sale.subTotal.toLocaleString()}</p>

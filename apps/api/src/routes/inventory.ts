@@ -8,9 +8,19 @@ import { getUser } from '../utils/auth.js';
 export async function inventoryRoutes(fastify: FastifyInstance) {
 
   fastify.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+    // Try to get user's store, fallback to first store if not authenticated
+    let store;
+    let storeId = '';
+    
+    try {
+      const user = getUser(request as any);
+      store = await prisma.store.findUnique({ where: { id: user.storeId } });
+      storeId = user.storeId;
+    } catch {
+      // Not authenticated, use first store as fallback
+      store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      storeId = store?.id || '';
+    }
 
     if (!store) {
       reply.code(404).send({ error: 'Store not found' });

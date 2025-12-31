@@ -141,10 +141,10 @@ export default function StoreDailyClosingPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold dark:text-white">Daily Closing</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Reconcile cash, weight, wastage, and closing stock</p>
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Daily Closing</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Reconcile cash, weight, wastage, and closing stock</p>
       </div>
 
       <Card className="mb-6">
@@ -160,29 +160,29 @@ export default function StoreDailyClosingPage() {
       </Card>
 
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Card>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
-            <p className="text-2xl font-bold dark:text-white">{summary.totalSales}</p>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
+            <p className="text-xl sm:text-2xl font-bold dark:text-white">{summary.totalSales}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">₹{summary.totalRevenue.toLocaleString()}</p>
           </Card>
           <Card>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Weight Sold</p>
-            <p className="text-2xl font-bold dark:text-white">{summary.totalWeightSoldKg.toFixed(2)} kg</p>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Weight Sold</p>
+            <p className="text-xl sm:text-2xl font-bold dark:text-white">{summary.totalWeightSoldKg.toFixed(2)} kg</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total weight</p>
           </Card>
           <Card>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Wastage</p>
-            <p className="text-2xl font-bold dark:text-white">{summary.totalWastageKg.toFixed(2)} kg</p>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Wastage</p>
+            <p className="text-xl sm:text-2xl font-bold dark:text-white">{summary.totalWastageKg.toFixed(2)} kg</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total wastage</p>
           </Card>
         </div>
       )}
 
-      <Card className="mb-6">
-        <div className="p-6">
-          <h2 className="text-xl font-bold mb-4 dark:text-white">Cash Reconciliation</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card className="mb-4 sm:mb-6">
+        <div className="p-3 sm:p-4 lg:p-6">
+          <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 dark:text-white">Cash Reconciliation</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opening Cash</label>
               <input
@@ -254,10 +254,10 @@ export default function StoreDailyClosingPage() {
       </Card>
 
       {summary && (
-        <Card className="mb-6">
-          <div className="p-6">
-            <h2 className="text-xl font-bold mb-4 dark:text-white">Payment Method Breakdown</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="mb-4 sm:mb-6">
+          <div className="p-3 sm:p-4 lg:p-6">
+            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 dark:text-white">Payment Method Breakdown</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Cash</p>
                 <p className="text-2xl font-bold dark:text-white">₹{summary.cashSales.toLocaleString()}</p>
@@ -288,17 +288,17 @@ export default function StoreDailyClosingPage() {
         </div>
       </Card>
 
-      <div className="flex gap-4">
-        <Button variant="primary" onClick={handleSubmit}>
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <Button variant="primary" onClick={handleSubmit} className="w-full sm:w-auto touch-target">
           {existingClosing ? 'Update Closing' : 'Save Closing'}
         </Button>
         {existingClosing && !existingClosing.isFinalized && (
-          <Button variant="primary" onClick={handleFinalize}>
+          <Button variant="primary" onClick={handleFinalize} className="w-full sm:w-auto touch-target">
             Finalize Closing
           </Button>
         )}
         {existingClosing && existingClosing.isFinalized && (
-          <span className="px-4 py-2 bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded-md font-semibold">
+          <span className="px-4 py-2 bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded-md font-semibold text-center touch-target">
             ✓ Finalized
           </span>
         )}

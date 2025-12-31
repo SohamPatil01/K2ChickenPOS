@@ -319,33 +319,33 @@ export default function YieldTrackingPage() {
   const expectedYield = products.find((p) => p.productMaster)?.productMaster?.expectedYieldPercent || 100;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
         <div>
-          <h1 className="text-3xl font-bold dark:text-white">Yield Tracking</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track whole chicken to cut yield</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Yield Tracking</h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Track whole chicken to cut yield</p>
         </div>
         <button
           onClick={() => setShowEntryModal(true)}
-          className="px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600"
+          className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 touch-target font-medium"
         >
           + Record Yield
         </button>
       </div>
 
       {/* Daily Summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold dark:text-white">Daily Yield Summary</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3 sm:gap-0">
+          <h2 className="text-base sm:text-lg font-semibold dark:text-white">Daily Yield Summary</h2>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:[color-scheme:dark]"
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:[color-scheme:dark] touch-target"
           />
         </div>
         {dailySummary ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Whole Chicken Weight</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">

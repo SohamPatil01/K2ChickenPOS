@@ -109,15 +109,15 @@ export default function StockLedgerPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold dark:text-white">Stock Ledger</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track all inventory movements</p>
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Stock Ledger</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Track all inventory movements</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
             <input
@@ -183,72 +183,75 @@ export default function StockLedgerPage() {
 
       {/* Ledger Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Date & Time
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Product
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Reason
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Quantity (Kg)
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Quantity (Pcs)
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {entries.length > 0 ? (
-                entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {new Date(entry.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{entry.product.name}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">SKU: {entry.product.sku}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          entry.type === 'IN'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                        }`}
-                      >
-                        {entry.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {getReasonLabel(entry.reason)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
-                      {entry.qtyKg ? entry.qtyKg.toFixed(2) : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
-                      {entry.qtyPcs || '-'}
+        <div className="overflow-x-auto -mx-3 sm:mx-0">
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-2 sm:px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Date & Time
+                  </th>
+                  <th className="px-2 sm:px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Product
+                  </th>
+                  <th className="px-2 sm:px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-2 sm:px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                    Reason
+                  </th>
+                  <th className="px-2 sm:px-4 lg:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Qty (Kg)
+                  </th>
+                  <th className="px-2 sm:px-4 lg:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Qty (Pcs)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {entries.length > 0 ? (
+                  entries.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
+                        {new Date(entry.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">{entry.product.name}</div>
+                        <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">SKU: {entry.product.sku}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 md:hidden mt-1">{getReasonLabel(entry.reason)}</div>
+                      </td>
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            entry.type === 'IN'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                          }`}
+                        >
+                          {entry.type}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white hidden md:table-cell">
+                        {getReasonLabel(entry.reason)}
+                      </td>
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-right text-gray-900 dark:text-white">
+                        {entry.qtyKg ? entry.qtyKg.toFixed(2) : '-'}
+                      </td>
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-right text-gray-900 dark:text-white">
+                        {entry.qtyPcs || '-'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                      No ledger entries found
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No ledger entries found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

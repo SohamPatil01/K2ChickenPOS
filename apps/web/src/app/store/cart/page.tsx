@@ -181,9 +181,11 @@ export default function StoreCartPage() {
     const change = parseFloat(amountPaid) - grandTotal;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 dark:text-white text-gray-900">Payment Details</h2>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom animate-fade-in">
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-2xl p-5 sm:p-7 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] border border-gray-200/50 dark:border-gray-700/50 animate-fade-in-up">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-5 sm:mb-7 dark:text-white text-gray-900 bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent">
+            Payment Details
+          </h2>
           
           {/* Payment Summary */}
           <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-4 sm:p-5 mb-4 sm:mb-5 border-2 border-gray-200 dark:border-gray-600">
@@ -285,9 +287,11 @@ export default function StoreCartPage() {
   // Add Item Modal Component
   const AddItemModal = ({ item, products, onChange, onClose, onSubmit }: any) => {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-          <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white">Add Manual Item</h2>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 safe-top safe-bottom animate-fade-in">
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-2xl p-5 sm:p-7 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] border border-gray-200/50 dark:border-gray-700/50 animate-fade-in-up">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-5 sm:mb-6 dark:text-white bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent">
+            Add Manual Item
+          </h2>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -297,7 +301,7 @@ export default function StoreCartPage() {
                 type="text"
                 value={item.sku}
                 onChange={(e) => onChange('sku', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 touch-target"
                 placeholder="Enter SKU"
               />
             </div>
@@ -309,7 +313,7 @@ export default function StoreCartPage() {
                 type="text"
                 value={item.description}
                 onChange={(e) => onChange('description', e.target.value)}
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 touch-target"
                 placeholder="Enter item description"
                 required
               />
@@ -321,7 +325,7 @@ export default function StoreCartPage() {
               <select
                 value={item.unitType}
                 onChange={(e) => onChange('unitType', e.target.value)}
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 touch-target"
               >
                 <option value="KG">KG</option>
                 <option value="PCS">PCS</option>
@@ -335,7 +339,7 @@ export default function StoreCartPage() {
                 type="number"
                 value={item.weight}
                 onChange={(e) => onChange('weight', e.target.value)}
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 touch-target"
                 placeholder={item.unitType === 'KG' ? 'Enter weight' : 'Enter quantity'}
                 step={item.unitType === 'KG' ? '0.01' : '1'}
                 required
@@ -349,7 +353,7 @@ export default function StoreCartPage() {
                 type="number"
                 value={item.rate}
                 onChange={(e) => onChange('rate', e.target.value)}
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 touch-target"
                 placeholder="Enter rate"
                 step="0.01"
                 required
@@ -363,21 +367,21 @@ export default function StoreCartPage() {
                 type="number"
                 value={item.total}
                 onChange={(e) => onChange('total', e.target.value)}
-                className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 touch-target"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 touch-target"
                 placeholder="Auto-calculated"
                 step="0.01"
               />
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 touch-target"
+                className="flex-1 px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700/50 text-gray-700 dark:text-white rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300 touch-target font-semibold"
               >
                 Cancel
               </button>
               <button
                 onClick={onSubmit}
-                className="flex-1 px-4 py-3 text-base bg-brand-500 text-white rounded-md hover:bg-brand-600 touch-target font-semibold"
+                className="flex-1 px-4 py-3 text-base bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl hover:from-brand-600 hover:to-brand-700 transition-all duration-300 touch-target font-semibold shadow-lg hover:shadow-xl active:scale-95"
               >
                 Add Item
               </button>
@@ -398,105 +402,130 @@ export default function StoreCartPage() {
           onClose={() => setNotification(null)}
         />
       )}
-      <div className="max-w-5xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-0">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">Shopping Cart</h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Review items and proceed to payment</p>
-        </div>
-        <button
-          onClick={() => router.push('/store/pos')}
-          className="px-3 sm:px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all touch-target flex-shrink-0"
-        >
-          ← Back to POS
-        </button>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-0">
-          <h2 className="font-bold text-xl sm:text-2xl dark:text-white text-gray-900">Cart Items</h2>
+      <div className="w-full max-w-5xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-4 border-b border-gray-200/60 dark:border-gray-700/60 gap-3 sm:gap-0 animate-fade-in">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white mb-1.5 bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent">
+              Shopping Cart
+            </h1>
+            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">Review items and proceed to payment</p>
+          </div>
           <button
-            onClick={() => setShowAddItemModal(true)}
-            className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 font-semibold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 touch-target text-sm sm:text-base"
+            onClick={() => router.push('/store/pos')}
+            className="w-full sm:w-auto px-4 sm:px-5 py-2.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm sm:text-base font-medium hover:bg-gray-100/80 dark:hover:bg-gray-700/80 rounded-xl transition-all duration-300 touch-target flex-shrink-0 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50"
           >
-            <span className="text-lg">+</span>
-            <span>Add Item</span>
+            ← Back to POS
           </button>
         </div>
 
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-6 lg:p-8 border border-gray-200/50 dark:border-gray-700/50 animate-fade-in-up">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 pb-4 border-b border-gray-200/60 dark:border-gray-700/60 gap-3 sm:gap-0">
+            <h2 className="font-bold text-xl sm:text-2xl lg:text-3xl dark:text-white text-gray-900">Cart Items</h2>
+            <button
+              onClick={() => setShowAddItemModal(true)}
+              className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl hover:from-brand-600 hover:to-brand-700 font-semibold shadow-lg hover:shadow-xl transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 touch-target text-sm sm:text-base"
+            >
+              <span className="text-xl font-bold animate-pulse">+</span>
+              <span>Add Item</span>
+            </button>
+          </div>
+
         {/* Customer */}
-        <div className="mb-4">
-          <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-            Customer phone
+        <div className="mb-6 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-gray-700/30 dark:to-transparent rounded-xl p-4 border border-gray-200/50 dark:border-gray-700/50">
+          <label className="block text-sm sm:text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            Customer Phone
           </label>
-          <input
-            type="text"
-            placeholder="Enter phone number"
-            value={customerPhone || ''}
-            className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent touch-target"
-            onChange={(e) => {
-              const phone = e.target.value;
-              setCustomer(null, phone || null, null);
-              if (phone && phone.length >= 6) {
-                api
-                  .get(`/api/v1/customers?phone=${phone}`)
-                  .then((res) => {
-                    if (res.data) {
-                      setCustomer(res.data.id, phone, res.data.name || null);
-                    }
-                  })
-                  .catch(() => {
-                    // ignore lookup errors
-                  });
-              }
-            }}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Enter phone number"
+              value={customerPhone || ''}
+              className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl dark:placeholder-gray-400 focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 touch-target transition-all duration-300 shadow-sm hover:shadow-md"
+              onChange={(e) => {
+                const phone = e.target.value;
+                setCustomer(null, phone || null, null);
+                if (phone && phone.length >= 6) {
+                  api
+                    .get(`/api/v1/customers?phone=${phone}`)
+                    .then((res) => {
+                      if (res.data) {
+                        setCustomer(res.data.id, phone, res.data.name || null);
+                      }
+                    })
+                    .catch(() => {
+                      // ignore lookup errors
+                    });
+                }
+              }}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+            </div>
+          </div>
           {customerName && (
-            <p className="mt-1 text-xs sm:text-sm text-brand-700 dark:text-brand-400">
+            <p className="mt-2 text-sm text-brand-700 dark:text-brand-400 font-medium animate-fade-in">
               Billing to: <span className="font-semibold">{customerName}</span>
             </p>
           )}
           {!customerName && customerPhone && customerPhone.length >= 6 && (
-            <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 animate-fade-in">
               New customer – will be saved by phone.
             </p>
           )}
         </div>
 
         {/* Cart Items */}
-        <div className="mb-4 max-h-[400px] overflow-y-auto">
+        <div className="mb-6 max-h-[450px] overflow-y-auto">
           {items.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Cart is empty</p>
+            <div className="text-center py-12 animate-fade-in">
+              <div className="text-6xl mb-4">🛒</div>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Cart is empty</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Add items from POS to get started</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {items.map((item, index) => (
                 <div
                   key={item.id || index}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  className="border border-gray-200/60 dark:border-gray-700/60 rounded-xl p-4 sm:p-5 hover:bg-gradient-to-r hover:from-brand-50/30 hover:to-transparent dark:hover:from-brand-900/10 dark:hover:to-transparent hover:border-brand-300 dark:hover:border-brand-600 hover:shadow-lg transition-all duration-300 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm animate-fade-in-up"
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm sm:text-base mb-1 dark:text-white">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-base sm:text-lg mb-2 dark:text-white text-gray-900">
                         {item.productName}
                       </div>
-                      <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        {item.qtyKg ? `${item.qtyKg} kg` : `${item.qtyPcs} pcs`} × ₹{item.rate.toFixed(2)}
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-2">
+                        <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-md text-xs font-medium">
+                          {item.qtyKg ? `${item.qtyKg} kg` : `${item.qtyPcs} pcs`}
+                        </span>
+                        <span>×</span>
+                        <span className="font-medium">₹{item.rate.toFixed(2)}</span>
                       </div>
-                      {item.taxRate > 0 && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Tax: {item.taxRate}%</div>
-                      )}
-                      {item.metaJson?.isPriceLocked && (
-                        <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">🔒 Price Locked by HQ</div>
-                      )}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {item.taxRate > 0 && (
+                          <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-md text-xs font-medium">
+                            Tax: {item.taxRate}%
+                          </span>
+                        )}
+                        {item.metaJson?.isPriceLocked && (
+                          <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-md text-xs font-medium flex items-center gap-1">
+                            <span>🔒</span>
+                            <span>Price Locked</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <div className="font-semibold text-sm sm:text-base mb-2 dark:text-white">
+                    <div className="text-right flex flex-col items-end gap-2">
+                      <div className="font-bold text-lg sm:text-xl dark:text-white text-brand-600 dark:text-brand-400">
                         ₹{item.lineTotal.toFixed(2)}
                       </div>
                       <button
                         onClick={() => removeItem(item.id || index)}
-                        className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs sm:text-sm"
+                        className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-all duration-300 active:scale-95"
                       >
                         Remove
                       </button>
@@ -509,36 +538,37 @@ export default function StoreCartPage() {
         </div>
 
         {/* Totals */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
-          <div className="flex justify-between text-sm sm:text-base dark:text-white">
-            <span>Subtotal:</span>
-            <span>₹{subTotal.toFixed(2)}</span>
+        <div className="border-t-2 border-gray-200/60 dark:border-gray-700/60 pt-6 space-y-4 bg-gradient-to-br from-gray-50/50 to-transparent dark:from-gray-700/20 dark:to-transparent rounded-xl p-5 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between text-base sm:text-lg dark:text-white font-medium">
+            <span className="text-gray-700 dark:text-gray-300">Subtotal:</span>
+            <span className="text-gray-900 dark:text-white">₹{subTotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm sm:text-base dark:text-white">
-            <span>Tax:</span>
-            <span>₹{taxTotal.toFixed(2)}</span>
+          <div className="flex justify-between text-base sm:text-lg dark:text-white font-medium">
+            <span className="text-gray-700 dark:text-gray-300">Tax:</span>
+            <span className="text-gray-900 dark:text-white">₹{taxTotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between items-center text-sm sm:text-base">
-            <span className="dark:text-white">Discount:</span>
+          <div className="flex justify-between items-center text-base sm:text-lg">
+            <span className="dark:text-white text-gray-700 dark:text-gray-300 font-medium">Discount:</span>
             <input
               type="number"
               value={discountTotal}
               onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-              className="w-24 sm:w-32 px-3 py-2 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded text-right touch-target"
+              className="w-28 sm:w-36 px-3 py-2 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white rounded-xl text-right touch-target focus:ring-4 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300 font-semibold"
               step="0.01"
               min="0"
             />
           </div>
-          <div className="flex justify-between font-bold text-lg sm:text-xl border-t border-gray-200 dark:border-gray-700 pt-2 dark:text-white">
-            <span>Total:</span>
-            <span>₹{grandTotal.toFixed(2)}</span>
+          <div className="flex justify-between font-bold text-xl sm:text-2xl border-t-2 border-gray-300 dark:border-gray-600 pt-4 dark:text-white">
+            <span className="text-gray-900 dark:text-white">Grand Total:</span>
+            <span className="text-brand-600 dark:text-brand-400">₹{grandTotal.toFixed(2)}</span>
           </div>
           <button
             onClick={() => setShowPaymentModal(true)}
             disabled={items.length === 0}
-            className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white py-3.5 sm:py-4 rounded-xl hover:from-brand-600 hover:to-brand-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 text-base sm:text-lg font-semibold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:active:scale-100 touch-target"
+            className="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white py-4 sm:py-5 rounded-xl hover:from-brand-600 hover:to-brand-700 disabled:opacity-50 disabled:cursor-not-allowed mt-6 text-lg sm:text-xl font-bold shadow-xl hover:shadow-2xl transition-all duration-300 active:scale-95 disabled:active:scale-100 touch-target flex items-center justify-center gap-2"
           >
-            Pay ₹{grandTotal.toFixed(2)}
+            <span>💳</span>
+            <span>Pay ₹{grandTotal.toFixed(2)}</span>
           </button>
         </div>
       </div>

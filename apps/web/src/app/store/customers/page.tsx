@@ -314,31 +314,31 @@ export default function StoreCustomersPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
         <div>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Customers</h1>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2 sm:gap-3">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Customers</h1>
             <button
               onClick={openNewCustomer}
-              className="w-full sm:w-auto px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors"
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
             >
               + Add Customer
             </button>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 mb-4">
-            <div className="flex flex-col sm:flex-row gap-2">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 mb-3 sm:mb-4">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <input
                 type="text"
                 placeholder="Search by phone..."
                 value={searchPhone}
                 onChange={(e) => setSearchPhone(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
               />
               <button
                 onClick={handleSearch}
-                className="px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors"
+                className="px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
               >
                 {loading ? 'Searching...' : 'Search'}
               </button>

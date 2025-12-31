@@ -7,6 +7,7 @@ import { useCartStore } from '@/store/cart';
 import { useNotificationStore } from '@/store/notification';
 import { parseScaleBarcode } from '@/lib/barcode';
 import api from '@/lib/api';
+import CartAnimation from './CartAnimation';
 
 interface Product {
   id: string;
@@ -16,6 +17,7 @@ interface Product {
   unitType: 'KG' | 'PCS';
   pricePerUnit: number;
   taxRate: number;
+  imageUrl?: string | null;
   productMaster?: {
     isHQLocked?: boolean;
     hqLockedPrice?: number;
@@ -30,6 +32,10 @@ export default function GlobalBarcodeScanner() {
   const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cartAnimation, setCartAnimation] = useState<{
+    productName: string;
+    productImage?: string | null;
+  } | null>(null);
   
   // Barcode scanning state
   const barcodeBuffer = useRef('');
@@ -113,6 +119,12 @@ export default function GlobalBarcodeScanner() {
             lineTotal: lineTotal + taxAmount,
           });
 
+          // Trigger cart animation
+          setCartAnimation({
+            productName: product.name,
+            productImage: product.imageUrl || null,
+          });
+
           const qtyText = parsed.weightKg 
             ? `${parsed.weightKg.toFixed(2)} kg` 
             : parsed.qtyPcs 
@@ -154,6 +166,12 @@ export default function GlobalBarcodeScanner() {
           lineTotal: lineTotal + taxAmount,
         });
 
+        // Trigger cart animation
+        setCartAnimation({
+          productName: product.name,
+          productImage: product.imageUrl || null,
+        });
+
         const qtyText = product.unitType === 'KG' ? '1 kg' : '1 pcs';
         showNotification(
           `✅ Added ${product.name} (${qtyText}) to cart`,
@@ -190,14 +208,23 @@ export default function GlobalBarcodeScanner() {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       
+      // Check if it's the barcode input field specifically
+      const isBarcodeInput = isInput && (target as HTMLInputElement).placeholder?.toLowerCase().includes('barcode') || 
+                            (target as HTMLInputElement).type === 'text' && 
+                            (target as HTMLInputElement).placeholder?.toLowerCase().includes('scan');
+      
       // If typing in input, check timing to distinguish barcode scanner from manual typing
       const now = Date.now();
       const timeSinceLastKey = now - lastKeyTime.current;
       
-      // If typing in an input field and it's been slow (>100ms), it's manual typing
       // Barcode scanners typically send characters in < 50ms intervals
-      if (isInput && timeSinceLastKey > 100 && barcodeBuffer.current.length > 0) {
-        // Reset buffer on slow typing (manual input)
+      // Manual typing is usually > 100ms between keystrokes
+      const isLikelyScanner = timeSinceLastKey < 50;
+      
+      // If typing in an input field (but not the barcode input) and it's been slow, it's manual typing
+      // But if it's fast, it might be a scanner, so we should still capture it
+      if (isInput && !isBarcodeInput && timeSinceLastKey > 100 && barcodeBuffer.current.length > 0) {
+        // Reset buffer on slow typing (manual input) only if not in barcode input
         barcodeBuffer.current = '';
       }
       
@@ -210,70 +237,72 @@ export default function GlobalBarcodeScanner() {
 
       // If Enter is pressed, process the barcode
       if (e.key === 'Enter') {
-        // Don't intercept Enter if user is in an input field (let form submission handle it)
-        if (isInput && barcodeBuffer.current.length === 0) {
-          return;
-        }
-        
+        // Always process barcode if we have a buffer
+        // Prioritize barcode scanning over form submission
         if (barcodeBuffer.current.length > 0) {
-          // Only prevent default if we have a barcode buffer
-          // This allows normal form submissions to work
-          e.preventDefault();
-          e.stopPropagation();
+          // Process if:
+          // 1. Not in an input field, OR
+          // 2. In barcode input field, OR
+          // 3. Input was fast (scanner pattern), OR
+          // 4. Buffer is long enough to be a barcode (>= 8 chars suggests scanner)
+          const isLongBarcode = barcodeBuffer.current.length >= 8;
           
-          const barcode = barcodeBuffer.current.trim();
-          barcodeBuffer.current = '';
-          
-          // Clear any pending timeout
-          if (barcodeTimeout.current) {
-            clearTimeout(barcodeTimeout.current);
-            barcodeTimeout.current = null;
+          if (!isInput || isBarcodeInput || isLikelyScanner || isLongBarcode) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const barcode = barcodeBuffer.current.trim();
+            barcodeBuffer.current = '';
+            
+            // Clear any pending timeout
+            if (barcodeTimeout.current) {
+              clearTimeout(barcodeTimeout.current);
+              barcodeTimeout.current = null;
+            }
+            
+            // Process barcode if it looks valid (at least 3 characters)
+            if (barcode.length >= 3) {
+              processBarcode(barcode);
+            }
+          } else {
+            // Slow typing in input field - clear buffer and let form handle Enter
+            barcodeBuffer.current = '';
           }
-          
-          // Only process if it looks like a barcode (at least 3 characters)
-          // and was entered quickly (barcode scanner pattern)
-          if (barcode.length >= 3) {
-            processBarcode(barcode);
-          }
-        }
-        return;
-      }
-
-      // If typing in an input field and it's been slow, don't treat as barcode
-      if (isInput && timeSinceLastKey > 100) {
-        // Reset buffer on slow typing
-        if (barcodeBuffer.current.length > 0) {
-          barcodeBuffer.current = '';
         }
         return;
       }
 
       // Accumulate characters for barcode
-      // Barcode scanners typically send characters very quickly (< 50ms intervals)
+      // Always capture characters to detect barcode scanners
       if (e.key.length === 1) {
-        // Only accumulate if not in an input field, or if input is very fast (scanner)
-        if (!isInput || timeSinceLastKey < 50) {
-          barcodeBuffer.current += e.key;
-          
-          // Clear buffer after 500ms of no input (timeout)
-          if (barcodeTimeout.current) {
-            clearTimeout(barcodeTimeout.current);
-          }
-          
-          barcodeTimeout.current = setTimeout(() => {
-            barcodeBuffer.current = '';
-          }, 500);
+        // Always accumulate, but be smart about it
+        // If in input and slow typing, we'll clear it on Enter
+        barcodeBuffer.current += e.key;
+        
+        // Clear buffer after 500ms of no input (timeout)
+        // This helps distinguish scanner input (fast) from manual typing (slow)
+        if (barcodeTimeout.current) {
+          clearTimeout(barcodeTimeout.current);
         }
+        
+        barcodeTimeout.current = setTimeout(() => {
+          // Only clear if we're not in a barcode input field
+          // and the buffer is short (likely manual typing)
+          if (!isBarcodeInput && barcodeBuffer.current.length < 8) {
+            barcodeBuffer.current = '';
+          }
+        }, 500);
       }
     };
 
-    // Only enable barcode scanning for authenticated users on store pages
-    if (user && pathname?.startsWith('/store')) {
-      window.addEventListener('keydown', handleKeyDown);
+    // Enable barcode scanning for authenticated users on all pages
+    // This allows barcode scanning to work globally, not just on specific pages
+    if (user) {
+      window.addEventListener('keydown', handleKeyDown, true); // Use capture phase for better detection
     }
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
       if (barcodeTimeout.current) {
         clearTimeout(barcodeTimeout.current);
       }
@@ -293,6 +322,17 @@ export default function GlobalBarcodeScanner() {
     }
   }, [pathname, isProcessing]);
 
-  return null; // This component doesn't render anything
+  return (
+    <>
+      {/* Cart Animation */}
+      {cartAnimation && (
+        <CartAnimation
+          productName={cartAnimation.productName}
+          productImage={cartAnimation.productImage}
+          onComplete={() => setCartAnimation(null)}
+        />
+      )}
+    </>
+  );
 }
 

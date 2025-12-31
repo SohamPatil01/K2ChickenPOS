@@ -61,10 +61,10 @@ export default function StoreReportsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full max-w-4xl mx-auto">
       {/* Primary Header */}
-      <div className="bg-brand-500 dark:bg-brand-600 text-white py-4 px-6 shadow-md rounded-t-lg">
-        <h1 className="text-2xl font-bold text-white">Reports</h1>
+      <div className="bg-brand-500 dark:bg-brand-600 text-white py-3 sm:py-4 px-4 sm:px-6 shadow-md rounded-t-lg">
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Reports</h1>
       </div>
 
       {/* Report Items List */}
@@ -73,11 +73,11 @@ export default function StoreReportsPage() {
           <div key={item.id}>
             <button
               onClick={() => handleReportClick(item)}
-              className={`w-full text-left py-4 px-6 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors ${
+              className={`w-full text-left py-3 sm:py-4 px-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors touch-target ${
                 selectedReport === item.id ? 'bg-brand-50 dark:bg-brand-900/20' : ''
               }`}
             >
-              <span className="text-gray-800 dark:text-gray-200 font-medium text-base">{item.label}</span>
+              <span className="text-gray-800 dark:text-gray-200 font-medium text-sm sm:text-base">{item.label}</span>
             </button>
             {index < reportItems.length - 1 && (
               <hr className="border-gray-200 dark:border-gray-700" />
@@ -87,8 +87,8 @@ export default function StoreReportsPage() {
       </div>
 
       {/* Info Message */}
-      <div className="mt-6 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
-        <p className="text-sm text-brand-700 dark:text-brand-300">
+      <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+        <p className="text-xs sm:text-sm text-brand-700 dark:text-brand-300">
           <strong>Note:</strong> Click on any report to view detailed information. Reports are being developed and will be available soon.
         </p>
       </div>

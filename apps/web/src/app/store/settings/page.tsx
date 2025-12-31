@@ -60,21 +60,21 @@ export default function StoreSettingsPage() {
   ].filter(tab => tab.roles.includes(user.role));
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Settings</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Manage your preferences and configurations</p>
+    <div className="w-full max-w-7xl mx-auto">
+      <div className="mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">Settings</h1>
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Manage your preferences and configurations</p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <nav className="flex space-x-8 overflow-x-auto">
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-4 sm:mb-6">
+        <nav className="flex space-x-4 sm:space-x-6 lg:space-x-8 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap
+                py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap touch-target
                 ${
                   activeTab === tab.id
                     ? 'border-brand-500 text-brand-600 dark:text-brand-400'
@@ -82,15 +82,16 @@ export default function StoreSettingsPage() {
                 }
               `}
             >
-              <span className="mr-2">{tab.icon}</span>
-              {tab.label}
+              <span className="mr-1 sm:mr-2">{tab.icon}</span>
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
             </button>
           ))}
         </nav>
       </div>
 
       {/* Tab Content */}
-      <div className="mt-6">
+      <div className="mt-4 sm:mt-6">
         {activeTab === 'barcode' && <BarcodeSettings />}
         {activeTab === 'theme' && <ThemeSettings />}
         {activeTab === 'staff' && <StaffManagement />}
