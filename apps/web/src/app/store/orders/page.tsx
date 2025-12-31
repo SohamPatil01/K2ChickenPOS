@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { useNotificationStore } from '@/store/notification';
-import Notification from '@/components/Notification';
 
 interface Sale {
   id: string;
@@ -771,9 +770,6 @@ export default function OrdersPage() {
           </div>
         </div>
       )}
-
-      {/* Notification */}
-      <Notification />
     </div>
   );
 }
