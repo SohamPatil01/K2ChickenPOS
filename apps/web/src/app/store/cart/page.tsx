@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/cart';
 import { useAuthStore } from '@/store/auth';
@@ -37,6 +37,8 @@ export default function StoreCartPage() {
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [tempCustomerPhone, setTempCustomerPhone] = useState(customerPhone || '');
   const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (!user) {
@@ -45,6 +47,49 @@ export default function StoreCartPage() {
     }
     loadCart();
     loadAllCustomers();
+    
+    // Initialize speech recognition
+    if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript.trim();
+          setTempCustomerName(transcript);
+          setCustomer(customerId, tempCustomerPhone || null, transcript || null);
+          setIsListening(false);
+          showNotification('Name captured: ' + transcript, 'success');
+          
+          // Trigger customer search - will be handled by the onChange effect
+        };
+        
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+            showNotification('Microphone permission denied. Please enable it in browser settings.', 'error');
+          } else if (event.error === 'no-speech') {
+            showNotification('No speech detected. Please try again.', 'warning');
+          }
+        };
+        
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+        
+        recognitionRef.current = recognition;
+      }
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
   }, [user, router]);
 
   // Sync cart periodically
@@ -103,27 +148,56 @@ export default function StoreCartPage() {
       return;
     }
     try {
-      const response = await api.post('/api/v1/customers', {
-        phone,
-        name: name.trim(),
-      });
-      if (response.data) {
-        setCustomer(response.data.id, response.data.phone, response.data.name);
-        setTempCustomerPhone(response.data.phone);
-        setTempCustomerName(response.data.name);
+      // Ensure we're using the full trimmed name - no truncation
+      const fullName = name.trim();
+      const trimmedPhone = phone.trim();
+      
+      console.log('Saving customer - Name:', fullName, 'Length:', fullName.length, 'Phone:', trimmedPhone);
+      
+      // If customer already exists, update it
+      if (customerId) {
+        const response = await api.put(`/api/v1/customers/${customerId}`, {
+          phone: trimmedPhone,
+          name: fullName,
+        });
+        if (response.data) {
+          console.log('Customer updated - Name:', response.data.name, 'Length:', response.data.name?.length);
+          setCustomer(response.data.id, response.data.phone, response.data.name);
+          setTempCustomerPhone(response.data.phone);
+          setTempCustomerName(response.data.name);
+        }
+      } else {
+        // Create new customer
+        const response = await api.post('/api/v1/customers', {
+          phone: trimmedPhone,
+          name: fullName,
+        });
+        if (response.data) {
+          console.log('Customer created - Name:', response.data.name, 'Length:', response.data.name?.length);
+          setCustomer(response.data.id, response.data.phone, response.data.name);
+          setTempCustomerPhone(response.data.phone);
+          setTempCustomerName(response.data.name);
+        }
       }
     } catch (error: any) {
       console.error('Failed to create/update customer:', error);
+      showNotification('Failed to save customer: ' + (error.response?.data?.error || error.message), 'error');
     }
   };
 
   // Create/update customer when both name and phone are provided
+  // Use a longer debounce to ensure full name is captured
   useEffect(() => {
     if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
       if (!customerId) {
         const timeoutId = setTimeout(() => {
-          createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
-        }, 500);
+          // Get the latest values to ensure we save the complete name
+          const latestName = tempCustomerName.trim();
+          const latestPhone = tempCustomerPhone;
+          if (latestName.length > 0 && latestPhone.length >= 6) {
+            createOrUpdateCustomer(latestPhone, latestName);
+          }
+        }, 1500); // Increased debounce to 1.5 seconds to ensure full name is captured
         return () => clearTimeout(timeoutId);
       }
     }
@@ -389,7 +463,7 @@ export default function StoreCartPage() {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Enter customer name"
+                    placeholder="Enter customer name or use voice input"
                     value={tempCustomerName}
                     onChange={(e) => {
                       const newName = e.target.value;
@@ -414,18 +488,68 @@ export default function StoreCartPage() {
                         setShowNameDropdown(filtered.length > 0);
                       }
                     }}
-                    onBlur={() => setTimeout(() => setShowNameDropdown(false), 200)}
-                    className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    onBlur={() => {
+                      setTimeout(() => setShowNameDropdown(false), 200);
+                      // Save customer when user finishes typing (on blur)
+                      if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+                        if (!customerId) {
+                          createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+                        }
+                      }
+                    }}
+                    className="w-full px-4 py-3 pr-24 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowKeyboard(true)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                  </button>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (recognitionRef.current) {
+                            if (isListening) {
+                              recognitionRef.current.stop();
+                              setIsListening(false);
+                            } else {
+                              try {
+                                recognitionRef.current.start();
+                                setIsListening(true);
+                                showNotification('Listening... Speak the customer name', 'info');
+                              } catch (error: any) {
+                                console.error('Failed to start recognition:', error);
+                                showNotification('Failed to start voice input. Please try again.', 'error');
+                                setIsListening(false);
+                              }
+                            }
+                          }
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isListening 
+                            ? 'bg-red-500 text-white animate-pulse' 
+                            : 'text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                        title={isListening ? 'Stop listening' : 'Start voice input'}
+                      >
+                        {isListening ? (
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                        )}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setShowKeyboard(true)}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      title="Open keyboard"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 
                 {showNameDropdown && customerSearchResults.length > 0 && (
