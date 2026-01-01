@@ -161,9 +161,9 @@ export default function StoreCartPage() {
   const handleManualItemSubmit = () => {
     // Validation - standardized with POS page
     if (!manualItem.description || !manualItem.description.trim()) {
-      setNotification({ message: 'Please enter item description', type: 'warning' });
-      return;
-    }
+        setNotification({ message: 'Please enter item description', type: 'warning' });
+        return;
+      }
 
     const weight = parseFloat(manualItem.weight) || 0;
     const qtyPcs = parseFloat(manualItem.weight) || 1;
@@ -178,10 +178,10 @@ export default function StoreCartPage() {
       return;
     }
 
-    if (!manualItem.rate || parseFloat(manualItem.rate) <= 0) {
-      setNotification({ message: 'Please enter a valid rate', type: 'warning' });
-      return;
-    }
+      if (!manualItem.rate || parseFloat(manualItem.rate) <= 0) {
+        setNotification({ message: 'Please enter a valid rate', type: 'warning' });
+        return;
+      }
 
     const qtyKg = manualItem.unitType === 'KG' ? weight : undefined;
     const qtyPcsFinal = manualItem.unitType === 'PCS' ? qtyPcs : undefined;
@@ -258,9 +258,10 @@ export default function StoreCartPage() {
       }
 
       // Step 2: Pay the sale
-      // Use the sale's grandTotal to ensure exact match (backend validates payment amount must match sale.grandTotal)
-      // If amountPaid is less, use grandTotal. If more, still use grandTotal to avoid mismatch error.
-      const paymentAmount = sale.grandTotal;
+      // Round the sale's grandTotal to match frontend rounding
+      // Backend calculates exact amount, but we round it for payment to match frontend display
+      const roundedSaleGrandTotal = Math.round(sale.grandTotal);
+      const paymentAmount = roundedSaleGrandTotal;
       
       const paymentData = {
         payments: [
@@ -332,7 +333,7 @@ export default function StoreCartPage() {
     onPay: (method: string, amount: number) => void;
   }) => {
     const [paymentMethod, setPaymentMethod] = useState('CASH');
-    const [amountPaid, setAmountPaid] = useState(grandTotal.toFixed(2));
+    const [amountPaid, setAmountPaid] = useState(grandTotal.toString());
     const change = parseFloat(amountPaid) - grandTotal;
 
     return (
@@ -362,22 +363,22 @@ export default function StoreCartPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Subtotal:</span>
-                <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">₹{subTotal.toFixed(2)}</span>
+                <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">₹{Math.round(subTotal)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Tax:</span>
-                <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">₹{taxTotal.toFixed(2)}</span>
+                <span className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">₹{Math.round(taxTotal)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Discount:</span>
                 <span className={`text-xs sm:text-sm font-semibold ${discountTotal > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                  {discountTotal > 0 ? '-' : ''}₹{discountTotal.toFixed(2)}
+                  {discountTotal > 0 ? '-' : ''}₹{Math.round(discountTotal)}
                 </span>
               </div>
               <div className="border-t border-gray-300/60 dark:border-gray-600/60 pt-2 mt-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Grand Total:</span>
-                  <span className="text-base sm:text-lg font-semibold text-brand-600 dark:text-brand-400">₹{grandTotal.toFixed(2)}</span>
+                  <span className="text-base sm:text-lg font-semibold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
                 </div>
               </div>
             </div>
@@ -410,7 +411,7 @@ export default function StoreCartPage() {
                 className="w-full px-3 sm:px-4 py-2.5 text-sm sm:text-base border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 font-medium touch-target bg-white/80 dark:bg-gray-800/40"
                 step="0.01"
                 min="0"
-                placeholder={grandTotal.toFixed(2)}
+                placeholder={grandTotal.toString()}
               />
             </div>
             
@@ -419,7 +420,7 @@ export default function StoreCartPage() {
               <div className="bg-green-50/50 dark:bg-green-900/10 border border-green-200/40 dark:border-green-800/30 rounded-lg p-3">
                 <div className="flex justify-between items-center">
                   <span className="text-xs sm:text-sm font-medium text-green-800 dark:text-green-300">Change:</span>
-                  <span className="text-sm sm:text-base font-semibold text-green-600 dark:text-green-400">₹{change.toFixed(2)}</span>
+                  <span className="text-sm sm:text-base font-semibold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
                 </div>
               </div>
             )}
@@ -427,7 +428,7 @@ export default function StoreCartPage() {
               <div className="bg-red-50/50 dark:bg-red-900/10 border border-red-200/40 dark:border-red-800/30 rounded-lg p-3">
                 <div className="flex justify-between items-center">
                   <span className="text-xs sm:text-sm font-medium text-red-800 dark:text-red-300">Insufficient Amount:</span>
-                  <span className="text-sm sm:text-base font-semibold text-red-600 dark:text-red-400">₹{Math.abs(change).toFixed(2)}</span>
+                  <span className="text-sm sm:text-base font-semibold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
                 </div>
               </div>
             )}
@@ -445,7 +446,7 @@ export default function StoreCartPage() {
               disabled={change < 0}
               className="flex-1 px-4 py-2.5 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg touch-target font-medium shadow-sm hover:shadow transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Pay ₹{parseFloat(amountPaid).toFixed(2)}
+              Pay ₹{Math.round(parseFloat(amountPaid) || 0)}
             </button>
           </div>
           </div>
@@ -539,63 +540,63 @@ export default function StoreCartPage() {
 
             {/* Unit Type and Quantity */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Unit Type
-                </label>
-                <select
-                  value={item.unitType}
-                  onChange={(e) => onChange('unitType', e.target.value)}
+                Unit Type
+              </label>
+              <select
+                value={item.unitType}
+                onChange={(e) => onChange('unitType', e.target.value)}
                   className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
-                >
-                  <option value="KG">KG</option>
-                  <option value="PCS">PCS</option>
-                </select>
-              </div>
-              <div>
+              >
+                <option value="KG">KG</option>
+                <option value="PCS">PCS</option>
+              </select>
+            </div>
+            <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   {item.unitType === 'KG' ? 'Weight (kg)' : 'Quantity'} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={item.weight}
-                  onChange={(e) => onChange('weight', e.target.value)}
+              </label>
+              <input
+                type="number"
+                value={item.weight}
+                onChange={(e) => onChange('weight', e.target.value)}
                   placeholder={item.unitType === 'KG' ? '0.00' : '1'}
-                  step={item.unitType === 'KG' ? '0.01' : '1'}
+                step={item.unitType === 'KG' ? '0.01' : '1'}
                   min="0"
                   className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
-                  required
-                />
+                required
+              />
               </div>
             </div>
 
             {/* Rate and Total */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Rate (₹) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={item.rate}
-                  onChange={(e) => onChange('rate', e.target.value)}
+              </label>
+              <input
+                type="number"
+                value={item.rate}
+                onChange={(e) => onChange('rate', e.target.value)}
                   placeholder="0.00"
-                  step="0.01"
+                step="0.01"
                   min="0"
                   className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
-                />
-              </div>
-              <div>
+              />
+            </div>
+            <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Total (₹)
-                </label>
+                Total (₹)
+              </label>
                 <div className="relative">
-                  <input
-                    type="number"
-                    value={item.total}
-                    onChange={(e) => onChange('total', e.target.value)}
+              <input
+                type="number"
+                value={item.total}
+                onChange={(e) => onChange('total', e.target.value)}
                     placeholder={showAutoCalc ? calculatedTotal.toFixed(2) : '0.00'}
-                    step="0.01"
+                step="0.01"
                     min="0"
                     className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
                   />
@@ -653,32 +654,32 @@ export default function StoreCartPage() {
       )}
       <div className="w-full max-w-7xl mx-auto h-full min-h-0 overflow-hidden flex flex-col">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200/40 dark:border-gray-700/40 gap-2 sm:gap-3 flex-shrink-0">
-          <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-0.5 sm:mb-1 leading-tight tracking-tight truncate">
               Shopping Cart
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">Review items and proceed to payment</p>
-          </div>
-          <button
-            onClick={() => router.push('/store/pos')}
-            className="w-full sm:w-auto px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-100/50 dark:hover:bg-gray-700/50 rounded-lg sm:rounded-xl transition-all duration-200 touch-target flex-shrink-0 backdrop-blur-sm border border-gray-200/40 dark:border-gray-700/40"
-          >
-            ← Back to POS
-          </button>
         </div>
+        <button
+          onClick={() => router.push('/store/pos')}
+            className="w-full sm:w-auto px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-100/50 dark:hover:bg-gray-700/50 rounded-lg sm:rounded-xl transition-all duration-200 touch-target flex-shrink-0 backdrop-blur-sm border border-gray-200/40 dark:border-gray-700/40"
+        >
+          ← Back to POS
+        </button>
+      </div>
 
         <div className="flex-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-sm dark:shadow-md p-3 sm:p-4 md:p-6 lg:p-8 border border-gray-200/40 dark:border-gray-700/40 min-h-0 flex flex-col overflow-hidden">
-          {/* Header */}
+        {/* Header */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200/40 dark:border-gray-700/40 gap-2 sm:gap-3">
             <h2 className="font-semibold text-lg sm:text-xl lg:text-2xl dark:text-white text-gray-800">Cart Items</h2>
-            <button
-              onClick={() => setShowAddItemModal(true)}
+          <button
+            onClick={() => setShowAddItemModal(true)}
               className="w-full sm:w-auto px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-all duration-200 touch-target text-xs sm:text-sm"
-            >
+          >
               <span className="text-base sm:text-lg">+</span>
-              <span>Add Item</span>
-            </button>
-          </div>
+            <span>Add Item</span>
+          </button>
+        </div>
 
         {/* Customer */}
         <div className="mb-3 sm:mb-4 bg-gray-50/30 dark:bg-gray-700/15 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-200/40 dark:border-gray-700/40">
@@ -709,13 +710,13 @@ export default function StoreCartPage() {
             <div className="relative">
               <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Customer Name
-              </label>
+          </label>
               <div className="relative">
-                <input
-                  type="text"
+          <input
+            type="text"
                   placeholder="Type name or tap for keyboard"
                   value={tempCustomerName}
-                  onChange={(e) => {
+            onChange={(e) => {
                     const newName = e.target.value;
                     setTempCustomerName(newName);
                     setNameSearchQuery(newName);
@@ -813,9 +814,9 @@ export default function StoreCartPage() {
             )}
             {!customerName && tempCustomerPhone && tempCustomerPhone.length >= 6 && (
               <p className="mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                New customer – will be saved by phone.
-              </p>
-            )}
+              New customer – will be saved by phone.
+            </p>
+          )}
           </div>
         </div>
 
@@ -847,17 +848,17 @@ export default function StoreCartPage() {
                         <span className="font-medium">₹{item.rate.toFixed(2)}</span>
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        {item.taxRate > 0 && (
+                      {item.taxRate > 0 && (
                           <span className="px-1.5 py-0.5 bg-blue-100/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded text-[10px] font-normal whitespace-nowrap">
                             Tax: {item.taxRate}%
                           </span>
-                        )}
-                        {item.metaJson?.isPriceLocked && (
+                      )}
+                      {item.metaJson?.isPriceLocked && (
                           <span className="px-1.5 py-0.5 bg-yellow-100/50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded text-[10px] font-normal flex items-center gap-1 whitespace-nowrap">
                             <span>🔒</span>
                             <span>Price Locked</span>
                           </span>
-                        )}
+                      )}
                       </div>
                     </div>
                     <div className="text-right flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 flex-shrink-0">

@@ -394,7 +394,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       const totalPaid = payments.reduce((sum: any, p) => sum + p.amount, 0);
-      if (Math.abs(totalPaid - sale.grandTotal) > 0.01) {
+      // Round both amounts to nearest integer for comparison (frontend rounds to integer)
+      const roundedTotalPaid = Math.round(totalPaid);
+      const roundedGrandTotal = Math.round(sale.grandTotal);
+      if (Math.abs(roundedTotalPaid - roundedGrandTotal) > 0.5) {
         reply.code(400).send({ error: 'Payment amount mismatch' });
         return;
       }

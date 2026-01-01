@@ -69,9 +69,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       taxTotal += baseLineTotal * (item.taxRate / 100);
     }
 
-    const grandTotal = subTotal + taxTotal - discountTotal;
+    // Round to 2 decimal places to avoid floating point precision issues
+    subTotal = Math.round(subTotal * 100) / 100;
+    taxTotal = Math.round(taxTotal * 100) / 100;
+    const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+    // Round grand total to nearest integer for checkout
+    const roundedGrandTotal = Math.round(grandTotal);
 
-    return { subTotal, taxTotal, grandTotal };
+    return { subTotal, taxTotal, grandTotal: roundedGrandTotal };
   },
 }));
 
