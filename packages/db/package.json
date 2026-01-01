@@ -11,16 +11,20 @@
     }
   },
   "scripts": {
-    "build": "prisma generate && tsc",
-    "postinstall": "prisma generate",
-    "generate": "prisma generate",
-    "migrate": "prisma migrate dev",
-    "migrate:deploy": "prisma migrate deploy",
+    "build": "prisma generate --schema=./prisma/schema.prisma && tsc",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
+    "generate": "prisma generate --schema=./prisma/schema.prisma",
+    "migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
     "seed": "tsx prisma/seed.ts",
-    "studio": "prisma studio",
+    "studio": "prisma studio --schema=./prisma/schema.prisma",
     "delete-all-sales": "tsx prisma/delete-all-sales.ts",
+    "reset-inventory": "tsx prisma/reset-inventory-to-zero.ts",
     "add-product-images": "tsx prisma/add-product-images.ts",
     "fetch-images-from-live": "tsx prisma/fetch-images-from-live.ts"
+  },
+  "prisma": {
+    "schema": "./prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",

@@ -78,8 +78,14 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
   fastify.post('/adjust', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const data = inventoryAdjustSchema.parse(request.body as any);
-      const storeId = (getUser(request) as any).storeId;
-      const userId = (getUser(request) as any).userId;
+      const user = getUser(request);
+      const storeId = user.storeId;
+      const userId = user.userId;
+
+      if (!storeId || !userId) {
+        reply.code(400).send({ error: 'Store ID and User ID are required' });
+        return;
+      }
 
       // Determine if it's IN or OUT based on quantity sign
       const qty = data.qtyKg || data.qtyPcs || 0;
@@ -93,6 +99,28 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       const absQtyKg = data.qtyKg ? Math.abs(data.qtyKg) : undefined;
       const absQtyPcs = data.qtyPcs ? Math.abs(data.qtyPcs) : undefined;
 
+      // Validate reason enum value
+      const validReasons = ['SALE', 'RECEIVE', 'WASTAGE', 'ADJUSTMENT', 'TRANSFER', 'CORRECTION', 'DAMAGE', 'OTHER', 'OPENING', 'RETURN', 'YIELD'];
+      const reason = (data.reason as string)?.toUpperCase() || 'ADJUSTMENT';
+      if (!validReasons.includes(reason)) {
+        reply.code(400).send({ 
+          error: 'Invalid reason value', 
+          details: `Reason must be one of: ${validReasons.join(', ')}`,
+          received: data.reason
+        });
+        return;
+      }
+
+      // Verify product exists
+      const product = await prisma.product.findUnique({
+        where: { id: data.productId },
+      });
+
+      if (!product) {
+        reply.code(404).send({ error: 'Product not found' });
+        return;
+      }
+
       const ledger = await prisma.inventoryLedger.create({
         data: {
           storeId,
@@ -100,7 +128,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           type,
           qtyKg: absQtyKg,
           qtyPcs: absQtyPcs,
-          reason: (data.reason as any) || 'ADJUSTMENT',
+          reason: reason as any,
         },
       });
 
@@ -117,11 +145,19 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
 
       return ledger;
     } catch (error: any) {
+      console.error('Inventory adjustment error:', error);
       if (error.name === 'ZodError') {
         reply.code(400).send({ error: 'Invalid input data', details: error.errors });
         return;
       }
-      reply.code(500).send({ error: 'Failed to adjust inventory' });
+      if (error.message === 'User not authenticated') {
+        reply.code(401).send({ error: 'User not authenticated' });
+        return;
+      }
+      reply.code(500).send({ 
+        error: 'Failed to adjust inventory',
+        details: error.message || 'Unknown error'
+      });
     }
   });
 

@@ -39,6 +39,12 @@ enum InventoryReason {
   WASTAGE
   ADJUSTMENT
   TRANSFER
+  CORRECTION
+  DAMAGE
+  OTHER
+  OPENING
+  RETURN
+  YIELD
 }
 
 enum POStatus {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
+import { useNotificationStore } from '@/store/notification';
 import api from '@/lib/api';
 import Link from 'next/link';
 
@@ -25,6 +26,7 @@ interface Category {
 export default function StoreInventoryPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { showNotification } = useNotificationStore();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -184,33 +186,37 @@ export default function StoreInventoryPage() {
     const qtyPcs = parseFloat(adjustForm.qtyPcs) || 0;
 
     if (selectedProduct.unitType === 'KG' && qtyKg === 0) {
-      alert('Please enter quantity');
+      showNotification('Please enter quantity', 'error');
       return;
     }
     if (selectedProduct.unitType === 'PCS' && qtyPcs === 0) {
-      alert('Please enter quantity');
+      showNotification('Please enter quantity', 'error');
       return;
     }
 
     try {
-      await api.post('/api/v1/inventory/adjust', {
+      const response = await api.post('/api/v1/inventory/adjust', {
         productId: selectedProduct.productId,
         qtyKg: selectedProduct.unitType === 'KG' ? qtyKg : undefined,
         qtyPcs: selectedProduct.unitType === 'PCS' ? qtyPcs : undefined,
         reason: adjustForm.reason || 'ADJUSTMENT',
       });
-      await loadInventory();
-      setShowAdjustModal(false);
-      setSelectedProduct(null);
-      setAdjustForm({ qtyKg: '', qtyPcs: '', reason: 'ADJUSTMENT' });
-      alert('Inventory adjusted successfully!');
+      
+      if (response.data) {
+        await loadInventory();
+        setShowAdjustModal(false);
+        setSelectedProduct(null);
+        setAdjustForm({ qtyKg: '', qtyPcs: '', reason: 'ADJUSTMENT' });
+        showNotification('Inventory adjusted successfully!', 'success');
+      }
     } catch (error: any) {
       console.error('Inventory adjustment error:', error);
       const errorMessage =
         error.response?.data?.error ||
+        error.response?.data?.details ||
         error.message ||
         'Failed to adjust inventory';
-      alert(errorMessage);
+      showNotification(errorMessage, 'error');
     }
   };
 
