@@ -153,7 +153,7 @@ export default function StoreCartPage() {
 
   const handleManualItemSubmit = () => {
     if (!manualItem.description || !manualItem.description.trim()) {
-      showNotification({ message: 'Please enter item description', type: 'warning' });
+      showNotification('Please enter item description', 'warning');
       return;
     }
 
@@ -161,17 +161,17 @@ export default function StoreCartPage() {
     const qtyPcs = parseFloat(manualItem.weight) || 1;
     
     if (manualItem.unitType === 'KG' && weight <= 0) {
-      showNotification({ message: 'Please enter valid weight', type: 'warning' });
+      showNotification('Please enter valid weight', 'warning');
       return;
     }
 
     if (manualItem.unitType === 'PCS' && qtyPcs <= 0) {
-      showNotification({ message: 'Please enter valid quantity', type: 'warning' });
+      showNotification('Please enter valid quantity', 'warning');
       return;
     }
 
     if (!manualItem.rate || parseFloat(manualItem.rate) <= 0) {
-      showNotification({ message: 'Please enter a valid rate', type: 'warning' });
+      showNotification('Please enter a valid rate', 'warning');
       return;
     }
 
@@ -200,7 +200,7 @@ export default function StoreCartPage() {
       total: '',
       unitType: 'KG',
     });
-    showNotification({ message: 'Item added to cart', type: 'success' });
+    showNotification('Item added to cart', 'success');
   };
 
   const handleCreateSale = async (paymentMethod: string, amountPaid: number) => {
@@ -209,7 +209,7 @@ export default function StoreCartPage() {
       const { subTotal, taxTotal, grandTotal } = getTotal();
 
       if (items.length === 0) {
-        showNotification({ message: 'Cart is empty', type: 'warning' });
+        showNotification('Cart is empty', 'warning');
         return;
       }
 
@@ -231,10 +231,10 @@ export default function StoreCartPage() {
 
       if (saleResponse.data?.requiresApproval) {
         setShowPaymentModal(false);
-        showNotification({
-          message: `Sale created but discount requires manager approval. Sale #${saleResponse.data.sale.saleNo} is pending approval.`,
-          type: 'info',
-        });
+        showNotification(
+          `Sale created but discount requires manager approval. Sale #${saleResponse.data.sale.saleNo} is pending approval.`,
+          'info'
+        );
         await clearCart();
         setTimeout(() => router.push('/store/discount-approvals'), 2000);
         return;
@@ -258,12 +258,12 @@ export default function StoreCartPage() {
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       await clearCart();
       setShowPaymentModal(false);
-      showNotification({ message: 'Sale completed successfully!', type: 'success' });
+      showNotification('Sale completed successfully!', 'success');
       setTimeout(() => router.push('/store/pos'), 1500);
     } catch (error: any) {
       console.error('Failed to process payment:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to process payment';
-      showNotification({ message: errorMessage, type: 'error' });
+      showNotification(errorMessage, 'error');
     }
   };
 
@@ -740,10 +740,10 @@ export default function StoreCartPage() {
                               if (item.id) {
                                 await removeItem(item.id);
                                 await loadCart();
-                                showNotification({ message: 'Item removed', type: 'success' });
+                                showNotification('Item removed', 'success');
                               }
                             } catch (error: any) {
-                              showNotification({ message: 'Failed to remove item', type: 'error' });
+                              showNotification('Failed to remove item', 'error');
                             }
                           }}
                           className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
