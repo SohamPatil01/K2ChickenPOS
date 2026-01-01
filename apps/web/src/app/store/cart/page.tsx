@@ -30,7 +30,6 @@ export default function StoreCartPage() {
 
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [showNumPad, setShowNumPad] = useState(false);
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [allCustomers, setAllCustomers] = useState<any[]>([]);
@@ -38,15 +37,6 @@ export default function StoreCartPage() {
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [tempCustomerPhone, setTempCustomerPhone] = useState(customerPhone || '');
   const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
-  const [manualItem, setManualItem] = useState({
-    sku: '',
-    description: '',
-    weight: '',
-    rate: '',
-    total: '',
-    unitType: 'KG' as 'KG' | 'PCS',
-  });
-  const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -54,7 +44,6 @@ export default function StoreCartPage() {
       return;
     }
     loadCart();
-    loadProducts();
     loadAllCustomers();
   }, [user, router]);
 
@@ -86,17 +75,6 @@ export default function StoreCartPage() {
       setAllCustomers(response.data || []);
     } catch (error: any) {
       console.error('Failed to load customers:', error);
-    }
-  };
-
-  const loadProducts = async () => {
-    try {
-      const response = await api.get('/api/v1/products');
-      if (response.data && Array.isArray(response.data)) {
-        setProducts(response.data);
-      }
-    } catch (error: any) {
-      console.error('Failed to load products:', error);
     }
   };
 
@@ -150,58 +128,6 @@ export default function StoreCartPage() {
       }
     }
   }, [tempCustomerPhone, tempCustomerName, customerId]);
-
-  const handleManualItemSubmit = () => {
-    if (!manualItem.description || !manualItem.description.trim()) {
-      showNotification('Please enter item description', 'warning');
-      return;
-    }
-
-    const weight = parseFloat(manualItem.weight) || 0;
-    const qtyPcs = parseFloat(manualItem.weight) || 1;
-    
-    if (manualItem.unitType === 'KG' && weight <= 0) {
-      showNotification('Please enter valid weight', 'warning');
-      return;
-    }
-
-    if (manualItem.unitType === 'PCS' && qtyPcs <= 0) {
-      showNotification('Please enter valid quantity', 'warning');
-      return;
-    }
-
-    if (!manualItem.rate || parseFloat(manualItem.rate) <= 0) {
-      showNotification('Please enter a valid rate', 'warning');
-      return;
-    }
-
-    const qtyKg = manualItem.unitType === 'KG' ? weight : undefined;
-    const qtyPcsFinal = manualItem.unitType === 'PCS' ? qtyPcs : undefined;
-    const rate = parseFloat(manualItem.rate);
-    const qty = qtyKg || qtyPcsFinal || 1;
-    const lineTotal = qty * rate;
-
-    useCartStore.getState().addItem({
-      productId: manualItem.sku || 'MANUAL',
-      productName: manualItem.description,
-      qtyKg,
-      qtyPcs: qtyPcsFinal,
-      rate,
-      lineTotal,
-      taxRate: 0,
-    });
-
-    setShowAddItemModal(false);
-    setManualItem({
-      sku: '',
-      description: '',
-      weight: '',
-      rate: '',
-      total: '',
-      unitType: 'KG',
-    });
-    showNotification('Item added to cart', 'success');
-  };
 
   const handleCreateSale = async (paymentMethod: string, amountPaid: number) => {
     try {
@@ -401,160 +327,6 @@ export default function StoreCartPage() {
     );
   };
 
-  // Add Item Modal
-  const AddItemModal = ({ item, products, onChange, onClose, onSubmit }: any) => {
-    const handleSkuChange = (sku: string) => {
-      onChange('sku', sku);
-      const product = products.find((p: any) => p.sku === sku || p.plu === sku);
-      if (product) {
-        onChange('description', product.name);
-        onChange('rate', product.pricePerUnit.toString());
-        onChange('unitType', product.unitType);
-      }
-    };
-
-    const weight = parseFloat(item.weight) || 0;
-    const qtyPcs = parseFloat(item.weight) || 1;
-    const rate = parseFloat(item.rate) || 0;
-    const calculatedTotal = item.unitType === 'KG' ? weight * rate : qtyPcs * rate;
-
-    return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50">
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Add Item</h2>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                SKU / Barcode
-              </label>
-              <input
-                type="text"
-                value={item.sku}
-                onChange={(e) => handleSkuChange(e.target.value)}
-                placeholder="Enter SKU or scan barcode"
-                className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Description <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={item.description}
-                onChange={(e) => onChange('description', e.target.value)}
-                placeholder="Enter product description"
-                className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Unit Type
-                </label>
-                <select
-                  value={item.unitType}
-                  onChange={(e) => onChange('unitType', e.target.value)}
-                  className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                >
-                  <option value="KG">KG</option>
-                  <option value="PCS">PCS</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {item.unitType === 'KG' ? 'Weight (kg)' : 'Quantity'} <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={item.weight}
-                  onChange={(e) => onChange('weight', e.target.value)}
-                  placeholder={item.unitType === 'KG' ? '0.00' : '1'}
-                  step={item.unitType === 'KG' ? '0.01' : '1'}
-                  min="0"
-                  className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Rate (₹) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={item.rate}
-                  onChange={(e) => onChange('rate', e.target.value)}
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                  className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Total (₹)
-                </label>
-                <input
-                  type="number"
-                  value={item.total}
-                  onChange={(e) => onChange('total', e.target.value)}
-                  placeholder={calculatedTotal.toFixed(2)}
-                  step="0.01"
-                  min="0"
-                  className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                />
-              </div>
-            </div>
-
-            {(item.weight && item.rate) && (
-              <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Subtotal</span>
-                  <span className="text-base font-semibold text-brand-600 dark:text-brand-400">
-                    ₹{calculatedTotal.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onSubmit}
-                className="flex-1 px-4 py-3 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all"
-              >
-                Add to Cart
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="h-full w-full flex flex-col min-h-0">
       {/* Header */}
@@ -572,7 +344,7 @@ export default function StoreCartPage() {
               ← Back
             </button>
             <button
-              onClick={() => setShowAddItemModal(true)}
+              onClick={() => router.push('/store/pos')}
               className="px-4 py-2 text-sm font-medium bg-brand-500 hover:bg-brand-600 text-white rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
             >
               <span className="text-lg">+</span>
@@ -583,7 +355,7 @@ export default function StoreCartPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-4">
         <div className="max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6">
           {/* Customer Section */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/50 dark:border-gray-700/50 p-4 sm:p-6 shadow-sm">
@@ -763,7 +535,7 @@ export default function StoreCartPage() {
       </div>
 
       {/* Footer - Totals & Pay Button */}
-      <div className="flex-shrink-0 border-t border-gray-200/50 dark:border-gray-700/50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+      <div className="sticky bottom-0 z-10 flex-shrink-0 border-t border-gray-200/50 dark:border-gray-700/50 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-lg">
         <div className="max-w-7xl mx-auto w-full p-4 sm:p-6">
           <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-900/50 rounded-xl p-4 sm:p-6 border border-gray-200/50 dark:border-gray-700/50">
             <div className="space-y-3 mb-4">
@@ -877,40 +649,6 @@ export default function StoreCartPage() {
         />
       )}
 
-      {showAddItemModal && (
-        <AddItemModal
-          item={manualItem}
-          products={products}
-          onChange={(field: string, value: any) => {
-            setManualItem((prev) => {
-              const updated = { ...prev, [field]: value };
-              if (field === 'weight' || field === 'rate') {
-                const weight = parseFloat(updated.weight) || 0;
-                const rate = parseFloat(updated.rate) || 0;
-                const qtyPcs = parseFloat(updated.weight) || 1;
-                if (updated.unitType === 'KG' && weight > 0 && rate > 0) {
-                  updated.total = (weight * rate).toFixed(2);
-                } else if (updated.unitType === 'PCS' && qtyPcs > 0 && rate > 0) {
-                  updated.total = (qtyPcs * rate).toFixed(2);
-                }
-              }
-              return updated;
-            });
-          }}
-          onClose={() => {
-            setShowAddItemModal(false);
-            setManualItem({
-              sku: '',
-              description: '',
-              weight: '',
-              rate: '',
-              total: '',
-              unitType: 'KG',
-            });
-          }}
-          onSubmit={handleManualItemSubmit}
-        />
-      )}
     </div>
   );
 }
