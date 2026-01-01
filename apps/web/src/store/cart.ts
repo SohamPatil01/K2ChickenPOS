@@ -24,22 +24,47 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerName: null,
   discountTotal: 0,
   loadCart: async () => {
-    const items = await offlineDB.cart.toArray();
-    set({ items });
+    try {
+      const items = await offlineDB.cart.toArray();
+      console.log('Cart loaded:', items.length, 'items', items);
+      // Ensure items is always an array
+      const itemsArray = Array.isArray(items) ? items : [];
+      console.log('Setting items in store:', itemsArray.length, itemsArray);
+      set({ items: itemsArray });
+      // Force a small delay to ensure state update
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error loading cart:', error);
+      set({ items: [] });
+    }
   },
   addItem: async (item) => {
-    const cartItem: CartItem = {
-      ...item,
-      createdAt: Date.now(),
-    };
-    const id = await offlineDB.cart.add(cartItem);
-    const items = await offlineDB.cart.toArray();
-    set({ items });
+    try {
+      const cartItem: CartItem = {
+        ...item,
+        createdAt: Date.now(),
+      };
+      console.log('Adding item to cart:', cartItem);
+      const id = await offlineDB.cart.add(cartItem);
+      console.log('Item added with ID:', id);
+      // Reload items to get the id that was assigned
+      const items = await offlineDB.cart.toArray();
+      console.log('Cart after add:', items.length, 'items');
+      set({ items });
+    } catch (error) {
+      console.error('Error adding item to cart:', error);
+    }
   },
   removeItem: async (id) => {
-    await offlineDB.cart.delete(id);
-    const items = await offlineDB.cart.toArray();
-    set({ items });
+    try {
+      console.log('Removing item with ID:', id);
+      await offlineDB.cart.delete(id);
+      const items = await offlineDB.cart.toArray();
+      console.log('Cart after remove:', items.length, 'items');
+      set({ items });
+    } catch (error) {
+      console.error('Error removing item:', error);
+    }
   },
   updateItem: async (id, updates) => {
     await offlineDB.cart.update(id, updates);
