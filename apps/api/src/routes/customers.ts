@@ -124,28 +124,38 @@ export async function customerRoutes(fastify: FastifyInstance) {
   fastify.put('/:customerId', async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
-      const data = customerSchema.parse(request.body as any);
-      // Get default store (since auth is disabled)
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-      const storeId = store?.id || '';
+      const body = request.body as any;
+      
+      // Parse schema - email is optional, only include if provided
+      const data: any = {
+        name: body.name,
+        phone: body.phone,
+      };
+      if (body.email !== undefined && body.email !== null && body.email !== '') {
+        data.email = body.email;
+      }
+      const validatedData = customerSchema.parse(data);
 
-      // Check if customer exists and belongs to store
+      // Get customer first to find their storeId
       const existingCustomer = await prisma.customer.findUnique({
         where: { id: customerId },
       });
 
-      if (!existingCustomer || existingCustomer.storeId !== storeId) {
+      if (!existingCustomer) {
         reply.code(404).send({ error: 'Customer not found' });
         return;
       }
 
+      // Use the customer's existing storeId
+      const storeId = existingCustomer.storeId;
+
       // If phone is being changed, check if new phone already exists
-      if (data.phone && data.phone !== existingCustomer.phone) {
+      if (validatedData.phone && validatedData.phone !== existingCustomer.phone) {
         const phoneExists = await prisma.customer.findUnique({
           where: {
             storeId_phone: {
               storeId,
-              phone: data.phone,
+              phone: validatedData.phone,
             },
           },
         });
@@ -156,14 +166,18 @@ export async function customerRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Update customer
+      // Update customer - only update fields that are provided
+      const updateData: any = {
+        name: validatedData.name,
+        phone: validatedData.phone,
+      };
+      if (validatedData.email !== undefined) {
+        updateData.email = validatedData.email;
+      }
+
       const customer = await prisma.customer.update({
         where: { id: customerId },
-        data: {
-          name: data.name,
-          phone: data.phone,
-          email: data.email,
-        },
+        data: updateData,
         include: {
           addresses: true,
           sales: {
@@ -181,7 +195,37 @@ export async function customerRoutes(fastify: FastifyInstance) {
       return customer;
     } catch (error: any) {
       console.error('Failed to update customer:', error);
-      reply.code(500).send({ error: 'Failed to update customer', details: error.message });
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        customerId: (request.params as any).customerId,
+        body: request.body,
+        errorName: error.name,
+        errorMessage: error.message,
+      });
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        reply.code(400).send({ 
+          error: 'Invalid input data', 
+          details: error.errors 
+        });
+        return;
+      }
+      
+      // Handle Prisma errors
+      if (error.code) {
+        reply.code(500).send({ 
+          error: 'Database error', 
+          details: error.message,
+          code: error.code 
+        });
+        return;
+      }
+      
+      reply.code(500).send({ 
+        error: 'Failed to update customer', 
+        details: error.message 
+      });
     }
   });
 

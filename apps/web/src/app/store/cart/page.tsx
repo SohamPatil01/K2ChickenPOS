@@ -156,15 +156,28 @@ export default function StoreCartPage() {
       
       // If customer already exists, update it
       if (customerId) {
-        const response = await api.put(`/api/v1/customers/${customerId}`, {
-          phone: trimmedPhone,
-          name: fullName,
-        });
-        if (response.data) {
-          console.log('Customer updated - Name:', response.data.name, 'Length:', response.data.name?.length);
-          setCustomer(response.data.id, response.data.phone, response.data.name);
-          setTempCustomerPhone(response.data.phone);
-          setTempCustomerName(response.data.name);
+        try {
+          console.log('Updating customer:', customerId, 'with name:', fullName, 'phone:', trimmedPhone);
+          const response = await api.put(`/api/v1/customers/${customerId}`, {
+            phone: trimmedPhone,
+            name: fullName,
+          });
+          if (response.data) {
+            console.log('Customer updated successfully - Name:', response.data.name, 'Length:', response.data.name?.length);
+            setCustomer(response.data.id, response.data.phone, response.data.name);
+            setTempCustomerPhone(response.data.phone);
+            setTempCustomerName(response.data.name);
+            showNotification('Customer updated successfully', 'success');
+          }
+        } catch (updateError: any) {
+          console.error('Failed to update customer:', updateError);
+          const errorMessage = updateError.response?.data?.error || updateError.message || 'Failed to update customer';
+          console.error('Error details:', {
+            status: updateError.response?.status,
+            data: updateError.response?.data,
+            message: errorMessage,
+          });
+          showNotification('Failed to update customer: ' + errorMessage, 'error');
         }
       } else {
         // Create new customer
