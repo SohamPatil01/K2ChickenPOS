@@ -127,14 +127,48 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const body = request.body as any;
       
       // Parse schema - email is optional, only include if provided
-      const data: any = {
-        name: body.name,
-        phone: body.phone,
-      };
-      if (body.email !== undefined && body.email !== null && body.email !== '') {
-        data.email = body.email;
+      // Trim and validate name and phone - ensure they're strings
+      const trimmedName = String(body.name || '').trim();
+      const trimmedPhone = String(body.phone || '').trim();
+      
+      console.log('Received customer update data:', {
+        name: trimmedName,
+        nameLength: trimmedName.length,
+        phone: trimmedPhone,
+        phoneLength: trimmedPhone.length,
+        nameType: typeof body.name,
+        phoneType: typeof body.phone,
+        rawBody: body
+      });
+      
+      if (!trimmedName || trimmedName.length === 0) {
+        reply.code(400).send({ 
+          error: 'Invalid input data', 
+          details: [{ path: ['name'], message: 'Name is required and cannot be empty' }] 
+        });
+        return;
       }
+      
+      if (!trimmedPhone || trimmedPhone.length < 10) {
+        reply.code(400).send({ 
+          error: 'Invalid input data', 
+          details: [{ path: ['phone'], message: 'Phone number must be at least 10 characters' }] 
+        });
+        return;
+      }
+      
+      const data: any = {
+        name: trimmedName,
+        phone: trimmedPhone,
+      };
+      
+      if (body.email !== undefined && body.email !== null && body.email !== '') {
+        data.email = String(body.email).trim();
+      }
+      
+      console.log('Validating customer data:', { name: data.name, nameLength: data.name.length, phone: data.phone, phoneLength: data.phone.length });
       const validatedData = customerSchema.parse(data);
+      console.log('Validation passed:', validatedData);
 
       // Get customer first to find their storeId
       const existingCustomer = await prisma.customer.findUnique({

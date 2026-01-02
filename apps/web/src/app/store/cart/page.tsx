@@ -145,23 +145,26 @@ export default function StoreCartPage() {
 
   const createOrUpdateCustomer = async (phone: string, name: string) => {
     // Validate phone number - must be at least 10 characters to match backend schema
-    if (!phone || phone.trim().length < 10 || !name || name.trim().length === 0) {
-      if (phone && phone.trim().length < 10) {
-        showNotification('Phone number must be at least 10 digits', 'warning');
-      }
+    // Keep spaces/formatting as schema accepts any characters with min length 10
+    const trimmedPhone = phone ? phone.trim() : '';
+    const fullName = name ? name.trim() : '';
+    
+    if (!trimmedPhone || trimmedPhone.length < 10) {
+      showNotification('Phone number must be at least 10 characters', 'warning');
       return;
     }
+    if (!fullName || fullName.length === 0) {
+      showNotification('Customer name is required', 'warning');
+      return;
+    }
+    
     try {
-      // Ensure we're using the full trimmed name - no truncation
-      const fullName = name.trim();
-      const trimmedPhone = phone.trim();
-      
-      console.log('Saving customer - Name:', fullName, 'Length:', fullName.length, 'Phone:', trimmedPhone);
+      console.log('Saving customer - Name:', fullName, 'Length:', fullName.length, 'Phone:', trimmedPhone, 'Phone Length:', trimmedPhone.length);
       
       // If customer already exists, update it
       if (customerId) {
         try {
-          console.log('Updating customer:', customerId, 'with name:', fullName, 'phone:', trimmedPhone);
+          console.log('Updating customer:', customerId, 'with name:', fullName, 'phone:', trimmedPhone, 'name length:', fullName.length, 'phone length:', trimmedPhone.length);
           const response = await api.put(`/api/v1/customers/${customerId}`, {
             phone: trimmedPhone,
             name: fullName,
@@ -176,12 +179,23 @@ export default function StoreCartPage() {
         } catch (updateError: any) {
           console.error('Failed to update customer:', updateError);
           const errorMessage = updateError.response?.data?.error || updateError.message || 'Failed to update customer';
+          const errorDetails = updateError.response?.data?.details || [];
           console.error('Error details:', {
             status: updateError.response?.status,
             data: updateError.response?.data,
             message: errorMessage,
+            validationErrors: errorDetails,
           });
-          showNotification('Failed to update customer: ' + errorMessage, 'error');
+          
+          // Show detailed validation errors if available
+          if (errorDetails && Array.isArray(errorDetails) && errorDetails.length > 0) {
+            const validationMsg = errorDetails.map((err: any) => 
+              `${err.path?.join('.') || 'field'}: ${err.message}`
+            ).join(', ');
+            showNotification(`Validation error: ${validationMsg}`, 'error');
+          } else {
+            showNotification('Failed to update customer: ' + errorMessage, 'error');
+          }
         }
       } else {
         // Create new customer
@@ -327,75 +341,75 @@ export default function StoreCartPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
                   <span className="font-medium text-gray-900 dark:text-white">₹{Math.round(subTotal)}</span>
-                </div>
+              </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Tax</span>
                   <span className="font-medium text-gray-900 dark:text-white">₹{Math.round(taxTotal)}</span>
-                </div>
+              </div>
                 {discountTotal > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Discount</span>
                     <span className="font-medium text-red-600 dark:text-red-400">-₹{Math.round(discountTotal)}</span>
-                  </div>
+              </div>
                 )}
                 <div className="border-t border-brand-200 dark:border-brand-800 pt-2 mt-2">
                   <div className="flex justify-between">
                     <span className="text-base font-semibold text-gray-900 dark:text-white">Total</span>
                     <span className="text-xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
-                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Payment Method
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Payment Method
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all"
-                >
-                  <option value="CASH">💵 Cash</option>
-                  <option value="CARD">💳 Card</option>
-                  <option value="UPI">📱 UPI</option>
-                  <option value="ONLINE">🌐 Online</option>
-                </select>
-              </div>
+              >
+                <option value="CASH">💵 Cash</option>
+                <option value="CARD">💳 Card</option>
+                <option value="UPI">📱 UPI</option>
+                <option value="ONLINE">🌐 Online</option>
+              </select>
+            </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Amount Paid
-                </label>
-                <input
-                  type="number"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Amount Paid
+              </label>
+              <input
+                type="number"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(e.target.value)}
                   className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all font-medium"
-                  step="0.01"
-                  min="0"
+                step="0.01"
+                min="0"
                   placeholder={grandTotal.toString()}
-                />
-              </div>
-              
-              {change >= 0 && (
+              />
+            </div>
+            
+            {change >= 0 && (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                  <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-green-800 dark:text-green-300">Change</span>
                     <span className="text-lg font-semibold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
-                  </div>
                 </div>
-              )}
-              {change < 0 && (
+              </div>
+            )}
+            {change < 0 && (
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                  <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center">
                     <span className="text-sm font-medium text-red-800 dark:text-red-300">Insufficient</span>
                     <span className="text-lg font-semibold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
-                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
 
             <div className="flex gap-3 pt-2">
               <button
@@ -426,24 +440,24 @@ export default function StoreCartPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white">Cart</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{items.length} {items.length === 1 ? 'item' : 'items'}</p>
-          </div>
+        </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push('/store/pos')}
+        <button
+          onClick={() => router.push('/store/pos')}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            >
+        >
               ← Back
-            </button>
-            <button
+        </button>
+          <button
               onClick={() => router.push('/store/pos')}
               className="px-4 py-2 text-sm font-medium bg-brand-500 hover:bg-brand-600 text-white rounded-lg shadow-sm hover:shadow transition-all flex items-center gap-2"
-            >
-              <span className="text-lg">+</span>
-              <span>Add Item</span>
-            </button>
+          >
+            <span className="text-lg">+</span>
+            <span>Add Item</span>
+          </button>
           </div>
         </div>
-      </div>
+        </div>
 
       {/* Main Content */}
       <div className="flex-1 min-h-0 overflow-y-auto pb-4">
@@ -455,10 +469,10 @@ export default function StoreCartPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Phone Number <span className="text-xs text-gray-500">(min 10 digits)</span>
-                </label>
+          </label>
                 <div className="relative">
-                  <input
-                    type="text"
+          <input
+            type="text"
                     placeholder="Tap to enter phone (10+ digits)"
                     value={tempCustomerPhone}
                     readOnly
@@ -478,10 +492,10 @@ export default function StoreCartPage() {
                 {tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">
                     Phone number must be at least 10 digits
-                  </p>
-                )}
-              </div>
-              
+            </p>
+          )}
+        </div>
+
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Name
@@ -595,12 +609,12 @@ export default function StoreCartPage() {
                         <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
-            
+          )}
+              </div>
+        </div>
+
             {customerName && customerPhone && (
               <div className="mt-4 p-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                 <p className="text-sm text-brand-700 dark:text-brand-300">
@@ -699,31 +713,31 @@ export default function StoreCartPage() {
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600 dark:text-gray-400">Discount</span>
-                <input
-                  type="number"
-                  value={discountTotal}
-                  onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+            <input
+              type="number"
+              value={discountTotal}
+              onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                   className="w-32 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  step="0.01"
-                  min="0"
-                />
-              </div>
+              step="0.01"
+              min="0"
+            />
+          </div>
               <div className="border-t border-gray-300 dark:border-gray-600 pt-3 mt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-900 dark:text-white">Grand Total</span>
                   <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
                 </div>
               </div>
-            </div>
+          </div>
             
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              disabled={items.length === 0}
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            disabled={items.length === 0}
               className="w-full py-4 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
+          >
               <span>💳</span>
               <span>Pay ₹{grandTotal}</span>
-            </button>
+          </button>
           </div>
         </div>
       </div>
@@ -799,6 +813,6 @@ export default function StoreCartPage() {
         />
       )}
 
-    </div>
+      </div>
   );
 }
