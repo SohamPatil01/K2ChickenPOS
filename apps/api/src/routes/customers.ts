@@ -263,6 +263,70 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Delete customer - Only OWNER can delete
+  fastify.delete('/:customerId', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { customerId } = (request.params as any);
+      const storeId = (getUser(request) as any).storeId;
+
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+
+      // Check if customer exists and belongs to store
+      const existingCustomer = await prisma.customer.findUnique({
+        where: { id: customerId },
+        include: {
+          sales: {
+            take: 1,
+          },
+        },
+      });
+
+      if (!existingCustomer) {
+        reply.code(404).send({ error: 'Customer not found' });
+        return;
+      }
+
+      if (existingCustomer.storeId !== storeId) {
+        reply.code(403).send({ error: 'Access denied' });
+        return;
+      }
+
+      // Check if customer has any sales - warn but allow deletion
+      if (existingCustomer.sales && existingCustomer.sales.length > 0) {
+        // Customer has sales history, but we'll still allow deletion
+        // The sales will remain but customer reference will be removed
+      }
+
+      // Delete customer (addresses will be cascade deleted)
+      await prisma.customer.delete({
+        where: { id: customerId },
+      });
+
+      // Create audit log
+      await prisma.auditLog.create({
+        data: {
+          storeId,
+          actorUserId: (getUser(request) as any).userId,
+          action: 'CUSTOMER_DELETED',
+          entityType: 'Customer',
+          entityId: customerId,
+          metaJson: {
+            customerName: existingCustomer.name,
+            customerPhone: existingCustomer.phone,
+          },
+        },
+      });
+
+      return { success: true, message: 'Customer deleted successfully' };
+    } catch (error: any) {
+      console.error('Failed to delete customer:', error);
+      reply.code(500).send({ error: 'Failed to delete customer', details: error.message });
+    }
+  });
+
   fastify.post('/:customerId/addresses', async (request: any, reply: FastifyReply) => {
     const { customerId } = (request.params as any);
     const data = customerAddressSchema.parse(request.body as any);

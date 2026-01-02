@@ -287,6 +287,27 @@ export default function StoreCustomersPage() {
     }
   };
 
+  const handleDeleteCustomer = async () => {
+    if (!selectedCustomer) return;
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete customer "${selectedCustomer.name}" (${selectedCustomer.phone})?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      await api.delete(`/api/v1/customers/${selectedCustomer.id}`);
+      // Remove customer from list
+      setCustomers(customers.filter((c) => c.id !== selectedCustomer.id));
+      setSelectedCustomer(null);
+      alert('Customer deleted successfully');
+    } catch (error: any) {
+      console.error('Failed to delete customer:', error);
+      alert(error.response?.data?.error || 'Failed to delete customer');
+    }
+  };
+
   const handleAdjustPoints = async () => {
     if (!selectedCustomer || !loyaltyForm.description) {
       alert('Please fill in description');
@@ -375,12 +396,22 @@ export default function StoreCustomersPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold dark:text-white">Customer Details</h2>
-              <button
-                onClick={() => openEditCustomer(selectedCustomer)}
-                className="px-3 py-1 text-sm bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
-              >
-                Edit
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => openEditCustomer(selectedCustomer)}
+                  className="px-3 py-1 text-sm bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+                >
+                  Edit
+                </button>
+                {user?.role === 'OWNER' && (
+                  <button
+                    onClick={handleDeleteCustomer}
+                    className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
             <div className="space-y-4">
               <div>
