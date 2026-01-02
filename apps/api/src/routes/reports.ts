@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { getUser, requireRole } from '../utils/auth.js';
 
 interface QueryParams {
   startDate?: string;
@@ -33,17 +34,32 @@ function getDateRange(startDate?: string, endDate?: string) {
 
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
-  fastify.get('/stock', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/stock', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      
+      // Get user's store
+      const userStore = await prisma.store.findUnique({
+        where: { id: user.storeId },
+      });
 
-    const ownerStoreId = store?.type === 'OWNER' ? store.id : store?.parentOwnerStoreId;
-    if (!ownerStoreId) {
-      return [];
-    }
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
-    const products = await prisma.product.findMany({
+      // Determine which store to use
+      const userStoreId = queryStoreId || user.storeId;
+      
+      // Get owner store ID
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store not found' });
+        return;
+      }
+
+      const products = await prisma.product.findMany({
       where: {
         ownerStoreId,
         isActive: true,
@@ -63,9 +79,9 @@ export async function reportRoutes(fastify: FastifyInstance) {
           orderBy: { createdAt: 'desc' },
         },
       },
-    });
+      });
 
-    const stockData = products.map((product: any) => {
+      const stockData = products.map((product: any) => {
       const inQty = product.inventoryLedgers
         .filter((l: any) => l.type === 'IN')
         .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
@@ -85,16 +101,21 @@ export async function reportRoutes(fastify: FastifyInstance) {
         price: product.storeProductPrices[0]?.pricePerUnit || 0,
         stockValue: (currentStock > 0 ? currentStock : 0) * (product.storeProductPrices[0]?.pricePerUnit || 0),
       };
-    });
+      });
 
-    return stockData;
+      return stockData;
+    } catch (error: any) {
+      console.error('Stock report error:', error);
+      reply.code(500).send({ error: 'Failed to generate stock report', details: error.message });
+    }
   });
 
   // Product Wise Sale Report
-  fastify.get('/product-wise-sale', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/product-wise-sale', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -144,14 +165,19 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue);
+      return Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue);
+    } catch (error: any) {
+      console.error('Product-wise sale report error:', error);
+      reply.code(500).send({ error: 'Failed to generate product-wise sale report', details: error.message });
+    }
   });
 
   // Bill Wise Sale Report
-  fastify.get('/bill-wise-sale', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/bill-wise-sale', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -204,13 +230,18 @@ export async function reportRoutes(fastify: FastifyInstance) {
         lineTotal: item.lineTotal,
       })),
     }));
+    } catch (error: any) {
+      console.error('Bill-wise sale report error:', error);
+      reply.code(500).send({ error: 'Failed to generate bill-wise sale report', details: error.message });
+    }
   });
 
   // Sales Register Summary
-  fastify.get('/sales-register-summary', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/sales-register-summary', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -260,13 +291,18 @@ export async function reportRoutes(fastify: FastifyInstance) {
       },
       paymentMethods: Object.values(paymentStats),
     };
+    } catch (error: any) {
+      console.error('Sales register summary error:', error);
+      reply.code(500).send({ error: 'Failed to generate sales register summary', details: error.message });
+    }
   });
 
   // Sales Sub Register (Detailed)
-  fastify.get('/sales-sub-register', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/sales-sub-register', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -302,13 +338,18 @@ export async function reportRoutes(fastify: FastifyInstance) {
       paymentMethod: sale.payments.map((p: any) => p.method).join(', '),
       cashier: sale.createdBy.name,
     }));
+    } catch (error: any) {
+      console.error('Sales sub register error:', error);
+      reply.code(500).send({ error: 'Failed to generate sales sub register', details: error.message });
+    }
   });
 
   // Bill Wise Sale Cancel
-  fastify.get('/bill-wise-sale-cancel', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/bill-wise-sale-cancel', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -348,13 +389,18 @@ export async function reportRoutes(fastify: FastifyInstance) {
         amount: item.lineTotal,
       })),
     }));
+    } catch (error: any) {
+      console.error('Bill-wise sale cancel report error:', error);
+      reply.code(500).send({ error: 'Failed to generate bill-wise sale cancel report', details: error.message });
+    }
   });
 
   // PO Report
-  fastify.get('/po-report', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/po-report', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -402,6 +448,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
       hasDispatch: !!po.dispatch,
       hasGRN: !!po.dispatch?.grn,
     }));
+    } catch (error: any) {
+      console.error('PO report error:', error);
+      reply.code(500).send({ error: 'Failed to generate PO report', details: error.message });
+    }
   });
 
   // Helper function to get store IDs for owner (all franchises or specific)
@@ -422,19 +472,31 @@ export async function reportRoutes(fastify: FastifyInstance) {
   }
 
   // SKU Wise Sales Report
-  fastify.get('/sku-wise-sales', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const ownerStoreId = store?.id || '';
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/sku-wise-sales', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      
+      // Get user's store
+      const userStore = await prisma.store.findUnique({
+        where: { id: user.storeId },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
+      const userStoreId = queryStoreId || user.storeId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
-    // If owner and queryStoreId is 'all', get all franchise store IDs
-    let storeIds = [userStoreId];
-    if (store?.type === 'OWNER' && (queryStoreId === 'all' || !queryStoreId)) {
-      storeIds = await getStoreIdsForOwner(ownerStoreId, queryStoreId);
-    }
+      // If owner and queryStoreId is 'all', get all franchise store IDs
+      let storeIds = [userStoreId];
+      if (userStore.type === 'OWNER' && (queryStoreId === 'all' || !queryStoreId)) {
+        storeIds = await getStoreIdsForOwner(ownerStoreId, queryStoreId);
+      }
 
     const sales = await prisma.sale.findMany({
       where: {
@@ -481,14 +543,31 @@ export async function reportRoutes(fastify: FastifyInstance) {
       stat.avgPrice = totalQty > 0 ? stat.revenue / totalQty : 0;
     });
 
-    return Object.values(skuStats).sort((a: any, b: any) => b.revenue - a.revenue);
+      return Object.values(skuStats).sort((a: any, b: any) => b.revenue - a.revenue);
+    } catch (error: any) {
+      console.error('SKU-wise sales report error:', error);
+      reply.code(500).send({ error: 'Failed to generate SKU-wise sales report', details: error.message });
+    }
   });
 
   // Summary Report
-  fastify.get('/summary-report', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/summary-report', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
+      
+      // Get user's store
+      const userStore = await prisma.store.findUnique({
+        where: { id: user.storeId },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
 
     const dateFilter = getDateRange(startDate, endDate);
 
@@ -506,7 +585,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }),
       prisma.product.count({
         where: {
-          ownerStoreId: store?.id || '',
+          ownerStoreId: ownerStoreId || '',
           isActive: true,
         },
       }),
@@ -554,13 +633,18 @@ export async function reportRoutes(fastify: FastifyInstance) {
       },
       payments: paymentBreakdown,
     };
+    } catch (error: any) {
+      console.error('Summary report error:', error);
+      reply.code(500).send({ error: 'Failed to generate summary report', details: error.message });
+    }
   });
 
   // Pending Report
-  fastify.get('/pending', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/pending', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
 
     const [pendingPOs, pendingDeliveries, openSales] = await Promise.all([
       prisma.purchaseOrder.findMany({
@@ -627,13 +711,30 @@ export async function reportRoutes(fastify: FastifyInstance) {
         createdAt: sale.createdAt,
       })),
     };
+    } catch (error: any) {
+      console.error('Pending report error:', error);
+      reply.code(500).send({ error: 'Failed to generate pending report', details: error.message });
+    }
   });
 
   // MRN & Balance Confirmation
-  fastify.get('/mrn-balance', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const userStoreId = queryStoreId || store?.id || '';
+  fastify.get('/mrn-balance', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+      const userStoreId = queryStoreId || user.storeId;
+      
+      // Get user's store
+      const userStore = await prisma.store.findUnique({
+        where: { id: user.storeId },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
 
     const grns = await prisma.gRN.findMany({
       where: {
@@ -668,11 +769,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
       orderBy: { receivedAt: 'desc' },
     });
 
-    const products = await prisma.product.findMany({
-      where: {
-        ownerStoreId: store?.id || '',
-        isActive: true,
-      },
+      const products = await prisma.product.findMany({
+        where: {
+          ownerStoreId: ownerStoreId || '',
+          isActive: true,
+        },
       include: {
         inventoryLedgers: {
           where: { storeId: userStoreId },
@@ -724,6 +825,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
       })),
       balanceConfirmation: balanceData,
     };
+    } catch (error: any) {
+      console.error('MRN balance report error:', error);
+      reply.code(500).send({ error: 'Failed to generate MRN balance report', details: error.message });
+    }
   });
 }
 
