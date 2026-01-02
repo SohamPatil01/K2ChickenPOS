@@ -144,7 +144,11 @@ export default function StoreCartPage() {
   };
 
   const createOrUpdateCustomer = async (phone: string, name: string) => {
-    if (!phone || phone.length < 6 || !name || name.trim().length === 0) {
+    // Validate phone number - must be at least 10 characters to match backend schema
+    if (!phone || phone.trim().length < 10 || !name || name.trim().length === 0) {
+      if (phone && phone.trim().length < 10) {
+        showNotification('Phone number must be at least 10 digits', 'warning');
+      }
       return;
     }
     try {
@@ -201,7 +205,7 @@ export default function StoreCartPage() {
   // Create/update customer when both name and phone are provided
   // Use a longer debounce to ensure full name is captured
   useEffect(() => {
-    if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+    if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
       if (!customerId) {
         const timeoutId = setTimeout(() => {
           // Get the latest values to ensure we save the complete name
@@ -450,16 +454,20 @@ export default function StoreCartPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Phone Number
+                  Phone Number <span className="text-xs text-gray-500">(min 10 digits)</span>
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="Tap to enter phone"
+                    placeholder="Tap to enter phone (10+ digits)"
                     value={tempCustomerPhone}
                     readOnly
                     onClick={() => setShowNumPad(true)}
-                    className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                    className={`w-full px-4 py-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer ${
+                      tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10
+                        ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
+                        : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
+                    }`}
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -467,6 +475,11 @@ export default function StoreCartPage() {
                     </svg>
                   </div>
                 </div>
+                {tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    Phone number must be at least 10 digits
+                  </p>
+                )}
               </div>
               
               <div className="relative">
@@ -504,7 +517,7 @@ export default function StoreCartPage() {
                     onBlur={() => {
                       setTimeout(() => setShowNameDropdown(false), 200);
                       // Save customer when user finishes typing (on blur)
-                      if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+                      if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
                         if (!customerId) {
                           createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
                         }
@@ -739,13 +752,13 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowNumPad(false);
-            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
               createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
             }
           }}
           onSubmit={() => {
             setShowNumPad(false);
-            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
               createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
             }
           }}
@@ -772,13 +785,13 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowKeyboard(false);
-            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
               createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
             }
           }}
           onSubmit={() => {
             setShowKeyboard(false);
-            if (tempCustomerPhone && tempCustomerPhone.length >= 6 && tempCustomerName && tempCustomerName.trim().length > 0) {
+            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
               createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
             }
           }}
