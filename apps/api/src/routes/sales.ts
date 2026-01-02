@@ -512,41 +512,52 @@ export async function saleRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/:id/void', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
-    const { id } = (request.params as any);
-    const storeId = (getUser(request) as any).storeId;
-    const userId = (getUser(request) as any).userId;
+    try {
+      const { id } = (request.params as any);
+      const { reason } = (request.body as any) || {};
+      const storeId = (getUser(request) as any).storeId;
+      const userId = (getUser(request) as any).userId;
 
-    const sale = await prisma.sale.findUnique({
-      where: { id },
-    });
+      const sale = await prisma.sale.findUnique({
+        where: { id },
+      });
 
-    if (!sale || sale.storeId !== storeId) {
-      reply.code(404).send({ error: 'Sale not found' });
-      return;
+      if (!sale || sale.storeId !== storeId) {
+        reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+
+      if (sale.status === 'VOID') {
+        reply.code(400).send({ error: 'Sale already voided' });
+        return;
+      }
+
+      if (sale.status !== 'PAID') {
+        reply.code(400).send({ error: 'Only paid sales can be voided' });
+        return;
+      }
+
+      const updatedSale = await prisma.sale.update({
+        where: { id },
+        data: { status: 'VOID' },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          storeId,
+          actorUserId: userId,
+          action: 'SALE_VOIDED',
+          entityType: 'Sale',
+          entityId: id,
+          metaJson: { reason: reason || 'No reason provided' },
+        },
+      });
+
+      return updatedSale;
+    } catch (error: any) {
+      console.error('Failed to void sale:', error);
+      reply.code(500).send({ error: 'Failed to void sale', details: error.message });
     }
-
-    if (sale.status === 'VOID') {
-      reply.code(400).send({ error: 'Sale already voided' });
-      return;
-    }
-
-    const updatedSale = await prisma.sale.update({
-      where: { id },
-      data: { status: 'VOID' },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        storeId,
-        actorUserId: userId,
-        action: 'SALE_VOIDED',
-        entityType: 'Sale',
-        entityId: id,
-        metaJson: { reason },
-      },
-    });
-
-    return updatedSale;
   });
 
   fastify.post('/:id/refund', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {

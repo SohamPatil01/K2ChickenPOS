@@ -14,9 +14,12 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
   const [displayValue, setDisplayValue] = useState(value);
   const [isShift, setIsShift] = useState(false);
 
-  // Sync with value prop when it changes
+  // Sync with value prop when it changes, but only if displayValue is empty or value is different
   useEffect(() => {
-    setDisplayValue(value);
+    // Only sync if the value prop has changed externally (not from our own updates)
+    if (value !== displayValue) {
+      setDisplayValue(value);
+    }
   }, [value]);
 
   const rows = [
@@ -28,6 +31,7 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
   const handleKeyClick = (key: string) => {
     const newValue = displayValue + (isShift ? key.toUpperCase() : key);
     setDisplayValue(newValue);
+    // Call onChange with the new value immediately
     onChange(newValue);
     setIsShift(false);
   };
@@ -49,11 +53,29 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
     onChange('');
   };
 
-  const handleSubmit = () => {
-    if (onSubmit) {
-      onSubmit();
+  const handleClose = () => {
+    // Always sync the current displayValue before closing
+    if (displayValue !== value) {
+      onChange(displayValue);
     }
-    onClose();
+    // Small delay to ensure onChange has been processed by parent
+    setTimeout(() => {
+      onClose();
+    }, 100);
+  };
+
+  const handleSubmit = () => {
+    // Ensure onChange is called with the final value before submitting
+    if (displayValue !== value) {
+      onChange(displayValue);
+    }
+    // Small delay to ensure onChange has been processed by parent
+    setTimeout(() => {
+      if (onSubmit) {
+        onSubmit();
+      }
+      onClose();
+    }, 100);
   };
 
   return (
@@ -63,7 +85,7 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Enter Name</h3>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             aria-label="Close"
           >
@@ -134,7 +156,7 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
                 Clear
               </button>
               <button
-                onClick={onClose}
+                onClick={handleClose}
                 className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-target"
               >
                 Cancel

@@ -218,17 +218,20 @@ export default function StoreCartPage() {
 
   // Create/update customer when both name and phone are provided
   // Use a longer debounce to ensure full name is captured
+  // Only save when user stops typing for 2 seconds
   useEffect(() => {
     if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
       if (!customerId) {
         const timeoutId = setTimeout(() => {
-          // Get the latest values to ensure we save the complete name
-          const latestName = tempCustomerName.trim();
-          const latestPhone = tempCustomerPhone;
-          if (latestName.length > 0 && latestPhone.length >= 6) {
+          // Get the latest values directly from state to ensure we save the complete name
+          const currentState = useCartStore.getState();
+          const latestName = (currentState.customerName || tempCustomerName).trim();
+          const latestPhone = tempCustomerPhone.trim();
+          if (latestName.length > 0 && latestPhone.length >= 10) {
+            console.log('Debounced save - Name:', latestName, 'Length:', latestName.length);
             createOrUpdateCustomer(latestPhone, latestName);
           }
-        }, 1500); // Increased debounce to 1.5 seconds to ensure full name is captured
+        }, 2000); // Increased debounce to 2 seconds to ensure full name is captured
         return () => clearTimeout(timeoutId);
       }
     }
@@ -530,12 +533,17 @@ export default function StoreCartPage() {
                     }}
                     onBlur={() => {
                       setTimeout(() => setShowNameDropdown(false), 200);
-                      // Save customer when user finishes typing (on blur)
-                      if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
-                        if (!customerId) {
-                          createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
+                      // Save customer when user finishes typing (on blur) - use a small delay to ensure value is updated
+                      setTimeout(() => {
+                        const currentName = tempCustomerName.trim();
+                        const currentPhone = tempCustomerPhone.trim();
+                        if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
+                          if (!customerId) {
+                            console.log('onBlur save - Name:', currentName, 'Length:', currentName.length);
+                            createOrUpdateCustomer(currentPhone, currentName);
+                          }
                         }
-                      }
+                      }, 100);
                     }}
                     className="w-full px-4 py-3 pr-24 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
@@ -799,15 +807,31 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowKeyboard(false);
-            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
-              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
-            }
+            // Use a small delay to ensure state is updated with the latest value from VirtualKeyboard
+            setTimeout(() => {
+              // Get the latest value from the cart store to ensure we have the complete name
+              const currentState = useCartStore.getState();
+              const currentName = (currentState.customerName || tempCustomerName || '').trim();
+              const currentPhone = tempCustomerPhone.trim();
+              if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
+                console.log('VirtualKeyboard onClose save - Name:', currentName, 'Length:', currentName.length);
+                createOrUpdateCustomer(currentPhone, currentName);
+              }
+            }, 150);
           }}
           onSubmit={() => {
             setShowKeyboard(false);
-            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
-              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
-            }
+            // Use a small delay to ensure state is updated with the latest value from VirtualKeyboard
+            setTimeout(() => {
+              // Get the latest value from the cart store to ensure we have the complete name
+              const currentState = useCartStore.getState();
+              const currentName = (currentState.customerName || tempCustomerName || '').trim();
+              const currentPhone = tempCustomerPhone.trim();
+              if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
+                console.log('VirtualKeyboard onSubmit save - Name:', currentName, 'Length:', currentName.length);
+                createOrUpdateCustomer(currentPhone, currentName);
+              }
+            }, 150);
           }}
           placeholder="Enter customer name"
         />

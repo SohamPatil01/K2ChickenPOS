@@ -21,6 +21,13 @@ interface DashboardStats {
     revenue: number;
     weightKg: number;
   };
+  paymentBreakdown: {
+    cash: number;
+    upi: number;
+    card: number;
+    other: number;
+    total: number;
+  };
   todayStock: {
     openingStock: number;
     receivedStock: number;
@@ -102,6 +109,32 @@ export default function StoreDashboardPage() {
       const todaySales = salesRes.data || [];
       const paidSales = todaySales.filter((s: any) => s.status === 'PAID');
 
+      // Calculate payment breakdown by method
+      const paymentBreakdown = {
+        cash: 0,
+        upi: 0,
+        card: 0,
+        other: 0,
+      };
+
+      paidSales.forEach((sale: any) => {
+        (sale.payments || []).forEach((payment: any) => {
+          const method = (payment.method || '').toUpperCase();
+          const amount = payment.amount || 0;
+          if (method === 'CASH') {
+            paymentBreakdown.cash += amount;
+          } else if (method === 'UPI') {
+            paymentBreakdown.upi += amount;
+          } else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+            paymentBreakdown.card += amount;
+          } else {
+            paymentBreakdown.other += amount;
+          }
+        });
+      });
+
+      const totalPayments = paymentBreakdown.cash + paymentBreakdown.upi + paymentBreakdown.card + paymentBreakdown.other;
+
       // Calculate stats
       const todayRevenue = paidSales.reduce((sum: number, s: any) => sum + s.grandTotal, 0);
       const todayWeight = paidSales.reduce((sum: number, s: any) => {
@@ -171,6 +204,13 @@ export default function StoreDashboardPage() {
           count: paidSales.length,
           revenue: todayRevenue,
           weightKg: todayWeight,
+        },
+        paymentBreakdown: {
+          cash: paymentBreakdown.cash,
+          upi: paymentBreakdown.upi,
+          card: paymentBreakdown.card,
+          other: paymentBreakdown.other,
+          total: totalPayments,
         },
         todayStock: {
           openingStock: 0, // Would need to track this
@@ -266,6 +306,49 @@ export default function StoreDashboardPage() {
           subtitle={`${stats.month.count} total sales`}
           icon="📈"
         />
+      </div>
+
+      {/* Payment Breakdown Box */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-5 lg:p-6 mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white mb-4">Today's Payment Breakdown</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 sm:p-4 border border-green-200 dark:border-green-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs sm:text-sm font-medium text-green-700 dark:text-green-400">Cash</span>
+              <span className="text-lg sm:text-xl">💵</span>
+            </div>
+            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-900 dark:text-green-300">
+              ₹{Math.round(stats.paymentBreakdown.cash).toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-400">UPI</span>
+              <span className="text-lg sm:text-xl">📱</span>
+            </div>
+            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900 dark:text-blue-300">
+              ₹{Math.round(stats.paymentBreakdown.upi).toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 sm:p-4 border border-purple-200 dark:border-purple-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs sm:text-sm font-medium text-purple-700 dark:text-purple-400">Card</span>
+              <span className="text-lg sm:text-xl">💳</span>
+            </div>
+            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900 dark:text-purple-300">
+              ₹{Math.round(stats.paymentBreakdown.card).toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-brand-50 dark:bg-brand-900/20 rounded-lg p-3 sm:p-4 border border-brand-200 dark:border-brand-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs sm:text-sm font-medium text-brand-700 dark:text-brand-400">Total</span>
+              <span className="text-lg sm:text-xl">💰</span>
+            </div>
+            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-brand-900 dark:text-brand-300">
+              ₹{Math.round(stats.paymentBreakdown.total).toLocaleString()}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">

@@ -73,6 +73,10 @@ export default function OrdersPage() {
   });
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellingSale, setCancellingSale] = useState<Sale | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (user === undefined) return;
@@ -252,6 +256,45 @@ export default function OrdersPage() {
     }
   };
 
+  const handleCancelBill = (sale: Sale) => {
+    if (sale.status === 'VOID') {
+      showNotification('This bill is already cancelled', 'warning');
+      return;
+    }
+    if (sale.status !== 'PAID') {
+      showNotification('Only paid bills can be cancelled', 'warning');
+      return;
+    }
+    setCancellingSale(sale);
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancellingSale) return;
+
+    setCancelling(true);
+    try {
+      await api.post(`/api/v1/sales/${cancellingSale.id}/void`, {
+        reason: cancelReason || 'Cancelled by owner',
+      });
+
+      showNotification('Bill cancelled successfully', 'success');
+      setShowCancelModal(false);
+      setCancellingSale(null);
+      setCancelReason('');
+      loadSales();
+    } catch (error: any) {
+      console.error('Failed to cancel bill:', error);
+      showNotification(
+        error.response?.data?.error || 'Failed to cancel bill',
+        'error'
+      );
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -336,10 +379,12 @@ export default function OrdersPage() {
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                                 : sale.status === 'OPEN'
                                 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                : sale.status === 'VOID'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
                                 : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                             }`}
                           >
-                            {sale.status}
+                            {sale.status === 'VOID' ? 'CANCELLED' : sale.status}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
@@ -369,15 +414,28 @@ export default function OrdersPage() {
                         >
                           View Details
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditModal(sale);
-                          }}
-                          className="px-3 sm:px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm transition-colors touch-target font-medium"
-                        >
-                          Edit
-                        </button>
+                        {sale.status === 'PAID' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(sale);
+                            }}
+                            className="px-3 sm:px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm transition-colors touch-target font-medium"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {sale.status === 'PAID' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelBill(sale);
+                            }}
+                            className="px-3 sm:px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm transition-colors touch-target font-medium"
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -766,6 +824,54 @@ export default function OrdersPage() {
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Bill Modal */}
+      {showCancelModal && cancellingSale && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md animate-fade-in-up border border-gray-200/50 dark:border-gray-700/50">
+            <div className="p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
+                Cancel Bill - {cancellingSale.saleNo}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Are you sure you want to cancel this bill? This action cannot be undone.
+              </p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Reason (Optional)
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Enter reason for cancellation..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md resize-none"
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowCancelModal(false);
+                    setCancellingSale(null);
+                    setCancelReason('');
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
+                  disabled={cancelling}
+                >
+                  No, Keep Bill
+                </button>
+                <button
+                  onClick={confirmCancel}
+                  className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={cancelling}
+                >
+                  {cancelling ? 'Cancelling...' : 'Yes, Cancel Bill'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
