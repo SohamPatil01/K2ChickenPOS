@@ -103,9 +103,28 @@ async function preparePackages() {
     throw new Error('shared/dist does not exist');
   }
   
-  // Copy package.json
+  // Copy package.json and update it to point to dist instead of src
   if (existsSync(join(sharedSource, 'package.json'))) {
-    await copyRecursive(join(sharedSource, 'package.json'), join(sharedTarget, 'package.json'));
+    const { readFile, writeFile } = await import('fs/promises');
+    const packageJsonPath = join(sharedSource, 'package.json');
+    const targetPackageJsonPath = join(sharedTarget, 'package.json');
+    
+    const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
+    
+    // Update package.json to point to dist for production
+    packageJson.main = './dist/index.js';
+    packageJson.types = './dist/index.d.ts';
+    packageJson.exports = {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    };
+    
+    await writeFile(targetPackageJsonPath, JSON.stringify(packageJson, null, 2));
+    console.log('✓ Updated shared package.json to point to dist');
   }
 
   console.log('✓ Workspace packages prepared for Vercel');
