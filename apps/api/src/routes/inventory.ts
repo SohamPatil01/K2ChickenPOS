@@ -57,20 +57,17 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       // Also verify we can query ledger entries directly
       const allLedgers = await prisma.inventoryLedger.findMany({
         where: { storeId },
-        take: 5, // Just get a few for verification
+        orderBy: { createdAt: 'desc' },
+        take: 10, // Get more for verification
       });
-      console.log(`[Inventory Summary] Direct ledger query for store ${storeId}: Found ${allLedgers.length} entries (showing first 5)`);
+      console.log(`[Inventory Summary] Direct ledger query for store ${storeId}: Found ${allLedgers.length} total entries`);
       if (allLedgers.length > 0) {
-        console.log(`[Inventory Summary] Sample ledger entry:`, {
-          id: allLedgers[0].id,
-          storeId: allLedgers[0].storeId,
-          productId: allLedgers[0].productId,
-          type: allLedgers[0].type,
-          qtyKg: allLedgers[0].qtyKg,
-          qtyPcs: allLedgers[0].qtyPcs,
-          reason: allLedgers[0].reason,
-          createdAt: allLedgers[0].createdAt,
+        console.log(`[Inventory Summary] Recent ledger entries (last 10):`);
+        allLedgers.forEach((ledger, idx) => {
+          console.log(`[Inventory Summary]   ${idx + 1}. Product: ${ledger.productId}, Type: ${ledger.type}, QtyKg: ${ledger.qtyKg}, QtyPcs: ${ledger.qtyPcs}, Reason: ${ledger.reason}, Created: ${ledger.createdAt}`);
         });
+      } else {
+        console.log(`[Inventory Summary] ⚠️ No ledger entries found for store ${storeId}!`);
       }
 
       const summary = products.map((product: any) => {
@@ -79,7 +76,18 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
 
         console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries for store ${storeId}`);
 
+        // Log each ledger entry for debugging
+        product.inventoryLedgers.forEach((ledger: any, index: number) => {
+          console.log(`[Inventory Summary]   Ledger ${index + 1}: type=${ledger.type}, qtyKg=${ledger.qtyKg}, qtyPcs=${ledger.qtyPcs}, reason=${ledger.reason}, storeId=${ledger.storeId}`);
+        });
+
         for (const ledger of product.inventoryLedgers) {
+          // Verify the ledger belongs to the correct store
+          if (ledger.storeId !== storeId) {
+            console.warn(`[Inventory Summary] ⚠️ Ledger entry ${ledger.id} has storeId ${ledger.storeId} but expected ${storeId}`);
+            continue; // Skip entries that don't match
+          }
+          
           if (ledger.type === 'IN') {
             totalQtyKg += ledger.qtyKg || 0;
             totalQtyPcs += ledger.qtyPcs || 0;
@@ -149,10 +157,22 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // Ensure at least one quantity is provided
+      if (!data.qtyKg && !data.qtyPcs) {
+        reply.code(400).send({ error: 'Either qtyKg or qtyPcs must be provided' });
+        return;
+      }
+
       const type = qty > 0 ? 'IN' : 'OUT';
       // Store absolute values in ledger
-      const absQtyKg = data.qtyKg ? Math.abs(data.qtyKg) : undefined;
-      const absQtyPcs = data.qtyPcs ? Math.abs(data.qtyPcs) : undefined;
+      const absQtyKg = data.qtyKg !== undefined && data.qtyKg !== null ? Math.abs(data.qtyKg) : undefined;
+      const absQtyPcs = data.qtyPcs !== undefined && data.qtyPcs !== null ? Math.abs(data.qtyPcs) : undefined;
+      
+      // Ensure at least one quantity will be stored
+      if (absQtyKg === undefined && absQtyPcs === undefined) {
+        reply.code(400).send({ error: 'At least one quantity (qtyKg or qtyPcs) must be provided' });
+        return;
+      }
 
       // Validate reason enum value
       const validReasons = ['SALE', 'RECEIVE', 'WASTAGE', 'ADJUSTMENT', 'TRANSFER', 'CORRECTION', 'DAMAGE', 'OTHER', 'OPENING', 'RETURN', 'YIELD'];
@@ -207,16 +227,23 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         createdAt: ledger.createdAt,
       });
 
-      await prisma.auditLog.create({
-        data: {
-          storeId,
-          actorUserId: userId,
-          action: 'INVENTORY_ADJUSTED',
-          entityType: 'InventoryLedger',
-          entityId: ledger.id,
-          metaJson: { ...data, adjustmentType: type },
-        },
-      });
+      // Create audit log (non-blocking - don't fail if this fails)
+      try {
+        await prisma.auditLog.create({
+          data: {
+            storeId,
+            actorUserId: userId,
+            action: 'INVENTORY_ADJUSTED',
+            entityType: 'InventoryLedger',
+            entityId: ledger.id,
+            metaJson: { ...data, adjustmentType: type },
+          },
+        });
+        console.log(`[Inventory Adjust] ✅ Audit log created`);
+      } catch (auditError: any) {
+        console.error(`[Inventory Adjust] ⚠️ Failed to create audit log (non-critical):`, auditError);
+        // Continue even if audit log creation fails
+      }
 
       // Verify the entry was created by querying it back
       const verifyLedger = await prisma.inventoryLedger.findUnique({
@@ -226,18 +253,32 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
 
       return ledger;
     } catch (error: any) {
-      console.error('Inventory adjustment error:', error);
+      console.error('[Inventory Adjust] ❌ Error:', error);
+      console.error('[Inventory Adjust] Error name:', error.name);
+      console.error('[Inventory Adjust] Error message:', error.message);
+      console.error('[Inventory Adjust] Error code:', error.code);
+      console.error('[Inventory Adjust] Error stack:', error.stack);
+      
       if (error.name === 'ZodError') {
         reply.code(400).send({ error: 'Invalid input data', details: error.errors });
         return;
       }
-      if (error.message === 'User not authenticated') {
+      if (error.message === 'User not authenticated' || error.message?.includes('authenticated')) {
         reply.code(401).send({ error: 'User not authenticated' });
+        return;
+      }
+      if (error.code === 'P2002') {
+        reply.code(400).send({ error: 'Duplicate entry', details: error.meta });
+        return;
+      }
+      if (error.code === 'P2003') {
+        reply.code(400).send({ error: 'Foreign key constraint failed', details: error.meta });
         return;
       }
       reply.code(500).send({ 
         error: 'Failed to adjust inventory',
-        details: error.message || 'Unknown error'
+        details: error.message || 'Unknown error',
+        code: error.code || 'UNKNOWN'
       });
     }
   });

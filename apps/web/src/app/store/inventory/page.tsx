@@ -275,6 +275,13 @@ export default function StoreInventoryPage() {
           currentQtyPcs: sample.currentQtyPcs,
           unitType: sample.unitType,
         });
+        
+        // Log all items with their stock values
+        response.data.forEach((item: any) => {
+          console.log(`[Frontend] ${item.productName}: ${item.unitType === 'KG' ? `${item.currentQtyKg} kg` : `${item.currentQtyPcs} pcs`}`);
+        });
+      } else {
+        console.log('[Frontend] No inventory items returned from API');
       }
       
       // Set inventory data
@@ -470,7 +477,9 @@ export default function StoreInventoryPage() {
         });
       }
     } catch (error: any) {
-      console.error('Edit stock error:', error);
+      console.error('[Frontend] Edit stock error:', error);
+      console.error('[Frontend] Error response:', error.response);
+      console.error('[Frontend] Error response data:', error.response?.data);
       const errorMessage =
         error.response?.data?.error ||
         error.response?.data?.details ||
