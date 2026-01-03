@@ -295,6 +295,46 @@ export default function OrdersPage() {
     }
   };
 
+  const handleCompleteOrder = async (sale: Sale) => {
+    if (sale.status !== 'OPEN') {
+      showNotification('Only open orders can be completed', 'warning');
+      return;
+    }
+
+    try {
+      // Check if there are existing payments (credit payments)
+      const existingPayments = sale.payments || [];
+      const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+      const remainingAmount = Math.round(sale.grandTotal - totalPaid);
+
+      // Complete the order by adding a CASH payment
+      // If already fully paid via credit, add a CASH payment for the grand total to mark as PAID
+      // If partially paid, add payment for remaining amount
+      const paymentAmount = remainingAmount <= 0 ? Math.round(sale.grandTotal) : remainingAmount;
+      
+      await api.post(`/api/v1/sales/${sale.id}/pay`, {
+        payments: [
+          {
+            method: 'CASH',
+            amount: paymentAmount,
+          },
+        ],
+      });
+
+      showNotification('Order completed successfully', 'success');
+      loadSales();
+      if (selectedSale?.id === sale.id) {
+        setSelectedSale(null);
+      }
+    } catch (error: any) {
+      console.error('Failed to complete order:', error);
+      showNotification(
+        error.response?.data?.error || 'Failed to complete order',
+        'error'
+      );
+    }
+  };
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -423,6 +463,17 @@ export default function OrdersPage() {
                             className="px-3 sm:px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm transition-colors touch-target font-medium"
                           >
                             Edit
+                          </button>
+                        )}
+                        {sale.status === 'OPEN' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCompleteOrder(sale);
+                            }}
+                            className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm transition-colors touch-target font-medium"
+                          >
+                            Complete Order
                           </button>
                         )}
                         {sale.status === 'PAID' && (
@@ -597,15 +648,28 @@ export default function OrdersPage() {
               )}
             </div>
             <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex gap-2 sm:gap-3 sticky bottom-0">
-              <button
-                onClick={() => {
-                  setSelectedSale(null);
-                  openEditModal(selectedSale);
-                }}
-                className="flex-1 px-4 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg font-semibold hover:bg-brand-600 transition-all touch-target"
-              >
-                Edit Order
-              </button>
+              {selectedSale.status === 'OPEN' && (
+                <button
+                  onClick={() => {
+                    handleCompleteOrder(selectedSale);
+                    setSelectedSale(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 sm:py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all touch-target"
+                >
+                  Complete Order
+                </button>
+              )}
+              {selectedSale.status === 'PAID' && (
+                <button
+                  onClick={() => {
+                    setSelectedSale(null);
+                    openEditModal(selectedSale);
+                  }}
+                  className="flex-1 px-4 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg font-semibold hover:bg-brand-600 transition-all touch-target"
+                >
+                  Edit Order
+                </button>
+              )}
               <button
                 onClick={() => setSelectedSale(null)}
                 className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"

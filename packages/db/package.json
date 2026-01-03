@@ -21,7 +21,8 @@
     "delete-all-sales": "tsx prisma/delete-all-sales.ts",
     "reset-inventory": "tsx prisma/reset-inventory-to-zero.ts",
     "add-product-images": "tsx prisma/add-product-images.ts",
-    "fetch-images-from-live": "tsx prisma/fetch-images-from-live.ts"
+    "fetch-images-from-live": "tsx prisma/fetch-images-from-live.ts",
+    "fix-inventory-enum": "tsx prisma/fix-inventory-reason-enum.ts"
   },
   "prisma": {
     "schema": "./prisma/schema.prisma"

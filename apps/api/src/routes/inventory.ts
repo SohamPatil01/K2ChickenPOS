@@ -222,6 +222,23 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // Check if the reason exists in the database enum
+      // If CORRECTION or other new values don't exist, fallback to ADJUSTMENT
+      const dbEnumCheck = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
+        SELECT enumlabel 
+        FROM pg_enum 
+        WHERE enumtypid = (
+          SELECT oid 
+          FROM pg_type 
+          WHERE typname = 'InventoryReason'
+        ) AND enumlabel = ${reason};
+      `;
+      
+      const dbReason = dbEnumCheck.length > 0 ? reason : 'ADJUSTMENT';
+      if (dbReason !== reason) {
+        console.warn(`[Inventory Adjust] Reason ${reason} not found in database enum, using ${dbReason} instead`);
+      }
+
       // Verify product exists
       const product = await prisma.product.findUnique({
         where: { id: data.productId },
@@ -238,7 +255,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         type,
         qtyKg: absQtyKg,
         qtyPcs: absQtyPcs,
-        reason,
+        reason: dbReason,
+        originalReason: reason,
       });
 
       const ledger = await prisma.inventoryLedger.create({
@@ -248,7 +266,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           type,
           qtyKg: absQtyKg,
           qtyPcs: absQtyPcs,
-          reason: reason as any,
+          reason: dbReason as any,
         },
       });
 
