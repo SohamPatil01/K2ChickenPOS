@@ -203,12 +203,21 @@ export default function StoreInventoryPage() {
     try {
       // Add each item to inventory
       for (const item of stockItems) {
-        await api.post('/api/v1/inventory/adjust', {
+        const requestData: any = {
           productId: item.productId,
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
           reason: item.reason,
-        });
+        };
+        
+        // Only include the quantity field that is provided
+        if (item.qtyKg !== undefined && item.qtyKg !== null) {
+          requestData.qtyKg = item.qtyKg;
+        }
+        if (item.qtyPcs !== undefined && item.qtyPcs !== null) {
+          // Ensure qtyPcs is an integer
+          requestData.qtyPcs = Math.round(item.qtyPcs);
+        }
+        
+        await api.post('/api/v1/inventory/adjust', requestData);
       }
 
       showNotification(`Successfully added ${stockItems.length} item(s) to inventory!`, 'success');
@@ -322,12 +331,20 @@ export default function StoreInventoryPage() {
     }
 
     try {
-      const response = await api.post('/api/v1/inventory/adjust', {
+      const requestData: any = {
         productId: selectedProduct.productId,
-        qtyKg: selectedProduct.unitType === 'KG' ? qtyKg : undefined,
-        qtyPcs: selectedProduct.unitType === 'PCS' ? qtyPcs : undefined,
         reason: adjustForm.reason || 'ADJUSTMENT',
-      });
+      };
+      
+      // Only include the quantity field that matches the unit type
+      if (selectedProduct.unitType === 'KG') {
+        requestData.qtyKg = qtyKg;
+      } else {
+        // Ensure qtyPcs is an integer
+        requestData.qtyPcs = Math.round(qtyPcs);
+      }
+      
+      const response = await api.post('/api/v1/inventory/adjust', requestData);
       
       if (response.data) {
         showNotification('Inventory adjusted successfully!', 'success');
@@ -399,12 +416,20 @@ export default function StoreInventoryPage() {
       }
 
       // Use the adjust API with the calculated difference
-      const response = await api.post('/api/v1/inventory/adjust', {
+      const requestData: any = {
         productId: editStockProduct.productId,
-        qtyKg: editStockProduct.unitType === 'KG' ? adjustment : undefined,
-        qtyPcs: editStockProduct.unitType === 'PCS' ? adjustment : undefined,
         reason: editStockForm.reason || 'CORRECTION',
-      });
+      };
+      
+      // Only include the quantity field that matches the unit type
+      if (editStockProduct.unitType === 'KG') {
+        requestData.qtyKg = adjustment;
+      } else {
+        // Ensure qtyPcs is an integer
+        requestData.qtyPcs = Math.round(adjustment);
+      }
+      
+      const response = await api.post('/api/v1/inventory/adjust', requestData);
       
       if (response.data) {
         showNotification('Stock updated successfully!', 'success');

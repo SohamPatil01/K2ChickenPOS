@@ -96,7 +96,22 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
 
   fastify.post('/adjust', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const data = inventoryAdjustSchema.parse(request.body as any);
+      const body = request.body as any;
+      
+      // Prepare data for validation - ensure qtyPcs is integer if provided
+      const validationData: any = {
+        productId: body.productId,
+        reason: body.reason || 'ADJUSTMENT',
+      };
+      
+      if (body.qtyKg !== undefined && body.qtyKg !== null) {
+        validationData.qtyKg = parseFloat(body.qtyKg);
+      }
+      if (body.qtyPcs !== undefined && body.qtyPcs !== null) {
+        validationData.qtyPcs = Math.round(parseFloat(body.qtyPcs));
+      }
+      
+      const data = inventoryAdjustSchema.parse(validationData);
       const user = getUser(request);
       const storeId = user.storeId;
       const userId = user.userId;
