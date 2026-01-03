@@ -11,85 +11,93 @@ interface QueryParams {
 export async function productRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
-    const { search, categoryId } = (request.query as any);
-    
-    // Try to get user's store, fallback to first store if not authenticated
-    let store;
-    let storeId = '';
-    
     try {
-      const user = getUser(request);
-      store = await prisma.store.findUnique({ where: { id: user.storeId } });
-      storeId = user.storeId;
-    } catch {
-      // Not authenticated, use first store as fallback
-      store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-      storeId = store?.id || '';
-    }
+      const { search, categoryId } = (request.query as any);
+      
+      // Try to get user's store, fallback to first store if not authenticated
+      let store;
+      let storeId = '';
+      
+      try {
+        const user = getUser(request);
+        store = await prisma.store.findUnique({ where: { id: user.storeId } });
+        storeId = user.storeId;
+      } catch (error) {
+        // Not authenticated, use first store as fallback
+        console.log('User not authenticated, using fallback store');
+        store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+        storeId = store?.id || '';
+      }
 
-    if (!store) {
-      reply.code(404).send({ error: 'Store not found' });
-      return;
-    }
+      if (!store) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
-    const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
-    if (!ownerStoreId) {
-      reply.code(400).send({ error: 'Owner store not found' });
-      return;
-    }
+      const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store not found' });
+        return;
+      }
 
-    const where: any = {
-      ownerStoreId,
-      isActive: true,
-    };
+      const where: any = {
+        ownerStoreId,
+        isActive: true,
+      };
 
-    if (categoryId) {
-      where.categoryId = categoryId;
-    }
+      if (categoryId) {
+        where.categoryId = categoryId;
+      }
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-        { plu: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { sku: { contains: search, mode: 'insensitive' } },
+          { plu: { contains: search, mode: 'insensitive' } },
+        ];
+      }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        category: true,
-        storeProductPrices: {
-          where: {
-            storeId,
-            isActive: true,
+      const products = await prisma.product.findMany({
+        where,
+        include: {
+          category: true,
+          storeProductPrices: {
+            where: storeId ? {
+              storeId,
+              isActive: true,
+            } : {
+              isActive: true,
+            },
+            orderBy: {
+              effectiveFrom: 'desc',
+            },
+            take: 1,
           },
-          orderBy: {
-            effectiveFrom: 'desc',
-          },
-          take: 1,
         },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+        orderBy: {
+          name: 'asc',
+        },
+      });
 
-    const result = products.map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      plu: p.plu,
-      categoryId: p.categoryId,
-      categoryName: p.category?.name || '',
-      unitType: p.unitType,
-      taxRate: p.taxRate,
-      pricePerUnit: p.storeProductPrices[0]?.pricePerUnit || 0,
-      imageUrl: p.imageUrl,
-      isActive: p.isActive,
-    }));
+      const result = products.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        plu: p.plu,
+        categoryId: p.categoryId,
+        categoryName: p.category?.name || '',
+        unitType: p.unitType,
+        taxRate: p.taxRate,
+        pricePerUnit: p.storeProductPrices[0]?.pricePerUnit || 0,
+        imageUrl: p.imageUrl,
+        isActive: p.isActive,
+      }));
 
-    return result;
+      return result;
+    } catch (error: any) {
+      console.error('Failed to get products:', error);
+      reply.code(500).send({ error: 'Failed to get products', details: error.message });
+    }
   });
 
   fastify.get('/:id', async (request: any, reply: FastifyReply) => {
