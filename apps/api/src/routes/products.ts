@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
-import { getUser } from '../utils/auth.js';
+import { getUser, requireRole } from '../utils/auth.js';
 
 interface QueryParams {
   search?: string;
@@ -170,23 +170,32 @@ export async function productRoutes(fastify: FastifyInstance) {
   });
 
   // Product CRUD routes
-  fastify.post('/', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-
-    if (!store) {
-      reply.code(404).send({ error: 'Store not found' });
-      return;
-    }
-
-    const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
-    if (!ownerStoreId) {
-      reply.code(400).send({ error: 'Owner store not found' });
-      return;
-    }
-
+  fastify.post('/', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     try {
+      const body = request.body as any;
+      const { sku, plu, name, categoryId, unitType, taxRate, imageUrl } = body;
+      
+      // Validate required fields
+      if (!sku || !plu || !name || !categoryId || !unitType) {
+        reply.code(400).send({ error: 'Missing required fields: sku, plu, name, categoryId, unitType are required' });
+        return;
+      }
+
+      // Get user's store
+      const user = getUser(request);
+      const userStore = await prisma.store.findUnique({ where: { id: user.storeId } });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store not found' });
+        return;
+      }
+
       const product = await prisma.product.create({
         data: {
           ownerStoreId,
@@ -203,11 +212,12 @@ export async function productRoutes(fastify: FastifyInstance) {
 
       return product;
     } catch (error: any) {
+      console.error('Failed to create product:', error);
       if (error.code === 'P2002') {
         reply.code(400).send({ error: 'SKU or PLU already exists' });
         return;
       }
-      reply.code(500).send({ error: 'Failed to create product' });
+      reply.code(500).send({ error: 'Failed to create product', details: error.message });
     }
   });
 

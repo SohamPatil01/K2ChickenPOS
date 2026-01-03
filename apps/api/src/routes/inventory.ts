@@ -7,6 +7,42 @@ import { getUser } from '../utils/auth.js';
 
 export async function inventoryRoutes(fastify: FastifyInstance) {
 
+  // Diagnostic endpoint to check ledger entries
+  fastify.get('/debug', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = getUser(request as any);
+      const storeId = user.storeId;
+      
+      const allLedgers = await prisma.inventoryLedger.findMany({
+        where: { storeId },
+        include: {
+          product: {
+            select: { id: true, name: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      });
+      
+      return {
+        storeId,
+        totalLedgerEntries: allLedgers.length,
+        recentEntries: allLedgers.map(l => ({
+          id: l.id,
+          productId: l.productId,
+          productName: l.product?.name,
+          type: l.type,
+          qtyKg: l.qtyKg,
+          qtyPcs: l.qtyPcs,
+          reason: l.reason,
+          createdAt: l.createdAt,
+        })),
+      };
+    } catch (error: any) {
+      reply.code(500).send({ error: 'Failed to get debug info', details: error.message });
+    }
+  });
+
   fastify.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       // Try to get user's store, fallback to first store if not authenticated
@@ -250,6 +286,15 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         where: { id: ledger.id },
       });
       console.log(`[Inventory Adjust] Verification: Ledger entry exists:`, verifyLedger ? 'YES' : 'NO');
+      
+      // Also verify it can be queried by storeId and productId
+      const verifyQuery = await prisma.inventoryLedger.findMany({
+        where: {
+          storeId: ledger.storeId,
+          productId: ledger.productId,
+        },
+      });
+      console.log(`[Inventory Adjust] Verification query: Found ${verifyQuery.length} total ledger entries for product ${ledger.productId} in store ${ledger.storeId}`);
 
       return ledger;
     } catch (error: any) {

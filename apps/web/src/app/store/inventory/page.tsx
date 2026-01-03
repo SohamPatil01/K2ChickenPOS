@@ -280,6 +280,19 @@ export default function StoreInventoryPage() {
         response.data.forEach((item: any) => {
           console.log(`[Frontend] ${item.productName}: ${item.unitType === 'KG' ? `${item.currentQtyKg} kg` : `${item.currentQtyPcs} pcs`}`);
         });
+        
+        // Also call debug endpoint to check ledger entries
+        try {
+          const debugResponse = await api.get('/api/v1/inventory/debug');
+          console.log('[Frontend] Debug endpoint response:', debugResponse.data);
+          if (debugResponse.data.totalLedgerEntries === 0) {
+            console.warn('[Frontend] ⚠️ No ledger entries found for this store!');
+          } else {
+            console.log(`[Frontend] Found ${debugResponse.data.totalLedgerEntries} ledger entries for store ${debugResponse.data.storeId}`);
+          }
+        } catch (debugError) {
+          console.error('[Frontend] Failed to call debug endpoint:', debugError);
+        }
       } else {
         console.log('[Frontend] No inventory items returned from API');
       }
