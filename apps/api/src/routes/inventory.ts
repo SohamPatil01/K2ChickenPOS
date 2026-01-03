@@ -54,6 +54,25 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
 
       console.log(`[Inventory Summary] Found ${products.length} products for store ${storeId}`);
 
+      // Also verify we can query ledger entries directly
+      const allLedgers = await prisma.inventoryLedger.findMany({
+        where: { storeId },
+        take: 5, // Just get a few for verification
+      });
+      console.log(`[Inventory Summary] Direct ledger query for store ${storeId}: Found ${allLedgers.length} entries (showing first 5)`);
+      if (allLedgers.length > 0) {
+        console.log(`[Inventory Summary] Sample ledger entry:`, {
+          id: allLedgers[0].id,
+          storeId: allLedgers[0].storeId,
+          productId: allLedgers[0].productId,
+          type: allLedgers[0].type,
+          qtyKg: allLedgers[0].qtyKg,
+          qtyPcs: allLedgers[0].qtyPcs,
+          reason: allLedgers[0].reason,
+          createdAt: allLedgers[0].createdAt,
+        });
+      }
+
       const summary = products.map((product: any) => {
         let totalQtyKg = 0;
         let totalQtyPcs = 0;
@@ -73,6 +92,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         // Ensure quantities are non-negative
         totalQtyKg = Math.max(0, totalQtyKg);
         totalQtyPcs = Math.max(0, totalQtyPcs);
+        
+        console.log(`[Inventory Summary] Product ${product.name} calculated totals: ${totalQtyKg} kg, ${totalQtyPcs} pcs`);
 
         return {
           productId: product.id,
@@ -155,6 +176,15 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      console.log(`[Inventory Adjust] Creating ledger entry:`, {
+        storeId,
+        productId: data.productId,
+        type,
+        qtyKg: absQtyKg,
+        qtyPcs: absQtyPcs,
+        reason,
+      });
+
       const ledger = await prisma.inventoryLedger.create({
         data: {
           storeId,
@@ -164,6 +194,17 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           qtyPcs: absQtyPcs,
           reason: reason as any,
         },
+      });
+
+      console.log(`[Inventory Adjust] ✅ Ledger entry created:`, {
+        id: ledger.id,
+        storeId: ledger.storeId,
+        productId: ledger.productId,
+        type: ledger.type,
+        qtyKg: ledger.qtyKg,
+        qtyPcs: ledger.qtyPcs,
+        reason: ledger.reason,
+        createdAt: ledger.createdAt,
       });
 
       await prisma.auditLog.create({
@@ -176,6 +217,12 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           metaJson: { ...data, adjustmentType: type },
         },
       });
+
+      // Verify the entry was created by querying it back
+      const verifyLedger = await prisma.inventoryLedger.findUnique({
+        where: { id: ledger.id },
+      });
+      console.log(`[Inventory Adjust] Verification: Ledger entry exists:`, verifyLedger ? 'YES' : 'NO');
 
       return ledger;
     } catch (error: any) {

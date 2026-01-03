@@ -224,7 +224,11 @@ export default function StoreInventoryPage() {
       setStockItems([]);
       setSelectedStockProduct(null);
       setStockItemForm({ qtyKg: '', qtyPcs: '', reason: 'RECEIVE' });
-      // Wait a moment for database to commit, then refresh
+      console.log('[Frontend] Stock added, waiting for DB commit...');
+      // Wait longer for database to commit, then refresh with retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await loadInventory();
+      // Retry once more after another delay to ensure data is visible
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadInventory();
       setActiveTab('inventory'); // Switch back to inventory tab
@@ -242,29 +246,42 @@ export default function StoreInventoryPage() {
     setInventory([]);
     try {
       // Force fresh data by adding cache-busting timestamp
+      const timestamp = Date.now();
+      console.log(`[Frontend] Loading inventory at ${new Date(timestamp).toISOString()}`);
       const response = await api.get('/api/v1/inventory/summary', {
-        params: { _t: Date.now() },
+        params: { _t: timestamp },
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0'
         }
       });
-      console.log('Inventory API response:', response.data);
-      console.log('Inventory loaded:', response.data?.length || 0, 'items');
+      console.log('[Frontend] Inventory API response:', response.data);
+      console.log('[Frontend] Inventory loaded:', response.data?.length || 0, 'items');
       
       // Always set to empty array if response is not valid
       if (!response.data || !Array.isArray(response.data)) {
-        console.warn('Invalid response format, setting inventory to empty');
+        console.warn('[Frontend] Invalid response format, setting inventory to empty');
         setInventory([]);
         return;
+      }
+      
+      // Log some sample data for debugging
+      if (response.data.length > 0) {
+        const sample = response.data[0];
+        console.log('[Frontend] Sample inventory item:', {
+          productName: sample.productName,
+          currentQtyKg: sample.currentQtyKg,
+          currentQtyPcs: sample.currentQtyPcs,
+          unitType: sample.unitType,
+        });
       }
       
       // Set inventory data
       setInventory(response.data);
       
       if (response.data.length === 0) {
-        console.log('No products found in inventory');
+        console.log('[Frontend] No products found in inventory');
       }
     } catch (error: any) {
       console.error('Failed to load inventory:', error);
@@ -348,7 +365,11 @@ export default function StoreInventoryPage() {
       
       if (response.data) {
         showNotification('Inventory adjusted successfully!', 'success');
-        // Wait a moment for database to commit, then refresh
+        console.log('[Frontend] Inventory adjusted, waiting for DB commit...');
+        // Wait longer for database to commit, then refresh with retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await loadInventory();
+        // Retry once more after another delay to ensure data is visible
         await new Promise(resolve => setTimeout(resolve, 500));
         await loadInventory();
         setShowAdjustModal(false);
@@ -433,7 +454,11 @@ export default function StoreInventoryPage() {
       
       if (response.data) {
         showNotification('Stock updated successfully!', 'success');
-        // Wait a moment for database to commit, then refresh
+        console.log('[Frontend] Stock updated, waiting for DB commit...');
+        // Wait longer for database to commit, then refresh with retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await loadInventory();
+        // Retry once more after another delay to ensure data is visible
         await new Promise(resolve => setTimeout(resolve, 500));
         await loadInventory();
         setShowEditStockModal(false);
