@@ -134,6 +134,12 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           roles: ["OWNER"],
         },
         {
+          label: "Pending Payments",
+          href: "/store/pending-payments",
+          icon: "💳",
+          roles: ["MANAGER", "OWNER"],
+        },
+        {
           label: "Purchase Orders",
           href: "/po",
           icon: "📋",

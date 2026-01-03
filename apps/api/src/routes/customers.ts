@@ -424,6 +424,91 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get customers with pending payments
+  fastify.get('/pending-payments', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const storeId = (getUser(request) as any).storeId;
+      
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+
+      // Get all customers with OPEN orders
+      const customers = await prisma.customer.findMany({
+        where: {
+          storeId,
+          sales: {
+            some: {
+              status: 'OPEN',
+            },
+          },
+        },
+        include: {
+          sales: {
+            where: {
+              status: 'OPEN',
+            },
+            include: {
+              payments: true,
+              items: {
+                include: {
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      // Calculate pending amounts for each customer
+      const customersWithPending = customers.map((customer) => {
+        let totalPending = 0;
+        const openOrders = customer.sales.map((sale) => {
+          const totalPaid = sale.payments.reduce((sum, p) => sum + p.amount, 0);
+          const pending = sale.grandTotal - totalPaid;
+          totalPending += pending;
+          
+          return {
+            id: sale.id,
+            saleNo: sale.saleNo,
+            grandTotal: sale.grandTotal,
+            totalPaid,
+            pending,
+            createdAt: sale.createdAt,
+            items: sale.items,
+          };
+        });
+
+        return {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+          totalPending: Math.round(totalPending * 100) / 100,
+          openOrders,
+          orderCount: openOrders.length,
+        };
+      }).filter((c) => c.totalPending > 0); // Only return customers with pending payments
+
+      return customersWithPending;
+    } catch (error: any) {
+      console.error('Failed to get pending payments:', error);
+      reply.code(500).send({ error: 'Failed to get pending payments', details: error.message });
+    }
+  });
+
   // Get customer loyalty information
   fastify.get('/:customerId/loyalty', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {

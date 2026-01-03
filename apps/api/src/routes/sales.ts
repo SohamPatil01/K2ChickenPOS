@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { prisma } from '@azela-pos/db';
+import { prisma, PaymentMethod } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
@@ -367,6 +367,22 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
+      // Deduct inventory for OPEN orders (credit sales)
+      // Inventory should be deducted when order is created, not when payment is made
+      for (const item of sale.items) {
+        await prisma.inventoryLedger.create({
+          data: {
+            storeId,
+            productId: item.productId,
+            type: 'OUT',
+            qtyKg: item.qtyKg,
+            qtyPcs: item.qtyPcs,
+            reason: 'SALE',
+            refId: sale.id,
+          },
+        });
+      }
+
       // Create audit log
       await prisma.auditLog.create({
         data: {
@@ -443,33 +459,85 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.warn('Could not check discount override, proceeding with payment:', err);
       }
 
-      const totalPaid = payments.reduce((sum: any, p) => sum + p.amount, 0);
-      // Round both amounts to nearest integer for comparison (frontend rounds to integer)
-      const roundedTotalPaid = Math.round(totalPaid);
+      // Get existing payments for this sale to calculate total paid
+      const existingPayments = await prisma.payment.findMany({
+        where: { saleId: id },
+      });
+      const existingTotalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      const newPaymentsTotal = payments.reduce((sum: any, p) => sum + p.amount, 0);
+      const totalPaidAfter = existingTotalPaid + newPaymentsTotal;
+      
+      // Round amounts for comparison
+      const roundedTotalPaidAfter = Math.round(totalPaidAfter);
       const roundedGrandTotal = Math.round(sale.grandTotal);
       
       // Check if any payment is credit
       const hasCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
       
-      // For credit payments, allow any amount (customer will pay later)
-      // For other payments, validate amount matches
-      if (!hasCreditPayment && Math.abs(roundedTotalPaid - roundedGrandTotal) > 0.5) {
-        reply.code(400).send({ error: 'Payment amount mismatch' });
-        return;
+      // For OPEN orders, allow partial payments
+      // For other payments (new sales), validate amount matches (unless credit)
+      if (sale.status === 'OPEN') {
+        // Allow partial payments for OPEN orders
+        if (roundedTotalPaidAfter > roundedGrandTotal + 0.5) {
+          reply.code(400).send({ 
+            error: 'Payment amount exceeds remaining balance',
+            details: `Total paid: ₹${roundedTotalPaidAfter}, Grand total: ₹${roundedGrandTotal}`
+          });
+          return;
+        }
+      } else {
+        // For new sales, validate amount matches (unless credit)
+        if (!hasCreditPayment && Math.abs(newPaymentsTotal - roundedGrandTotal) > 0.5) {
+          reply.code(400).send({ error: 'Payment amount mismatch' });
+          return;
+        }
       }
 
-      // Create payments
-      await prisma.payment.createMany({
-        data: payments.map((p: any) => ({
+      // Create payments - ensure method is valid enum value
+      // The Zod schema should have validated this, but ensure it's properly formatted
+      const validPaymentMethods: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
+      const paymentData = payments.map((p: any) => {
+        // Normalize the method to uppercase and trim
+        const methodStr = String(p.method || '').toUpperCase().trim();
+        
+        if (!validPaymentMethods.includes(methodStr as PaymentMethod)) {
+          throw new Error(`Invalid payment method: "${p.method}". Must be one of: ${validPaymentMethods.join(', ')}`);
+        }
+        
+        // Cast to PaymentMethod enum type
+        const method = methodStr as PaymentMethod;
+        
+        return {
           saleId: id,
-          method: p.method,
-          amount: p.amount,
-          txnRef: p.txnRef,
-        })),
+          method: method,
+          amount: Number(p.amount),
+          txnRef: p.txnRef || null,
+        };
       });
 
-      // Update sale status - keep as OPEN for credit, mark as PAID for other payment methods
-      const saleStatus = hasCreditPayment ? 'OPEN' : 'PAID';
+      console.log('[Payment] Creating payments:', JSON.stringify(paymentData, null, 2));
+      
+      await prisma.payment.createMany({
+        data: paymentData,
+      });
+
+      // Update sale status
+      // If order was already OPEN, check if it's now fully paid
+      // If new order with credit, keep as OPEN
+      // Otherwise mark as PAID
+      let saleStatus = 'PAID';
+      if (sale.status === 'OPEN') {
+        // For existing OPEN orders, mark as PAID only if fully paid
+        if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
+          saleStatus = 'PAID';
+        } else {
+          saleStatus = 'OPEN'; // Still partially paid
+        }
+      } else if (hasCreditPayment) {
+        saleStatus = 'OPEN'; // New credit order
+      }
+      
       const updatedSale = await prisma.sale.update({
         where: { id },
         data: { status: saleStatus },
@@ -480,19 +548,37 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // Update inventory
-      for (const item of sale.items) {
-        await prisma.inventoryLedger.create({
-          data: {
-            storeId,
-            productId: item.productId,
-            type: 'OUT',
-            qtyKg: item.qtyKg,
-            qtyPcs: item.qtyPcs,
-            reason: 'SALE',
+      // Update inventory - only if not already deducted
+      // Check if inventory was already deducted for this sale (when order was created)
+      try {
+        const existingLedger = await prisma.inventoryLedger.findFirst({
+          where: {
             refId: id,
+            reason: 'SALE',
           },
         });
+
+        // Only create inventory ledger if it doesn't exist
+        // This prevents double-deduction for credit/OPEN orders
+        if (!existingLedger) {
+          for (const item of sale.items) {
+            await prisma.inventoryLedger.create({
+              data: {
+                storeId,
+                productId: item.productId,
+                type: 'OUT',
+                qtyKg: item.qtyKg,
+                qtyPcs: item.qtyPcs,
+                reason: 'SALE',
+                refId: id,
+              },
+            });
+          }
+        }
+      } catch (inventoryError: any) {
+        // Log inventory error but don't fail payment
+        console.error('Failed to update inventory (non-critical):', inventoryError);
+        // Continue with payment processing even if inventory update fails
       }
 
       // Award loyalty points if customer exists
@@ -546,24 +632,36 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Create audit log
-      await prisma.auditLog.create({
-        data: {
-          storeId,
-          actorUserId: userId,
-          action: 'SALE_PAID',
-          entityType: 'Sale',
-          entityId: id,
-          metaJson: { payments },
-        },
-      });
+      // Create audit log (non-blocking)
+      try {
+        await prisma.auditLog.create({
+          data: {
+            storeId,
+            actorUserId: userId,
+            action: 'SALE_PAID',
+            entityType: 'Sale',
+            entityId: id,
+            metaJson: { payments },
+          },
+        });
+      } catch (auditError: any) {
+        // Log audit error but don't fail payment
+        console.warn('Failed to create audit log (non-critical):', auditError);
+      }
 
       return updatedSale;
     } catch (error: any) {
       console.error('Failed to process payment:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      });
       reply.code(500).send({ 
         error: 'Failed to process payment',
-        details: error.message 
+        details: error.message || 'Unknown error',
+        code: error.code,
       });
     }
   });
