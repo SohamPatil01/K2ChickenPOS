@@ -336,6 +336,7 @@ export default function StoreCartPage() {
     discountTotal,
     onClose,
     onPay,
+    isProcessing = false,
   }: {
     grandTotal: number;
     subTotal: number;
@@ -343,6 +344,7 @@ export default function StoreCartPage() {
     discountTotal: number;
     onClose: () => void;
     onPay: (method: string, amount: number) => void;
+    isProcessing?: boolean;
   }) => {
     const [paymentMethod, setPaymentMethod] = useState('CASH');
     const [amountPaid, setAmountPaid] = useState(grandTotal.toString());
