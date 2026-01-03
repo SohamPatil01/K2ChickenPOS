@@ -297,11 +297,17 @@ export default function StoreInventoryPage() {
         console.log('[Frontend] No inventory items returned from API');
       }
       
-      // Set inventory data
-      setInventory(response.data);
+      // Set inventory data - ensure we're setting an array
+      const inventoryData = Array.isArray(response.data) ? response.data : [];
+      console.log('[Frontend] Setting inventory state with', inventoryData.length, 'items');
+      setInventory(inventoryData);
       
-      if (response.data.length === 0) {
+      if (inventoryData.length === 0) {
         console.log('[Frontend] No products found in inventory');
+        showNotification('No inventory items found. Products may need stock entries.', 'info');
+      } else {
+        console.log('[Frontend] Successfully loaded', inventoryData.length, 'inventory items');
+        showNotification(`Loaded ${inventoryData.length} inventory items`, 'success');
       }
     } catch (error: any) {
       console.error('Failed to load inventory:', error);
