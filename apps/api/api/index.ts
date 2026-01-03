@@ -201,13 +201,42 @@ export default async function handler(req: any, res: any) {
     }
 
     // Use Fastify's inject method for serverless
-    const response = await fastifyApp.inject({
-      method,
-      url,
-      headers,
-      payload,
-      query: req.query || {},
-    });
+    let response;
+    try {
+      response = await fastifyApp.inject({
+        method,
+        url,
+        headers,
+        payload,
+        query: req.query || {},
+      });
+    } catch (injectError: any) {
+      console.error('Fastify inject error:', injectError);
+      console.error('Inject error details:', {
+        method,
+        url,
+        errorMessage: injectError?.message,
+        errorStack: injectError?.stack,
+      });
+      
+      // Set CORS headers before sending error
+      const origin = req.headers.origin;
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+      
+      res.status(500).json({
+        error: 'Request processing failed',
+        message: injectError?.message || 'Failed to process request',
+        ...(process.env.NODE_ENV === 'development' ? { stack: injectError?.stack } : {})
+      });
+      return;
+    }
 
     // Set response headers - ensure CORS headers are always present
     const responseHeaders = response.headers || {};
@@ -240,6 +269,12 @@ export default async function handler(req: any, res: any) {
     });
 
     // Send response with proper status code
+    // Check if headers are already sent (shouldn't happen, but safety check)
+    if (res.headersSent) {
+      console.warn('Response headers already sent, cannot send response');
+      return;
+    }
+    
     res.status(response.statusCode || 200);
     
     // Handle different content types
@@ -248,7 +283,8 @@ export default async function handler(req: any, res: any) {
       try {
         const json = JSON.parse(response.payload || '{}');
         res.json(json);
-      } catch {
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
         res.send(response.payload || '');
       }
     } else {
@@ -260,13 +296,32 @@ export default async function handler(req: any, res: any) {
     console.error('Error stack:', error?.stack);
     console.error('Request URL:', req?.url);
     console.error('Request method:', req?.method);
+    console.error('Request headers:', JSON.stringify(req.headers || {}, null, 2));
     
-    // Ensure we send a response even if there's an error
+    // Ensure CORS headers are set even on error
     if (!res.headersSent) {
+      const origin = req.headers?.origin;
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+      
+      // Send error response
       res.status(500).json({ 
         error: 'Internal Server Error',
         message: error?.message || 'Unknown error',
-        ...(process.env.NODE_ENV === 'development' ? { stack: error?.stack } : {})
+        ...(process.env.NODE_ENV === 'development' ? { 
+          stack: error?.stack,
+          details: {
+            url: req?.url,
+            method: req?.method,
+            errorName: error?.name,
+          }
+        } : {})
       });
     }
   }
