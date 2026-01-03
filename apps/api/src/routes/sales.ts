@@ -417,7 +417,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Fetch sale with items first
+      // Fetch sale with items and payments first
       const sale = await prisma.sale.findFirst({
         where: { 
           id,
@@ -425,6 +425,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
         include: { 
           items: { include: { product: true } },
+          payments: true,
         },
       });
 
@@ -433,9 +434,22 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // Get existing payments to check if it's a credit order
+      const existingPayments = sale.payments || [];
+      const hasCreditPayment = existingPayments.some((p) => p.method === 'CREDIT');
+      const existingTotalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+      const pendingAmount = sale.grandTotal - existingTotalPaid;
+
+      // Allow payment if:
+      // 1. Sale is OPEN, OR
+      // 2. Sale has CREDIT payment (even if fully paid, customer can pay off credit balance)
       if (sale.status !== 'OPEN') {
-        reply.code(400).send({ error: 'Sale is not open' });
-        return;
+        if (!hasCreditPayment) {
+          reply.code(400).send({ error: 'Sale is not open and cannot accept additional payments' });
+          return;
+        }
+        // If it's a credit order, allow payment even if marked as PAID
+        // This allows customers to pay off their credit balance
       }
 
       // Fetch discount override separately if needed (optional, handle gracefully)
@@ -459,26 +473,26 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.warn('Could not check discount override, proceeding with payment:', err);
       }
 
-      // Get existing payments for this sale to calculate total paid
-      const existingPayments = await prisma.payment.findMany({
-        where: { saleId: id },
-      });
-      const existingTotalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+      // Use existing payments already fetched (or fetch if not included)
+      const allExistingPayments = existingPayments.length > 0 
+        ? existingPayments 
+        : await prisma.payment.findMany({ where: { saleId: id } });
+      const currentTotalPaid = allExistingPayments.reduce((sum, p) => sum + p.amount, 0);
       
       const newPaymentsTotal = payments.reduce((sum: any, p) => sum + p.amount, 0);
-      const totalPaidAfter = existingTotalPaid + newPaymentsTotal;
+      const totalPaidAfter = currentTotalPaid + newPaymentsTotal;
       
       // Round amounts for comparison
       const roundedTotalPaidAfter = Math.round(totalPaidAfter);
       const roundedGrandTotal = Math.round(sale.grandTotal);
       
-      // Check if any payment is credit
-      const hasCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
+      // Check if any NEW payment is credit
+      const hasNewCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
       
-      // For OPEN orders, allow partial payments
-      // For other payments (new sales), validate amount matches (unless credit)
-      if (sale.status === 'OPEN') {
-        // Allow partial payments for OPEN orders
+      // For OPEN orders or credit orders (existing or new), allow partial payments
+      // For credit orders, allow payments to pay off credit balance
+      if (sale.status === 'OPEN' || hasCreditPayment || hasNewCreditPayment) {
+        // Allow partial payments for OPEN orders or credit orders
         if (roundedTotalPaidAfter > roundedGrandTotal + 0.5) {
           reply.code(400).send({ 
             error: 'Payment amount exceeds remaining balance',
@@ -487,8 +501,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
           return;
         }
       } else {
-        // For new sales, validate amount matches (unless credit)
-        if (!hasCreditPayment && Math.abs(newPaymentsTotal - roundedGrandTotal) > 0.5) {
+        // For new sales (non-credit, non-open), validate amount matches
+        if (Math.abs(newPaymentsTotal - roundedGrandTotal) > 0.5) {
           reply.code(400).send({ error: 'Payment amount mismatch' });
           return;
         }
@@ -523,19 +537,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
 
       // Update sale status
-      // If order was already OPEN, check if it's now fully paid
-      // If new order with credit, keep as OPEN
-      // Otherwise mark as PAID
-      let saleStatus = 'PAID';
-      if (sale.status === 'OPEN') {
-        // For existing OPEN orders, mark as PAID only if fully paid
-        if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
-          saleStatus = 'PAID';
+      // Credit orders should always remain OPEN, even when fully paid
+      // This allows tracking of credit sales separately
+      let saleStatus = sale.status; // Keep current status initially
+      
+      // Check if order has any CREDIT payment (existing or new)
+      const hasAnyCreditPayment = hasCreditPayment || hasNewCreditPayment;
+      
+      if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
+        // Fully paid
+        if (hasAnyCreditPayment) {
+          // Credit orders always stay OPEN, even when fully paid
+          saleStatus = 'OPEN';
         } else {
-          saleStatus = 'OPEN'; // Still partially paid
+          // Regular order - mark as PAID
+          saleStatus = 'PAID';
         }
-      } else if (hasCreditPayment) {
-        saleStatus = 'OPEN'; // New credit order
+      } else {
+        // Still has pending amount
+        if (hasAnyCreditPayment || sale.status === 'OPEN') {
+          saleStatus = 'OPEN'; // Keep as OPEN if credit order or was already OPEN
+        }
       }
       
       const updatedSale = await prisma.sale.update({

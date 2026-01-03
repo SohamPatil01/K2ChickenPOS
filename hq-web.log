@@ -1,0 +1,12 @@
+
+> @azela-pos/hq-web@1.0.0 dev /Users/soham/Desktop/K2POS/K2ChickenPOS/apps/hq-web
+> next dev -p 3002
+
+   ▲ Next.js 14.0.4
+   - Local:        http://localhost:3002
+
+ ✓ Ready in 2.7s
+ ○ Compiling / ...
+ ✓ Compiled / in 1324ms (438 modules)
+ ✓ Compiled in 128ms (226 modules)
+[?25h

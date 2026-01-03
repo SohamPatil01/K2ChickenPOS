@@ -424,7 +424,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get customers with pending payments
+  // Get customers with pending payments (unpaid credit orders)
+  // Shows all unpaid orders (OPEN status) that are either:
+  // 1. Associated with a customer, OR
+  // 2. Have CREDIT payment method
   fastify.get('/pending-payments', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const storeId = (getUser(request) as any).storeId;
@@ -434,73 +437,142 @@ export async function customerRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Get all customers with OPEN orders
-      const customers = await prisma.customer.findMany({
+      // Get all sales that are credit orders:
+      // 1. OPEN status orders (unpaid), OR
+      // 2. Orders with CREDIT payment method (even if marked PAID, check for pending balance)
+      const openCreditSales = await prisma.sale.findMany({
         where: {
           storeId,
-          sales: {
-            some: {
-              status: 'OPEN',
-            },
-          },
-        },
-        include: {
-          sales: {
-            where: {
-              status: 'OPEN',
-            },
-            include: {
-              payments: true,
-              items: {
-                include: {
-                  product: {
-                    select: {
-                      id: true,
-                      name: true,
-                    },
-                  },
+          OR: [
+            { status: 'OPEN' }, // Unpaid orders
+            {
+              payments: {
+                some: {
+                  method: 'CREDIT',
                 },
               },
             },
-            orderBy: {
-              createdAt: 'desc',
+          ],
+        },
+        include: {
+          customer: true,
+          payments: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },
         orderBy: {
-          name: 'asc',
+          createdAt: 'desc',
         },
       });
 
-      // Calculate pending amounts for each customer
-      const customersWithPending = customers.map((customer) => {
-        let totalPending = 0;
-        const openOrders = customer.sales.map((sale) => {
-          const totalPaid = sale.payments.reduce((sum, p) => sum + p.amount, 0);
-          const pending = sale.grandTotal - totalPaid;
-          totalPending += pending;
-          
-          return {
+      // Group by customer
+      const customerMap = new Map();
+
+      for (const sale of openCreditSales) {
+        const allPayments = sale.payments || [];
+        const hasCreditPayment = allPayments.some((p) => p.method === 'CREDIT');
+        
+        // For credit orders, calculate remaining balance excluding credit payments
+        // Credit payments are promises to pay, not actual payments
+        const actualPayments = allPayments.filter((p) => p.method !== 'CREDIT');
+        const totalPaidActual = actualPayments.reduce((sum, p) => sum + p.amount, 0);
+        const creditPayments = allPayments.filter((p) => p.method === 'CREDIT');
+        const totalCreditAmount = creditPayments.reduce((sum, p) => sum + p.amount, 0);
+        
+        // Remaining balance = grandTotal - actual payments (credit doesn't count as payment)
+        const remainingBalance = sale.grandTotal - totalPaidActual;
+        
+        // Include orders that:
+        // 1. Have remaining balance > 0, OR
+        // 2. Have CREDIT payment method (show credit orders even if fully paid with actual payments)
+        if (remainingBalance <= 0 && !hasCreditPayment) continue;
+        
+        // For display: if it's a credit order, show remaining balance (credit doesn't reduce it)
+        const displayPending = hasCreditPayment ? remainingBalance : Math.max(0, remainingBalance);
+
+        // If sale has customer, group by customer
+        // If no customer, group as "Walk-in Credit"
+        if (sale.customerId && sale.customer) {
+          const customerId = sale.customer.id;
+          if (!customerMap.has(customerId)) {
+            customerMap.set(customerId, {
+              id: sale.customer.id,
+              name: sale.customer.name,
+              phone: sale.customer.phone,
+              email: sale.customer.email,
+              totalPending: 0,
+              openOrders: [],
+              orderCount: 0,
+            });
+          }
+          const customer = customerMap.get(customerId);
+          customer.totalPending += displayPending;
+          customer.openOrders.push({
             id: sale.id,
             saleNo: sale.saleNo,
             grandTotal: sale.grandTotal,
-            totalPaid,
-            pending,
+            totalPaid: totalPaidActual, // Only actual payments, not credit
+            creditAmount: totalCreditAmount, // Total credit amount
+            pending: Math.round(displayPending * 100) / 100,
+            remainingBalance: Math.round(remainingBalance * 100) / 100, // Remaining after actual payments
             createdAt: sale.createdAt,
             items: sale.items,
-          };
-        });
+            hasCreditPayment,
+          });
+          customer.orderCount += 1;
+        } else {
+          // No customer - group as "Walk-in Credit" or use sale number
+          const walkInKey = 'WALK_IN_CREDIT';
+          if (!customerMap.has(walkInKey)) {
+            customerMap.set(walkInKey, {
+              id: walkInKey,
+              name: 'Walk-in Credit',
+              phone: '',
+              email: '',
+              totalPending: 0,
+              openOrders: [],
+              orderCount: 0,
+            });
+          }
+          const walkIn = customerMap.get(walkInKey);
+          walkIn.totalPending += displayPending;
+          walkIn.openOrders.push({
+            id: sale.id,
+            saleNo: sale.saleNo,
+            grandTotal: sale.grandTotal,
+            totalPaid: totalPaidActual, // Only actual payments, not credit
+            creditAmount: totalCreditAmount, // Total credit amount
+            pending: Math.round(displayPending * 100) / 100,
+            remainingBalance: Math.round(remainingBalance * 100) / 100, // Remaining after actual payments
+            createdAt: sale.createdAt,
+            items: sale.items,
+            hasCreditPayment,
+          });
+          walkIn.orderCount += 1;
+        }
+      }
 
-        return {
-          id: customer.id,
-          name: customer.name,
-          phone: customer.phone,
-          email: customer.email,
-          totalPending: Math.round(totalPending * 100) / 100,
-          openOrders,
-          orderCount: openOrders.length,
-        };
-      }).filter((c) => c.totalPending > 0); // Only return customers with pending payments
+      // Convert map to array and format
+      const customersWithPending = Array.from(customerMap.values())
+        .map((customer) => ({
+          ...customer,
+          totalPending: Math.round(customer.totalPending * 100) / 100,
+        }))
+        .filter((c) => c.orderCount > 0) // Include all customers with credit orders, even if fully paid
+        .sort((a, b) => {
+          // Sort walk-in credit last
+          if (a.id === 'WALK_IN_CREDIT') return 1;
+          if (b.id === 'WALK_IN_CREDIT') return -1;
+          return a.name.localeCompare(b.name);
+        });
 
       return customersWithPending;
     } catch (error: any) {
