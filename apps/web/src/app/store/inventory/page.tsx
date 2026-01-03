@@ -23,6 +23,17 @@ interface Category {
   name: string;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  plu: string;
+  unitType: 'KG' | 'PCS';
+  pricePerUnit: number;
+  taxRate: number;
+  imageUrl?: string | null;
+}
+
 export default function StoreInventoryPage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -81,6 +92,24 @@ export default function StoreInventoryPage() {
   const [productToDelete, setProductToDelete] = useState<InventoryItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Add Stock Tab State
+  const [activeTab, setActiveTab] = useState<'inventory' | 'addStock'>('inventory');
+  const [stockItems, setStockItems] = useState<Array<{
+    productId: string;
+    productName: string;
+    qtyKg?: number;
+    qtyPcs?: number;
+    reason: string;
+  }>>([]);
+  const [selectedStockProduct, setSelectedStockProduct] = useState<Product | null>(null);
+  const [stockItemForm, setStockItemForm] = useState({
+    qtyKg: '',
+    qtyPcs: '',
+    reason: 'RECEIVE',
+  });
+  const [stockProducts, setStockProducts] = useState<Product[]>([]);
+  const [addingStock, setAddingStock] = useState(false);
+
   useEffect(() => {
     if (user === undefined) return;
 
@@ -97,8 +126,11 @@ export default function StoreInventoryPage() {
     if (user && (user.role === 'MANAGER' || user.role === 'OWNER')) {
       loadInventory();
       loadCategories();
+      if (activeTab === 'addStock') {
+        loadStockProducts();
+      }
     }
-  }, [user, router]);
+  }, [user, router, activeTab]);
 
   const loadCategories = async () => {
     try {
@@ -111,6 +143,85 @@ export default function StoreInventoryPage() {
     } catch (error) {
       console.error('Failed to load categories', error);
       setCategories([]);
+    }
+  };
+
+  const loadStockProducts = async () => {
+    try {
+      const response = await api.get('/api/v1/products');
+      setStockProducts(response.data || []);
+    } catch (error) {
+      console.error('Failed to load products', error);
+      setStockProducts([]);
+    }
+  };
+
+  const handleAddStockItem = () => {
+    if (!selectedStockProduct) {
+      showNotification('Please select a product', 'error');
+      return;
+    }
+
+    const qtyKg = parseFloat(stockItemForm.qtyKg) || 0;
+    const qtyPcs = parseFloat(stockItemForm.qtyPcs) || 0;
+
+    if (selectedStockProduct.unitType === 'KG' && qtyKg <= 0) {
+      showNotification('Please enter quantity', 'error');
+      return;
+    }
+    if (selectedStockProduct.unitType === 'PCS' && qtyPcs <= 0) {
+      showNotification('Please enter quantity', 'error');
+      return;
+    }
+
+    setStockItems([
+      ...stockItems,
+      {
+        productId: selectedStockProduct.id,
+        productName: selectedStockProduct.name,
+        qtyKg: selectedStockProduct.unitType === 'KG' ? qtyKg : undefined,
+        qtyPcs: selectedStockProduct.unitType === 'PCS' ? qtyPcs : undefined,
+        reason: stockItemForm.reason,
+      },
+    ]);
+
+    setSelectedStockProduct(null);
+    setStockItemForm({ qtyKg: '', qtyPcs: '', reason: 'RECEIVE' });
+  };
+
+  const handleRemoveStockItem = (index: number) => {
+    setStockItems(stockItems.filter((_, i) => i !== index));
+  };
+
+  const handleAddStock = async () => {
+    if (stockItems.length === 0) {
+      showNotification('Please add at least one item', 'error');
+      return;
+    }
+
+    setAddingStock(true);
+    try {
+      // Add each item to inventory
+      for (const item of stockItems) {
+        await api.post('/api/v1/inventory/adjust', {
+          productId: item.productId,
+          qtyKg: item.qtyKg,
+          qtyPcs: item.qtyPcs,
+          reason: item.reason,
+        });
+      }
+
+      showNotification(`Successfully added ${stockItems.length} item(s) to inventory!`, 'success');
+      setStockItems([]);
+      setSelectedStockProduct(null);
+      setStockItemForm({ qtyKg: '', qtyPcs: '', reason: 'RECEIVE' });
+      await loadInventory();
+      setActiveTab('inventory'); // Switch back to inventory tab
+    } catch (error: any) {
+      console.error('Failed to add stock:', error);
+      showNotification(error.response?.data?.error || 'Failed to add stock', 'error');
+    } finally {
+      setAddingStock(false);
     }
   };
 
@@ -603,34 +714,70 @@ export default function StoreInventoryPage() {
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">Inventory</h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            Click "Adjust" on any product to add or subtract inventory
+            {activeTab === 'inventory' 
+              ? 'Click "Adjust" on any product to add or subtract inventory'
+              : 'Add multiple items to inventory at once'}
           </p>
         </div>
-        {/* Action Buttons - Stacked on mobile, row on desktop */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+        
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
-            onClick={openAddProductModal}
-            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
+            onClick={() => setActiveTab('inventory')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'inventory'
+                ? 'border-b-2 border-brand-500 text-brand-600 dark:text-brand-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
           >
-            Add Product
+            Inventory List
           </button>
           <button
-            onClick={loadInventory}
-            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 text-sm sm:text-base transition-colors touch-target font-medium"
+            onClick={() => {
+              setActiveTab('addStock');
+              if (stockProducts.length === 0) {
+                loadStockProducts();
+              }
+            }}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'addStock'
+                ? 'border-b-2 border-brand-500 text-brand-600 dark:text-brand-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
           >
-            Refresh
+            Add Stock
           </button>
-          <Link
-            href="/store/stock-ledger"
-            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors text-center touch-target font-medium"
-          >
-            Stock Ledger
-          </Link>
         </div>
+        
+        {/* Action Buttons - Stacked on mobile, row on desktop */}
+        {activeTab === 'inventory' && (
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+            <button
+              onClick={openAddProductModal}
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
+            >
+              Add Product
+            </button>
+            <button
+              onClick={loadInventory}
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 text-sm sm:text-base transition-colors touch-target font-medium"
+            >
+              Refresh
+            </button>
+            <Link
+              href="/store/stock-ledger"
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors text-center touch-target font-medium"
+            >
+              Stock Ledger
+            </Link>
+          </div>
+        )}
       </div>
       
-      {/* Table Container - Responsive with horizontal scroll on mobile and vertical scroll on iPad */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      {/* Content based on active tab */}
+      {activeTab === 'inventory' ? (
+        /* Table Container - Responsive with horizontal scroll on mobile and vertical scroll on iPad */
+        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
         <div className="flex-1 overflow-y-auto overflow-x-auto -mx-3 sm:mx-0 min-h-0">
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -795,6 +942,149 @@ export default function StoreInventoryPage() {
           </div>
         </div>
       </div>
+      ) : (
+        /* Add Stock Tab */
+        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Add Item Form */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
+                <h2 className="text-lg font-semibold dark:text-white mb-4">Add Stock Item</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Product *
+                    </label>
+                    <select
+                      value={selectedStockProduct?.id || ''}
+                      onChange={(e) => {
+                        const product = stockProducts.find((p) => p.id === e.target.value);
+                        setSelectedStockProduct(product || null);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">Select product</option>
+                      {stockProducts.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} ({product.sku})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Quantity {selectedStockProduct?.unitType === 'KG' ? '(kg)' : '(pcs)'} *
+                    </label>
+                    <input
+                      type="number"
+                      value={selectedStockProduct?.unitType === 'KG' ? stockItemForm.qtyKg : stockItemForm.qtyPcs}
+                      onChange={(e) => {
+                        if (selectedStockProduct?.unitType === 'KG') {
+                          setStockItemForm({ ...stockItemForm, qtyKg: e.target.value });
+                        } else {
+                          setStockItemForm({ ...stockItemForm, qtyPcs: e.target.value });
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="0"
+                      step={selectedStockProduct?.unitType === 'KG' ? '0.01' : '1'}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Reason
+                    </label>
+                    <select
+                      value={stockItemForm.reason}
+                      onChange={(e) => setStockItemForm({ ...stockItemForm, reason: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="RECEIVE">Receive</option>
+                      <option value="ADJUSTMENT">Adjustment</option>
+                      <option value="CORRECTION">Correction</option>
+                      <option value="OPENING">Opening Stock</option>
+                      <option value="RETURN">Return</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={handleAddStockItem}
+                  className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 transition-colors"
+                >
+                  Add to List
+                </button>
+              </div>
+
+              {/* Stock Items List */}
+              {stockItems.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold dark:text-white">Items to Add ({stockItems.length})</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-900/50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Quantity</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reason</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {stockItems.map((item, index) => (
+                          <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-4 py-3 text-sm font-medium dark:text-white">{item.productName}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              {item.qtyKg ? `${item.qtyKg} kg` : `${item.qtyPcs} pcs`}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.reason}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <button
+                                onClick={() => handleRemoveStockItem(index)}
+                                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        setStockItems([]);
+                        setSelectedStockProduct(null);
+                        setStockItemForm({ qtyKg: '', qtyPcs: '', reason: 'RECEIVE' });
+                      }}
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white transition-colors"
+                    >
+                      Clear All
+                    </button>
+                    <button
+                      onClick={handleAddStock}
+                      disabled={addingStock || stockItems.length === 0}
+                      className="px-6 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    >
+                      {addingStock ? 'Adding Stock...' : `Add ${stockItems.length} Item(s) to Inventory`}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {stockItems.length === 0 && (
+                <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <p className="text-gray-500 dark:text-gray-400">No items added yet. Select a product and quantity above to get started.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Adjust Inventory Modal */}
       {showAdjustModal && selectedProduct && (
