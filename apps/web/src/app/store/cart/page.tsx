@@ -405,40 +405,55 @@ export default function StoreCartPage() {
                 <option value="CASH">💵 Cash</option>
                 <option value="CARD">💳 Card</option>
                 <option value="UPI">📱 UPI</option>
+                <option value="CREDIT">📝 Credit</option>
                 <option value="ONLINE">🌐 Online</option>
               </select>
             </div>
               
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Amount Paid
-              </label>
-              <input
-                type="number"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                  className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all font-medium"
-                step="0.01"
-                min="0"
-                  placeholder={grandTotal.toString()}
-              />
-            </div>
-            
-            {change >= 0 && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-green-800 dark:text-green-300">Change</span>
-                    <span className="text-lg font-semibold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
-                </div>
+            {paymentMethod !== 'CREDIT' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Amount Paid
+                </label>
+                <input
+                  type="number"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                    className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all font-medium"
+                  step="0.01"
+                  min="0"
+                    placeholder={grandTotal.toString()}
+                />
               </div>
             )}
-            {change < 0 && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+            
+            {paymentMethod === 'CREDIT' ? (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-red-800 dark:text-red-300">Insufficient</span>
-                    <span className="text-lg font-semibold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-300">Credit Amount</span>
+                  <span className="text-lg font-semibold text-blue-600 dark:text-blue-400">₹{Math.round(grandTotal)}</span>
                 </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Customer will pay later</p>
               </div>
+            ) : (
+              <>
+                {change >= 0 && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-green-800 dark:text-green-300">Change</span>
+                      <span className="text-lg font-semibold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
+                    </div>
+                  </div>
+                )}
+                {change < 0 && (
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-red-800 dark:text-red-300">Insufficient</span>
+                      <span className="text-lg font-semibold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -451,11 +466,11 @@ export default function StoreCartPage() {
                 Cancel
               </button>
               <button
-                onClick={() => onPay(paymentMethod, parseFloat(amountPaid))}
-                disabled={change < 0 || isProcessing}
+                onClick={() => onPay(paymentMethod, paymentMethod === 'CREDIT' ? grandTotal : parseFloat(amountPaid))}
+                disabled={(paymentMethod !== 'CREDIT' && change < 0) || isProcessing}
                 className="flex-1 px-4 py-3 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? 'Processing...' : `Pay ₹${Math.round(parseFloat(amountPaid) || 0)}`}
+                {isProcessing ? 'Processing...' : paymentMethod === 'CREDIT' ? `Credit ₹${grandTotal}` : `Pay ₹${Math.round(parseFloat(amountPaid) || 0)}`}
               </button>
             </div>
           </div>

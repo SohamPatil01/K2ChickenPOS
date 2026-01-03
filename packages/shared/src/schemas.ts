@@ -47,7 +47,7 @@ export const createSaleSchema = z.object({
 });
 
 export const paymentSchema = z.object({
-  method: z.enum(['CASH', 'CARD', 'UPI']),
+  method: z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']),
   amount: z.number().min(0),
   txnRef: z.string().optional(),
 });

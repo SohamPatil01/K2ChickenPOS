@@ -1,7 +1,7 @@
 export type UserRole = 'OWNER' | 'MANAGER' | 'CASHIER' | 'DRIVER';
 export type StoreType = 'OWNER' | 'FRANCHISE';
 export type SaleStatus = 'OPEN' | 'PAID' | 'VOID' | 'REFUNDED';
-export type PaymentMethod = 'CASH' | 'CARD' | 'UPI';
+export type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'ONLINE';
 export type DeliveryType = 'PICKUP' | 'DELIVERY';
 export type DeliveryStatus = 'CREATED' | 'READY' | 'ASSIGNED' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'FAILED' | 'RETURNED';
 export type POStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'DISPATCHED' | 'RECEIVED' | 'CLOSED';

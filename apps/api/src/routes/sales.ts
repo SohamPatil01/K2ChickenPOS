@@ -447,7 +447,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Round both amounts to nearest integer for comparison (frontend rounds to integer)
       const roundedTotalPaid = Math.round(totalPaid);
       const roundedGrandTotal = Math.round(sale.grandTotal);
-      if (Math.abs(roundedTotalPaid - roundedGrandTotal) > 0.5) {
+      
+      // Check if any payment is credit
+      const hasCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
+      
+      // For credit payments, allow any amount (customer will pay later)
+      // For other payments, validate amount matches
+      if (!hasCreditPayment && Math.abs(roundedTotalPaid - roundedGrandTotal) > 0.5) {
         reply.code(400).send({ error: 'Payment amount mismatch' });
         return;
       }
@@ -462,10 +468,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
         })),
       });
 
-      // Update sale status
+      // Update sale status - keep as OPEN for credit, mark as PAID for other payment methods
+      const saleStatus = hasCreditPayment ? 'OPEN' : 'PAID';
       const updatedSale = await prisma.sale.update({
         where: { id },
-        data: { status: 'PAID' },
+        data: { status: saleStatus },
         include: {
           items: { include: { product: true } },
           payments: true,

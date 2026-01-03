@@ -181,9 +181,14 @@ export async function discountRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
+        const { id } = (request.params as any);
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const { startDate, endDate } = (request.query as any);
+
+        if (!id) {
+          reply.code(400).send({ error: 'Override ID is required' });
+          return;
+        }
 
         const override = await prisma.discountOverride.findUnique({
           where: { id },
@@ -244,7 +249,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
         };
       } catch (error: any) {
         console.error('Failed to approve override:', error);
-        reply.code(500).send({ error: 'Failed to approve override' });
+        reply.code(500).send({ 
+          error: 'Failed to approve override',
+          details: error.message || 'Unknown error'
+        });
       }
     }
   );
@@ -255,9 +263,14 @@ export async function discountRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
     async (request: any, reply: FastifyReply) => {
       try {
+        const { id } = (request.params as any);
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const { startDate, endDate } = (request.query as any);
+
+        if (!id) {
+          reply.code(400).send({ error: 'Override ID is required' });
+          return;
+        }
 
         const override = await prisma.discountOverride.findUnique({
           where: { id },
@@ -301,7 +314,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
         return updatedOverride;
       } catch (error: any) {
         console.error('Failed to reject override:', error);
-        reply.code(500).send({ error: 'Failed to reject override' });
+        reply.code(500).send({ 
+          error: 'Failed to reject override',
+          details: error.message || 'Unknown error'
+        });
       }
     }
   );

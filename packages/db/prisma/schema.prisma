@@ -31,6 +31,8 @@ enum PaymentMethod {
   CASH
   CARD
   UPI
+  CREDIT
+  ONLINE
 }
 
 enum InventoryReason {
