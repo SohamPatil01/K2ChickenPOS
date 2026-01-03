@@ -73,252 +73,313 @@ export async function poRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled for now)
-    const defaultStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = defaultStore?.id || '';
-    const userRole = 'OWNER'; // Default
+    try {
+      const { startDate, endDate, storeId: queryStoreId, status } = (request.query as any);
+      // Get default store (since auth is disabled for now)
+      const defaultStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const storeId = defaultStore?.id || '';
+      const userRole = 'OWNER'; // Default
 
-    const store = await prisma.store.findUnique({
-      where: { id: storeId },
-    });
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+      });
 
-    if (!store) {
-      reply.code(404).send({ error: 'Store not found' });
-      return;
-    }
+      if (!store) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
-    const where: any = {};
+      const where: any = {};
 
-    if (store.type === 'FRANCHISE') {
-      where.franchiseStoreId = storeId;
-    } else if (store.type === 'OWNER') {
-      where.ownerStoreId = storeId;
-    }
+      if (store.type === 'FRANCHISE') {
+        where.franchiseStoreId = storeId;
+      } else if (store.type === 'OWNER') {
+        where.ownerStoreId = storeId;
+      }
 
-    if (status) {
-      where.status = status;
-    }
+      if (status) {
+        where.status = status;
+      }
 
-    const pos = await prisma.purchaseOrder.findMany({
-      where,
-      include: {
-        items: {
-          include: { product: true },
+      // Add date filtering if provided
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) {
+          where.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+          where.createdAt.lte = new Date(endDate);
+        }
+      }
+
+      const pos = await prisma.purchaseOrder.findMany({
+        where,
+        include: {
+          items: {
+            include: { product: true },
+          },
+          franchiseStore: {
+            select: { id: true, name: true },
+          },
+          ownerStore: {
+            select: { id: true, name: true },
+          },
         },
-        franchiseStore: {
-          select: { id: true, name: true },
-        },
-        ownerStore: {
-          select: { id: true, name: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      });
 
-    return pos;
+      return pos;
+    } catch (error: any) {
+      console.error('Failed to fetch purchase orders:', error);
+      reply.code(500).send({ error: 'Failed to fetch purchase orders', details: error.message });
+    }
   });
 
   fastify.post('/:id/submit', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled for now)
-    const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
-    const storeId = store?.id || '';
+    try {
+      const { id } = (request.params as any);
+      const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
+      const storeId = store?.id || '';
 
-    const po = await prisma.purchaseOrder.findUnique({
-      where: { id },
-    });
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+      });
 
-    if (!po || po.franchiseStoreId !== storeId) {
-      reply.code(404).send({ error: 'PO not found' });
-      return;
+      if (!po || po.franchiseStoreId !== storeId) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      if (po.status !== 'DRAFT') {
+        reply.code(400).send({ error: 'PO cannot be submitted' });
+        return;
+      }
+
+      const updated = await prisma.purchaseOrder.update({
+        where: { id },
+        data: { status: 'SUBMITTED' },
+      });
+
+      return updated;
+    } catch (error: any) {
+      console.error('Failed to submit PO:', error);
+      reply.code(500).send({ error: 'Failed to submit PO', details: error.message });
     }
-
-    if (po.status !== 'DRAFT') {
-      reply.code(400).send({ error: 'PO cannot be submitted' });
-      return;
-    }
-
-    const updated = await prisma.purchaseOrder.update({
-      where: { id },
-      data: { status: 'SUBMITTED' },
-    });
-
-    return updated;
   });
 
   fastify.post('/:id/approve', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled for now)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+    try {
+      const { id } = (request.params as any);
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const storeId = store?.id || '';
 
-    const po = await prisma.purchaseOrder.findUnique({
-      where: { id },
-    });
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+        include: {
+          items: {
+            include: { product: true },
+          },
+        },
+      });
 
-    if (!po || po.ownerStoreId !== storeId) {
-      reply.code(404).send({ error: 'PO not found' });
-      return;
+      if (!po || po.ownerStoreId !== storeId) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      if (po.status !== 'SUBMITTED') {
+        reply.code(400).send({ error: 'PO cannot be approved' });
+        return;
+      }
+
+      // Update PO status to APPROVED
+      const updated = await prisma.purchaseOrder.update({
+        where: { id },
+        data: { status: 'APPROVED' },
+      });
+
+      // Add inventory for each item in the PO
+      // Inventory should be added to the franchise store
+      const franchiseStoreId = po.franchiseStoreId;
+      
+      for (const item of po.items) {
+        await prisma.inventoryLedger.create({
+          data: {
+            storeId: franchiseStoreId,
+            productId: item.productId,
+            type: 'IN',
+            qtyKg: item.qtyKg || undefined,
+            qtyPcs: item.qtyPcs || undefined,
+            reason: 'RECEIVE',
+            refId: id, // Reference to the PO
+          },
+        });
+      }
+
+      return updated;
+    } catch (error: any) {
+      console.error('Failed to approve PO:', error);
+      reply.code(500).send({ error: 'Failed to approve PO', details: error.message });
     }
-
-    if (po.status !== 'SUBMITTED') {
-      reply.code(400).send({ error: 'PO cannot be approved' });
-      return;
-    }
-
-    const updated = await prisma.purchaseOrder.update({
-      where: { id },
-      data: { status: 'APPROVED' },
-    });
-
-    return updated;
   });
 
   fastify.post('/:id/reject', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled for now)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+    try {
+      const { id } = (request.params as any);
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const storeId = store?.id || '';
 
-    const po = await prisma.purchaseOrder.findUnique({
-      where: { id },
-    });
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+      });
 
-    if (!po || po.ownerStoreId !== storeId) {
-      reply.code(404).send({ error: 'PO not found' });
-      return;
+      if (!po || po.ownerStoreId !== storeId) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      if (po.status !== 'SUBMITTED') {
+        reply.code(400).send({ error: 'PO cannot be rejected' });
+        return;
+      }
+
+      const updated = await prisma.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          notes: (request.body as any).reason ? `${po.notes || ''}\nRejected: ${(request.body as any).reason}` : po.notes,
+        },
+      });
+
+      return updated;
+    } catch (error: any) {
+      console.error('Failed to reject PO:', error);
+      reply.code(500).send({ error: 'Failed to reject PO', details: error.message });
     }
-
-    if (po.status !== 'SUBMITTED') {
-      reply.code(400).send({ error: 'PO cannot be rejected' });
-      return;
-    }
-
-    const updated = await prisma.purchaseOrder.update({
-      where: { id },
-      data: {
-        status: 'REJECTED',
-        notes: (request.body as any).reason ? `${po.notes || ''}\nRejected: ${(request.body as any).reason}` : po.notes,
-      },
-    });
-
-    return updated;
   });
 
   fastify.post('/:id/dispatch', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled for now)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+    try {
+      const { id } = (request.params as any);
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const storeId = store?.id || '';
 
-    const po = await prisma.purchaseOrder.findUnique({
-      where: { id },
-      include: { items: true },
-    });
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+        include: { items: true },
+      });
 
-    if (!po || po.ownerStoreId !== storeId) {
-      reply.code(404).send({ error: 'PO not found' });
-      return;
+      if (!po || po.ownerStoreId !== storeId) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      if (po.status !== 'APPROVED') {
+        reply.code(400).send({ error: 'PO must be approved to dispatch' });
+        return;
+      }
+
+      // Generate dispatch number
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
+      const count = await prisma.dispatch.count({
+        where: {
+          createdAt: {
+            gte: new Date(today.setHours(0, 0, 0, 0)),
+          },
+        },
+      });
+      const dispatchNo = `DISP-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+
+      const dispatch = await prisma.dispatch.create({
+        data: {
+          poId: id,
+          dispatchNo,
+          status: 'CREATED',
+          items: {
+            create: po.items.map((item: any) => ({
+              productId: item.productId,
+              qtyKg: item.qtyKg,
+              qtyPcs: item.qtyPcs,
+            })),
+          },
+        },
+        include: {
+          items: {
+            include: { product: true },
+          },
+        },
+      });
+
+      await prisma.purchaseOrder.update({
+        where: { id },
+        data: { status: 'DISPATCHED' },
+      });
+
+      return dispatch;
+    } catch (error: any) {
+      console.error('Failed to dispatch PO:', error);
+      reply.code(500).send({ error: 'Failed to dispatch PO', details: error.message });
     }
-
-    if (po.status !== 'APPROVED') {
-      reply.code(400).send({ error: 'PO must be approved to dispatch' });
-      return;
-    }
-
-    // Generate dispatch number
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
-    const count = await prisma.dispatch.count({
-      where: {
-        createdAt: {
-          gte: new Date(today.setHours(0, 0, 0, 0)),
-        },
-      },
-    });
-    const dispatchNo = `DISP-${dateStr}-${String(count + 1).padStart(4, '0')}`;
-
-    const dispatch = await prisma.dispatch.create({
-      data: {
-        poId: id,
-        dispatchNo,
-        status: 'CREATED',
-        items: {
-          create: po.items.map((item: any) => ({
-            productId: item.productId,
-            qtyKg: item.qtyKg,
-            qtyPcs: item.qtyPcs,
-          })),
-        },
-      },
-      include: {
-        items: {
-          include: { product: true },
-        },
-      },
-    });
-
-    await prisma.purchaseOrder.update({
-      where: { id },
-      data: { status: 'DISPATCHED' },
-    });
-
-    return dispatch;
   });
 
   fastify.post('/dispatch/:dispatchId/receive', async (request: any, reply: FastifyReply) => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store and user (since auth is disabled for now)
-    const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
-    const storeId = store?.id || '';
-    const user = await prisma.user.findFirst({ where: { role: 'MANAGER' } });
-    const userId = user?.id || '';
+    try {
+      const { dispatchId } = (request.params as any);
+      // Get default store and user (since auth is disabled for now)
+      const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
+      const storeId = store?.id || '';
+      const user = await prisma.user.findFirst({ where: { role: 'MANAGER' } });
+      const userId = user?.id || '';
 
-    const dispatch = await prisma.dispatch.findUnique({
-      where: { id: dispatchId },
-      include: {
-        items: true,
-        po: true,
-      },
-    });
-
-    if (!dispatch || dispatch.po.franchiseStoreId !== storeId) {
-      reply.code(404).send({ error: 'Dispatch not found' });
-      return;
-    }
-
-    // Create GRN
-    const grn = await prisma.gRN.create({
-      data: {
-        dispatchId,
-        receivedBy: userId,
-        status: 'RECEIVED',
-      },
-    });
-
-    // Update inventory
-    for (const item of dispatch.items) {
-      await prisma.inventoryLedger.create({
-        data: {
-          storeId,
-          productId: item.productId,
-          type: 'IN',
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
-          reason: 'RECEIVE',
-          refId: dispatchId,
+      const dispatch = await prisma.dispatch.findUnique({
+        where: { id: dispatchId },
+        include: {
+          items: true,
+          po: true,
         },
       });
+
+      if (!dispatch || dispatch.po.franchiseStoreId !== storeId) {
+        reply.code(404).send({ error: 'Dispatch not found' });
+        return;
+      }
+
+      // Create GRN
+      const grn = await prisma.gRN.create({
+        data: {
+          dispatchId,
+          receivedBy: userId,
+          status: 'RECEIVED',
+        },
+      });
+
+      // Update inventory
+      for (const item of dispatch.items) {
+        await prisma.inventoryLedger.create({
+          data: {
+            storeId,
+            productId: item.productId,
+            type: 'IN',
+            qtyKg: item.qtyKg,
+            qtyPcs: item.qtyPcs,
+            reason: 'RECEIVE',
+            refId: dispatchId,
+          },
+        });
+      }
+
+      // Update PO status
+      await prisma.purchaseOrder.update({
+        where: { id: dispatch.poId },
+        data: { status: 'RECEIVED' },
+      });
+
+      return grn;
+    } catch (error: any) {
+      console.error('Failed to receive dispatch:', error);
+      reply.code(500).send({ error: 'Failed to receive dispatch', details: error.message });
     }
-
-    // Update PO status
-    await prisma.purchaseOrder.update({
-      where: { id: dispatch.poId },
-      data: { status: 'RECEIVED' },
-    });
-
-    return grn;
   });
 }
 

@@ -54,6 +54,14 @@ export default function StoreInventoryPage() {
     reason: 'ADJUSTMENT',
   });
 
+  const [showEditStockModal, setShowEditStockModal] = useState(false);
+  const [editStockProduct, setEditStockProduct] = useState<InventoryItem | null>(null);
+  const [editStockForm, setEditStockForm] = useState({
+    qtyKg: '',
+    qtyPcs: '',
+    reason: 'CORRECTION',
+  });
+
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [addProductLoading, setAddProductLoading] = useState(false);
   const [addProductForm, setAddProductForm] = useState({
@@ -228,6 +236,75 @@ export default function StoreInventoryPage() {
       reason: 'ADJUSTMENT',
     });
     setShowAdjustModal(true);
+  };
+
+  const openEditStockModal = (item: InventoryItem) => {
+    setEditStockProduct(item);
+    setEditStockForm({
+      qtyKg: item.unitType === 'KG' ? item.currentQtyKg.toFixed(2) : '',
+      qtyPcs: item.unitType === 'PCS' ? item.currentQtyPcs.toString() : '',
+      reason: 'CORRECTION',
+    });
+    setShowEditStockModal(true);
+  };
+
+  const handleEditStock = async () => {
+    if (!editStockProduct) return;
+
+    const newQtyKg = parseFloat(editStockForm.qtyKg) || 0;
+    const newQtyPcs = parseFloat(editStockForm.qtyPcs) || 0;
+
+    if (editStockProduct.unitType === 'KG' && editStockForm.qtyKg === '') {
+      showNotification('Please enter quantity', 'error');
+      return;
+    }
+    if (editStockProduct.unitType === 'PCS' && editStockForm.qtyPcs === '') {
+      showNotification('Please enter quantity', 'error');
+      return;
+    }
+
+    try {
+      // Calculate the difference needed
+      const currentQty = editStockProduct.unitType === 'KG' 
+        ? editStockProduct.currentQtyKg 
+        : editStockProduct.currentQtyPcs;
+      const newQty = editStockProduct.unitType === 'KG' ? newQtyKg : newQtyPcs;
+      const adjustment = newQty - currentQty;
+
+      if (adjustment === 0) {
+        showNotification('Stock is already at this value', 'info');
+        setShowEditStockModal(false);
+        return;
+      }
+
+      // Use the adjust API with the calculated difference
+      const response = await api.post('/api/v1/inventory/adjust', {
+        productId: editStockProduct.productId,
+        qtyKg: editStockProduct.unitType === 'KG' ? adjustment : undefined,
+        qtyPcs: editStockProduct.unitType === 'PCS' ? adjustment : undefined,
+        reason: editStockForm.reason || 'CORRECTION',
+      });
+      
+      if (response.data) {
+        await loadInventory();
+        setShowEditStockModal(false);
+        setEditStockProduct(null);
+        setEditStockForm({
+          qtyKg: '',
+          qtyPcs: '',
+          reason: 'CORRECTION',
+        });
+        showNotification('Stock updated successfully!', 'success');
+      }
+    } catch (error: any) {
+      console.error('Edit stock error:', error);
+      const errorMessage =
+        error.response?.data?.error ||
+        error.response?.data?.details ||
+        error.message ||
+        'Failed to update stock';
+      showNotification(errorMessage, 'error');
+    }
   };
 
   const openDeleteModal = (item: InventoryItem) => {
@@ -687,18 +764,27 @@ export default function StoreInventoryPage() {
                             Adjust
                           </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log('Delete button clicked for product:', item.productName, item.productId);
-                            openDeleteModal(item);
-                          }}
-                          className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold bg-red-500 text-white rounded hover:bg-red-600 active:bg-red-700 transition-colors touch-target whitespace-nowrap"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditStockModal(item)}
+                            className="flex-1 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium bg-blue-500 text-white rounded hover:bg-blue-600 active:bg-blue-700 transition-colors touch-target whitespace-nowrap"
+                          >
+                            Edit Stock
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log('Delete button clicked for product:', item.productName, item.productId);
+                              openDeleteModal(item);
+                            }}
+                            className="flex-1 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold bg-red-500 text-white rounded hover:bg-red-600 active:bg-red-700 transition-colors touch-target whitespace-nowrap"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1269,6 +1355,96 @@ export default function StoreInventoryPage() {
               >
                 {editLoading ? 'Updating...' : 'Update Product'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Stock Modal */}
+      {showEditStockModal && editStockProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white">Edit Stock</h2>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                  Product: <strong className="dark:text-white">{editStockProduct.productName}</strong>
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                  Current Stock:{' '}
+                  {editStockProduct.unitType === 'KG'
+                    ? `${editStockProduct.currentQtyKg.toFixed(2)} kg`
+                    : `${editStockProduct.currentQtyPcs} pcs`}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  New Stock {editStockProduct.unitType === 'KG' ? '(kg)' : '(pcs)'} *
+                </label>
+                <input
+                  type="number"
+                  value={
+                    editStockProduct.unitType === 'KG'
+                      ? editStockForm.qtyKg
+                      : editStockForm.qtyPcs
+                  }
+                  onChange={(e) => {
+                    if (editStockProduct.unitType === 'KG') {
+                      setEditStockForm({ ...editStockForm, qtyKg: e.target.value });
+                    } else {
+                      setEditStockForm({ ...editStockForm, qtyPcs: e.target.value });
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  placeholder={editStockProduct.unitType === 'KG' ? '0.00' : '0'}
+                  step={editStockProduct.unitType === 'KG' ? '0.01' : '1'}
+                  min="0"
+                  required
+                  autoFocus
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Enter the exact stock quantity you want to set
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Reason
+                </label>
+                <select
+                  value={editStockForm.reason}
+                  onChange={(e) =>
+                    setEditStockForm({ ...editStockForm, reason: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="CORRECTION">Correction</option>
+                  <option value="ADJUSTMENT">Manual Adjustment</option>
+                  <option value="DAMAGE">Damage</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => {
+                    setShowEditStockModal(false);
+                    setEditStockProduct(null);
+                    setEditStockForm({
+                      qtyKg: '',
+                      qtyPcs: '',
+                      reason: 'CORRECTION',
+                    });
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditStock}
+                  className="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  Update Stock
+                </button>
+              </div>
             </div>
           </div>
         </div>
