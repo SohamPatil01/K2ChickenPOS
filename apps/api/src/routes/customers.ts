@@ -502,24 +502,6 @@ export async function customerRoutes(fastify: FastifyInstance) {
         }
       });
       const openCreditSales = Array.from(saleMap.values());
-        include: {
-          customer: true,
-          payments: true,
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
 
       // Group by customer
       const customerMap = new Map();
