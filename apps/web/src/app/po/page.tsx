@@ -103,11 +103,14 @@ export default function POPage() {
 
   const handleAction = async (poId: string, action: string) => {
     try {
-      await api.post(`/api/v1/po/${poId}/${action}`);
-      loadPOs();
-      alert('Action completed successfully!');
+      const response = await api.post(`/api/v1/po/${poId}/${action}`);
+      await loadPOs();
+      const actionName = action.charAt(0).toUpperCase() + action.slice(1);
+      alert(`${actionName} completed successfully!${action === 'approve' ? ' Inventory has been updated.' : ''}`);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Action failed');
+      console.error(`Failed to ${action} PO:`, error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.details || error.message || 'Action failed';
+      alert(`Failed to ${action} PO: ${errorMessage}`);
     }
   };
 

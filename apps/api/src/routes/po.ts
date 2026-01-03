@@ -2,7 +2,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { createPOSchema } from '@azela-pos/shared';
-import { requireRole } from '../utils/auth.js';
+import { requireRole, getUser } from '../utils/auth.js';
 
 export async function poRoutes(fastify: FastifyInstance) {
 
@@ -167,11 +167,29 @@ export async function poRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/:id/approve', async (request: any, reply: FastifyReply) => {
+  fastify.post('/:id/approve', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-      const storeId = store?.id || '';
+      const user = getUser(request);
+      const userStoreId = user.storeId;
+
+      // Get user's store to check if it's an owner store
+      const userStore = await prisma.store.findUnique({
+        where: { id: userStoreId },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      // Determine the owner store ID (could be the user's store or parent)
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
+      
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store not found' });
+        return;
+      }
 
       const po = await prisma.purchaseOrder.findUnique({
         where: { id },
@@ -182,13 +200,19 @@ export async function poRoutes(fastify: FastifyInstance) {
         },
       });
 
-      if (!po || po.ownerStoreId !== storeId) {
+      if (!po) {
         reply.code(404).send({ error: 'PO not found' });
         return;
       }
 
+      // Check if PO belongs to the owner store
+      if (po.ownerStoreId !== ownerStoreId) {
+        reply.code(403).send({ error: 'Access denied. PO does not belong to your store.' });
+        return;
+      }
+
       if (po.status !== 'SUBMITTED') {
-        reply.code(400).send({ error: 'PO cannot be approved' });
+        reply.code(400).send({ error: `PO cannot be approved. Current status: ${po.status}` });
         return;
       }
 
@@ -219,6 +243,10 @@ export async function poRoutes(fastify: FastifyInstance) {
       return updated;
     } catch (error: any) {
       console.error('Failed to approve PO:', error);
+      if (error.message === 'User not authenticated') {
+        reply.code(401).send({ error: 'Unauthorized' });
+        return;
+      }
       reply.code(500).send({ error: 'Failed to approve PO', details: error.message });
     }
   });
