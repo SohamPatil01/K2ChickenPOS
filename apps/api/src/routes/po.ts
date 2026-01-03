@@ -56,9 +56,9 @@ export async function poRoutes(fastify: FastifyInstance) {
         items: {
           create: data.items.map((item: any) => ({
             productId: item.productId,
-            qtyKg: item.qtyKg,
-            qtyPcs: item.qtyPcs,
-            requestedRate: item.requestedRate,
+            qtyKg: item.qtyKg && item.qtyKg > 0 ? item.qtyKg : null,
+            qtyPcs: item.qtyPcs && item.qtyPcs > 0 ? item.qtyPcs : null,
+            requestedRate: item.requestedRate || 0,
           })),
         },
       },
