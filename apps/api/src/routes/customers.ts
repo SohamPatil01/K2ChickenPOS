@@ -440,20 +440,68 @@ export async function customerRoutes(fastify: FastifyInstance) {
       // Get all sales that are credit orders:
       // 1. OPEN status orders (unpaid), OR
       // 2. Orders with CREDIT payment method (even if marked PAID, check for pending balance)
-      const openCreditSales = await prisma.sale.findMany({
+      // First get all OPEN sales
+      const openSales = await prisma.sale.findMany({
         where: {
           storeId,
-          OR: [
-            { status: 'OPEN' }, // Unpaid orders
-            {
-              payments: {
-                some: {
-                  method: 'CREDIT',
+          status: 'OPEN',
+        },
+        include: {
+          customer: true,
+          payments: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
                 },
               },
             },
-          ],
+          },
         },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Then get all sales with CREDIT payments (even if PAID)
+      const creditSales = await prisma.sale.findMany({
+        where: {
+          storeId,
+          payments: {
+            some: {
+              method: 'CREDIT',
+            },
+          },
+        },
+        include: {
+          customer: true,
+          payments: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Combine and deduplicate by sale ID
+      const saleMap = new Map();
+      [...openSales, ...creditSales].forEach(sale => {
+        if (!saleMap.has(sale.id)) {
+          saleMap.set(sale.id, sale);
+        }
+      });
+      const openCreditSales = Array.from(saleMap.values());
         include: {
           customer: true,
           payments: true,
