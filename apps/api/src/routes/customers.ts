@@ -466,13 +466,28 @@ export async function customerRoutes(fastify: FastifyInstance) {
       });
 
       // Then get all sales with CREDIT payments (even if PAID)
-      const creditSales = await prisma.sale.findMany({
+      // First find all payments with CREDIT method for this store
+      const creditPayments = await prisma.payment.findMany({
+        where: {
+          method: 'CREDIT',
+          sale: {
+            storeId,
+          },
+        },
+        select: {
+          saleId: true,
+        },
+        distinct: ['saleId'],
+      });
+
+      const creditSaleIds = creditPayments.map(p => p.saleId);
+      
+      // Then fetch the sales
+      const creditSales = creditSaleIds.length > 0 ? await prisma.sale.findMany({
         where: {
           storeId,
-          payments: {
-            some: {
-              method: 'CREDIT',
-            },
+          id: {
+            in: creditSaleIds,
           },
         },
         include: {
@@ -492,7 +507,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         orderBy: {
           createdAt: 'desc',
         },
-      });
+      }) : [];
 
       // Combine and deduplicate by sale ID
       const saleMap = new Map();
