@@ -139,15 +139,6 @@ export default function LoginPage() {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        
-        <div className="mt-4 p-3 bg-gray-50 rounded text-xs sm:text-sm text-gray-600">
-          <p className="font-semibold mb-1.5">Test Credentials:</p>
-          <div className="space-y-1">
-            <p>Owner: 9999999999 / owner123</p>
-            <p>Manager: 8888888888 / manager123</p>
-            <p>Cashier: 7777777777 / cashier123</p>
-          </div>
-        </div>
       </div>
     </div>
   );
