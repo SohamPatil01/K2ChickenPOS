@@ -47,18 +47,18 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         include: {
           inventoryLedgers: {
             where: { storeId },
-            orderBy: { createdAt: 'desc' },
+            // Remove orderBy to get all entries, order doesn't matter for calculation
           },
         },
       });
 
-      console.log(`[Inventory Summary] Found ${products.length} products`);
+      console.log(`[Inventory Summary] Found ${products.length} products for store ${storeId}`);
 
       const summary = products.map((product: any) => {
         let totalQtyKg = 0;
         let totalQtyPcs = 0;
 
-        console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries`);
+        console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries for store ${storeId}`);
 
         for (const ledger of product.inventoryLedgers) {
           if (ledger.type === 'IN') {
@@ -69,6 +69,10 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
             totalQtyPcs -= ledger.qtyPcs || 0;
           }
         }
+        
+        // Ensure quantities are non-negative
+        totalQtyKg = Math.max(0, totalQtyKg);
+        totalQtyPcs = Math.max(0, totalQtyPcs);
 
         return {
           productId: product.id,

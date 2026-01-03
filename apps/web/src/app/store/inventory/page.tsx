@@ -215,6 +215,8 @@ export default function StoreInventoryPage() {
       setStockItems([]);
       setSelectedStockProduct(null);
       setStockItemForm({ qtyKg: '', qtyPcs: '', reason: 'RECEIVE' });
+      // Wait a moment for database to commit, then refresh
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadInventory();
       setActiveTab('inventory'); // Switch back to inventory tab
     } catch (error: any) {
@@ -303,6 +305,12 @@ export default function StoreInventoryPage() {
 
     const qtyKg = parseFloat(adjustForm.qtyKg) || 0;
     const qtyPcs = parseFloat(adjustForm.qtyPcs) || 0;
+    
+    // If both are zero or empty, show error
+    if ((!qtyKg || qtyKg === 0) && (!qtyPcs || qtyPcs === 0)) {
+      showNotification('Please enter a quantity', 'error');
+      return;
+    }
 
     if (selectedProduct.unitType === 'KG' && qtyKg === 0) {
       showNotification('Please enter quantity', 'error');
@@ -322,11 +330,13 @@ export default function StoreInventoryPage() {
       });
       
       if (response.data) {
+        showNotification('Inventory adjusted successfully!', 'success');
+        // Wait a moment for database to commit, then refresh
+        await new Promise(resolve => setTimeout(resolve, 500));
         await loadInventory();
         setShowAdjustModal(false);
         setSelectedProduct(null);
         setAdjustForm({ qtyKg: '', qtyPcs: '', reason: 'ADJUSTMENT' });
-        showNotification('Inventory adjusted successfully!', 'success');
       }
     } catch (error: any) {
       console.error('Inventory adjustment error:', error);
@@ -397,6 +407,9 @@ export default function StoreInventoryPage() {
       });
       
       if (response.data) {
+        showNotification('Stock updated successfully!', 'success');
+        // Wait a moment for database to commit, then refresh
+        await new Promise(resolve => setTimeout(resolve, 500));
         await loadInventory();
         setShowEditStockModal(false);
         setEditStockProduct(null);
@@ -405,7 +418,6 @@ export default function StoreInventoryPage() {
           qtyPcs: '',
           reason: 'CORRECTION',
         });
-        showNotification('Stock updated successfully!', 'success');
       }
     } catch (error: any) {
       console.error('Edit stock error:', error);
