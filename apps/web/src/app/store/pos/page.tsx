@@ -116,7 +116,25 @@ export default function StorePOSPage() {
       setProducts(productsWithMaster);
     } catch (error: any) {
       console.error('Failed to load products:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to load products. Please try again.';
+      
+      // Enhanced error handling for network errors
+      let errorMessage = 'Failed to load products. Please try again.';
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'Not configured';
+        errorMessage = `Cannot connect to API server. Please check if the API is running and NEXT_PUBLIC_API_URL is set correctly. (Current: ${apiUrl})`;
+        console.error('Network Error Details:', {
+          apiUrl,
+          errorCode: error.code,
+          errorMessage: error.message,
+          url: error.config?.url,
+          baseURL: error.config?.baseURL,
+        });
+      } else if (error.response) {
+        errorMessage = error.response.data?.error || `Server error: ${error.response.status}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setError(prev => ({ ...prev, products: errorMessage }));
       showNotification(errorMessage, 'error', 5000);
     } finally {

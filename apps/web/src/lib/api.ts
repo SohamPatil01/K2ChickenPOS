@@ -28,7 +28,17 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
-    console.error('API response error:', error.config?.url, error.response?.status, error.response?.data);
+    // Enhanced error logging
+    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+      console.error('Network Error - API may be down or URL incorrect:', {
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        apiUrl: process.env.NEXT_PUBLIC_API_URL,
+        message: 'Check if API server is running and NEXT_PUBLIC_API_URL is set correctly',
+      });
+    } else {
+      console.error('API response error:', error.config?.url, error.response?.status, error.response?.data);
+    }
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {

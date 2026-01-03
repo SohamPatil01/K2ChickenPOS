@@ -72,8 +72,11 @@ async function build() {
   });
 
   await fastify.register(cors, {
-    origin: true,
+    origin: true, // Allow all origins - Fastify CORS plugin handles this properly
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Register rate limiting with higher limits to prevent blocking legitimate requests
@@ -194,10 +197,27 @@ export default async function handler(req: any, res: any) {
       query: req.query || {},
     });
 
-    // Set response headers
+    // Set response headers - ensure CORS headers are always present
     const responseHeaders = response.headers || {};
+    
+    // Always set CORS headers for all responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    
+    // Set other response headers
     Object.keys(responseHeaders).forEach(key => {
       const value = responseHeaders[key];
+      // Don't override CORS headers we just set
+      if (key.toLowerCase().startsWith('access-control-')) {
+        return;
+      }
       if (value !== undefined && value !== null) {
         try {
           res.setHeader(key, value);
