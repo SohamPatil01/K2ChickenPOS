@@ -248,28 +248,43 @@ export async function poRoutes(fastify: FastifyInstance) {
       
       const inventoryEntries = [];
       for (const item of po.items) {
-        // Skip items with no quantity
-        if (!item.qtyKg && !item.qtyPcs) {
-          console.warn(`[PO Approve] Skipping item ${item.productId} - no quantity specified`);
+        console.log(`[PO Approve] Processing item:`, {
+          productId: item.productId,
+          productName: item.product?.name || 'Unknown',
+          qtyKg: item.qtyKg,
+          qtyPcs: item.qtyPcs,
+          qtyKgType: typeof item.qtyKg,
+          qtyPcsType: typeof item.qtyPcs,
+        });
+
+        // Skip items with no quantity (handle null, undefined, and 0)
+        const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
+        const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
+        
+        if (!hasQtyKg && !hasQtyPcs) {
+          console.warn(`[PO Approve] Skipping item ${item.productId} (${item.product?.name || 'Unknown'}) - no valid quantity specified (qtyKg: ${item.qtyKg}, qtyPcs: ${item.qtyPcs})`);
           continue;
         }
 
-        const ledgerEntry = {
+        const ledgerEntry: any = {
           storeId: franchiseStoreId,
           productId: item.productId,
-          type: 'IN' as const,
-          qtyKg: item.qtyKg || undefined,
-          qtyPcs: item.qtyPcs || undefined,
-          reason: 'RECEIVE' as const,
+          type: 'IN',
+          reason: 'RECEIVE',
           refId: id, // Reference to the PO
         };
 
-        console.log(`[PO Approve] Creating inventory ledger entry for product ${item.productId}:`, {
-          storeId: franchiseStoreId,
-          productId: item.productId,
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
-        });
+        // Only include qtyKg if it has a valid value
+        if (hasQtyKg) {
+          ledgerEntry.qtyKg = item.qtyKg;
+        }
+
+        // Only include qtyPcs if it has a valid value
+        if (hasQtyPcs) {
+          ledgerEntry.qtyPcs = item.qtyPcs;
+        }
+
+        console.log(`[PO Approve] Creating inventory ledger entry:`, ledgerEntry);
         
         try {
           const created = await prisma.inventoryLedger.create({
@@ -277,15 +292,40 @@ export async function poRoutes(fastify: FastifyInstance) {
           });
           
           inventoryEntries.push(created);
-          console.log(`[PO Approve] Inventory ledger entry created successfully: ${created.id}`);
+          console.log(`[PO Approve] ✅ Inventory ledger entry created successfully:`, {
+            id: created.id,
+            storeId: created.storeId,
+            productId: created.productId,
+            type: created.type,
+            qtyKg: created.qtyKg,
+            qtyPcs: created.qtyPcs,
+            reason: created.reason,
+          });
         } catch (error: any) {
-          console.error(`[PO Approve] Failed to create inventory ledger entry:`, error);
-          console.error(`[PO Approve] Error details:`, error.message, error.code);
+          console.error(`[PO Approve] ❌ Failed to create inventory ledger entry:`, error);
+          console.error(`[PO Approve] Error details:`, {
+            message: error.message,
+            code: error.code,
+            meta: error.meta,
+          });
           // Continue with other items even if one fails
         }
       }
 
-      console.log(`[PO Approve] Created ${inventoryEntries.length} out of ${po.items.length} inventory ledger entries for PO ${id}`);
+      console.log(`[PO Approve] Summary: Created ${inventoryEntries.length} out of ${po.items.length} inventory ledger entries for PO ${id}`);
+      
+      // Verify the entries were created by querying them back
+      if (inventoryEntries.length > 0) {
+        const verifyEntries = await prisma.inventoryLedger.findMany({
+          where: {
+            refId: id,
+            storeId: franchiseStoreId,
+            type: 'IN',
+            reason: 'RECEIVE',
+          },
+        });
+        console.log(`[PO Approve] Verification: Found ${verifyEntries.length} inventory ledger entries with refId ${id} for store ${franchiseStoreId}`);
+      }
 
       return {
         ...updated,

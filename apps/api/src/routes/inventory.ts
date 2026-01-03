@@ -8,71 +8,86 @@ import { getUser } from '../utils/auth.js';
 export async function inventoryRoutes(fastify: FastifyInstance) {
 
   fastify.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Try to get user's store, fallback to first store if not authenticated
-    let store;
-    let storeId = '';
-    
     try {
-      const user = getUser(request as any);
-      store = await prisma.store.findUnique({ where: { id: user.storeId } });
-      storeId = user.storeId;
-    } catch {
-      // Not authenticated, use first store as fallback
-      store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-      storeId = store?.id || '';
-    }
-
-    if (!store) {
-      reply.code(404).send({ error: 'Store not found' });
-      return;
-    }
-
-    const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
-    if (!ownerStoreId) {
-      reply.code(400).send({ error: 'Owner store not found' });
-      return;
-    }
-
-    // Get all products
-    const products = await prisma.product.findMany({
-      where: {
-        ownerStoreId,
-        isActive: true,
-      },
-      include: {
-        inventoryLedgers: {
-          where: { storeId },
-        },
-      },
-    });
-
-    const summary = products.map((product: any) => {
-      let totalQtyKg = 0;
-      let totalQtyPcs = 0;
-
-      for (const ledger of product.inventoryLedgers) {
-        if (ledger.type === 'IN') {
-          totalQtyKg += ledger.qtyKg || 0;
-          totalQtyPcs += ledger.qtyPcs || 0;
-        } else {
-          totalQtyKg -= ledger.qtyKg || 0;
-          totalQtyPcs -= ledger.qtyPcs || 0;
-        }
+      // Try to get user's store, fallback to first store if not authenticated
+      let store;
+      let storeId = '';
+      
+      try {
+        const user = getUser(request as any);
+        store = await prisma.store.findUnique({ where: { id: user.storeId } });
+        storeId = user.storeId;
+        console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
+      } catch {
+        // Not authenticated, use first store as fallback
+        store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+        storeId = store?.id || '';
+        console.log(`[Inventory Summary] Not authenticated, using fallback store: ${storeId}`);
       }
 
-      return {
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-        plu: product.plu,
-        unitType: product.unitType,
-        currentQtyKg: totalQtyKg,
-        currentQtyPcs: totalQtyPcs,
-        imageUrl: product.imageUrl,
-      };
-    });
+      if (!store) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
-    return summary;
+      const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store not found' });
+        return;
+      }
+
+      console.log(`[Inventory Summary] Owner store ID: ${ownerStoreId}, Querying store ID: ${storeId}`);
+
+      // Get all products
+      const products = await prisma.product.findMany({
+        where: {
+          ownerStoreId,
+          isActive: true,
+        },
+        include: {
+          inventoryLedgers: {
+            where: { storeId },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+
+      console.log(`[Inventory Summary] Found ${products.length} products`);
+
+      const summary = products.map((product: any) => {
+        let totalQtyKg = 0;
+        let totalQtyPcs = 0;
+
+        console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries`);
+
+        for (const ledger of product.inventoryLedgers) {
+          if (ledger.type === 'IN') {
+            totalQtyKg += ledger.qtyKg || 0;
+            totalQtyPcs += ledger.qtyPcs || 0;
+          } else {
+            totalQtyKg -= ledger.qtyKg || 0;
+            totalQtyPcs -= ledger.qtyPcs || 0;
+          }
+        }
+
+        return {
+          productId: product.id,
+          productName: product.name,
+          sku: product.sku,
+          plu: product.plu,
+          unitType: product.unitType,
+          currentQtyKg: totalQtyKg,
+          currentQtyPcs: totalQtyPcs,
+          imageUrl: product.imageUrl,
+        };
+      });
+
+      console.log(`[Inventory Summary] Returning ${summary.length} items`);
+      return summary;
+    } catch (error: any) {
+      console.error('[Inventory Summary] Error:', error);
+      reply.code(500).send({ error: 'Failed to load inventory summary', details: error.message });
+    }
   });
 
   fastify.post('/adjust', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
