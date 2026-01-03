@@ -43,22 +43,23 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/summary', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Try to get user's store, fallback to first store if not authenticated
-      let store;
-      let storeId = '';
+      // Get user's store - now requires authentication
+      const user = getUser(request as any);
+      if (!user || !user.storeId) {
+        reply.code(401).send({ error: 'Authentication required' });
+        return;
+      }
       
-      try {
-        const user = getUser(request as any);
-        store = await prisma.store.findUnique({ where: { id: user.storeId } });
-        storeId = user.storeId;
-        console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
-      } catch {
-        // Not authenticated, use first store as fallback
-        store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-        storeId = store?.id || '';
-        console.log(`[Inventory Summary] Not authenticated, using fallback store: ${storeId}`);
+      const store = await prisma.store.findUnique({ where: { id: user.storeId } });
+      const storeId = user.storeId;
+      
+      console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
+      
+      if (!store) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
       }
 
       if (!store) {
