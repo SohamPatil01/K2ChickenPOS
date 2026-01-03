@@ -175,18 +175,45 @@ export async function saleRoutes(fastify: FastifyInstance) {
         customerId = customer.id;
       }
 
-      // Generate sale number
+      // Generate sale number - retry if duplicate
       const today = new Date();
       const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
-      const count = await prisma.sale.count({
-        where: {
-          storeId,
-          createdAt: {
-            gte: new Date(today.setHours(0, 0, 0, 0)),
+      let saleNo: string;
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      do {
+        const count = await prisma.sale.count({
+          where: {
+            storeId,
+            createdAt: {
+              gte: new Date(today.setHours(0, 0, 0, 0)),
+            },
           },
-        },
-      });
-      const saleNo = `SALE-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+        });
+        saleNo = `SALE-${dateStr}-${String(count + 1 + attempts).padStart(4, '0')}`;
+        attempts++;
+        
+        // Check if this sale number already exists
+        const existing = await prisma.sale.findUnique({
+          where: {
+            storeId_saleNo: {
+              storeId,
+              saleNo,
+            },
+          },
+        });
+        
+        if (!existing) {
+          break; // Sale number is unique, proceed
+        }
+        
+        if (attempts >= maxAttempts) {
+          // Fallback to timestamp-based number if we can't find a unique sequential one
+          saleNo = `SALE-${dateStr}-${Date.now().toString().slice(-8)}`;
+          break;
+        }
+      } while (attempts < maxAttempts);
 
       // Calculate totals
       let subTotal = 0;
@@ -283,6 +310,29 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       const grandTotal = subTotal + taxTotal - data.discountTotal;
+
+      // Check for recent duplicate sale (within last 5 seconds with same items and total)
+      const fiveSecondsAgo = new Date(Date.now() - 5000);
+      const recentDuplicate = await prisma.sale.findFirst({
+        where: {
+          storeId,
+          createdByUserId: userId,
+          grandTotal: grandTotal,
+          status: 'OPEN',
+          createdAt: {
+            gte: fiveSecondsAgo,
+          },
+        },
+        include: {
+          items: true,
+        },
+      });
+
+      // If duplicate found, return existing sale instead of creating new one
+      if (recentDuplicate) {
+        console.log(`[Sale Create] Duplicate sale detected, returning existing sale: ${recentDuplicate.id}`);
+        return recentDuplicate;
+      }
 
       // Create sale
       const sale = await prisma.sale.create({

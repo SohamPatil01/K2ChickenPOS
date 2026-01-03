@@ -8,6 +8,7 @@ import { useNotificationStore } from '@/store/notification';
 import api from '@/lib/api';
 import NumPad from '@/components/NumPad';
 import VirtualKeyboard from '@/components/VirtualKeyboard';
+import BillSuccessAnimation from '@/components/BillSuccessAnimation';
 import { offlineDB } from '@azela-pos/offline';
 
 export default function StoreCartPage() {
@@ -24,7 +25,11 @@ export default function StoreCartPage() {
   const customerName = useCartStore((state) => state.customerName);
   const setCustomer = useCartStore((state) => state.setCustomer);
   const discountTotal = useCartStore((state) => state.discountTotal);
+  const discountType = useCartStore((state) => state.discountType);
+  const discountPercentage = useCartStore((state) => state.discountPercentage);
   const setDiscount = useCartStore((state) => state.setDiscount);
+  const setDiscountType = useCartStore((state) => state.setDiscountType);
+  const setDiscountPercentage = useCartStore((state) => state.setDiscountPercentage);
   const loadCart = useCartStore((state) => state.loadCart);
   const clearCart = useCartStore((state) => state.clearCart);
 
@@ -39,6 +44,9 @@ export default function StoreCartPage() {
   const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -238,12 +246,21 @@ export default function StoreCartPage() {
   }, [tempCustomerPhone, tempCustomerName, customerId]);
 
   const handleCreateSale = async (paymentMethod: string, amountPaid: number) => {
+    // Prevent duplicate submissions
+    if (isProcessingPayment) {
+      console.log('[Cart] Payment already processing, ignoring duplicate call');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    
     try {
       const { items, customerId, customerPhone, customerName, discountTotal } = useCartStore.getState();
       const { subTotal, taxTotal, grandTotal } = getTotal();
 
       if (items.length === 0) {
         showNotification('Cart is empty', 'warning');
+        setIsProcessingPayment(false);
         return;
       }
 
@@ -292,12 +309,20 @@ export default function StoreCartPage() {
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       await clearCart();
       setShowPaymentModal(false);
-      showNotification('Sale completed successfully!', 'success');
-      setTimeout(() => router.push('/store/pos'), 1500);
+      
+      // Show success animation
+      setCompletedSale({
+        saleNo: sale.saleNo || 'N/A',
+        grandTotal: roundedSaleGrandTotal,
+      });
+      setShowSuccessAnimation(true);
     } catch (error: any) {
       console.error('Failed to process payment:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to process payment';
       showNotification(errorMessage, 'error');
+      // Don't clear processing state on error so user can retry
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -330,7 +355,8 @@ export default function StoreCartPage() {
             <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Payment</h2>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              disabled={isProcessing}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -417,16 +443,17 @@ export default function StoreCartPage() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-medium transition-colors"
+                disabled={isProcessing}
+                className="flex-1 px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={() => onPay(paymentMethod, parseFloat(amountPaid))}
-                disabled={change < 0}
+                disabled={change < 0 || isProcessing}
                 className="flex-1 px-4 py-3 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Pay ₹{Math.round(parseFloat(amountPaid) || 0)}
+                {isProcessing ? 'Processing...' : `Pay ₹${Math.round(parseFloat(amountPaid) || 0)}`}
               </button>
             </div>
           </div>
@@ -719,17 +746,68 @@ export default function StoreCartPage() {
                 <span className="text-gray-600 dark:text-gray-400">Tax</span>
                 <span className="font-medium text-gray-900 dark:text-white">₹{Math.round(taxTotal)}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Discount</span>
-            <input
-              type="number"
-              value={discountTotal}
-              onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-32 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
-              step="0.01"
-              min="0"
-            />
-          </div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Discount</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountType('amount')}
+                      className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                        discountType === 'amount'
+                          ? 'bg-brand-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      ₹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountType('percentage')}
+                      className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                        discountType === 'percentage'
+                          ? 'bg-brand-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      %
+                    </button>
+                  </div>
+                </div>
+                {discountType === 'amount' ? (
+                  <input
+                    type="number"
+                    value={discountTotal || ''}
+                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={discountPercentage || ''}
+                      onChange={(e) => {
+                        const percentage = parseFloat(e.target.value) || 0;
+                        setDiscountPercentage(Math.min(100, Math.max(0, percentage)));
+                      }}
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      placeholder="0"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">%</span>
+                    {discountPercentage > 0 && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        = ₹{Math.round((subTotal * discountPercentage) / 100)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="border-t border-gray-300 dark:border-gray-600 pt-3 mt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-900 dark:text-white">Grand Total</span>
@@ -757,8 +835,26 @@ export default function StoreCartPage() {
           subTotal={subTotal}
           taxTotal={taxTotal}
           discountTotal={discountTotal}
-          onClose={() => setShowPaymentModal(false)}
+          onClose={() => {
+            if (!isProcessingPayment) {
+              setShowPaymentModal(false);
+            }
+          }}
           onPay={handleCreateSale}
+          isProcessing={isProcessingPayment}
+        />
+      )}
+
+      {/* Bill Success Animation */}
+      {showSuccessAnimation && completedSale && (
+        <BillSuccessAnimation
+          saleNo={completedSale.saleNo}
+          grandTotal={completedSale.grandTotal}
+          onComplete={() => {
+            setShowSuccessAnimation(false);
+            setCompletedSale(null);
+            router.push('/store/pos');
+          }}
         />
       )}
 

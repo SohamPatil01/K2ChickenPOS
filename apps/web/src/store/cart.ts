@@ -7,12 +7,16 @@ interface CartState {
   customerPhone: string | null;
   customerName: string | null;
   discountTotal: number;
+  discountType: 'amount' | 'percentage';
+  discountPercentage: number;
   loadCart: () => Promise<void>;
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null) => void;
   setDiscount: (amount: number) => void;
+  setDiscountType: (type: 'amount' | 'percentage') => void;
+  setDiscountPercentage: (percentage: number) => void;
   clearCart: () => Promise<void>;
   getTotal: () => { subTotal: number; taxTotal: number; grandTotal: number };
 }
@@ -23,6 +27,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerPhone: null,
   customerName: null,
   discountTotal: 0,
+  discountType: 'amount',
+  discountPercentage: 0,
   loadCart: async () => {
     try {
       const items = await offlineDB.cart.toArray();
@@ -77,12 +83,27 @@ export const useCartStore = create<CartState>((set, get) => ({
   setDiscount: (discountTotal) => {
     set({ discountTotal });
   },
+  setDiscountType: (discountType) => {
+    set({ discountType, discountTotal: 0, discountPercentage: 0 });
+  },
+  setDiscountPercentage: (discountPercentage) => {
+    set({ discountPercentage });
+    // Calculate discount amount from percentage
+    const { items } = get();
+    let subTotal = 0;
+    for (const item of items) {
+      const baseLineTotal = (item.qtyKg || item.qtyPcs || 0) * item.rate;
+      subTotal += baseLineTotal;
+    }
+    const discountAmount = (subTotal * discountPercentage) / 100;
+    set({ discountTotal: discountAmount });
+  },
   clearCart: async () => {
     await offlineDB.cart.clear();
-    set({ items: [], customerId: null, customerPhone: null, customerName: null, discountTotal: 0 });
+    set({ items: [], customerId: null, customerPhone: null, customerName: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0 });
   },
   getTotal: () => {
-    const { items, discountTotal } = get();
+    const { items, discountTotal, discountType, discountPercentage } = get();
     let subTotal = 0;
     let taxTotal = 0;
 
@@ -97,7 +118,14 @@ export const useCartStore = create<CartState>((set, get) => ({
     // Round to 2 decimal places to avoid floating point precision issues
     subTotal = Math.round(subTotal * 100) / 100;
     taxTotal = Math.round(taxTotal * 100) / 100;
-    const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+    
+    // Calculate discount based on type
+    let calculatedDiscount = discountTotal;
+    if (discountType === 'percentage' && discountPercentage > 0) {
+      calculatedDiscount = (subTotal * discountPercentage) / 100;
+    }
+    
+    const grandTotal = Math.round((subTotal + taxTotal - calculatedDiscount) * 100) / 100;
     // Round grand total to nearest integer for checkout
     const roundedGrandTotal = Math.round(grandTotal);
 
