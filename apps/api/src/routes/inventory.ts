@@ -46,19 +46,28 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
   fastify.get('/summary', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       // Get user's store - now requires authentication
-      const user = getUser(request as any);
-      if (!user || !user.storeId) {
-        reply.code(401).send({ error: 'Authentication required' });
+      let user;
+      let store;
+      let storeId = '';
+      
+      try {
+        user = getUser(request as any);
+        if (!user || !user.storeId) {
+          reply.code(401).send({ error: 'Authentication required', details: 'User or store ID not found' });
+          return;
+        }
+        storeId = user.storeId;
+        store = await prisma.store.findUnique({ where: { id: storeId } });
+        console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
+      } catch (authError: any) {
+        console.error('[Inventory Summary] Authentication error:', authError);
+        reply.code(401).send({ error: 'Authentication failed', details: authError.message });
         return;
       }
       
-      const store = await prisma.store.findUnique({ where: { id: user.storeId } });
-      const storeId = user.storeId;
-      
-      console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
-      
       if (!store) {
-        reply.code(404).send({ error: 'Store not found' });
+        console.error(`[Inventory Summary] Store not found for ID: ${storeId}`);
+        reply.code(404).send({ error: 'Store not found', details: `Store with ID ${storeId} does not exist` });
         return;
       }
 
