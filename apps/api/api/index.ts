@@ -144,6 +144,18 @@ async function build() {
 // Vercel serverless function handler
 export default async function handler(req: any, res: any) {
   try {
+    // Handle OPTIONS preflight requests immediately with CORS headers
+    if (req.method === 'OPTIONS') {
+      const origin = req.headers.origin || '*';
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+      res.status(200).end();
+      return;
+    }
+
     // Handle favicon and other static file requests
     const url = req.url || '/';
     if (url === '/favicon.ico' || url.startsWith('/_next/') || url.startsWith('/static/')) {
