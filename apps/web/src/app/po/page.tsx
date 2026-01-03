@@ -52,6 +52,8 @@ export default function POPage() {
   const [pos, setPos] = useState<PO[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedPO, setSelectedPO] = useState<PO | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [poItems, setPoItems] = useState<POItem[]>([]);
   const [poNotes, setPoNotes] = useState('');
@@ -258,7 +260,14 @@ export default function POPage() {
               </tr>
             ) : (
               pos.map((po) => (
-                <tr key={po.id}>
+                <tr 
+                  key={po.id}
+                  onClick={() => {
+                    setSelectedPO(po);
+                    setShowViewModal(true);
+                  }}
+                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                >
                   <td className="px-6 py-4 whitespace-nowrap font-medium">{po.poNo}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {po.franchiseStore?.name || po.ownerStore?.name || 'N/A'}
@@ -287,26 +296,46 @@ export default function POPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(po.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                    {po.status === 'DRAFT' && user?.role !== 'OWNER' && (
-                      <button
-                        onClick={() => handleAction(po.id, 'submit')}
-                        className="text-primary-600 hover:text-primary-800"
-                      >
-                        Submit
-                      </button>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
+                    {po.status === 'DRAFT' && (
+                      <>
+                        {user?.role !== 'OWNER' && (
+                          <button
+                            onClick={() => handleAction(po.id, 'submit')}
+                            className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium"
+                          >
+                            Submit
+                          </button>
+                        )}
+                        {user?.role === 'OWNER' && (
+                          <>
+                            <button
+                              onClick={() => handleAction(po.id, 'submit')}
+                              className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium mr-2"
+                            >
+                              Submit
+                            </button>
+                            <button
+                              onClick={() => handleAction(po.id, 'approve')}
+                              className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                            >
+                              Approve
+                            </button>
+                          </>
+                        )}
+                      </>
                     )}
                     {po.status === 'SUBMITTED' && user?.role === 'OWNER' && (
                       <>
                         <button
                           onClick={() => handleAction(po.id, 'approve')}
-                          className="text-accent-600 hover:text-accent-800"
+                          className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium mr-2"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => handleAction(po.id, 'reject')}
-                          className="text-red-600 hover:text-red-800"
+                          className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm font-medium"
                         >
                           Reject
                         </button>
@@ -489,6 +518,142 @@ export default function POPage() {
                 className="flex-1 px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50"
               >
                 Create Purchase Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View PO Details Modal */}
+      {showViewModal && selectedPO && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold dark:text-white mb-2">Purchase Order Details</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">PO Number: <span className="font-semibold dark:text-white">{selectedPO.poNo}</span></p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    setSelectedPO(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* PO Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Store</label>
+                  <p className="text-base font-semibold dark:text-white mt-1">
+                    {selectedPO.franchiseStore?.name || selectedPO.ownerStore?.name || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</label>
+                  <p className="mt-1">
+                    <span className={`px-3 py-1 rounded text-sm font-medium ${
+                      selectedPO.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
+                      selectedPO.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                      selectedPO.status === 'DISPATCHED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
+                      selectedPO.status === 'RECEIVED' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400' :
+                      selectedPO.status === 'SUBMITTED' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                      {selectedPO.status}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date</label>
+                  <p className="text-base dark:text-white mt-1">
+                    {new Date(selectedPO.createdAt).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                </div>
+                {selectedPO.dispatch && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Dispatch</label>
+                    <p className="text-base font-semibold text-blue-600 dark:text-blue-400 mt-1">
+                      {selectedPO.dispatch.dispatchNo}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* PO Items */}
+              <div>
+                <h3 className="text-lg font-semibold dark:text-white mb-4">Items ({selectedPO.items.length})</h3>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Requested Rate</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {selectedPO.items.map((item, index) => {
+                        const qty = item.qtyKg || item.qtyPcs || 0;
+                        const rate = (item as any).requestedRate || 0;
+                        const total = qty * rate;
+                        return (
+                          <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-4 py-3 text-sm font-medium dark:text-white">
+                              {item.product?.name || 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              {item.qtyKg ? `${item.qtyKg} kg` : `${item.qtyPcs} pcs`}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              ₹{rate.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-3 text-sm font-semibold dark:text-white">
+                              ₹{total.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <td colSpan={3} className="px-4 py-3 text-sm font-semibold text-right dark:text-white">
+                          Grand Total:
+                        </td>
+                        <td className="px-4 py-3 text-sm font-bold text-lg dark:text-white">
+                          ₹{selectedPO.items.reduce((sum, item) => {
+                            const qty = item.qtyKg || item.qtyPcs || 0;
+                            const rate = (item as any).requestedRate || 0;
+                            return sum + (qty * rate);
+                          }, 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedPO(null);
+                }}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

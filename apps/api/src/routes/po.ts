@@ -211,7 +211,8 @@ export async function poRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      if (po.status !== 'SUBMITTED') {
+      // Allow approval of DRAFT or SUBMITTED POs
+      if (po.status !== 'SUBMITTED' && po.status !== 'DRAFT') {
         reply.code(400).send({ error: `PO cannot be approved. Current status: ${po.status}` });
         return;
       }
