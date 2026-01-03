@@ -71,11 +71,6 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      if (!store) {
-        reply.code(404).send({ error: 'Store not found' });
-        return;
-      }
-
       const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
       if (!ownerStoreId) {
         reply.code(400).send({ error: 'Owner store not found' });
