@@ -165,7 +165,15 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       return summary;
     } catch (error: any) {
       console.error('[Inventory Summary] Error:', error);
-      reply.code(500).send({ error: 'Failed to load inventory summary', details: error.message });
+      console.error('[Inventory Summary] Error stack:', error.stack);
+      console.error('[Inventory Summary] Error name:', error.name);
+      console.error('[Inventory Summary] Error code:', error.code);
+      
+      reply.code(500).send({ 
+        error: 'Failed to load inventory summary', 
+        details: error.message,
+        ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
+      });
     }
   });
 
