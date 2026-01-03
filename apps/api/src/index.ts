@@ -49,6 +49,9 @@ async function build() {
   await fastify.register(cors, {
     origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'Pragma', 'If-Modified-Since'],
+    exposedHeaders: ['Content-Type', 'Authorization'],
   });
 
         // Register rate limiting with higher limits to prevent blocking legitimate requests
