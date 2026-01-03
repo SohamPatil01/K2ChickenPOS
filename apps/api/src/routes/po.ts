@@ -227,21 +227,70 @@ export async function poRoutes(fastify: FastifyInstance) {
       // Inventory should be added to the franchise store
       const franchiseStoreId = po.franchiseStoreId;
       
+      console.log(`[PO Approve] PO ID: ${id}`);
+      console.log(`[PO Approve] Franchise Store ID: ${franchiseStoreId}`);
+      console.log(`[PO Approve] User Store ID: ${userStoreId}`);
+      console.log(`[PO Approve] Owner Store ID: ${ownerStoreId}`);
+      console.log(`[PO Approve] PO has ${po.items.length} items`);
+      
+      // Verify franchise store exists
+      const franchiseStore = await prisma.store.findUnique({
+        where: { id: franchiseStoreId },
+      });
+      
+      if (!franchiseStore) {
+        console.error(`[PO Approve] Franchise store ${franchiseStoreId} not found`);
+        reply.code(400).send({ error: 'Franchise store not found' });
+        return;
+      }
+      
+      console.log(`[PO Approve] Franchise store found: ${franchiseStore.name}`);
+      
+      const inventoryEntries = [];
       for (const item of po.items) {
-        await prisma.inventoryLedger.create({
-          data: {
-            storeId: franchiseStoreId,
-            productId: item.productId,
-            type: 'IN',
-            qtyKg: item.qtyKg || undefined,
-            qtyPcs: item.qtyPcs || undefined,
-            reason: 'RECEIVE',
-            refId: id, // Reference to the PO
-          },
+        // Skip items with no quantity
+        if (!item.qtyKg && !item.qtyPcs) {
+          console.warn(`[PO Approve] Skipping item ${item.productId} - no quantity specified`);
+          continue;
+        }
+
+        const ledgerEntry = {
+          storeId: franchiseStoreId,
+          productId: item.productId,
+          type: 'IN' as const,
+          qtyKg: item.qtyKg || undefined,
+          qtyPcs: item.qtyPcs || undefined,
+          reason: 'RECEIVE' as const,
+          refId: id, // Reference to the PO
+        };
+
+        console.log(`[PO Approve] Creating inventory ledger entry for product ${item.productId}:`, {
+          storeId: franchiseStoreId,
+          productId: item.productId,
+          qtyKg: item.qtyKg,
+          qtyPcs: item.qtyPcs,
         });
+        
+        try {
+          const created = await prisma.inventoryLedger.create({
+            data: ledgerEntry,
+          });
+          
+          inventoryEntries.push(created);
+          console.log(`[PO Approve] Inventory ledger entry created successfully: ${created.id}`);
+        } catch (error: any) {
+          console.error(`[PO Approve] Failed to create inventory ledger entry:`, error);
+          console.error(`[PO Approve] Error details:`, error.message, error.code);
+          // Continue with other items even if one fails
+        }
       }
 
-      return updated;
+      console.log(`[PO Approve] Created ${inventoryEntries.length} out of ${po.items.length} inventory ledger entries for PO ${id}`);
+
+      return {
+        ...updated,
+        inventoryEntriesCreated: inventoryEntries.length,
+      };
     } catch (error: any) {
       console.error('Failed to approve PO:', error);
       if (error.message === 'User not authenticated') {
