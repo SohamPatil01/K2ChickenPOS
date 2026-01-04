@@ -156,9 +156,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
             }
           }
 
+          // Round to 2 decimal places for KG, integer for PCS
           closingStock[product.id] = {
-            qtyKg: Math.max(0, qtyKg),
-            qtyPcs: Math.max(0, qtyPcs),
+            qtyKg: Math.round((Math.max(0, qtyKg)) * 100) / 100,
+            qtyPcs: Math.max(0, Math.round(qtyPcs)),
           };
         }
 

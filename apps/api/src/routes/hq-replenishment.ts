@@ -120,8 +120,9 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
             currentStockPcs -= ledger.qtyPcs || 0;
           }
         }
-        currentStockKg = Math.max(0, currentStockKg);
-        currentStockPcs = Math.max(0, currentStockPcs);
+        // Round to 2 decimal places for KG, integer for PCS
+        currentStockKg = Math.round((Math.max(0, currentStockKg)) * 100) / 100;
+        currentStockPcs = Math.max(0, Math.round(currentStockPcs));
 
         // Calculate demand
         const totalDays = leadTimeDays + safetyBufferDays;

@@ -138,9 +138,9 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           }
         }
         
-        // Ensure quantities are non-negative
-        totalQtyKg = Math.max(0, totalQtyKg);
-        totalQtyPcs = Math.max(0, totalQtyPcs);
+        // Round to 2 decimal places for KG, integer for PCS to avoid floating point precision issues
+        totalQtyKg = Math.round((Math.max(0, totalQtyKg)) * 100) / 100;
+        totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
         
         console.log(`[Inventory Summary] Product ${product.name} calculated totals: ${totalQtyKg} kg, ${totalQtyPcs} pcs`);
 

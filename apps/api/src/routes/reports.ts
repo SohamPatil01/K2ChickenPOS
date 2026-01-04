@@ -82,13 +82,28 @@ export async function reportRoutes(fastify: FastifyInstance) {
       });
 
       const stockData = products.map((product: any) => {
-      const inQty = product.inventoryLedgers
-        .filter((l: any) => l.type === 'IN')
-        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-      const outQty = product.inventoryLedgers
-        .filter((l: any) => l.type === 'OUT')
-        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-      const currentStock = inQty - outQty;
+      // Calculate KG and PCS separately - don't mix units
+      let inQtyKg = 0;
+      let inQtyPcs = 0;
+      let outQtyKg = 0;
+      let outQtyPcs = 0;
+      
+      product.inventoryLedgers.forEach((l: any) => {
+        if (l.type === 'IN') {
+          inQtyKg += l.qtyKg || 0;
+          inQtyPcs += l.qtyPcs || 0;
+        } else {
+          outQtyKg += l.qtyKg || 0;
+          outQtyPcs += l.qtyPcs || 0;
+        }
+      });
+      
+      // Round to 2 decimal places for KG, integer for PCS
+      const currentQtyKg = Math.round((Math.max(0, inQtyKg - outQtyKg)) * 100) / 100;
+      const currentQtyPcs = Math.max(0, Math.round(inQtyPcs - outQtyPcs));
+      
+      // For display, use the appropriate unit based on product unitType
+      const currentStock = product.unitType === 'KG' ? currentQtyKg : currentQtyPcs;
 
       return {
         productId: product.id,
