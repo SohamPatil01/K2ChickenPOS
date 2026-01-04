@@ -254,7 +254,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             subTotal,
             discountTotal: 0, // Start with 0, will be updated after approval
             taxTotal,
-            grandTotal: Math.round((subTotal + taxTotal) * 100) / 100,
+            grandTotal: Math.round(Math.round((subTotal + taxTotal) * 100) / 100),
             createdByUserId: userId,
             items: {
               create: data.items.map((item: any) => ({

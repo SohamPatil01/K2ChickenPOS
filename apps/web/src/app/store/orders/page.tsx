@@ -200,10 +200,16 @@ export default function OrdersPage() {
       taxTotal += lineTotal * (item.taxRate / 100);
     });
 
-    const discountTotal = parseFloat(editForm.discountTotal) || 0;
-    const grandTotal = subTotal + taxTotal - discountTotal;
+    // Round to 2 decimal places to avoid floating point precision issues
+    subTotal = Math.round(subTotal * 100) / 100;
+    taxTotal = Math.round(taxTotal * 100) / 100;
 
-    return { subTotal, taxTotal, discountTotal, grandTotal };
+    const discountTotal = parseFloat(editForm.discountTotal) || 0;
+    // Calculate grand total and round to nearest integer to match backend
+    const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+    const roundedGrandTotal = Math.round(grandTotal);
+
+    return { subTotal, taxTotal, discountTotal, grandTotal: roundedGrandTotal };
   };
 
   const handleSave = async () => {

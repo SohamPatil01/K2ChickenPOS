@@ -95,6 +95,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       const baseLineTotal = (item.qtyKg || item.qtyPcs || 0) * item.rate;
       subTotal += baseLineTotal;
     }
+    // Round subTotal to 2 decimal places before calculating discount
+    subTotal = Math.round(subTotal * 100) / 100;
     const discountAmount = (subTotal * discountPercentage) / 100;
     set({ discountTotal: discountAmount });
   },
@@ -124,6 +126,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (discountType === 'percentage' && discountPercentage > 0) {
       calculatedDiscount = (subTotal * discountPercentage) / 100;
     }
+    // Round discount to 2 decimal places
+    calculatedDiscount = Math.round(calculatedDiscount * 100) / 100;
     
     const grandTotal = Math.round((subTotal + taxTotal - calculatedDiscount) * 100) / 100;
     // Round grand total to nearest integer for checkout
