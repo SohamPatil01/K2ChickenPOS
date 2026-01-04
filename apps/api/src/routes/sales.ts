@@ -52,10 +52,23 @@ export async function saleRoutes(fastify: FastifyInstance) {
   });
 
   // Dashboard summary
-  fastify.get('/dashboard', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+  fastify.get('/dashboard', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      // Get user's store from authentication
+      const user = getUser(request as any);
+      const storeId = user?.storeId;
+      
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+      
+      // Verify store exists
+      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      if (!store) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
