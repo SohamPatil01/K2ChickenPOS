@@ -33,6 +33,20 @@ const prisma =
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+// Log database connection status on startup
+if (process.env.DATABASE_URL) {
+  console.log('✅ DATABASE_URL is set');
+  // Test connection on startup (non-blocking)
+  prisma.$connect().catch((error: any) => {
+    console.error('❌ Failed to connect to database:', error.message);
+    console.error('   Please check your DATABASE_URL in Vercel environment variables');
+  });
+} else {
+  console.error('❌ DATABASE_URL environment variable is not set!');
+  console.error('   Please set DATABASE_URL in Vercel project settings → Environment Variables');
+}
+
 import { authenticate } from '../src/utils/auth.js';
 import { authRoutes } from '../src/routes/auth.js';
 import { productRoutes } from '../src/routes/products.js';
