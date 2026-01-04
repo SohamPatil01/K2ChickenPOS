@@ -36,12 +36,33 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 // Log database connection status on startup
 if (process.env.DATABASE_URL) {
+  // Extract database host/name from connection string for logging (without exposing credentials)
+  const dbUrl = process.env.DATABASE_URL;
+  const dbHostMatch = dbUrl.match(/@([^:]+):(\d+)\/([^?]+)/);
+  const dbInfo = dbHostMatch 
+    ? `host: ${dbHostMatch[1]}, port: ${dbHostMatch[2]}, database: ${dbHostMatch[3]}`
+    : 'connection string present';
+  
   console.log('✅ DATABASE_URL is set');
+  console.log(`📊 Database: ${dbInfo}`);
+  
   // Test connection on startup (non-blocking)
-  prisma.$connect().catch((error: any) => {
-    console.error('❌ Failed to connect to database:', error.message);
-    console.error('   Please check your DATABASE_URL in Vercel environment variables');
-  });
+  prisma.$connect()
+    .then(() => {
+      console.log('✅ Database connection successful');
+      // Get database name to verify which database we're connected to
+      return prisma.$queryRaw`SELECT current_database() as db_name, version() as db_version`;
+    })
+    .then((result: any) => {
+      if (result && result[0]) {
+        console.log(`📊 Connected to database: ${result[0].db_name}`);
+        console.log(`📊 PostgreSQL version: ${result[0].db_version?.split(' ')[0]} ${result[0].db_version?.split(' ')[1]}`);
+      }
+    })
+    .catch((error: any) => {
+      console.error('❌ Failed to connect to database:', error.message);
+      console.error('   Please check your DATABASE_URL in Vercel environment variables');
+    });
 } else {
   console.error('❌ DATABASE_URL environment variable is not set!');
   console.error('   Please set DATABASE_URL in Vercel project settings → Environment Variables');
@@ -132,9 +153,24 @@ async function build() {
         return health;
       }
 
-      // Try a simple query to test connection
-      await prisma.$queryRaw`SELECT 1`;
-      health.database = 'connected';
+      // Extract database info from connection string (without exposing credentials)
+      const dbUrl = process.env.DATABASE_URL;
+      const dbHostMatch = dbUrl.match(/@([^:]+):(\d+)\/([^?]+)/);
+      if (dbHostMatch) {
+        health.databaseHost = dbHostMatch[1];
+        health.databasePort = dbHostMatch[2];
+        health.databaseName = dbHostMatch[3];
+      }
+
+      // Try a simple query to test connection and get database info
+      const dbInfo = await prisma.$queryRaw<Array<{db_name: string, db_version: string}>>`SELECT current_database() as db_name, version() as db_version`;
+      if (dbInfo && dbInfo[0]) {
+        health.database = 'connected';
+        health.connectedDatabase = dbInfo[0].db_name;
+        health.postgresVersion = dbInfo[0].db_version.split(' ')[0] + ' ' + dbInfo[0].db_version.split(' ')[1];
+      } else {
+        health.database = 'connected';
+      }
     } catch (error: any) {
       console.error('Database health check failed:', error);
       health.database = 'error';
