@@ -96,6 +96,7 @@ import { hqHealthScoreRoutes } from '../src/routes/hq-health-score.js';
 import { hqFraudAlertsRoutes } from '../src/routes/hq-fraud-alerts.js';
 import { hqYieldIntelligenceRoutes } from '../src/routes/hq-yield-intelligence.js';
 import { hqReplenishmentRoutes } from '../src/routes/hq-replenishment.js';
+import { backupRoutes } from '../src/routes/backup.js';
 
 let app: any = null;
 
@@ -212,6 +213,7 @@ async function build() {
   await fastify.register(hqReplenishmentRoutes, { prefix: '/api/v1/hq' });
   await fastify.register(discountRoutes, { prefix: '/api/v1' });
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
+  await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
 
   app = fastify;
   return fastify;
