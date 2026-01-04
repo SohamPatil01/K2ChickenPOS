@@ -132,6 +132,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
         itemCount: s.items.length,
       })),
     };
+    } catch (error: any) {
+      console.error('Dashboard error:', error);
+      reply.code(500).send({ 
+        error: 'Failed to load dashboard',
+        details: error.message 
+      });
+    }
   });
 
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
