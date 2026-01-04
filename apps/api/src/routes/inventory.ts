@@ -272,6 +272,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         qtyPcs: absQtyPcs,
         reason: dbReason,
         originalReason: reason,
+        originalInput: { qtyKg: body.qtyKg, qtyPcs: body.qtyPcs },
+        parsedData: { qtyKg: data.qtyKg, qtyPcs: data.qtyPcs },
       });
 
       const ledger = await prisma.inventoryLedger.create({
