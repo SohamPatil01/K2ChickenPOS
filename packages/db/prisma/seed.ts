@@ -14,6 +14,25 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
+  // Safety check: Prevent running seed on production databases
+  const isProduction = process.env.NODE_ENV === 'production' || 
+                       process.env.DATABASE_URL?.includes('pooler.supabase.com') ||
+                       process.env.DATABASE_URL?.includes('vercel') ||
+                       process.env.DATABASE_URL?.includes('neon.tech');
+  
+  if (isProduction) {
+    console.error('❌ ERROR: Seed script cannot be run on production databases!');
+    console.error('   This script will DELETE all existing data.');
+    console.error('   If you need to seed production, use a migration or manual data entry.');
+    console.error('   To override this check, set FORCE_SEED=true (not recommended)');
+    
+    if (process.env.FORCE_SEED !== 'true') {
+      process.exit(1);
+    } else {
+      console.warn('⚠️  FORCE_SEED is set - proceeding with data deletion...');
+    }
+  }
+
   // Clear existing data (for development)
   console.log('Clearing existing data...');
   // Use try-catch to handle tables that might not exist
