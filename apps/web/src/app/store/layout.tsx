@@ -31,8 +31,17 @@ export default function StoreLayoutWrapper({
     }
   }, [user, router]);
 
+  // Show loading state while checking user
+  if (user === undefined) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
+
   if (!user) {
-    return null;
+    return null; // Will redirect to login
   }
 
   return <StoreLayout>{children}</StoreLayout>;

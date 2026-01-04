@@ -314,6 +314,8 @@ export default function StoreInventoryPage() {
       console.error('Error details:', error.response?.data);
       // Always set to empty on error
       setInventory([]);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to load inventory';
+      showNotification(`Error loading inventory: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }
