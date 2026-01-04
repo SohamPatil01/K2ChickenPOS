@@ -183,7 +183,9 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       };
       
       if (body.qtyKg !== undefined && body.qtyKg !== null) {
-        validationData.qtyKg = parseFloat(body.qtyKg);
+        // Preserve exact value - don't round, just parse
+        const parsed = typeof body.qtyKg === 'string' ? parseFloat(body.qtyKg) : body.qtyKg;
+        validationData.qtyKg = isNaN(parsed) ? 0 : parsed;
       }
       if (body.qtyPcs !== undefined && body.qtyPcs !== null) {
         validationData.qtyPcs = Math.round(parseFloat(body.qtyPcs));
@@ -213,7 +215,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       }
 
       const type = qty > 0 ? 'IN' : 'OUT';
-      // Store absolute values in ledger
+      // Store absolute values in ledger - preserve exact decimal precision for qtyKg
       const absQtyKg = data.qtyKg !== undefined && data.qtyKg !== null ? Math.abs(data.qtyKg) : undefined;
       const absQtyPcs = data.qtyPcs !== undefined && data.qtyPcs !== null ? Math.abs(data.qtyPcs) : undefined;
       

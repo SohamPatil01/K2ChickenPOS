@@ -355,8 +355,11 @@ export default function StoreInventoryPage() {
   const handleAdjust = async () => {
     if (!selectedProduct) return;
 
-    const qtyKg = parseFloat(adjustForm.qtyKg) || 0;
-    const qtyPcs = parseFloat(adjustForm.qtyPcs) || 0;
+    // Parse values but preserve exact precision
+    const qtyKgStr = adjustForm.qtyKg.trim();
+    const qtyPcsStr = adjustForm.qtyPcs.trim();
+    const qtyKg = qtyKgStr ? parseFloat(qtyKgStr) : 0;
+    const qtyPcs = qtyPcsStr ? parseFloat(qtyPcsStr) : 0;
     
     // If both are zero or empty, show error
     if ((!qtyKg || qtyKg === 0) && (!qtyPcs || qtyPcs === 0)) {
@@ -380,8 +383,9 @@ export default function StoreInventoryPage() {
       };
       
       // Only include the quantity field that matches the unit type
+      // Send the exact parsed value - don't round qtyKg to preserve precision
       if (selectedProduct.unitType === 'KG') {
-        requestData.qtyKg = qtyKg;
+        requestData.qtyKg = qtyKg; // Send exact value, no rounding
       } else {
         // Ensure qtyPcs is an integer
         requestData.qtyPcs = Math.round(qtyPcs);
