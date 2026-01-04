@@ -101,9 +101,35 @@ async function build() {
   // Register authenticate decorator
   fastify.decorate('authenticate', authenticate);
 
-  // Health check
-  fastify.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+  // Health check with database connection test
+  fastify.get('/health', async (request, reply) => {
+    const health: any = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      database: 'unknown',
+    };
+
+    // Test database connection
+    try {
+      if (!process.env.DATABASE_URL) {
+        health.database = 'error';
+        health.databaseError = 'DATABASE_URL environment variable is not set';
+        reply.code(503);
+        return health;
+      }
+
+      // Try a simple query to test connection
+      await prisma.$queryRaw`SELECT 1`;
+      health.database = 'connected';
+    } catch (error: any) {
+      console.error('Database health check failed:', error);
+      health.database = 'error';
+      health.databaseError = error.message || 'Database connection failed';
+      health.databaseUrlPresent = !!process.env.DATABASE_URL;
+      reply.code(503);
+    }
+
+    return health;
   });
 
   // Register routes
