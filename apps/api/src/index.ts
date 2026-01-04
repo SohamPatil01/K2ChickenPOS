@@ -40,6 +40,7 @@ import { hqHealthScoreRoutes } from './routes/hq-health-score.js';
 import { hqFraudAlertsRoutes } from './routes/hq-fraud-alerts.js';
 import { hqYieldIntelligenceRoutes } from './routes/hq-yield-intelligence.js';
 import { hqReplenishmentRoutes } from './routes/hq-replenishment.js';
+import { backupRoutes } from './routes/backup.js';
 
 const fastify = Fastify({
   logger: true,
@@ -112,6 +113,7 @@ async function build() {
   await fastify.register(hqReplenishmentRoutes, { prefix: '/api/v1/hq' });
   await fastify.register(discountRoutes, { prefix: '/api/v1' });
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
+  await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
 
   return fastify;
 }
