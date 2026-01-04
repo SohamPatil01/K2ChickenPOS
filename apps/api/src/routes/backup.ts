@@ -94,12 +94,13 @@ export async function backupRoutes(fastify: FastifyInstance) {
         inventoryLedger,
         purchaseOrders,
         purchaseOrderItems,
-        deliveries,
-        deliveryItems,
-        franchises,
-        royaltySettings,
-        complianceChecks,
-        discountApprovals
+        deliveryOrders,
+        franchiseConfigs,
+        royaltyInvoices,
+        royaltyLedgers,
+        complianceRecords,
+        discountOverrides,
+        dailyClosings
       ] = await Promise.all([
         prisma.store.findMany(),
         prisma.user.findMany({
@@ -123,12 +124,13 @@ export async function backupRoutes(fastify: FastifyInstance) {
         prisma.inventoryLedger.findMany(),
         prisma.purchaseOrder.findMany(),
         prisma.purchaseOrderItem.findMany(),
-        prisma.delivery.findMany(),
-        prisma.deliveryItem.findMany(),
-        prisma.franchise.findMany(),
-        prisma.royaltySettings.findMany(),
-        prisma.complianceCheck.findMany(),
-        prisma.discountApproval.findMany()
+        prisma.deliveryOrder.findMany(),
+        prisma.franchiseConfig.findMany(),
+        prisma.royaltyInvoice.findMany(),
+        prisma.royaltyLedger.findMany(),
+        prisma.complianceRecord.findMany(),
+        prisma.discountOverride.findMany(),
+        prisma.dailyClosing.findMany()
       ]);
 
       // Create backup object
@@ -150,12 +152,13 @@ export async function backupRoutes(fastify: FastifyInstance) {
           inventoryLedger,
           purchaseOrders,
           purchaseOrderItems,
-          deliveries,
-          deliveryItems,
-          franchises,
-          royaltySettings,
-          complianceChecks,
-          discountApprovals
+          deliveryOrders,
+          franchiseConfigs,
+          royaltyInvoices,
+          royaltyLedgers,
+          complianceRecords,
+          discountOverrides,
+          dailyClosings
         }
       };
 
@@ -171,12 +174,13 @@ export async function backupRoutes(fastify: FastifyInstance) {
         inventoryLedger: inventoryLedger.length,
         purchaseOrders: purchaseOrders.length,
         purchaseOrderItems: purchaseOrderItems.length,
-        deliveries: deliveries.length,
-        deliveryItems: deliveryItems.length,
-        franchises: franchises.length,
-        royaltySettings: royaltySettings.length,
-        complianceChecks: complianceChecks.length,
-        discountApprovals: discountApprovals.length
+        deliveryOrders: deliveryOrders.length,
+        franchiseConfigs: franchiseConfigs.length,
+        royaltyInvoices: royaltyInvoices.length,
+        royaltyLedgers: royaltyLedgers.length,
+        complianceRecords: complianceRecords.length,
+        discountOverrides: discountOverrides.length,
+        dailyClosings: dailyClosings.length
       };
 
       const backupJson = JSON.stringify(backup, null, 2);
