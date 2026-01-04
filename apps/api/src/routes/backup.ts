@@ -1,11 +1,14 @@
 // @ts-nocheck
 import { FastifyInstance } from 'fastify';
-import { prisma } from '@azela-pos/db';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+
+// Create prisma instance for backup operations
+const globalForPrisma = globalThis as unknown as { prisma: any };
+const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 const execAsync = promisify(exec);
 
