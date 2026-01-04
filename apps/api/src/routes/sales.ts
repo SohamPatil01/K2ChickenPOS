@@ -225,6 +225,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
         taxTotal += lineTotal * (item.taxRate / 100);
       }
 
+      // Round to 2 decimal places to avoid floating point precision issues
+      subTotal = Math.round(subTotal * 100) / 100;
+      taxTotal = Math.round(taxTotal * 100) / 100;
+
       // Check discount limit and lock status
       if (config?.isDiscountLocked) {
         reply.code(403).send({ 
@@ -250,7 +254,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             subTotal,
             discountTotal: 0, // Start with 0, will be updated after approval
             taxTotal,
-            grandTotal: subTotal + taxTotal,
+            grandTotal: Math.round((subTotal + taxTotal) * 100) / 100,
             createdByUserId: userId,
             items: {
               create: data.items.map((item: any) => ({
@@ -309,7 +313,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const grandTotal = subTotal + taxTotal - data.discountTotal;
+      // Calculate grand total and round to nearest integer to match frontend
+      const grandTotal = Math.round((subTotal + taxTotal - data.discountTotal) * 100) / 100;
+      const roundedGrandTotal = Math.round(grandTotal);
 
       // Check for recent duplicate sale (within last 5 seconds with same items and total)
       const fiveSecondsAgo = new Date(Date.now() - 5000);
@@ -317,7 +323,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         where: {
           storeId,
           createdByUserId: userId,
-          grandTotal: grandTotal,
+          grandTotal: roundedGrandTotal,
           status: 'OPEN',
           createdAt: {
             gte: fiveSecondsAgo,
@@ -344,7 +350,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           subTotal,
           discountTotal: data.discountTotal,
           taxTotal,
-          grandTotal,
+          grandTotal: roundedGrandTotal,
           createdByUserId: userId,
           items: {
             create: data.items.map((item: any) => ({
@@ -852,8 +858,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
         taxTotal += lineTotal * (item.taxRate / 100);
       }
 
+      // Round to 2 decimal places to avoid floating point precision issues
+      subTotal = Math.round(subTotal * 100) / 100;
+      taxTotal = Math.round(taxTotal * 100) / 100;
+
       const discountTotal = parseFloat(data.discountTotal) || 0;
-      const grandTotal = subTotal + taxTotal - discountTotal;
+      // Calculate grand total and round to nearest integer to match frontend
+      const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+      const roundedGrandTotal = Math.round(grandTotal);
 
       // Delete existing items
       await prisma.saleItem.deleteMany({
@@ -881,7 +893,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           subTotal,
           taxTotal,
           discountTotal,
-          grandTotal,
+          grandTotal: roundedGrandTotal,
         },
         include: {
           items: {
