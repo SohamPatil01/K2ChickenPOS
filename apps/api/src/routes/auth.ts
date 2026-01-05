@@ -39,59 +39,82 @@ export async function authRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/login', async (request: any, reply: FastifyReply) => {
-    const body = loginSchema.parse(request.body as any);
+    try {
+      const body = loginSchema.parse(request.body as any);
+      
+      console.log('[Auth] Login attempt for phone:', body.phone);
 
-    const user = await prisma.user.findUnique({
-      where: { phone: body.phone },
-      include: { store: true },
-    });
+      const user = await prisma.user.findUnique({
+        where: { phone: body.phone },
+        include: { store: true },
+      });
 
-    if (!user || !user.isActive) {
-      reply.code(401).send({ error: 'Invalid credentials' });
-      return;
-    }
+      if (!user) {
+        console.log('[Auth] User not found for phone:', body.phone);
+        reply.code(401).send({ error: 'Invalid credentials' });
+        return;
+      }
 
-    const valid = await bcrypt.compare(body.password, user.passwordHash);
-    if (!valid) {
-      reply.code(401).send({ error: 'Invalid credentials' });
-      return;
-    }
+      if (!user.isActive) {
+        console.log('[Auth] User is inactive:', body.phone);
+        reply.code(401).send({ error: 'Invalid credentials' });
+        return;
+      }
 
-    const accessToken = fastify.jwt.sign(
-      {
-        userId: user.id,
-        storeId: user.storeId,
-        role: user.role,
-      },
-      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
-    );
+      if (!user.passwordHash) {
+        console.log('[Auth] User has no password hash:', body.phone);
+        reply.code(401).send({ error: 'Invalid credentials' });
+        return;
+      }
 
-    const refreshToken = fastify.jwt.sign(
-      {
-        userId: user.id,
-        storeId: user.storeId,
-        role: user.role,
-      },
-      { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
-    );
+      const valid = await bcrypt.compare(body.password, user.passwordHash);
+      if (!valid) {
+        console.log('[Auth] Password mismatch for phone:', body.phone);
+        reply.code(401).send({ error: 'Invalid credentials' });
+        return;
+      }
 
-    return {
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        storeId: user.storeId,
-        store: {
-          id: user.store.id,
-          name: user.store.name,
-          type: user.store.type,
+      console.log('[Auth] Login successful for:', user.name, user.phone);
+
+      const accessToken = fastify.jwt.sign(
+        {
+          userId: user.id,
+          storeId: user.storeId,
+          role: user.role,
         },
-      },
-    };
+        { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+      );
+
+      const refreshToken = fastify.jwt.sign(
+        {
+          userId: user.id,
+          storeId: user.storeId,
+          role: user.role,
+        },
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+      );
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          email: user.email,
+          role: user.role,
+          storeId: user.storeId,
+          store: {
+            id: user.store.id,
+            name: user.store.name,
+            type: user.store.type,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error('[Auth] Login error:', error);
+      reply.code(500).send({ error: 'Login failed', details: error.message });
+    }
   });
 
   fastify.post('/refresh', async (request: any, reply: FastifyReply) => {

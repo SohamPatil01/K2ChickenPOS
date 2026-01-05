@@ -40,12 +40,12 @@ export async function storeRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get single franchise details
+  // Get single franchise/store details (supports both OWNER and FRANCHISE)
   fastify.get('/franchises/:id', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
       
-      const franchise = await prisma.store.findUnique({
+      const store = await prisma.store.findUnique({
         where: { id },
         include: {
           _count: {
@@ -70,12 +70,12 @@ export async function storeRoutes(fastify: FastifyInstance) {
         },
       });
 
-      if (!franchise || franchise.type !== 'FRANCHISE') {
-        reply.code(404).send({ error: 'Franchise not found' });
+      if (!store || (store.type !== 'FRANCHISE' && store.type !== 'OWNER')) {
+        reply.code(404).send({ error: 'Store not found' });
         return;
       }
 
-      return franchise;
+      return store;
     } catch (error: any) {
       console.error('Failed to fetch franchise:', error);
       reply.code(500).send({ error: 'Failed to fetch franchise' });
@@ -228,14 +228,14 @@ export async function storeRoutes(fastify: FastifyInstance) {
       const { startDate, endDate } = (request.query as any) || {};
 
       if (!id) {
-        reply.code(400).send({ error: 'Franchise ID is required' });
+        reply.code(400).send({ error: 'Store ID is required' });
         return;
       }
 
-      const franchise = await prisma.store.findUnique({ where: { id } });
+      const store = await prisma.store.findUnique({ where: { id } });
       
-      if (!franchise || franchise.type !== 'FRANCHISE') {
-        reply.code(404).send({ error: 'Franchise not found' });
+      if (!store || (store.type !== 'FRANCHISE' && store.type !== 'OWNER')) {
+        reply.code(404).send({ error: 'Store not found' });
         return;
       }
 
