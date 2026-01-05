@@ -10,12 +10,6 @@ export const refreshTokenSchema = z.object({
   refreshToken: z.string(),
 });
 
-// PIN Login
-export const pinLoginSchema = z.object({
-  userId: z.string().cuid(),
-  pin: z.string().regex(/^\d{6}$/, 'PIN must be exactly 6 digits'),
-});
-
 // Customer
 export const customerSchema = z.object({
   name: z.string().min(1),

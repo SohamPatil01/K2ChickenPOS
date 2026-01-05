@@ -227,7 +227,6 @@ model User {
   email         String?
   role          UserRole
   passwordHash  String
-  pinHash       String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -254,7 +253,6 @@ model User {
 
   @@index([storeId])
   @@index([phone])
-  @@index([storeId, isActive])
 }
 
 model Customer {
