@@ -178,5 +178,76 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     return user;
   });
+
+  // Temporary admin endpoint to reset all passwords to defaults
+  // SECURITY: Remove this endpoint after resetting passwords in production
+  // Usage: POST /api/v1/auth/reset-passwords?secret=YOUR_SECRET
+  fastify.post('/reset-passwords', async (request: any, reply: FastifyReply) => {
+    try {
+      // Require a secret to prevent unauthorized access
+      const resetSecret = process.env.PASSWORD_RESET_SECRET || 'CHANGE_THIS_IN_PRODUCTION';
+      const providedSecret = (request.query as any).secret || (request.body as any).secret;
+
+      if (providedSecret !== resetSecret) {
+        reply.code(401).send({ error: 'Unauthorized: Invalid secret' });
+        return;
+      }
+
+      console.log('[Auth] Resetting all passwords to defaults...');
+
+      const defaultPasswords = {
+        OWNER: '123456',
+        MANAGER: '234567',
+        CASHIER: '345678',
+        DRIVER: '456789',
+      };
+
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          role: true,
+        },
+      });
+
+      const results = [];
+
+      for (const user of users) {
+        const defaultPassword = defaultPasswords[user.role as keyof typeof defaultPasswords];
+        
+        if (!defaultPassword) {
+          results.push({ user: user.name, phone: user.phone, status: 'skipped', reason: `Unknown role: ${user.role}` });
+          continue;
+        }
+
+        const passwordHash = await bcrypt.hash(defaultPassword, 10);
+        
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash },
+        });
+
+        results.push({ user: user.name, phone: user.phone, role: user.role, password: defaultPassword, status: 'reset' });
+      }
+
+      console.log('[Auth] Password reset complete:', results.length, 'users updated');
+
+      return {
+        success: true,
+        message: `Reset passwords for ${results.length} users`,
+        results,
+        defaultPasswords: {
+          OWNER: '123456',
+          MANAGER: '234567',
+          CASHIER: '345678',
+          DRIVER: '456789',
+        },
+      };
+    } catch (error: any) {
+      console.error('[Auth] Password reset error:', error);
+      reply.code(500).send({ error: 'Failed to reset passwords', details: error.message });
+    }
+  });
 }
 
