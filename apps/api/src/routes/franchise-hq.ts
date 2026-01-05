@@ -55,6 +55,24 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
 
       const franchiseIds = franchises.map(f => f.id);
 
+      // Handle case where there are no franchises
+      if (franchiseIds.length === 0) {
+        return {
+          summary: {
+            totalFranchises: 0,
+            totalSales: 0,
+            totalRevenue: 0,
+            totalCustomers: 0,
+            avgRevenuePerFranchise: 0,
+          },
+          franchiseBreakdown: [],
+          period: {
+            startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            endDate: endDate || new Date().toISOString().split('T')[0],
+          },
+        };
+      }
+
       // Aggregate sales data
       const [totalSales, totalRevenue, totalCustomers, franchiseSales] = await Promise.all([
         prisma.sale.count({
@@ -136,7 +154,16 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       };
     } catch (error: any) {
       console.error('Failed to load HQ dashboard:', error);
-      reply.code(500).send({ error: 'Failed to load HQ dashboard' });
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta,
+      });
+      reply.code(500).send({ 
+        error: 'Failed to load HQ dashboard',
+        details: error.message || 'Unknown error',
+      });
     }
   });
 
