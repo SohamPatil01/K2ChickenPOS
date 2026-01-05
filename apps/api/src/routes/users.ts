@@ -11,7 +11,8 @@ const createUserSchema = z.object({
   phone: z.string().min(10),
   email: z.string().email().optional().or(z.literal('')),
   role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DRIVER']),
-  password: z.string().min(6),
+  password: z.string().min(6).optional(),
+  pin: z.string().regex(/^\d{6}$/).optional(),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -21,6 +22,7 @@ const updateUserSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DRIVER']).optional(),
   password: z.string().min(6).optional(),
+  pin: z.string().regex(/^\d{6}$/).optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -66,8 +68,24 @@ export async function userRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(data.password, 10);
+    // Check PIN uniqueness within store
+    if (data.pin) {
+      const storeUsers = await prisma.user.findMany({
+        where: { storeId },
+        select: { id: true, pinHash: true },
+      });
+
+      for (const storeUser of storeUsers) {
+        if (storeUser.pinHash && await bcrypt.compare(data.pin, storeUser.pinHash)) {
+          reply.code(400).send({ error: 'PIN already in use by another user in this store' });
+          return;
+        }
+      }
+    }
+
+    // Hash password and PIN
+    const passwordHash = data.password ? await bcrypt.hash(data.password, 10) : '';
+    const pinHash = data.pin ? await bcrypt.hash(data.pin, 10) : null;
 
     const user = await prisma.user.create({
       data: {
@@ -77,6 +95,7 @@ export async function userRoutes(fastify: FastifyInstance) {
         email: data.email || null,
         role: data.role,
         passwordHash,
+        pinHash,
         isActive: data.isActive ?? true,
       },
       select: {
@@ -129,6 +148,24 @@ export async function userRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Check PIN uniqueness within store if PIN is being updated
+    if (data.pin) {
+      const storeUsers = await prisma.user.findMany({
+        where: {
+          storeId,
+          id: { not: id }, // Exclude current user
+        },
+        select: { id: true, pinHash: true },
+      });
+
+      for (const storeUser of storeUsers) {
+        if (storeUser.pinHash && await bcrypt.compare(data.pin, storeUser.pinHash)) {
+          reply.code(400).send({ error: 'PIN already in use by another user in this store' });
+          return;
+        }
+      }
+    }
+
     // Prepare update data
     const updateData: any = {};
     if (data.name) updateData.name = data.name;
@@ -138,6 +175,9 @@ export async function userRoutes(fastify: FastifyInstance) {
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
+    }
+    if (data.pin) {
+      updateData.pinHash = await bcrypt.hash(data.pin, 10);
     }
 
     const user = await prisma.user.update({
