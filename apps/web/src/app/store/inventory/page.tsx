@@ -125,6 +125,7 @@ export default function StoreInventoryPage() {
   // Refs to prevent multiple simultaneous loads
   const loadingRef = useRef(false);
   const lastLoadTimeRef = useRef(0);
+  const loadInventoryRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
 
   const loadInventory = useCallback(
     async (force = false) => {
@@ -273,8 +274,11 @@ export default function StoreInventoryPage() {
         loadingRef.current = false;
       }
     },
-    [showNotification]
+    [user, showNotification]
   );
+
+  // Store loadInventory in ref so it can be used in useEffect without dependency issues
+  loadInventoryRef.current = loadInventory;
 
   useEffect(() => {
     if (user === undefined) return;
@@ -309,7 +313,7 @@ export default function StoreInventoryPage() {
       window.removeEventListener('po-finalized', handlePOFinalized);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, router, activeTab, loadInventory]);
+  }, [user, router, activeTab]);
 
   // Auto-refresh inventory every 30 seconds and when window gains focus
   useEffect(() => {
@@ -317,7 +321,7 @@ export default function StoreInventoryPage() {
 
     // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
-      loadInventory();
+      loadInventoryRef.current?.();
     }, 30000);
 
     // Refresh when window gains focus (user switches back to tab)
@@ -326,7 +330,7 @@ export default function StoreInventoryPage() {
     const handleFocus = () => {
       const now = Date.now();
       if (now - focusLostTime > 2000) {
-        loadInventory();
+        loadInventoryRef.current?.();
       }
     };
 
@@ -346,7 +350,7 @@ export default function StoreInventoryPage() {
       } else {
         const now = Date.now();
         if (now - hiddenTime > 2000) {
-          loadInventory();
+          loadInventoryRef.current?.();
         }
       }
     };
@@ -358,7 +362,8 @@ export default function StoreInventoryPage() {
       window.removeEventListener("blur", handleBlur);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [user, loadInventory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const loadCategories = async () => {
     try {
