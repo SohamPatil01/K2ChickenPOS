@@ -871,9 +871,25 @@ function InventoryView() {
   const [loading, setLoading] = useState(true);
   const [selectedFranchise, setSelectedFranchise] = useState<string>('all');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const loadingRef = useRef(false);
+  const lastLoadTimeRef = useRef(0);
 
-  const loadInventory = useCallback(async () => {
+  const loadInventory = useCallback(async (force = false) => {
+    // Prevent multiple simultaneous loads
+    const now = Date.now();
+    if (loadingRef.current && !force) {
+      return;
+    }
+    
+    // Debounce: don't load if last load was less than 1 second ago (unless forced)
+    if (!force && now - lastLoadTimeRef.current < 1000) {
+      return;
+    }
+
+    loadingRef.current = true;
+    lastLoadTimeRef.current = now;
     setLoading(true);
+    
     try {
       const timestamp = Date.now();
       const response = await api.get('/api/v1/hq/inventory-monitoring', {
@@ -893,11 +909,12 @@ function InventoryView() {
       console.error('Failed to load inventory:', error);
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }, [selectedFranchise]);
 
   useEffect(() => {
-    loadInventory();
+    loadInventory(true); // Force initial load
     
     // Auto-refresh every 10 seconds
     const interval = setInterval(() => {
@@ -905,15 +922,33 @@ function InventoryView() {
     }, 10000);
 
     // Refresh when window gains focus (user switches back to tab)
+    // Only trigger if focus was lost for more than 2 seconds
+    let focusLostTime = 0;
     const handleFocus = () => {
-      loadInventory();
+      const now = Date.now();
+      if (now - focusLostTime > 2000) {
+        loadInventory();
+      }
     };
+    
+    const handleBlur = () => {
+      focusLostTime = Date.now();
+    };
+    
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
 
     // Refresh when page becomes visible (user switches tabs)
+    // Only trigger if page was hidden for more than 2 seconds
+    let hiddenTime = 0;
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadInventory();
+      if (document.hidden) {
+        hiddenTime = Date.now();
+      } else {
+        const now = Date.now();
+        if (now - hiddenTime > 2000) {
+          loadInventory();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -921,6 +956,7 @@ function InventoryView() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [loadInventory]);
@@ -977,7 +1013,7 @@ function InventoryView() {
         </div>
         <div className="flex gap-2 items-center">
           <button
-            onClick={loadInventory}
+            onClick={() => loadInventory(true)}
             disabled={loading}
             className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2"
           >

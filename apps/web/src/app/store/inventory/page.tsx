@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useNotificationStore } from '@/store/notification';
@@ -110,6 +110,10 @@ export default function StoreInventoryPage() {
   const [stockProducts, setStockProducts] = useState<Product[]>([]);
   const [addingStock, setAddingStock] = useState(false);
 
+  // Refs to prevent multiple simultaneous loads
+  const loadingRef = useRef(false);
+  const lastLoadTimeRef = useRef(0);
+
   useEffect(() => {
     if (user === undefined) return;
 
@@ -124,12 +128,13 @@ export default function StoreInventoryPage() {
     }
 
     if (user && (user.role === 'MANAGER' || user.role === 'OWNER')) {
-      loadInventory();
+      loadInventory(true); // Force initial load
       loadCategories();
       if (activeTab === 'addStock') {
         loadStockProducts();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, activeTab]);
 
   // Auto-refresh inventory every 10 seconds and when window gains focus
@@ -142,15 +147,33 @@ export default function StoreInventoryPage() {
     }, 10000);
 
     // Refresh when window gains focus (user switches back to tab)
+    // Only trigger if focus was lost for more than 2 seconds
+    let focusLostTime = 0;
     const handleFocus = () => {
-      loadInventory();
+      const now = Date.now();
+      if (now - focusLostTime > 2000) {
+        loadInventory();
+      }
     };
+    
+    const handleBlur = () => {
+      focusLostTime = Date.now();
+    };
+    
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
 
     // Refresh when page becomes visible (user switches tabs)
+    // Only trigger if page was hidden for more than 2 seconds
+    let hiddenTime = 0;
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadInventory();
+      if (document.hidden) {
+        hiddenTime = Date.now();
+      } else {
+        const now = Date.now();
+        if (now - hiddenTime > 2000) {
+          loadInventory();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -158,9 +181,10 @@ export default function StoreInventoryPage() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user]);
+  }, [user, loadInventory]);
 
   const loadCategories = async () => {
     try {
@@ -257,10 +281,7 @@ export default function StoreInventoryPage() {
       console.log('[Frontend] Stock added, waiting for DB commit...');
       // Wait longer for database to commit, then refresh with retry
       await new Promise(resolve => setTimeout(resolve, 1000));
-      await loadInventory();
-      // Retry once more after another delay to ensure data is visible
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await loadInventory();
+      await loadInventory(true); // Force refresh after adding stock
       setActiveTab('inventory'); // Switch back to inventory tab
     } catch (error: any) {
       console.error('Failed to add stock:', error);
@@ -270,10 +291,25 @@ export default function StoreInventoryPage() {
     }
   };
 
-  const loadInventory = async () => {
+  const loadInventory = useCallback(async (force = false) => {
+    // Prevent multiple simultaneous loads
+    const now = Date.now();
+    if (loadingRef.current && !force) {
+      return;
+    }
+    
+    // Debounce: don't load if last load was less than 1 second ago (unless forced)
+    if (!force && now - lastLoadTimeRef.current < 1000) {
+      return;
+    }
+
+    loadingRef.current = true;
+    lastLoadTimeRef.current = now;
     setLoading(true);
+    
     // Clear inventory state first to force UI update
     setInventory([]);
+    
     try {
       // Force fresh data by adding cache-busting timestamp
       const timestamp = Date.now();
@@ -337,7 +373,10 @@ export default function StoreInventoryPage() {
         showNotification('No inventory items found. Products may need stock entries.', 'info');
       } else {
         console.log('[Frontend] Successfully loaded', inventoryData.length, 'inventory items');
-        showNotification(`Loaded ${inventoryData.length} inventory items`, 'success');
+        // Only show success notification on forced loads to avoid spam
+        if (force) {
+          showNotification(`Loaded ${inventoryData.length} inventory items`, 'success');
+        }
       }
     } catch (error: any) {
       console.error('Failed to load inventory:', error);
@@ -348,8 +387,9 @@ export default function StoreInventoryPage() {
       showNotification(`Error loading inventory: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
-  };
+  }, [showNotification]);
 
   const generateNextSKUAndPLU = async () => {
     try {
@@ -430,10 +470,7 @@ export default function StoreInventoryPage() {
         console.log('[Frontend] Inventory adjusted, waiting for DB commit...');
         // Wait longer for database to commit, then refresh with retry
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await loadInventory();
-        // Retry once more after another delay to ensure data is visible
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await loadInventory();
+        await loadInventory(true); // Force refresh after adjustment
         setShowAdjustModal(false);
         setSelectedProduct(null);
         setAdjustForm({ qtyKg: '', qtyPcs: '', reason: 'ADJUSTMENT' });
@@ -519,10 +556,7 @@ export default function StoreInventoryPage() {
         console.log('[Frontend] Stock updated, waiting for DB commit...');
         // Wait longer for database to commit, then refresh with retry
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await loadInventory();
-        // Retry once more after another delay to ensure data is visible
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await loadInventory();
+        await loadInventory(true); // Force refresh after edit
         setShowEditStockModal(false);
         setEditStockProduct(null);
         setEditStockForm({
@@ -848,7 +882,7 @@ export default function StoreInventoryPage() {
               </p>
             </div>
             <button
-              onClick={loadInventory}
+              onClick={() => loadInventory(true)}
               disabled={loading}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
               title="Refresh inventory (auto-refreshes every 10 seconds)"
@@ -898,7 +932,7 @@ export default function StoreInventoryPage() {
               Add Product
             </button>
             <button
-              onClick={loadInventory}
+              onClick={() => loadInventory(true)}
               className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 text-sm sm:text-base transition-colors touch-target font-medium"
             >
               Refresh
