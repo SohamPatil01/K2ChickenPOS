@@ -76,7 +76,11 @@ export async function poRoutes(fastify: FastifyInstance) {
     try {
       const { startDate, endDate, storeId: queryStoreId, status } = (request.query as any);
       // Get default store (since auth is disabled for now)
-      const defaultStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      // Use the oldest OWNER store to ensure consistency
+      const defaultStore = await prisma.store.findFirst({ 
+        where: { type: 'OWNER' },
+        orderBy: { createdAt: 'asc' }
+      });
       const storeId = defaultStore?.id || '';
       const userRole = 'OWNER'; // Default
 
@@ -218,119 +222,13 @@ export async function poRoutes(fastify: FastifyInstance) {
       }
 
       // Update PO status to APPROVED
+      // Note: Inventory will be added when PO is finalized (after editing received quantities)
       const updated = await prisma.purchaseOrder.update({
         where: { id },
         data: { status: 'APPROVED' },
       });
 
-      // Add inventory for each item in the PO
-      // Inventory should be added to the franchise store
-      const franchiseStoreId = po.franchiseStoreId;
-      
-      console.log(`[PO Approve] PO ID: ${id}`);
-      console.log(`[PO Approve] Franchise Store ID: ${franchiseStoreId}`);
-      console.log(`[PO Approve] User Store ID: ${userStoreId}`);
-      console.log(`[PO Approve] Owner Store ID: ${ownerStoreId}`);
-      console.log(`[PO Approve] PO has ${po.items.length} items`);
-      
-      // Verify franchise store exists
-      const franchiseStore = await prisma.store.findUnique({
-        where: { id: franchiseStoreId },
-      });
-      
-      if (!franchiseStore) {
-        console.error(`[PO Approve] Franchise store ${franchiseStoreId} not found`);
-        reply.code(400).send({ error: 'Franchise store not found' });
-        return;
-      }
-      
-      console.log(`[PO Approve] Franchise store found: ${franchiseStore.name}`);
-      
-      const inventoryEntries = [];
-      for (const item of po.items) {
-        console.log(`[PO Approve] Processing item:`, {
-          productId: item.productId,
-          productName: item.product?.name || 'Unknown',
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
-          qtyKgType: typeof item.qtyKg,
-          qtyPcsType: typeof item.qtyPcs,
-        });
-
-        // Skip items with no quantity (handle null, undefined, and 0)
-        const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
-        const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-        
-        if (!hasQtyKg && !hasQtyPcs) {
-          console.warn(`[PO Approve] Skipping item ${item.productId} (${item.product?.name || 'Unknown'}) - no valid quantity specified (qtyKg: ${item.qtyKg}, qtyPcs: ${item.qtyPcs})`);
-          continue;
-        }
-
-        const ledgerEntry: any = {
-          storeId: franchiseStoreId,
-          productId: item.productId,
-          type: 'IN',
-          reason: 'RECEIVE',
-          refId: id, // Reference to the PO
-        };
-
-        // Only include qtyKg if it has a valid value
-        if (hasQtyKg) {
-          ledgerEntry.qtyKg = item.qtyKg;
-        }
-
-        // Only include qtyPcs if it has a valid value
-        if (hasQtyPcs) {
-          ledgerEntry.qtyPcs = item.qtyPcs;
-        }
-
-        console.log(`[PO Approve] Creating inventory ledger entry:`, ledgerEntry);
-        
-        try {
-          const created = await prisma.inventoryLedger.create({
-            data: ledgerEntry,
-          });
-          
-          inventoryEntries.push(created);
-          console.log(`[PO Approve] ✅ Inventory ledger entry created successfully:`, {
-            id: created.id,
-            storeId: created.storeId,
-            productId: created.productId,
-            type: created.type,
-            qtyKg: created.qtyKg,
-            qtyPcs: created.qtyPcs,
-            reason: created.reason,
-          });
-        } catch (error: any) {
-          console.error(`[PO Approve] ❌ Failed to create inventory ledger entry:`, error);
-          console.error(`[PO Approve] Error details:`, {
-            message: error.message,
-            code: error.code,
-            meta: error.meta,
-          });
-          // Continue with other items even if one fails
-        }
-      }
-
-      console.log(`[PO Approve] Summary: Created ${inventoryEntries.length} out of ${po.items.length} inventory ledger entries for PO ${id}`);
-      
-      // Verify the entries were created by querying them back
-      if (inventoryEntries.length > 0) {
-        const verifyEntries = await prisma.inventoryLedger.findMany({
-          where: {
-            refId: id,
-            storeId: franchiseStoreId,
-            type: 'IN',
-            reason: 'RECEIVE',
-          },
-        });
-        console.log(`[PO Approve] Verification: Found ${verifyEntries.length} inventory ledger entries with refId ${id} for store ${franchiseStoreId}`);
-      }
-
-      return {
-        ...updated,
-        inventoryEntriesCreated: inventoryEntries.length,
-      };
+      return updated;
     } catch (error: any) {
       console.error('Failed to approve PO:', error);
       if (error.message === 'User not authenticated') {
@@ -497,6 +395,177 @@ export async function poRoutes(fastify: FastifyInstance) {
     } catch (error: any) {
       console.error('Failed to receive dispatch:', error);
       reply.code(500).send({ error: 'Failed to receive dispatch', details: error.message });
+    }
+  });
+
+  // Update received quantities for PO items (to account for shrinkage)
+  fastify.put('/:id/receive', async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = (request.params as any);
+      const { items } = (request.body as any); // Array of { itemId, receivedQtyKg?, receivedQtyPcs? }
+
+      if (!items || !Array.isArray(items)) {
+        reply.code(400).send({ error: 'Items array is required' });
+        return;
+      }
+
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+        include: {
+          items: true,
+        },
+      });
+
+      if (!po) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      // Only allow updating received quantities for RECEIVED or DISPATCHED POs
+      if (po.status !== 'RECEIVED' && po.status !== 'DISPATCHED') {
+        reply.code(400).send({ error: 'PO must be RECEIVED or DISPATCHED to update received quantities' });
+        return;
+      }
+
+      // Update each item with received quantities
+      for (const itemUpdate of items) {
+        const item = po.items.find((i) => i.id === itemUpdate.itemId);
+        if (!item) {
+          continue; // Skip if item not found
+        }
+
+        await prisma.purchaseOrderItem.update({
+          where: { id: itemUpdate.itemId },
+          data: {
+            receivedQtyKg: itemUpdate.receivedQtyKg !== undefined ? itemUpdate.receivedQtyKg : null,
+            receivedQtyPcs: itemUpdate.receivedQtyPcs !== undefined ? itemUpdate.receivedQtyPcs : null,
+          },
+        });
+      }
+
+      // Reload PO with updated items
+      const updatedPO = await prisma.purchaseOrder.findUnique({
+        where: { id },
+        include: {
+          items: {
+            include: { product: true },
+          },
+        },
+      });
+
+      return updatedPO;
+    } catch (error: any) {
+      console.error('Failed to update received quantities:', error);
+      reply.code(500).send({ error: 'Failed to update received quantities', details: error.message });
+    }
+  });
+
+  // Finalize PO - add received stock to inventory
+  fastify.post('/:id/finalize', async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = (request.params as any);
+
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+        include: {
+          items: {
+            include: { product: true },
+          },
+        },
+      });
+
+      if (!po) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      // Only allow finalizing RECEIVED or DISPATCHED POs
+      if (po.status !== 'RECEIVED' && po.status !== 'DISPATCHED') {
+        reply.code(400).send({ error: 'PO must be RECEIVED or DISPATCHED to finalize' });
+        return;
+      }
+
+      // Check if PO already has inventory entries (from approve)
+      const existingInventoryEntries = await prisma.inventoryLedger.findMany({
+        where: {
+          refId: id,
+          reason: 'RECEIVE',
+        },
+      });
+
+      // If inventory was already added (from approve), we need to adjust it
+      // Delete old entries and create new ones with received quantities
+      if (existingInventoryEntries.length > 0) {
+        // Delete existing inventory entries
+        await prisma.inventoryLedger.deleteMany({
+          where: {
+            refId: id,
+            reason: 'RECEIVE',
+          },
+        });
+      }
+
+      const franchiseStoreId = po.franchiseStoreId;
+      const inventoryEntries = [];
+
+      // Add inventory for each item using received quantities (or original if not set)
+      for (const item of po.items) {
+        // Use received quantities if available, otherwise use original quantities
+        const qtyKg = item.receivedQtyKg !== null && item.receivedQtyKg !== undefined 
+          ? item.receivedQtyKg 
+          : item.qtyKg;
+        const qtyPcs = item.receivedQtyPcs !== null && item.receivedQtyPcs !== undefined 
+          ? item.receivedQtyPcs 
+          : item.qtyPcs;
+
+        // Skip items with no quantity
+        const hasQtyKg = qtyKg !== null && qtyKg !== undefined && qtyKg > 0;
+        const hasQtyPcs = qtyPcs !== null && qtyPcs !== undefined && qtyPcs > 0;
+
+        if (!hasQtyKg && !hasQtyPcs) {
+          console.warn(`[PO Finalize] Skipping item ${item.productId} - no valid quantity`);
+          continue;
+        }
+
+        const ledgerEntry: any = {
+          storeId: franchiseStoreId,
+          productId: item.productId,
+          type: 'IN',
+          reason: 'RECEIVE',
+          refId: id,
+        };
+
+        if (hasQtyKg) {
+          ledgerEntry.qtyKg = qtyKg;
+        }
+
+        if (hasQtyPcs) {
+          ledgerEntry.qtyPcs = qtyPcs;
+        }
+
+        try {
+          const created = await prisma.inventoryLedger.create({
+            data: ledgerEntry,
+          });
+          inventoryEntries.push(created);
+        } catch (error: any) {
+          console.error(`[PO Finalize] Failed to create inventory ledger entry:`, error);
+        }
+      }
+
+      // Update PO status to CLOSED
+      const updated = await prisma.purchaseOrder.update({
+        where: { id },
+        data: { status: 'CLOSED' },
+      });
+
+      return {
+        ...updated,
+        inventoryEntriesCreated: inventoryEntries.length,
+      };
+    } catch (error: any) {
+      console.error('Failed to finalize PO:', error);
+      reply.code(500).send({ error: 'Failed to finalize PO', details: error.message });
     }
   });
 }

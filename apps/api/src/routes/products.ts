@@ -23,9 +23,12 @@ export async function productRoutes(fastify: FastifyInstance) {
         store = await prisma.store.findUnique({ where: { id: user.storeId } });
         storeId = user.storeId;
       } catch (error) {
-        // Not authenticated, use first store as fallback
+        // Not authenticated, use oldest OWNER store as fallback to ensure consistency
         console.log('User not authenticated, using fallback store');
-        store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+        store = await prisma.store.findFirst({ 
+          where: { type: 'OWNER' },
+          orderBy: { createdAt: 'asc' }
+        });
         storeId = store?.id || '';
       }
 

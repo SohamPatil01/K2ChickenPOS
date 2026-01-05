@@ -14,9 +14,13 @@ interface PO {
   franchiseStore?: { name: string };
   ownerStore?: { name: string };
   items: Array<{
-    product: { name: string };
+    id: string;
+    product: { name: string; unitType?: 'KG' | 'PCS' };
     qtyKg?: number;
     qtyPcs?: number;
+    receivedQtyKg?: number | null;
+    receivedQtyPcs?: number | null;
+    requestedRate?: number;
   }>;
   dispatch?: {
     id: string;
@@ -54,6 +58,16 @@ export default function POPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PO | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditReceivedModal, setShowEditReceivedModal] = useState(false);
+  const [editingReceivedItems, setEditingReceivedItems] = useState<Array<{
+    itemId: string;
+    productName: string;
+    originalQtyKg?: number;
+    originalQtyPcs?: number;
+    receivedQtyKg?: number | null;
+    receivedQtyPcs?: number | null;
+    unitType?: 'KG' | 'PCS';
+  }>>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [poItems, setPoItems] = useState<POItem[]>([]);
   const [poNotes, setPoNotes] = useState('');
@@ -108,7 +122,11 @@ export default function POPage() {
       const response = await api.post(`/api/v1/po/${poId}/${action}`);
       await loadPOs();
       const actionName = action.charAt(0).toUpperCase() + action.slice(1);
-      alert(`${actionName} completed successfully!${action === 'approve' ? ' Inventory has been updated.' : ''}`);
+      if (action === 'approve') {
+        alert(`${actionName} completed successfully! Inventory will be added when you finalize the PO after editing received quantities.`);
+      } else {
+        alert(`${actionName} completed successfully!`);
+      }
     } catch (error: any) {
       console.error(`Failed to ${action} PO:`, error);
       const errorMessage = error.response?.data?.error || error.response?.data?.details || error.message || 'Action failed';
@@ -117,15 +135,71 @@ export default function POPage() {
   };
 
   const handleReceiveDispatch = async (dispatchId: string) => {
-    if (!confirm('Receive this dispatch? This will automatically update inventory.')) {
+    if (!confirm('Receive this dispatch? You can edit received quantities before finalizing.')) {
       return;
     }
     try {
       await api.post(`/api/v1/po/dispatch/${dispatchId}/receive`);
-      loadPOs();
-      alert('Dispatch received! Inventory has been updated automatically.');
+      await loadPOs();
+      alert('Dispatch received! You can now edit received quantities to account for shrinkage.');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to receive dispatch');
+    }
+  };
+
+  const handleEditReceivedQuantities = (po: PO) => {
+    if (po.status !== 'RECEIVED' && po.status !== 'DISPATCHED') {
+      alert('Can only edit received quantities for RECEIVED or DISPATCHED POs');
+      return;
+    }
+
+    setSelectedPO(po);
+    setEditingReceivedItems(
+      po.items.map((item) => ({
+        itemId: item.id,
+        productName: item.product?.name || 'Unknown',
+        originalQtyKg: item.qtyKg,
+        originalQtyPcs: item.qtyPcs,
+        receivedQtyKg: item.receivedQtyKg !== undefined ? item.receivedQtyKg : item.qtyKg,
+        receivedQtyPcs: item.receivedQtyPcs !== undefined ? item.receivedQtyPcs : item.qtyPcs,
+        unitType: item.product?.unitType,
+      }))
+    );
+    setShowEditReceivedModal(true);
+  };
+
+  const handleUpdateReceivedQuantities = async () => {
+    if (!selectedPO) return;
+
+    try {
+      const items = editingReceivedItems.map((item) => ({
+        itemId: item.itemId,
+        receivedQtyKg: item.receivedQtyKg !== undefined && item.receivedQtyKg !== null ? item.receivedQtyKg : null,
+        receivedQtyPcs: item.receivedQtyPcs !== undefined && item.receivedQtyPcs !== null ? item.receivedQtyPcs : null,
+      }));
+
+      await api.put(`/api/v1/po/${selectedPO.id}/receive`, { items });
+      await loadPOs();
+      setShowEditReceivedModal(false);
+      setSelectedPO(null);
+      setEditingReceivedItems([]);
+      alert('Received quantities updated successfully!');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to update received quantities');
+    }
+  };
+
+  const handleFinalizePO = async (poId: string) => {
+    if (!confirm('Finalize this PO? This will add the received stock to inventory. This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await api.post(`/api/v1/po/${poId}/finalize`);
+      await loadPOs();
+      alert('PO finalized! Stock has been added to inventory.');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to finalize PO');
     }
   };
 
@@ -356,6 +430,22 @@ export default function POPage() {
                       >
                         Receive
                       </button>
+                    )}
+                    {(po.status === 'RECEIVED' || po.status === 'DISPATCHED') && (
+                      <>
+                        <button
+                          onClick={() => handleEditReceivedQuantities(po)}
+                          className="px-3 py-1.5 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors text-sm font-medium mr-2"
+                        >
+                          Edit Received
+                        </button>
+                        <button
+                          onClick={() => handleFinalizePO(po.id)}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                        >
+                          Finalize
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -598,16 +688,26 @@ export default function POPage() {
                     <thead className="bg-gray-50 dark:bg-gray-900/50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ordered Qty</th>
+                        {(selectedPO.status === 'RECEIVED' || selectedPO.status === 'DISPATCHED' || selectedPO.status === 'CLOSED') && (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Received Qty</th>
+                        )}
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Requested Rate</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {selectedPO.items.map((item, index) => {
-                        const qty = item.qtyKg || item.qtyPcs || 0;
-                        const rate = (item as any).requestedRate || 0;
+                        const orderedQty = item.qtyKg || item.qtyPcs || 0;
+                        const receivedQty = item.receivedQtyKg !== undefined && item.receivedQtyKg !== null 
+                          ? item.receivedQtyKg 
+                          : (item.receivedQtyPcs !== undefined && item.receivedQtyPcs !== null 
+                            ? item.receivedQtyPcs 
+                            : null);
+                        const qty = receivedQty !== null ? receivedQty : orderedQty;
+                        const rate = item.requestedRate || 0;
                         const total = qty * rate;
+                        const hasShrinkage = receivedQty !== null && receivedQty < orderedQty;
                         return (
                           <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                             <td className="px-4 py-3 text-sm font-medium dark:text-white">
@@ -616,6 +716,24 @@ export default function POPage() {
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                               {item.qtyKg ? `${item.qtyKg} kg` : `${item.qtyPcs} pcs`}
                             </td>
+                            {(selectedPO.status === 'RECEIVED' || selectedPO.status === 'DISPATCHED' || selectedPO.status === 'CLOSED') && (
+                              <td className="px-4 py-3 text-sm">
+                                {receivedQty !== null ? (
+                                  <span className={hasShrinkage ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-600 dark:text-gray-300'}>
+                                    {item.receivedQtyKg !== undefined && item.receivedQtyKg !== null 
+                                      ? `${item.receivedQtyKg} kg` 
+                                      : `${item.receivedQtyPcs} pcs`}
+                                    {hasShrinkage && (
+                                      <span className="ml-2 text-xs">(Shrinkage: {item.qtyKg 
+                                        ? `${((item.qtyKg - (item.receivedQtyKg || 0)) / item.qtyKg * 100).toFixed(1)}%`
+                                        : `${((item.qtyPcs || 0) - (item.receivedQtyPcs || 0))} pcs`})</span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">Not set</span>
+                                )}
+                              </td>
+                            )}
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                               ₹{rate.toFixed(2)}
                             </td>
@@ -628,13 +746,19 @@ export default function POPage() {
                     </tbody>
                     <tfoot className="bg-gray-50 dark:bg-gray-900/50">
                       <tr>
-                        <td colSpan={3} className="px-4 py-3 text-sm font-semibold text-right dark:text-white">
+                        <td colSpan={selectedPO.status === 'RECEIVED' || selectedPO.status === 'DISPATCHED' || selectedPO.status === 'CLOSED' ? 4 : 3} className="px-4 py-3 text-sm font-semibold text-right dark:text-white">
                           Grand Total:
                         </td>
                         <td className="px-4 py-3 text-sm font-bold text-lg dark:text-white">
                           ₹{selectedPO.items.reduce((sum, item) => {
-                            const qty = item.qtyKg || item.qtyPcs || 0;
-                            const rate = (item as any).requestedRate || 0;
+                            const orderedQty = item.qtyKg || item.qtyPcs || 0;
+                            const receivedQty = item.receivedQtyKg !== undefined && item.receivedQtyKg !== null 
+                              ? item.receivedQtyKg 
+                              : (item.receivedQtyPcs !== undefined && item.receivedQtyPcs !== null 
+                                ? item.receivedQtyPcs 
+                                : null);
+                            const qty = receivedQty !== null ? receivedQty : orderedQty;
+                            const rate = item.requestedRate || 0;
                             return sum + (qty * rate);
                           }, 0).toFixed(2)}
                         </td>
@@ -645,7 +769,23 @@ export default function POPage() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+              {(selectedPO.status === 'RECEIVED' || selectedPO.status === 'DISPATCHED') && (
+                <>
+                  <button
+                    onClick={() => handleEditReceivedQuantities(selectedPO)}
+                    className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
+                  >
+                    Edit Received Quantities
+                  </button>
+                  <button
+                    onClick={() => handleFinalizePO(selectedPO.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  >
+                    Finalize PO
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => {
                   setShowViewModal(false);
@@ -654,6 +794,122 @@ export default function POPage() {
                 className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Received Quantities Modal */}
+      {showEditReceivedModal && selectedPO && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold dark:text-white mb-2">Edit Received Quantities</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    PO Number: <span className="font-semibold dark:text-white">{selectedPO.poNo}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    Update quantities to account for shrinkage. Both original and received quantities will be recorded.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEditReceivedModal(false);
+                    setSelectedPO(null);
+                    setEditingReceivedItems([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-4">
+                {editingReceivedItems.map((item, index) => (
+                  <div key={item.itemId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold dark:text-white">{item.productName}</h4>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Ordered: {item.originalQtyKg ? `${item.originalQtyKg} kg` : `${item.originalQtyPcs} pcs`}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {item.unitType === 'KG' || item.originalQtyKg ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Received Quantity (kg)
+                          </label>
+                          <input
+                            type="number"
+                            value={item.receivedQtyKg !== undefined && item.receivedQtyKg !== null ? item.receivedQtyKg : ''}
+                            onChange={(e) => {
+                              const newItems = [...editingReceivedItems];
+                              newItems[index].receivedQtyKg = e.target.value === '' ? null : parseFloat(e.target.value);
+                              setEditingReceivedItems(newItems);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter received quantity"
+                            step="0.01"
+                            min="0"
+                          />
+                          {item.receivedQtyKg !== null && item.receivedQtyKg !== undefined && item.originalQtyKg && item.receivedQtyKg < item.originalQtyKg && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                              Shrinkage: {((item.originalQtyKg - item.receivedQtyKg) / item.originalQtyKg * 100).toFixed(1)}%
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Received Quantity (pcs)
+                          </label>
+                          <input
+                            type="number"
+                            value={item.receivedQtyPcs !== undefined && item.receivedQtyPcs !== null ? item.receivedQtyPcs : ''}
+                            onChange={(e) => {
+                              const newItems = [...editingReceivedItems];
+                              newItems[index].receivedQtyPcs = e.target.value === '' ? null : parseInt(e.target.value) || null;
+                              setEditingReceivedItems(newItems);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter received quantity"
+                            step="1"
+                            min="0"
+                          />
+                          {item.receivedQtyPcs !== null && item.receivedQtyPcs !== undefined && item.originalQtyPcs && item.receivedQtyPcs < item.originalQtyPcs && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                              Shrinkage: {item.originalQtyPcs - item.receivedQtyPcs} pcs
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowEditReceivedModal(false);
+                  setSelectedPO(null);
+                  setEditingReceivedItems([]);
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateReceivedQuantities}
+                className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
+              >
+                Update Quantities
               </button>
             </div>
           </div>

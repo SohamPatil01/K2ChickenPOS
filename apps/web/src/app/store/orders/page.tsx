@@ -71,6 +71,7 @@ export default function OrdersPage() {
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
   });
+  const [statusFilter, setStatusFilter] = useState<string>('ALL'); // ALL, OPEN, PAID, VOID
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -126,7 +127,7 @@ export default function OrdersPage() {
       clearInterval(refreshInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, router, dateFilter]);
+  }, [user, router, dateFilter, statusFilter]);
 
   const loadSales = async () => {
     setLoading(true);
@@ -136,12 +137,17 @@ export default function OrdersPage() {
       const endDate = new Date(dateFilter.endDate);
       endDate.setHours(23, 59, 59, 999);
 
-      const response = await api.get('/api/v1/sales', {
-        params: {
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-        },
-      });
+      const params: any = {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      };
+      
+      // Add status filter if not 'ALL'
+      if (statusFilter !== 'ALL') {
+        params.status = statusFilter;
+      }
+      
+      const response = await api.get('/api/v1/sales', { params });
       setSales(response.data || []);
     } catch (error: any) {
       console.error('Failed to load sales:', error);
@@ -399,10 +405,10 @@ export default function OrdersPage() {
       <div className="mb-3 sm:mb-4 flex-shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">
-            Past Orders
+            Orders
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            View and edit all past orders
+            {statusFilter === 'OPEN' ? 'View and complete pending orders' : 'View and edit all orders'}
           </p>
         </div>
         <button
@@ -415,7 +421,22 @@ export default function OrdersPage() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Status
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:[color-scheme:dark]"
+            >
+              <option value="ALL">All Orders</option>
+              <option value="OPEN">Pending (OPEN)</option>
+              <option value="PAID">Paid</option>
+              <option value="VOID">Cancelled</option>
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Start Date

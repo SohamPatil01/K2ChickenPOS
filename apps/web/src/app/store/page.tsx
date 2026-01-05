@@ -137,6 +137,19 @@ export default function StoreDashboardPage() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
+      // Get month stats
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const monthSalesRes = await api.get('/api/v1/sales', {
+        params: {
+          startDate: monthStart.toISOString(),
+          status: 'PAID',
+        },
+      }).catch(() => ({ data: [] }));
+
+      const monthSales = monthSalesRes.data || [];
+      const monthCount = monthSales.length;
+      const monthRevenue = monthSales.reduce((sum: number, s: any) => sum + (s.grandTotal || 0), 0);
+
       const salesRes = await api.get('/api/v1/sales', {
         params: {
           startDate: today.toISOString(),
@@ -234,9 +247,12 @@ export default function StoreDashboardPage() {
           count: paidSales.length,
           avgBill: paidSales.length > 0 ? todayRevenue / paidSales.length : 0,
         },
-        month: dashboardData?.month || {
-          revenue: 0,
-          count: 0,
+        month: dashboardData?.month ? {
+          revenue: dashboardData.month.revenue || 0,
+          count: dashboardData.month.count || 0,
+        } : {
+          revenue: monthRevenue || 0,
+          count: monthCount || 0,
         },
         todaySales: {
           count: paidSales.length,

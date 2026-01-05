@@ -8,18 +8,34 @@ import { getUser } from '../utils/auth.js';
 export async function saleRoutes(fastify: FastifyInstance) {
 
   // Get sales list
-  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+  fastify.get('/', async (request: any, reply: FastifyReply) => {
     try {
       const limit = parseInt((request.query as any).limit || '1000');
       const status = (request.query as any).status;
       const startDate = (request.query as any).startDate;
       const endDate = (request.query as any).endDate;
       
-      // Get storeId from authenticated user
-      const user = getUser(request);
-      const storeId = (user as any).storeId;
-      const userId = (user as any).userId;
-      const userRole = (user as any).role;
+      // Try to get storeId from authenticated user, fallback to default store
+      let storeId = '';
+      let userId = '';
+      let userRole = '';
+      let storeIds: string[] = [];
+
+      try {
+        const user = getUser(request);
+        storeId = (user as any).storeId;
+        userId = (user as any).userId;
+        userRole = (user as any).role;
+      } catch (error) {
+        // Not authenticated, use oldest OWNER store as fallback
+        console.log('[Sales API] User not authenticated, using fallback store');
+        const defaultStore = await prisma.store.findFirst({ 
+          where: { type: 'OWNER' },
+          orderBy: { createdAt: 'asc' }
+        });
+        storeId = defaultStore?.id || '';
+        userRole = 'OWNER';
+      }
 
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
@@ -37,7 +53,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // For OWNER role, get sales from all franchise stores + owner store
-      let storeIds: string[] = [storeId];
+      storeIds = [storeId];
       if (userRole === 'OWNER' && userStore.type === 'OWNER') {
         // Get all franchise stores under this owner
         const franchises = await prisma.store.findMany({
@@ -107,12 +123,26 @@ export async function saleRoutes(fastify: FastifyInstance) {
   });
 
   // Dashboard summary
-  fastify.get('/dashboard', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/dashboard', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Get user's store from authentication
-      const user = getUser(request as any);
-      const storeId = user?.storeId;
-      const userRole = (user as any).role;
+      // Try to get user's store from authentication, fallback to default store
+      let storeId = '';
+      let userRole = '';
+      
+      try {
+        const user = getUser(request as any);
+        storeId = user?.storeId || '';
+        userRole = (user as any).role || '';
+      } catch (error) {
+        // Not authenticated, use oldest OWNER store as fallback
+        console.log('[Sales Dashboard] User not authenticated, using fallback store');
+        const defaultStore = await prisma.store.findFirst({ 
+          where: { type: 'OWNER' },
+          orderBy: { createdAt: 'asc' }
+        });
+        storeId = defaultStore?.id || '';
+        userRole = 'OWNER';
+      }
       
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });

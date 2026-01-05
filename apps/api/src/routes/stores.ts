@@ -224,8 +224,13 @@ export async function storeRoutes(fastify: FastifyInstance) {
   // Get franchise statistics
   fastify.get('/franchises/:id/stats', async (request: any, reply: FastifyReply) => {
     try {
-      const { franchiseId } = (request.query as any);
-      const id = franchiseId;
+      const { id } = request.params as { id: string };
+      const { startDate, endDate } = (request.query as any) || {};
+
+      if (!id) {
+        reply.code(400).send({ error: 'Franchise ID is required' });
+        return;
+      }
 
       const franchise = await prisma.store.findUnique({ where: { id } });
       

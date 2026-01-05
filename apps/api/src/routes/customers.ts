@@ -13,7 +13,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request: any, reply: FastifyReply) => {
     const { phone } = (request.query as any);
     // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    // Use the oldest OWNER store to ensure consistency
+    const store = await prisma.store.findFirst({ 
+      where: { type: 'OWNER' },
+      orderBy: { createdAt: 'asc' }
+    });
     const storeId = store?.id || '';
 
     if (phone) {
@@ -59,7 +63,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
     try {
       const { customerId } = (request.params as any);
       // Get default store (since auth is disabled)
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      // Use the oldest OWNER store to ensure consistency
+      const store = await prisma.store.findFirst({ 
+        where: { type: 'OWNER' },
+        orderBy: { createdAt: 'asc' }
+      });
       const storeId = store?.id || '';
 
       const customer = await prisma.customer.findUnique({
@@ -93,7 +101,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request: any, reply: FastifyReply) => {
     const data = customerSchema.parse(request.body as any);
     // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    // Use the oldest OWNER store to ensure consistency
+    const store = await prisma.store.findFirst({ 
+      where: { type: 'OWNER' },
+      orderBy: { createdAt: 'asc' }
+    });
     const storeId = store?.id || '';
 
     const customer = await prisma.customer.upsert({
@@ -428,9 +440,23 @@ export async function customerRoutes(fastify: FastifyInstance) {
   // Shows all unpaid orders (OPEN status) that are either:
   // 1. Associated with a customer, OR
   // 2. Have CREDIT payment method
-  fastify.get('/pending-payments', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+  fastify.get('/pending-payments', async (request: any, reply: FastifyReply) => {
     try {
-      const storeId = (getUser(request) as any).storeId;
+      // Try to get storeId from authenticated user, fallback to default store
+      let storeId = '';
+      
+      try {
+        const user = getUser(request);
+        storeId = (user as any).storeId || '';
+      } catch (error) {
+        // Not authenticated, use oldest OWNER store as fallback
+        console.log('[Pending Payments API] User not authenticated, using fallback store');
+        const defaultStore = await prisma.store.findFirst({ 
+          where: { type: 'OWNER' },
+          orderBy: { createdAt: 'asc' }
+        });
+        storeId = defaultStore?.id || '';
+      }
       
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
