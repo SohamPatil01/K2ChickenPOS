@@ -4718,3 +4718,7 @@ Node.js v22.14.0
 c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
 🚀 API server running on http://localhost:3003
 {"level":30,"time":1767583500857,"pid":11262,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+8:57:08 AM [tsx] change in ./src/routes/hq-replenishment.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767583628978,"pid":13287,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003

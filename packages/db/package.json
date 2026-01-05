@@ -16,6 +16,7 @@
     "generate": "prisma generate --schema=./prisma/schema.prisma",
     "migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
     "migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "migrate:safe": "bash ../../scripts/backup-before-migration.sh && prisma migrate dev --schema=./prisma/schema.prisma",
     "seed": "tsx prisma/seed.ts",
     "studio": "prisma studio --schema=./prisma/schema.prisma",
     "delete-all-sales": "tsx prisma/delete-all-sales.ts",

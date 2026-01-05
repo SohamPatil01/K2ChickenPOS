@@ -18,18 +18,57 @@ async function main() {
   const isProduction = process.env.NODE_ENV === 'production' || 
                        process.env.DATABASE_URL?.includes('pooler.supabase.com') ||
                        process.env.DATABASE_URL?.includes('vercel') ||
-                       process.env.DATABASE_URL?.includes('neon.tech');
+                       process.env.DATABASE_URL?.includes('neon.tech') ||
+                       process.env.DATABASE_URL?.includes('aws-') ||
+                       process.env.DATABASE_URL?.includes('production');
   
   if (isProduction) {
-    console.error('❌ ERROR: Seed script cannot be run on production databases!');
-    console.error('   This script will DELETE all existing data.');
-    console.error('   If you need to seed production, use a migration or manual data entry.');
-    console.error('   To override this check, set FORCE_SEED=true (not recommended)');
+    console.error('');
+    console.error('╔══════════════════════════════════════════════════════════════╗');
+    console.error('║  ❌ CRITICAL ERROR: SEED SCRIPT ON PRODUCTION DATABASE       ║');
+    console.error('╚══════════════════════════════════════════════════════════════╝');
+    console.error('');
+    console.error('This script will DELETE ALL EXISTING DATA from your database!');
+    console.error('');
+    console.error('Detected production database indicators:');
+    if (process.env.NODE_ENV === 'production') {
+      console.error('  - NODE_ENV=production');
+    }
+    if (process.env.DATABASE_URL?.includes('pooler.supabase.com')) {
+      console.error('  - Database URL contains "pooler.supabase.com"');
+    }
+    if (process.env.DATABASE_URL?.includes('vercel')) {
+      console.error('  - Database URL contains "vercel"');
+    }
+    if (process.env.DATABASE_URL?.includes('neon.tech')) {
+      console.error('  - Database URL contains "neon.tech"');
+    }
+    console.error('');
+    console.error('To prevent accidental data loss, this script is blocked.');
+    console.error('');
+    console.error('If you REALLY need to seed production (NOT RECOMMENDED):');
+    console.error('  1. Create a full backup first');
+    console.error('  2. Set FORCE_SEED=true environment variable');
+    console.error('  3. Run the script again');
+    console.error('');
+    console.error('Better alternatives:');
+    console.error('  - Use Prisma migrations to add new data');
+    console.error('  - Use manual data entry through the application');
+    console.error('  - Use data migration scripts (INSERT only, no DELETE)');
+    console.error('');
     
     if (process.env.FORCE_SEED !== 'true') {
       process.exit(1);
     } else {
-      console.warn('⚠️  FORCE_SEED is set - proceeding with data deletion...');
+      console.warn('');
+      console.warn('╔══════════════════════════════════════════════════════════════╗');
+      console.warn('║  ⚠️  FORCE_SEED IS SET - PROCEEDING WITH DATA DELETION      ║');
+      console.warn('╚══════════════════════════════════════════════════════════════╝');
+      console.warn('');
+      console.warn('You have 5 seconds to cancel (Ctrl+C)...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      console.warn('Proceeding with data deletion...');
+      console.warn('');
     }
   }
 
