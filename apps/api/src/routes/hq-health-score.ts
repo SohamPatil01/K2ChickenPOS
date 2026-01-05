@@ -106,7 +106,9 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalReceivedKg = receivedLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        const totalReceivedKg = Math.round(receivedLedgers.reduce((sum: any, l) => {
+          return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+        }, 0) * 100) / 100;
 
         const soldLedgers = await prisma.inventoryLedger.findMany({
           where: {
@@ -120,7 +122,9 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalSoldKg = soldLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        const totalSoldKg = Math.round(soldLedgers.reduce((sum: any, l) => {
+          return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+        }, 0) * 100) / 100;
 
         // Get expected yield from ProductMaster
         const productMasters = await prisma.productMaster.findMany({
@@ -134,7 +138,7 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           if (ledger.productId) {
             const master = productMasters.find((m) => m.productId === ledger.productId);
             const expectedYield = master?.expectedYieldPercent || 100;
-            expectedYieldKg += ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * (expectedYield / 100);
+            expectedYieldKg = Math.round((expectedYieldKg + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * (expectedYield / 100)) * 100) / 100;
           }
         }
 

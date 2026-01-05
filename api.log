@@ -3541,3 +3541,1180 @@ User not authenticated, using fallback store
 c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
 {"level":30,"time":1767439613400,"pid":48975,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
 🚀 API server running on http://localhost:3003
+9:13:09 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+{"level":30,"time":1767454989618,"pid":59357,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+{"level":30,"time":1767456804818,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","req":{"method":"OPTIONS","url":"/api/v1/sales/cmjy7erum0001lfgf23vt4oca/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456804824,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","res":{"statusCode":204},"responseTime":5.280542016029358,"msg":"request completed"}
+{"level":30,"time":1767456804825,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","req":{"method":"POST","url":"/api/v1/sales/cmjy7erum0001lfgf23vt4oca/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456804830,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","res":{"statusCode":401},"responseTime":5.140708088874817,"msg":"request completed"}
+{"level":30,"time":1767456804847,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","req":{"method":"OPTIONS","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456804848,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","res":{"statusCode":204},"responseTime":0.3259999752044678,"msg":"request completed"}
+{"level":30,"time":1767456804849,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","req":{"method":"POST","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456804925,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","res":{"statusCode":200},"responseTime":76.53958404064178,"msg":"request completed"}
+{"level":30,"time":1767456804928,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","req":{"method":"POST","url":"/api/v1/sales/cmjy7erum0001lfgf23vt4oca/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456804937,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","res":{"statusCode":400},"responseTime":8.9774169921875,"msg":"request completed"}
+{"level":30,"time":1767456821645,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-6","req":{"method":"OPTIONS","url":"/api/v1/sales/cmjy7erum0001lfgf23vt4oca/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456821646,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-6","res":{"statusCode":204},"responseTime":0.5100419521331787,"msg":"request completed"}
+{"level":30,"time":1767456821647,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-7","req":{"method":"POST","url":"/api/v1/sales/cmjy7erum0001lfgf23vt4oca/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456821654,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-7","res":{"statusCode":400},"responseTime":6.277999997138977,"msg":"request completed"}
+{"level":30,"time":1767456831248,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-8","req":{"method":"OPTIONS","url":"/api/v1/sales/cmjy7lvgm0001tzayedhhot63/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456831249,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-8","res":{"statusCode":204},"responseTime":0.5807920694351196,"msg":"request completed"}
+{"level":30,"time":1767456831251,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-9","req":{"method":"POST","url":"/api/v1/sales/cmjy7lvgm0001tzayedhhot63/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456831257,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-9","res":{"statusCode":400},"responseTime":6.316833019256592,"msg":"request completed"}
+{"level":30,"time":1767456847631,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-a","req":{"method":"OPTIONS","url":"/api/v1/sales/cmjy78osu0001n4uldievaw5q/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456847632,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-a","res":{"statusCode":204},"responseTime":1.4904999732971191,"msg":"request completed"}
+{"level":30,"time":1767456847633,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-b","req":{"method":"POST","url":"/api/v1/sales/cmjy78osu0001n4uldievaw5q/pay","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":65204},"msg":"incoming request"}
+{"level":30,"time":1767456847639,"pid":59357,"hostname":"Sohams-MacBook-Air.local","reqId":"req-b","res":{"statusCode":400},"responseTime":5.706125020980835,"msg":"request completed"}
+9:46:57 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767457018207,"pid":90213,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:47:11 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/Users/soham/Desktop/K2POS/K2ChickenPOS/apps/api/src/routes/customers.ts:507:18: ERROR: Expected ";" but found ":"
+    at failureErrorWithLog (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:1467:15)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.14.0
+9:47:25 PM [tsx] change in ./src/routes/customers.ts Rerunning...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+{"level":30,"time":1767457045850,"pid":90623,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:47:35 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+{"level":30,"time":1767457055762,"pid":90800,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:47:52 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+{"level":30,"time":1767457073034,"pid":91379,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:52:55 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/Users/soham/Desktop/K2POS/K2ChickenPOS/apps/api/src/routes/customers.ts:509:8: ERROR: Expected ":" but found ";"
+    at failureErrorWithLog (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:1467:15)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.14.0
+9:53:04 PM [tsx] change in ./src/routes/customers.ts Rerunning...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767457385093,"pid":95927,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:53:12 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+{"level":30,"time":1767457393191,"pid":96406,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:53:16 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+{"level":30,"time":1767457396863,"pid":96473,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:55:47 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+{"level":30,"time":1767457547971,"pid":98791,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:55:55 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+{"level":30,"time":1767457556222,"pid":99262,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+9:55:57 PM [tsx] change in ./src/routes/customers.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+{"level":30,"time":1767457557975,"pid":99299,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:02:14 PM [tsx] change in ./src/index.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+{"level":30,"time":1767457935155,"pid":5063,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+{"level":30,"time":1767457977860,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","req":{"method":"POST","url":"/api/v1/auth/login","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":55959},"msg":"incoming request"}
+{"level":30,"time":1767457977980,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","res":{"statusCode":200},"responseTime":119.56608402729034,"msg":"request completed"}
+{"level":30,"time":1767457977992,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","req":{"method":"GET","url":"/api/v1/inventory/summary","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":55966},"msg":"incoming request"}
+[Inventory Summary] Not authenticated, using fallback store: cmjten76p0000viumjxwes8nz
+[Inventory Summary] Owner store ID: cmjten76p0000viumjxwes8nz, Querying store ID: cmjten76p0000viumjxwes8nz
+[Inventory Summary] Found 9 products for store cmjten76p0000viumjxwes8nz
+[Inventory Summary] Direct ledger query for store cmjten76p0000viumjxwes8nz: Found 10 total entries
+[Inventory Summary] Recent ledger entries (last 10):
+[Inventory Summary]   1. Product: cmjtenb6i000ovium4ep6cvrl, Type: OUT, QtyKg: null, QtyPcs: 2, Reason: SALE, Created: Sat Jan 03 2026 16:48:22 GMT+0530 (India Standard Time)
+[Inventory Summary]   2. Product: cmjtfyo4s000tmw9v1cceq7rv, Type: OUT, QtyKg: null, QtyPcs: 1, Reason: SALE, Created: Sat Jan 03 2026 16:42:51 GMT+0530 (India Standard Time)
+[Inventory Summary]   3. Product: cmjtfyk5i0005mw9vji8icng4, Type: OUT, QtyKg: 1, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 16:38:07 GMT+0530 (India Standard Time)
+[Inventory Summary]   4. Product: cmjtfyo4s000tmw9v1cceq7rv, Type: OUT, QtyKg: null, QtyPcs: 1, Reason: SALE, Created: Sat Jan 03 2026 14:12:10 GMT+0530 (India Standard Time)
+[Inventory Summary]   5. Product: cmjten9z3000iviumzzz362v3, Type: OUT, QtyKg: 0.628, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 14:01:09 GMT+0530 (India Standard Time)
+[Inventory Summary]   6. Product: cmjtfymx1000lmw9v6odxz662, Type: OUT, QtyKg: 0.5, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:59:25 GMT+0530 (India Standard Time)
+[Inventory Summary]   7. Product: cmjten9z3000iviumzzz362v3, Type: OUT, QtyKg: 0.788, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:59:25 GMT+0530 (India Standard Time)
+[Inventory Summary]   8. Product: cmjten9z3000iviumzzz362v3, Type: OUT, QtyKg: 1.162, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:57:49 GMT+0530 (India Standard Time)
+[Inventory Summary]   9. Product: cmjtfylpc000dmw9vtbj4su00, Type: OUT, QtyKg: 0.774, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:57:49 GMT+0530 (India Standard Time)
+[Inventory Summary]   10. Product: cmjtfyo4s000tmw9v1cceq7rv, Type: OUT, QtyKg: null, QtyPcs: 1, Reason: SALE, Created: Sat Jan 03 2026 13:57:46 GMT+0530 (India Standard Time)
+[Inventory Summary] Product Hot Tandoor (cmjten9z3000iviumzzz362v3) has 43 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=1.72, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=8.28, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=49, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=1.095, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=0.93, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.735, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=OUT, qtyKg=0.48, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=OUT, qtyKg=1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=1.09, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 12: type=OUT, qtyKg=1.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 13: type=OUT, qtyKg=1.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 14: type=OUT, qtyKg=0.625, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 15: type=OUT, qtyKg=1.07, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 16: type=OUT, qtyKg=0.755, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 17: type=OUT, qtyKg=1.555, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 18: type=OUT, qtyKg=0.405, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 19: type=OUT, qtyKg=0.515, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 20: type=OUT, qtyKg=0.385, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 21: type=OUT, qtyKg=1.995, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 22: type=OUT, qtyKg=1.995, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 23: type=OUT, qtyKg=0.335, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 24: type=OUT, qtyKg=2.23, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 25: type=OUT, qtyKg=2.23, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 26: type=OUT, qtyKg=1.135, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 27: type=OUT, qtyKg=0.505, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 28: type=OUT, qtyKg=0.725, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 29: type=OUT, qtyKg=0.335, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 30: type=IN, qtyKg=54.5, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 31: type=OUT, qtyKg=78.355, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 32: type=IN, qtyKg=54.5, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 33: type=OUT, qtyKg=1.525, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 34: type=OUT, qtyKg=1.525, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 35: type=OUT, qtyKg=0.725, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 36: type=OUT, qtyKg=0.61, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 37: type=OUT, qtyKg=0.805, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 38: type=OUT, qtyKg=0.66, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 39: type=OUT, qtyKg=0.67, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 40: type=OUT, qtyKg=10.6, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 41: type=OUT, qtyKg=1.162, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 42: type=OUT, qtyKg=0.788, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 43: type=OUT, qtyKg=0.628, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Hot Tandoor calculated totals: 34.80200000000001 kg, 0 pcs
+[Inventory Summary] Product Breast Boneless (cmjtfyk5i0005mw9vji8icng4) has 28 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=0.465, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=9.535, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=8.5, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=0.24, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=0.455, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=OUT, qtyKg=0.52, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=0.145, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=OUT, qtyKg=1.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=1.005, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 12: type=OUT, qtyKg=1.005, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 13: type=OUT, qtyKg=1.555, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 14: type=OUT, qtyKg=1.555, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 15: type=OUT, qtyKg=1.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 16: type=OUT, qtyKg=0.25, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 17: type=OUT, qtyKg=0.25, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 18: type=OUT, qtyKg=0.73, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 19: type=OUT, qtyKg=0.73, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 20: type=IN, qtyKg=13.2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 21: type=OUT, qtyKg=10.17, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 22: type=IN, qtyKg=13.2, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 23: type=OUT, qtyKg=0.495, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 24: type=OUT, qtyKg=0.505, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 25: type=OUT, qtyKg=0.415, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 26: type=OUT, qtyKg=0.21, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 27: type=OUT, qtyKg=2.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 28: type=OUT, qtyKg=1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Breast Boneless calculated totals: 8.565 kg, 0 pcs
+[Inventory Summary] Product Leg (cmjtfyl260009mw9vktuvk4rd) has 11 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=IN, qtyKg=2.4, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=0.34, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=0.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=0.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.59, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=8.5, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=8.89, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=IN, qtyKg=8.5, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=0.745, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Leg calculated totals: 7.755 kg, 0 pcs
+[Inventory Summary] Product Drumstick (cmjtfylpc000dmw9vtbj4su00) has 7 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=9, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=IN, qtyKg=2, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.774, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Drumstick calculated totals: 1.226 kg, 0 pcs
+[Inventory Summary] Product Lollipop (cmjtfymb5000hmw9vlsdpz75l) has 7 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=IN, qtyKg=0.3, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=0.16, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=IN, qtyKg=4, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=4.14, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=4, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Lollipop calculated totals: 4 kg, 0 pcs
+[Inventory Summary] Product Liver (cmjtfymx1000lmw9v6odxz662) has 11 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=1.915, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=1.915, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=IN, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=IN, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=1.17, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=IN, qtyKg=2, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=0.5, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Liver calculated totals: 1.5 kg, 0 pcs
+[Inventory Summary] Product Carcus (cmjtfynix000pmw9vh4n9s2l9) has 13 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=0.52, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=0.52, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=2.1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=4, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=4.859999999999999, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=IN, qtyKg=4, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=2.02, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 12: type=OUT, qtyKg=2, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 13: type=OUT, qtyKg=2, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Carcus calculated totals: 0 kg, 0 pcs
+[Inventory Summary] Product Egg (cmjtfyo4s000tmw9v1cceq7rv) has 11 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=null, qtyPcs=2, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=3, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=3, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=IN, qtyKg=3, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=null, qtyPcs=3, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=null, qtyPcs=2, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=null, qtyPcs=1, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=OUT, qtyKg=null, qtyPcs=1, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=null, qtyPcs=1, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Egg calculated totals: 3 kg, 0 pcs
+[Inventory Summary] Product Gizzard (cmjtfyoqo000xmw9vj7evt5dp) has 2 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Gizzard calculated totals: 0 kg, 0 pcs
+[Inventory Summary] Returning 9 items
+{"level":30,"time":1767457978009,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","res":{"statusCode":200},"responseTime":16.84012496471405,"msg":"request completed"}
+{"level":30,"time":1767457994675,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","req":{"method":"POST","url":"/api/v1/auth/login","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":56069},"msg":"incoming request"}
+{"level":30,"time":1767457994733,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","res":{"statusCode":200},"responseTime":58.35658299922943,"msg":"request completed"}
+{"level":30,"time":1767457994745,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","req":{"method":"GET","url":"/api/v1/inventory/summary","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":56071},"msg":"incoming request"}
+[Inventory Summary] Not authenticated, using fallback store: cmjten76p0000viumjxwes8nz
+[Inventory Summary] Owner store ID: cmjten76p0000viumjxwes8nz, Querying store ID: cmjten76p0000viumjxwes8nz
+[Inventory Summary] Found 9 products for store cmjten76p0000viumjxwes8nz
+[Inventory Summary] Direct ledger query for store cmjten76p0000viumjxwes8nz: Found 10 total entries
+[Inventory Summary] Recent ledger entries (last 10):
+[Inventory Summary]   1. Product: cmjtenb6i000ovium4ep6cvrl, Type: OUT, QtyKg: null, QtyPcs: 2, Reason: SALE, Created: Sat Jan 03 2026 16:48:22 GMT+0530 (India Standard Time)
+[Inventory Summary]   2. Product: cmjtfyo4s000tmw9v1cceq7rv, Type: OUT, QtyKg: null, QtyPcs: 1, Reason: SALE, Created: Sat Jan 03 2026 16:42:51 GMT+0530 (India Standard Time)
+[Inventory Summary]   3. Product: cmjtfyk5i0005mw9vji8icng4, Type: OUT, QtyKg: 1, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 16:38:07 GMT+0530 (India Standard Time)
+[Inventory Summary]   4. Product: cmjtfyo4s000tmw9v1cceq7rv, Type: OUT, QtyKg: null, QtyPcs: 1, Reason: SALE, Created: Sat Jan 03 2026 14:12:10 GMT+0530 (India Standard Time)
+[Inventory Summary]   5. Product: cmjten9z3000iviumzzz362v3, Type: OUT, QtyKg: 0.628, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 14:01:09 GMT+0530 (India Standard Time)
+[Inventory Summary]   6. Product: cmjtfymx1000lmw9v6odxz662, Type: OUT, QtyKg: 0.5, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:59:25 GMT+0530 (India Standard Time)
+[Inventory Summary]   7. Product: cmjten9z3000iviumzzz362v3, Type: OUT, QtyKg: 0.788, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:59:25 GMT+0530 (India Standard Time)
+[Inventory Summary]   8. Product: cmjten9z3000iviumzzz362v3, Type: OUT, QtyKg: 1.162, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:57:49 GMT+0530 (India Standard Time)
+[Inventory Summary]   9. Product: cmjtfylpc000dmw9vtbj4su00, Type: OUT, QtyKg: 0.774, QtyPcs: null, Reason: SALE, Created: Sat Jan 03 2026 13:57:49 GMT+0530 (India Standard Time)
+[Inventory Summary]   10. Product: cmjtfyo4s000tmw9v1cceq7rv, Type: OUT, QtyKg: null, QtyPcs: 1, Reason: SALE, Created: Sat Jan 03 2026 13:57:46 GMT+0530 (India Standard Time)
+[Inventory Summary] Product Hot Tandoor (cmjten9z3000iviumzzz362v3) has 43 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=1.72, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=8.28, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=49, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=1.095, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=0.93, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.735, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=OUT, qtyKg=0.48, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=OUT, qtyKg=1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=1.09, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 12: type=OUT, qtyKg=1.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 13: type=OUT, qtyKg=1.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 14: type=OUT, qtyKg=0.625, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 15: type=OUT, qtyKg=1.07, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 16: type=OUT, qtyKg=0.755, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 17: type=OUT, qtyKg=1.555, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 18: type=OUT, qtyKg=0.405, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 19: type=OUT, qtyKg=0.515, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 20: type=OUT, qtyKg=0.385, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 21: type=OUT, qtyKg=1.995, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 22: type=OUT, qtyKg=1.995, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 23: type=OUT, qtyKg=0.335, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 24: type=OUT, qtyKg=2.23, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 25: type=OUT, qtyKg=2.23, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 26: type=OUT, qtyKg=1.135, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 27: type=OUT, qtyKg=0.505, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 28: type=OUT, qtyKg=0.725, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 29: type=OUT, qtyKg=0.335, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 30: type=IN, qtyKg=54.5, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 31: type=OUT, qtyKg=78.355, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 32: type=IN, qtyKg=54.5, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 33: type=OUT, qtyKg=1.525, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 34: type=OUT, qtyKg=1.525, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 35: type=OUT, qtyKg=0.725, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 36: type=OUT, qtyKg=0.61, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 37: type=OUT, qtyKg=0.805, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 38: type=OUT, qtyKg=0.66, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 39: type=OUT, qtyKg=0.67, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 40: type=OUT, qtyKg=10.6, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 41: type=OUT, qtyKg=1.162, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 42: type=OUT, qtyKg=0.788, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 43: type=OUT, qtyKg=0.628, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Hot Tandoor calculated totals: 34.80200000000001 kg, 0 pcs
+[Inventory Summary] Product Breast Boneless (cmjtfyk5i0005mw9vji8icng4) has 28 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=0.465, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=9.535, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=8.5, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=0.24, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=0.455, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=OUT, qtyKg=0.52, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=0.145, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=OUT, qtyKg=1.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=1.005, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 12: type=OUT, qtyKg=1.005, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 13: type=OUT, qtyKg=1.555, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 14: type=OUT, qtyKg=1.555, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 15: type=OUT, qtyKg=1.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 16: type=OUT, qtyKg=0.25, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 17: type=OUT, qtyKg=0.25, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 18: type=OUT, qtyKg=0.73, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 19: type=OUT, qtyKg=0.73, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 20: type=IN, qtyKg=13.2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 21: type=OUT, qtyKg=10.17, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 22: type=IN, qtyKg=13.2, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 23: type=OUT, qtyKg=0.495, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 24: type=OUT, qtyKg=0.505, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 25: type=OUT, qtyKg=0.415, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 26: type=OUT, qtyKg=0.21, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 27: type=OUT, qtyKg=2.01, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 28: type=OUT, qtyKg=1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Breast Boneless calculated totals: 8.565 kg, 0 pcs
+[Inventory Summary] Product Leg (cmjtfyl260009mw9vktuvk4rd) has 11 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=IN, qtyKg=2.4, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=0.34, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=0.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=0.54, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.59, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=8.5, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=8.89, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=IN, qtyKg=8.5, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=0.745, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Leg calculated totals: 7.755 kg, 0 pcs
+[Inventory Summary] Product Drumstick (cmjtfylpc000dmw9vtbj4su00) has 7 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=9, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=IN, qtyKg=2, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=OUT, qtyKg=0.774, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Drumstick calculated totals: 1.226 kg, 0 pcs
+[Inventory Summary] Product Lollipop (cmjtfymb5000hmw9vlsdpz75l) has 7 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=IN, qtyKg=0.3, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=0.16, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=IN, qtyKg=4, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=4.14, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=4, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Lollipop calculated totals: 4 kg, 0 pcs
+[Inventory Summary] Product Liver (cmjtfymx1000lmw9v6odxz662) has 11 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=1.915, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=1.915, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=IN, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=IN, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=1, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=1.17, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=IN, qtyKg=2, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=0.5, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Liver calculated totals: 1.5 kg, 0 pcs
+[Inventory Summary] Product Carcus (cmjtfynix000pmw9vh4n9s2l9) has 13 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=OUT, qtyKg=0.52, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=0.52, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=OUT, qtyKg=2.1, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=4, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=2, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=4.859999999999999, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=IN, qtyKg=4, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=2.02, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 12: type=OUT, qtyKg=2, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 13: type=OUT, qtyKg=2, qtyPcs=null, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Carcus calculated totals: 0 kg, 0 pcs
+[Inventory Summary] Product Egg (cmjtfyo4s000tmw9v1cceq7rv) has 11 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 3: type=OUT, qtyKg=null, qtyPcs=2, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 4: type=IN, qtyKg=3, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 5: type=OUT, qtyKg=3, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 6: type=IN, qtyKg=3, qtyPcs=null, reason=RECEIVE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 7: type=IN, qtyKg=null, qtyPcs=3, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 8: type=IN, qtyKg=null, qtyPcs=2, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 9: type=OUT, qtyKg=null, qtyPcs=1, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 10: type=OUT, qtyKg=null, qtyPcs=1, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 11: type=OUT, qtyKg=null, qtyPcs=1, reason=SALE, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Egg calculated totals: 3 kg, 0 pcs
+[Inventory Summary] Product Gizzard (cmjtfyoqo000xmw9vj7evt5dp) has 2 ledger entries for store cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 1: type=IN, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary]   Ledger 2: type=OUT, qtyKg=10, qtyPcs=null, reason=ADJUSTMENT, storeId=cmjten76p0000viumjxwes8nz
+[Inventory Summary] Product Gizzard calculated totals: 0 kg, 0 pcs
+[Inventory Summary] Returning 9 items
+{"level":30,"time":1767457994754,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","res":{"statusCode":200},"responseTime":8.330417037010193,"msg":"request completed"}
+{"level":30,"time":1767458020850,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","req":{"method":"POST","url":"/api/v1/auth/login","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":56373},"msg":"incoming request"}
+{"level":30,"time":1767458020916,"pid":5063,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","res":{"statusCode":200},"responseTime":65.50241601467133,"msg":"request completed"}
+10:03:52 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+{"level":30,"time":1767458033329,"pid":7148,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:04:06 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+{"level":30,"time":1767458046842,"pid":7358,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:07:37 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+{"level":30,"time":1767458258101,"pid":10658,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:07:55 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767458275847,"pid":11312,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:08:04 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+{"level":30,"time":1767458284390,"pid":11781,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:13:33 PM [tsx] change in ./src/index.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+{"level":30,"time":1767458614123,"pid":17052,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:31 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767539131545,"pid":9587,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:32 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+{"level":30,"time":1767539132903,"pid":9609,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:34 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+{"level":30,"time":1767539134856,"pid":9638,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:36 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+{"level":30,"time":1767539136393,"pid":9660,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:38 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+{"level":30,"time":1767539138410,"pid":9682,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:51 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767539151959,"pid":9878,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:35:54 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+{"level":30,"time":1767539154689,"pid":9910,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+{"level":30,"time":1767546261400,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","req":{"method":"OPTIONS","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49975},"msg":"incoming request"}
+{"level":30,"time":1767546261414,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","res":{"statusCode":204},"responseTime":12.004499912261963,"msg":"request completed"}
+{"level":30,"time":1767546261415,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","req":{"method":"GET","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49975},"msg":"incoming request"}
+{"level":30,"time":1767546261422,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","req":{"method":"OPTIONS","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261423,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","res":{"statusCode":204},"responseTime":0.3131669759750366,"msg":"request completed"}
+{"level":30,"time":1767546261423,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","req":{"method":"OPTIONS","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49980},"msg":"incoming request"}
+{"level":30,"time":1767546261423,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","res":{"statusCode":204},"responseTime":0.07841706275939941,"msg":"request completed"}
+{"level":30,"time":1767546261424,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","req":{"method":"GET","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261424,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-6","req":{"method":"OPTIONS","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261425,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-6","res":{"statusCode":204},"responseTime":0.12599992752075195,"msg":"request completed"}
+{"level":30,"time":1767546261513,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","res":{"statusCode":200},"responseTime":97.722207903862,"msg":"request completed"}
+{"level":30,"time":1767546261514,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","res":{"statusCode":200},"responseTime":89.89824998378754,"msg":"request completed"}
+{"level":30,"time":1767546261514,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-7","req":{"method":"GET","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261514,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-8","req":{"method":"GET","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49975},"msg":"incoming request"}
+{"level":30,"time":1767546261517,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-9","req":{"method":"OPTIONS","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261518,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-9","res":{"statusCode":204},"responseTime":1.6990000009536743,"msg":"request completed"}
+{"level":30,"time":1767546261519,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-a","req":{"method":"GET","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261525,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-8","res":{"statusCode":200},"responseTime":10.281333923339844,"msg":"request completed"}
+{"level":30,"time":1767546261525,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-7","res":{"statusCode":200},"responseTime":11.31029200553894,"msg":"request completed"}
+{"level":30,"time":1767546261538,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-a","res":{"statusCode":200},"responseTime":19.02583396434784,"msg":"request completed"}
+{"level":30,"time":1767546261538,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-b","req":{"method":"GET","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261539,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-c","req":{"method":"OPTIONS","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261539,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-c","res":{"statusCode":204},"responseTime":0.10150003433227539,"msg":"request completed"}
+{"level":30,"time":1767546261540,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-d","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261542,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-d","res":{"statusCode":401},"responseTime":2.911042094230652,"msg":"request completed"}
+{"level":30,"time":1767546261543,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-b","res":{"statusCode":200},"responseTime":4.691917061805725,"msg":"request completed"}
+{"level":30,"time":1767546261544,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-e","req":{"method":"OPTIONS","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261544,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-e","res":{"statusCode":204},"responseTime":0.07349991798400879,"msg":"request completed"}
+{"level":30,"time":1767546261544,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-f","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261544,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-f","res":{"statusCode":401},"responseTime":0.23312509059906006,"msg":"request completed"}
+{"level":30,"time":1767546261545,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-g","req":{"method":"POST","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261546,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-h","req":{"method":"POST","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261548,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-g","res":{"statusCode":200},"responseTime":3.432332992553711,"msg":"request completed"}
+{"level":30,"time":1767546261548,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-h","res":{"statusCode":200},"responseTime":1.8825420141220093,"msg":"request completed"}
+{"level":30,"time":1767546261549,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-i","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261552,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-i","res":{"statusCode":200},"responseTime":2.367666006088257,"msg":"request completed"}
+{"level":30,"time":1767546261552,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-j","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+{"level":30,"time":1767546261553,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-k","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261553,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-k","res":{"statusCode":204},"responseTime":0.05929100513458252,"msg":"request completed"}
+{"level":30,"time":1767546261554,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-j","res":{"statusCode":200},"responseTime":1.2991669178009033,"msg":"request completed"}
+User not authenticated, using fallback store
+{"level":30,"time":1767546261554,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-l","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49977},"msg":"incoming request"}
+{"level":30,"time":1767546261559,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-l","res":{"statusCode":200},"responseTime":5.457916021347046,"msg":"request completed"}
+{"level":30,"time":1767546261560,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-m","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":49981},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767546261563,"pid":9910,"hostname":"Sohams-MacBook-Air.local","reqId":"req-m","res":{"statusCode":200},"responseTime":3.1883329153060913,"msg":"request completed"}
+10:34:44 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+{"level":30,"time":1767546284676,"pid":68958,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:35:16 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+{"level":30,"time":1767546316419,"pid":69388,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:38:41 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+{"level":30,"time":1767546521720,"pid":72353,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:38:45 PM [tsx] change in ./src/routes/reports.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+{"level":30,"time":1767546525845,"pid":72433,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:38:50 PM [tsx] change in ./src/routes/daily-closing.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+{"level":30,"time":1767546530976,"pid":72542,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:38:59 PM [tsx] change in ./src/routes/hq-replenishment.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767546539378,"pid":72721,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:40:38 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+{"level":30,"time":1767546639348,"pid":74411,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:40:41 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c10:40:41 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  enable debug logging with { debug: true }
+{"level":30,"time":1767546641795,"pid":74455,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:41:06 PM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767546666702,"pid":75174,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+10:46:57 PM [tsx] change in ./src/routes/sales.ts Restarting...
+c
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+/Users/soham/Desktop/K2POS/K2ChickenPOS/apps/api/src/routes/sales.ts:135:3: ERROR: Expected "finally" but found ")"
+    at failureErrorWithLog (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:1467:15)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/esbuild@0.27.1/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.14.0
+10:47:10 PM [tsx] change in ./src/routes/sales.ts Rerunning...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  override existing env vars with { override: true }
+{"level":30,"time":1767547030995,"pid":81154,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+{"level":30,"time":1767548929744,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929750,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1","res":{"statusCode":204},"responseTime":5.318166971206665,"msg":"request completed"}
+{"level":30,"time":1767548929751,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","req":{"method":"OPTIONS","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929751,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2","res":{"statusCode":204},"responseTime":0.1643749475479126,"msg":"request completed"}
+{"level":30,"time":1767548929751,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929752,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3","res":{"statusCode":204},"responseTime":0.34279191493988037,"msg":"request completed"}
+{"level":30,"time":1767548929753,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","req":{"method":"OPTIONS","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929753,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4","res":{"statusCode":204},"responseTime":0.23441708087921143,"msg":"request completed"}
+User not authenticated, using fallback store
+{"level":30,"time":1767548929756,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","req":{"method":"OPTIONS","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929756,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-5","res":{"statusCode":204},"responseTime":0.16854190826416016,"msg":"request completed"}
+{"level":30,"time":1767548929759,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-6","req":{"method":"GET","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929778,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-7","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929787,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-8","req":{"method":"OPTIONS","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929790,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-8","res":{"statusCode":204},"responseTime":1.1995840072631836,"msg":"request completed"}
+{"level":30,"time":1767548929793,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-9","req":{"method":"GET","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929809,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-9","res":{"statusCode":401},"responseTime":15.861124992370605,"msg":"request completed"}
+{"level":30,"time":1767548929810,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-a","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929810,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-a","res":{"statusCode":204},"responseTime":0.22462499141693115,"msg":"request completed"}
+{"level":30,"time":1767548929810,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-b","req":{"method":"GET","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929814,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-b","res":{"statusCode":401},"responseTime":3.858833074569702,"msg":"request completed"}
+{"level":30,"time":1767548929815,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-c","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929815,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-c","res":{"statusCode":204},"responseTime":0.107124924659729,"msg":"request completed"}
+{"level":30,"time":1767548929815,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-d","req":{"method":"OPTIONS","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929816,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-d","res":{"statusCode":204},"responseTime":0.4654170274734497,"msg":"request completed"}
+{"level":30,"time":1767548929816,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-e","req":{"method":"OPTIONS","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929816,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-e","res":{"statusCode":204},"responseTime":0.05645906925201416,"msg":"request completed"}
+{"level":30,"time":1767548929816,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-f","req":{"method":"POST","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929821,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-g","req":{"method":"POST","url":"/api/v1/auth/refresh","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929894,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-f","res":{"statusCode":200},"responseTime":77.38487505912781,"msg":"request completed"}
+{"level":30,"time":1767548929894,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-g","res":{"statusCode":200},"responseTime":73.47829103469849,"msg":"request completed"}
+{"level":30,"time":1767548929896,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-6","res":{"statusCode":200},"responseTime":136.16562509536743,"msg":"request completed"}
+{"level":30,"time":1767548929896,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-h","req":{"method":"GET","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929899,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-h","res":{"statusCode":200},"responseTime":3.5273749828338623,"msg":"request completed"}
+{"level":30,"time":1767548929900,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-i","req":{"method":"GET","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767548929900,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-j","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929901,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-k","req":{"method":"GET","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929901,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-7","res":{"statusCode":200},"responseTime":123.18679201602936,"msg":"request completed"}
+{"level":30,"time":1767548929902,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-i","res":{"statusCode":200},"responseTime":2.597249984741211,"msg":"request completed"}
+{"level":30,"time":1767548929903,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-k","res":{"statusCode":200},"responseTime":2.062250018119812,"msg":"request completed"}
+{"level":30,"time":1767548929904,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-l","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929904,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-l","res":{"statusCode":204},"responseTime":0.2481670379638672,"msg":"request completed"}
+{"level":30,"time":1767548929905,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-m","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929905,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-m","res":{"statusCode":204},"responseTime":0.11237502098083496,"msg":"request completed"}
+{"level":30,"time":1767548929905,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-n","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929905,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-n","res":{"statusCode":204},"responseTime":0.0798330307006836,"msg":"request completed"}
+{"level":30,"time":1767548929906,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-o","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929906,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-o","res":{"statusCode":204},"responseTime":0.06562495231628418,"msg":"request completed"}
+{"level":30,"time":1767548929906,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-p","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929907,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-q","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929907,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-q","res":{"statusCode":204},"responseTime":0.051582932472229004,"msg":"request completed"}
+{"level":30,"time":1767548929907,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-r","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929907,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-r","res":{"statusCode":204},"responseTime":0.032791972160339355,"msg":"request completed"}
+{"level":30,"time":1767548929907,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-s","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929907,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-t","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929909,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-j","res":{"statusCode":200},"responseTime":8.908666014671326,"msg":"request completed"}
+{"level":30,"time":1767548929909,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-p","res":{"statusCode":200},"responseTime":3.1332499980926514,"msg":"request completed"}
+{"level":30,"time":1767548929909,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-s","res":{"statusCode":200},"responseTime":2.3992919921875,"msg":"request completed"}
+{"level":30,"time":1767548929909,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-t","res":{"statusCode":200},"responseTime":2.1118749380111694,"msg":"request completed"}
+{"level":30,"time":1767548929910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-u","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-u","res":{"statusCode":204},"responseTime":0.03870797157287598,"msg":"request completed"}
+{"level":30,"time":1767548929910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-v","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-w","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929911,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-x","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929911,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-x","res":{"statusCode":204},"responseTime":0.05912494659423828,"msg":"request completed"}
+{"level":30,"time":1767548929911,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-y","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929911,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-y","res":{"statusCode":204},"responseTime":0.3148750066757202,"msg":"request completed"}
+{"level":30,"time":1767548929911,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-z","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767548929912,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-v","res":{"statusCode":200},"responseTime":1.9794169664382935,"msg":"request completed"}
+{"level":30,"time":1767548929912,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-w","res":{"statusCode":200},"responseTime":1.7635830640792847,"msg":"request completed"}
+{"level":30,"time":1767548929912,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-z","res":{"statusCode":200},"responseTime":0.7784579992294312,"msg":"request completed"}
+{"level":30,"time":1767548929913,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-10","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929914,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-11","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929914,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-12","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929914,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-13","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929915,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-14","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929915,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-15","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929915,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-11","res":{"statusCode":200},"responseTime":1.0040409564971924,"msg":"request completed"}
+{"level":30,"time":1767548929915,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-12","res":{"statusCode":200},"responseTime":0.8037909269332886,"msg":"request completed"}
+{"level":30,"time":1767548929916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-13","res":{"statusCode":200},"responseTime":1.0805000066757202,"msg":"request completed"}
+{"level":30,"time":1767548929916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-14","res":{"statusCode":200},"responseTime":1.0470000505447388,"msg":"request completed"}
+{"level":30,"time":1767548929916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-15","res":{"statusCode":200},"responseTime":1.2317919731140137,"msg":"request completed"}
+{"level":30,"time":1767548929916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-16","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-17","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-18","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-19","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-16","res":{"statusCode":200},"responseTime":0.7606250047683716,"msg":"request completed"}
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-17","res":{"statusCode":200},"responseTime":0.4977080821990967,"msg":"request completed"}
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-18","res":{"statusCode":200},"responseTime":0.5462909936904907,"msg":"request completed"}
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-19","res":{"statusCode":200},"responseTime":0.5388749837875366,"msg":"request completed"}
+{"level":30,"time":1767548929917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1a","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929923,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-10","res":{"statusCode":200},"responseTime":9.183125019073486,"msg":"request completed"}
+{"level":30,"time":1767548929932,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1a","res":{"statusCode":200},"responseTime":15.08841598033905,"msg":"request completed"}
+{"level":30,"time":1767548929933,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1b","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929934,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1c","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929938,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1d","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548929939,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1e","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929940,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1f","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929940,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1g","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929940,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1b","res":{"statusCode":200},"responseTime":7.192084074020386,"msg":"request completed"}
+{"level":30,"time":1767548929941,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1c","res":{"statusCode":200},"responseTime":6.995792031288147,"msg":"request completed"}
+{"level":30,"time":1767548929941,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1e","res":{"statusCode":200},"responseTime":1.568666934967041,"msg":"request completed"}
+{"level":30,"time":1767548929941,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1f","res":{"statusCode":200},"responseTime":1.5524590015411377,"msg":"request completed"}
+{"level":30,"time":1767548929942,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1g","res":{"statusCode":200},"responseTime":2.0512090921401978,"msg":"request completed"}
+{"level":30,"time":1767548929942,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1h","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929944,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1i","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548929945,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1j","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548929945,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1k","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548929946,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1l","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548929948,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1h","res":{"statusCode":200},"responseTime":6.118375062942505,"msg":"request completed"}
+{"level":30,"time":1767548929950,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1m","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548929950,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1i","res":{"statusCode":200},"responseTime":6.155708909034729,"msg":"request completed"}
+{"level":30,"time":1767548929951,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1j","res":{"statusCode":200},"responseTime":5.671958923339844,"msg":"request completed"}
+{"level":30,"time":1767548929967,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1d","res":{"statusCode":200},"responseTime":29.568249940872192,"msg":"request completed"}
+{"level":30,"time":1767548929970,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1m","res":{"statusCode":200},"responseTime":20.054834008216858,"msg":"request completed"}
+{"level":30,"time":1767548929984,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1k","res":{"statusCode":200},"responseTime":38.82129204273224,"msg":"request completed"}
+{"level":30,"time":1767548929984,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1l","res":{"statusCode":200},"responseTime":38.44562494754791,"msg":"request completed"}
+{"level":30,"time":1767548930011,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1n","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548930012,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1o","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548930013,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1p","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57517},"msg":"incoming request"}
+{"level":30,"time":1767548930014,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1q","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57521},"msg":"incoming request"}
+{"level":30,"time":1767548930014,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1r","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548930014,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1s","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548930014,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1n","res":{"statusCode":200},"responseTime":3.279041051864624,"msg":"request completed"}
+{"level":30,"time":1767548930015,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1s","res":{"statusCode":200},"responseTime":0.8230830430984497,"msg":"request completed"}
+{"level":30,"time":1767548930015,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1o","res":{"statusCode":200},"responseTime":3.0362919569015503,"msg":"request completed"}
+{"level":30,"time":1767548930015,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1p","res":{"statusCode":200},"responseTime":1.858875036239624,"msg":"request completed"}
+{"level":30,"time":1767548930015,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1q","res":{"statusCode":200},"responseTime":1.7622919082641602,"msg":"request completed"}
+{"level":30,"time":1767548930016,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1r","res":{"statusCode":200},"responseTime":1.809249997138977,"msg":"request completed"}
+{"level":30,"time":1767548930016,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1t","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548930016,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1u","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548930016,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1v","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548930017,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1t","res":{"statusCode":200},"responseTime":1.22475004196167,"msg":"request completed"}
+{"level":30,"time":1767548930017,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1u","res":{"statusCode":200},"responseTime":0.9629579782485962,"msg":"request completed"}
+{"level":30,"time":1767548930017,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1v","res":{"statusCode":200},"responseTime":1.0434590578079224,"msg":"request completed"}
+{"level":30,"time":1767548932249,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1w","req":{"method":"OPTIONS","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548932250,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1w","res":{"statusCode":204},"responseTime":0.45658302307128906,"msg":"request completed"}
+{"level":30,"time":1767548932250,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1x","req":{"method":"OPTIONS","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932250,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1x","res":{"statusCode":204},"responseTime":0.07429194450378418,"msg":"request completed"}
+{"level":30,"time":1767548932250,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1y","req":{"method":"OPTIONS","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57525},"msg":"incoming request"}
+{"level":30,"time":1767548932250,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1y","res":{"statusCode":204},"responseTime":0.11424994468688965,"msg":"request completed"}
+{"level":30,"time":1767548932251,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1z","req":{"method":"OPTIONS","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548932251,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-1z","res":{"statusCode":204},"responseTime":0.04012501239776611,"msg":"request completed"}
+{"level":30,"time":1767548932251,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-20","req":{"method":"GET","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932252,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-21","req":{"method":"GET","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548932268,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-20","res":{"statusCode":200},"responseTime":16.821250081062317,"msg":"request completed"}
+{"level":30,"time":1767548932269,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-21","res":{"statusCode":200},"responseTime":17.789083003997803,"msg":"request completed"}
+{"level":30,"time":1767548932270,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-22","req":{"method":"GET","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57519},"msg":"incoming request"}
+{"level":30,"time":1767548932270,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-23","req":{"method":"GET","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548932272,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-24","req":{"method":"OPTIONS","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932273,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-24","res":{"statusCode":204},"responseTime":0.12595903873443604,"msg":"request completed"}
+{"level":30,"time":1767548932274,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-25","req":{"method":"GET","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932279,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-22","res":{"statusCode":200},"responseTime":9.299916982650757,"msg":"request completed"}
+{"level":30,"time":1767548932279,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-25","res":{"statusCode":200},"responseTime":5.55620801448822,"msg":"request completed"}
+{"level":30,"time":1767548932280,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-26","req":{"method":"OPTIONS","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932281,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-26","res":{"statusCode":204},"responseTime":0.14729106426239014,"msg":"request completed"}
+{"level":30,"time":1767548932281,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-27","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932283,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-23","res":{"statusCode":200},"responseTime":12.947499990463257,"msg":"request completed"}
+{"level":30,"time":1767548932284,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-27","res":{"statusCode":200},"responseTime":2.7878329753875732,"msg":"request completed"}
+{"level":30,"time":1767548932285,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-28","req":{"method":"GET","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767548932285,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-29","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+{"level":30,"time":1767548932288,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-28","res":{"statusCode":200},"responseTime":3.4235000610351562,"msg":"request completed"}
+{"level":30,"time":1767548932290,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2a","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57524},"msg":"incoming request"}
+{"level":30,"time":1767548932291,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-29","res":{"statusCode":200},"responseTime":5.765332937240601,"msg":"request completed"}
+{"level":30,"time":1767548932291,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2a","res":{"statusCode":200},"responseTime":1.475917100906372,"msg":"request completed"}
+{"level":30,"time":1767548932292,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2b","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":57520},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767548932295,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2b","res":{"statusCode":200},"responseTime":3.1127920150756836,"msg":"request completed"}
+{"level":30,"time":1767549477937,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2c","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549477938,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2c","res":{"statusCode":204},"responseTime":1.1141250133514404,"msg":"request completed"}
+{"level":30,"time":1767549477940,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2d","req":{"method":"OPTIONS","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549477940,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2d","res":{"statusCode":204},"responseTime":0.11433291435241699,"msg":"request completed"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549477940,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2e","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549477947,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2f","req":{"method":"OPTIONS","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549477947,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2f","res":{"statusCode":204},"responseTime":0.11249995231628418,"msg":"request completed"}
+{"level":30,"time":1767549477948,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2g","req":{"method":"GET","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549477949,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2h","req":{"method":"OPTIONS","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549477949,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2h","res":{"statusCode":204},"responseTime":0.12712490558624268,"msg":"request completed"}
+{"level":30,"time":1767549477949,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2i","req":{"method":"OPTIONS","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549477949,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2i","res":{"statusCode":204},"responseTime":0.051542043685913086,"msg":"request completed"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549477949,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2j","req":{"method":"GET","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549477950,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2k","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549477951,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2l","req":{"method":"OPTIONS","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549477953,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2l","res":{"statusCode":204},"responseTime":1.557832956314087,"msg":"request completed"}
+{"level":30,"time":1767549477954,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2m","req":{"method":"GET","url":"/api/v1/analytics/top-items?startDate=2025-12-28","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549477954,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2n","req":{"method":"GET","url":"/api/v1/sales/dashboard","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478016,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2n","res":{"statusCode":200},"responseTime":62.33558392524719,"msg":"request completed"}
+{"level":30,"time":1767549478018,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2g","res":{"statusCode":200},"responseTime":69.978875041008,"msg":"request completed"}
+{"level":30,"time":1767549478020,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2e","res":{"statusCode":200},"responseTime":79.83195793628693,"msg":"request completed"}
+{"level":30,"time":1767549478021,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2k","res":{"statusCode":200},"responseTime":71.05491697788239,"msg":"request completed"}
+{"level":30,"time":1767549478021,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2m","res":{"statusCode":200},"responseTime":67.46950006484985,"msg":"request completed"}
+{"level":30,"time":1767549478022,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2j","res":{"statusCode":200},"responseTime":72.12679195404053,"msg":"request completed"}
+{"level":30,"time":1767549478024,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2o","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478024,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2o","res":{"statusCode":204},"responseTime":0.2178339958190918,"msg":"request completed"}
+{"level":30,"time":1767549478025,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2p","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478025,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2p","res":{"statusCode":204},"responseTime":0.16087496280670166,"msg":"request completed"}
+{"level":30,"time":1767549478025,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2q","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478025,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2q","res":{"statusCode":204},"responseTime":0.10437500476837158,"msg":"request completed"}
+{"level":30,"time":1767549478025,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2r","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478025,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2r","res":{"statusCode":204},"responseTime":0.04350006580352783,"msg":"request completed"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2s","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2s","res":{"statusCode":204},"responseTime":0.19312500953674316,"msg":"request completed"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2t","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2t","res":{"statusCode":204},"responseTime":0.09787499904632568,"msg":"request completed"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2u","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2u","res":{"statusCode":204},"responseTime":0.11608302593231201,"msg":"request completed"}
+{"level":30,"time":1767549478026,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2v","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478027,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2v","res":{"statusCode":204},"responseTime":0.09125006198883057,"msg":"request completed"}
+{"level":30,"time":1767549478027,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2w","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478027,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2w","res":{"statusCode":204},"responseTime":0.05091595649719238,"msg":"request completed"}
+{"level":30,"time":1767549478027,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2x","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478027,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2x","res":{"statusCode":204},"responseTime":0.17100000381469727,"msg":"request completed"}
+{"level":30,"time":1767549478027,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2y","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478028,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2y","res":{"statusCode":204},"responseTime":0.12941694259643555,"msg":"request completed"}
+{"level":30,"time":1767549478028,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2z","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478028,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-2z","res":{"statusCode":204},"responseTime":0.0463329553604126,"msg":"request completed"}
+{"level":30,"time":1767549478028,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-30","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478028,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-30","res":{"statusCode":204},"responseTime":0.06949996948242188,"msg":"request completed"}
+{"level":30,"time":1767549478028,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-31","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478029,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-32","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478029,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-32","res":{"statusCode":204},"responseTime":0.155708909034729,"msg":"request completed"}
+{"level":30,"time":1767549478029,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-33","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478029,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-33","res":{"statusCode":204},"responseTime":0.0663750171661377,"msg":"request completed"}
+{"level":30,"time":1767549478029,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-34","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478030,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-35","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478030,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-36","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478030,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-36","res":{"statusCode":204},"responseTime":0.11845910549163818,"msg":"request completed"}
+{"level":30,"time":1767549478030,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-37","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478031,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-38","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478031,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-39","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478031,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-39","res":{"statusCode":204},"responseTime":0.0625,"msg":"request completed"}
+{"level":30,"time":1767549478032,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-31","res":{"statusCode":200},"responseTime":3.951082944869995,"msg":"request completed"}
+{"level":30,"time":1767549478032,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-34","res":{"statusCode":200},"responseTime":2.9251248836517334,"msg":"request completed"}
+{"level":30,"time":1767549478032,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-35","res":{"statusCode":200},"responseTime":2.677749991416931,"msg":"request completed"}
+{"level":30,"time":1767549478033,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-37","res":{"statusCode":200},"responseTime":2.3745840787887573,"msg":"request completed"}
+{"level":30,"time":1767549478033,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-38","res":{"statusCode":200},"responseTime":2.025207996368408,"msg":"request completed"}
+{"level":30,"time":1767549478033,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3a","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478034,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3b","req":{"method":"OPTIONS","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478034,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3b","res":{"statusCode":204},"responseTime":0.06016695499420166,"msg":"request completed"}
+{"level":30,"time":1767549478034,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3c","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478034,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3d","req":{"method":"OPTIONS","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478034,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3d","res":{"statusCode":204},"responseTime":0.0404590368270874,"msg":"request completed"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3a","res":{"statusCode":200},"responseTime":1.196916937828064,"msg":"request completed"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3c","res":{"statusCode":200},"responseTime":0.8067499399185181,"msg":"request completed"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3e","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3f","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3g","req":{"method":"OPTIONS","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3g","res":{"statusCode":204},"responseTime":0.040707945823669434,"msg":"request completed"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3e","res":{"statusCode":200},"responseTime":0.561042070388794,"msg":"request completed"}
+{"level":30,"time":1767549478035,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3h","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3i","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3j","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3f","res":{"statusCode":200},"responseTime":0.7934169769287109,"msg":"request completed"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3h","res":{"statusCode":200},"responseTime":0.5397078990936279,"msg":"request completed"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3i","res":{"statusCode":200},"responseTime":0.5334999561309814,"msg":"request completed"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3k","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478036,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3l","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478037,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3j","res":{"statusCode":200},"responseTime":1.1344170570373535,"msg":"request completed"}
+{"level":30,"time":1767549478037,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3m","req":{"method":"GET","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478037,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3n","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478037,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3o","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478038,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3k","res":{"statusCode":200},"responseTime":1.278249979019165,"msg":"request completed"}
+{"level":30,"time":1767549478038,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3l","res":{"statusCode":200},"responseTime":1.1362500190734863,"msg":"request completed"}
+{"level":30,"time":1767549478038,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3n","res":{"statusCode":200},"responseTime":0.5994579792022705,"msg":"request completed"}
+{"level":30,"time":1767549478038,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3p","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478039,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3o","res":{"statusCode":200},"responseTime":1.083042025566101,"msg":"request completed"}
+{"level":30,"time":1767549478039,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3p","res":{"statusCode":200},"responseTime":0.4576669931411743,"msg":"request completed"}
+{"level":30,"time":1767549478039,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3q","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478039,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3q","res":{"statusCode":200},"responseTime":0.48612499237060547,"msg":"request completed"}
+{"level":30,"time":1767549478040,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3m","res":{"statusCode":200},"responseTime":2.918166995048523,"msg":"request completed"}
+{"level":30,"time":1767549478040,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3r","req":{"method":"GET","url":"/api/v1/sales?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478041,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3s","req":{"method":"OPTIONS","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478041,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3s","res":{"statusCode":204},"responseTime":0.09195899963378906,"msg":"request completed"}
+{"level":30,"time":1767549478041,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3t","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478042,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3r","res":{"statusCode":200},"responseTime":1.5371670722961426,"msg":"request completed"}
+{"level":30,"time":1767549478043,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3t","res":{"statusCode":200},"responseTime":1.2825829982757568,"msg":"request completed"}
+{"level":30,"time":1767549478043,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3u","req":{"method":"GET","url":"/api/v1/inventory/ledger?startDate=2026-01-03T18:30:00.000Z&endDate=2026-01-04T18:30:00.000Z","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478043,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3v","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549478043,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3u","res":{"statusCode":200},"responseTime":0.6579169034957886,"msg":"request completed"}
+{"level":30,"time":1767549478046,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3v","res":{"statusCode":200},"responseTime":2.9305421113967896,"msg":"request completed"}
+{"level":30,"time":1767549478047,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3w","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549478051,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3w","res":{"statusCode":200},"responseTime":3.944667100906372,"msg":"request completed"}
+{"level":30,"time":1767549478863,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3x","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549478865,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3y","req":{"method":"OPTIONS","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478865,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3y","res":{"statusCode":204},"responseTime":0.28908300399780273,"msg":"request completed"}
+{"level":30,"time":1767549478865,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3z","req":{"method":"OPTIONS","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478865,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3z","res":{"statusCode":204},"responseTime":0.3309999704360962,"msg":"request completed"}
+{"level":30,"time":1767549478866,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-40","req":{"method":"OPTIONS","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478866,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-40","res":{"statusCode":204},"responseTime":0.034999966621398926,"msg":"request completed"}
+{"level":30,"time":1767549478866,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-41","req":{"method":"OPTIONS","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478866,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-41","res":{"statusCode":204},"responseTime":0.05641603469848633,"msg":"request completed"}
+{"level":30,"time":1767549478866,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-42","req":{"method":"GET","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478869,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-43","req":{"method":"GET","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478884,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-42","res":{"statusCode":200},"responseTime":18.228875041007996,"msg":"request completed"}
+{"level":30,"time":1767549478885,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-43","res":{"statusCode":200},"responseTime":16.19433295726776,"msg":"request completed"}
+{"level":30,"time":1767549478887,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-3x","res":{"statusCode":200},"responseTime":24.346332907676697,"msg":"request completed"}
+{"level":30,"time":1767549478887,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-44","req":{"method":"GET","url":"/api/v1/products/categories","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478888,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-45","req":{"method":"GET","url":"/api/v1/stores/franchise-config","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549478888,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-46","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478890,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-47","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478891,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-48","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478891,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-44","res":{"statusCode":200},"responseTime":3.9784998893737793,"msg":"request completed"}
+{"level":30,"time":1767549478892,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-45","res":{"statusCode":200},"responseTime":3.78362500667572,"msg":"request completed"}
+{"level":30,"time":1767549478892,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-47","res":{"statusCode":200},"responseTime":2.3143749237060547,"msg":"request completed"}
+{"level":30,"time":1767549478893,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-48","res":{"statusCode":200},"responseTime":1.2607500553131104,"msg":"request completed"}
+{"level":30,"time":1767549478894,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-49","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478894,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4a","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478894,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4b","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478894,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4c","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478895,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4d","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478896,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-49","res":{"statusCode":200},"responseTime":1.970542073249817,"msg":"request completed"}
+{"level":30,"time":1767549478896,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4a","res":{"statusCode":200},"responseTime":1.6913750171661377,"msg":"request completed"}
+{"level":30,"time":1767549478896,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4c","res":{"statusCode":200},"responseTime":1.5067919492721558,"msg":"request completed"}
+{"level":30,"time":1767549478896,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4b","res":{"statusCode":200},"responseTime":1.6602909564971924,"msg":"request completed"}
+{"level":30,"time":1767549478897,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4d","res":{"statusCode":200},"responseTime":2.0650829076766968,"msg":"request completed"}
+{"level":30,"time":1767549478897,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4e","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478897,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4f","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478899,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-46","res":{"statusCode":200},"responseTime":10.553791999816895,"msg":"request completed"}
+{"level":30,"time":1767549478899,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4e","res":{"statusCode":200},"responseTime":2.0756250619888306,"msg":"request completed"}
+{"level":30,"time":1767549478899,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4f","res":{"statusCode":200},"responseTime":2.0399580001831055,"msg":"request completed"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549478900,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4g","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478904,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4h","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478905,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4i","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478906,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4j","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478906,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4k","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478906,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4l","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478909,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4g","res":{"statusCode":200},"responseTime":9.372583031654358,"msg":"request completed"}
+{"level":30,"time":1767549478910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4h","res":{"statusCode":200},"responseTime":4.713958024978638,"msg":"request completed"}
+{"level":30,"time":1767549478910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4i","res":{"statusCode":200},"responseTime":4.135707974433899,"msg":"request completed"}
+{"level":30,"time":1767549478910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4j","res":{"statusCode":200},"responseTime":4.013791084289551,"msg":"request completed"}
+{"level":30,"time":1767549478910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4k","res":{"statusCode":200},"responseTime":3.95245897769928,"msg":"request completed"}
+{"level":30,"time":1767549478910,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4l","res":{"statusCode":200},"responseTime":3.889165997505188,"msg":"request completed"}
+{"level":30,"time":1767549478911,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4m","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+User not authenticated, using fallback store
+{"level":30,"time":1767549478912,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4n","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478912,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4o","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478914,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4p","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478914,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4q","req":{"method":"GET","url":"/api/v1/products","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478915,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4r","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4p","res":{"statusCode":200},"responseTime":1.9172499179840088,"msg":"request completed"}
+{"level":30,"time":1767549478916,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4m","res":{"statusCode":200},"responseTime":5.366457939147949,"msg":"request completed"}
+{"level":30,"time":1767549478917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4n","res":{"statusCode":200},"responseTime":4.743291974067688,"msg":"request completed"}
+{"level":30,"time":1767549478917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4o","res":{"statusCode":200},"responseTime":4.5478750467300415,"msg":"request completed"}
+{"level":30,"time":1767549478917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4r","res":{"statusCode":200},"responseTime":2.1112090349197388,"msg":"request completed"}
+{"level":30,"time":1767549478917,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4s","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478918,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4t","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478918,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4u","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478918,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4v","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478919,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4w","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478921,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4s","res":{"statusCode":200},"responseTime":3.6439579725265503,"msg":"request completed"}
+{"level":30,"time":1767549478921,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4t","res":{"statusCode":200},"responseTime":3.039207935333252,"msg":"request completed"}
+{"level":30,"time":1767549478921,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4v","res":{"statusCode":200},"responseTime":2.7590839862823486,"msg":"request completed"}
+{"level":30,"time":1767549478921,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4x","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478922,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4y","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478922,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4z","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478923,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4u","res":{"statusCode":200},"responseTime":4.67958402633667,"msg":"request completed"}
+{"level":30,"time":1767549478923,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4w","res":{"statusCode":200},"responseTime":4.1475830078125,"msg":"request completed"}
+{"level":30,"time":1767549478924,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4z","res":{"statusCode":200},"responseTime":1.5329170227050781,"msg":"request completed"}
+{"level":30,"time":1767549478924,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4x","res":{"statusCode":200},"responseTime":2.279417037963867,"msg":"request completed"}
+{"level":30,"time":1767549478924,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4y","res":{"statusCode":200},"responseTime":1.9034169912338257,"msg":"request completed"}
+{"level":30,"time":1767549478929,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-4q","res":{"statusCode":200},"responseTime":14.373041987419128,"msg":"request completed"}
+{"level":30,"time":1767549478932,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-50","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyk5i0005mw9vji8icng4","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478932,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-51","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfynix000pmw9vh4n9s2l9","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478932,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-52","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfylpc000dmw9vtbj4su00","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478933,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-53","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyo4s000tmw9v1cceq7rv","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58827},"msg":"incoming request"}
+{"level":30,"time":1767549478933,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-54","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyoqo000xmw9vj7evt5dp","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58822},"msg":"incoming request"}
+{"level":30,"time":1767549478933,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-55","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjten9z3000iviumzzz362v3","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58823},"msg":"incoming request"}
+{"level":30,"time":1767549478933,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-50","res":{"statusCode":200},"responseTime":1.3102909326553345,"msg":"request completed"}
+{"level":30,"time":1767549478933,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-51","res":{"statusCode":200},"responseTime":1.026458978652954,"msg":"request completed"}
+{"level":30,"time":1767549478934,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-52","res":{"statusCode":200},"responseTime":1.1009999513626099,"msg":"request completed"}
+{"level":30,"time":1767549478934,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-53","res":{"statusCode":200},"responseTime":1.1815420389175415,"msg":"request completed"}
+{"level":30,"time":1767549478934,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-54","res":{"statusCode":200},"responseTime":1.1491249799728394,"msg":"request completed"}
+{"level":30,"time":1767549478934,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-55","res":{"statusCode":200},"responseTime":1.1541249752044678,"msg":"request completed"}
+{"level":30,"time":1767549478934,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-56","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfyl260009mw9vktuvk4rd","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58825},"msg":"incoming request"}
+{"level":30,"time":1767549478935,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-57","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymx1000lmw9v6odxz662","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58828},"msg":"incoming request"}
+{"level":30,"time":1767549478935,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-56","res":{"statusCode":200},"responseTime":1.0260839462280273,"msg":"request completed"}
+{"level":30,"time":1767549478936,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-57","res":{"statusCode":200},"responseTime":0.9564999341964722,"msg":"request completed"}
+{"level":30,"time":1767549478936,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-58","req":{"method":"GET","url":"/api/v1/hq/product-master?productId=cmjtfymb5000hmw9vlsdpz75l","hostname":"localhost:3003","remoteAddress":"127.0.0.1","remotePort":58820},"msg":"incoming request"}
+{"level":30,"time":1767549478936,"pid":81154,"hostname":"Sohams-MacBook-Air.local","reqId":"req-58","res":{"statusCode":200},"responseTime":0.6882920265197754,"msg":"request completed"}
+11:43:41 PM [tsx] change in ./src/index.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+{"level":30,"time":1767550421931,"pid":31031,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+11:43:43 PM [tsx] change in ./src/index.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+{"level":30,"time":1767550423751,"pid":31072,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+11:47:59 PM [tsx] change in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+{"level":30,"time":1767550679807,"pid":34602,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+11:55:56 PM [tsx] change in ./../../node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma/client/index.js Restarting...
+c11:55:57 PM [tsx] change in ./../../node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma/client/default.js Restarting...
+[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+11:55:57 PM [tsx] change in ./../../node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma/client/default.js Process hasn't exited. Killing process...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767551157477,"pid":41755,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+11:57:43 PM [tsx] unlink in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+{"level":30,"time":1767551263925,"pid":43283,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+11:57:50 PM [tsx] change in ./src/routes/backup.ts Restarting...
+c11:57:50 PM [tsx] change in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+{"level":30,"time":1767551271073,"pid":43436,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+12:09:34 AM [tsx] change in ./src/routes/backup.ts Restarting...
+c/Users/soham/Desktop/K2POS/K2ChickenPOS/apps/api/src/routes/backup.ts:13
+const execAsync = promisify(exec);
+                  ^
+
+
+ReferenceError: promisify is not defined
+    at <anonymous> (/Users/soham/Desktop/K2POS/K2ChickenPOS/apps/api/src/routes/backup.ts:13:19)
+    at ModuleJob.run (node:internal/modules/esm/module_job:271:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:578:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+
+Node.js v22.14.0
+12:12:21 AM [tsx] change in ./src/routes/backup.ts Rerunning...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  enable debug logging with { debug: true }
+{"level":30,"time":1767552142261,"pid":56155,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+12:14:04 AM [tsx] change in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+{"level":30,"time":1767552245093,"pid":58039,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+12:14:13 AM [tsx] change in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+{"level":30,"time":1767552253476,"pid":58206,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+12:15:04 AM [tsx] change in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+{"level":30,"time":1767552304696,"pid":59227,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+12:16:47 AM [tsx] change in ./src/routes/backup.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+{"level":30,"time":1767552407494,"pid":60645,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:42:31 AM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767582752037,"pid":99391,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:42:38 AM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767582759139,"pid":99501,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:42:45 AM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+{"level":30,"time":1767582766285,"pid":99614,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:42:54 AM [tsx] change in ./src/routes/sales.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+{"level":30,"time":1767582774728,"pid":99739,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:43:10 AM [tsx] change in ./src/routes/daily-closing.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+{"level":30,"time":1767582790615,"pid":99980,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:43:20 AM [tsx] change in ./src/routes/daily-closing.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767582801388,"pid":236,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:43:48 AM [tsx] change in ./src/routes/hq-royalty.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+{"level":30,"time":1767582829130,"pid":762,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:44:09 AM [tsx] change in ./src/routes/hq-royalty.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  override existing env vars with { override: true }
+{"level":30,"time":1767582850116,"pid":1136,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:44:23 AM [tsx] change in ./src/routes/hq-royalty.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🗂️ backup and recover secrets: https://dotenvx.com/ops
+{"level":30,"time":1767582864178,"pid":1364,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:44:49 AM [tsx] change in ./src/routes/hq-health-score.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+{"level":30,"time":1767582889552,"pid":1737,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:45:04 AM [tsx] change in ./src/routes/hq-health-score.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+{"level":30,"time":1767582904820,"pid":1962,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:45:11 AM [tsx] change in ./src/routes/hq-health-score.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+{"level":30,"time":1767582912307,"pid":2071,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:48:14 AM [tsx] change in ./src/routes/hq-health-score.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  override existing env vars with { override: true }
+{"level":30,"time":1767583095303,"pid":4677,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:50:30 AM [tsx] change in ./src/routes/inventory.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+{"level":30,"time":1767583230660,"pid":6905,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:52:31 AM [tsx] change in ./src/routes/hq-health-score.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+{"level":30,"time":1767583352197,"pid":9166,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:52:44 AM [tsx] change in ./src/routes/hq-royalty.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+{"level":30,"time":1767583364963,"pid":9347,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:52:57 AM [tsx] change in ./src/routes/hq-royalty.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+{"level":30,"time":1767583378174,"pid":9525,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:53:04 AM [tsx] change in ./src/routes/hq-royalty.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+{"level":30,"time":1767583384637,"pid":9622,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:53:13 AM [tsx] change in ./src/routes/daily-closing.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  override existing env vars with { override: true }
+{"level":30,"time":1767583393633,"pid":9741,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:53:26 AM [tsx] change in ./src/routes/reports.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+{"level":30,"time":1767583406611,"pid":9922,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:53:32 AM [tsx] change in ./src/routes/reports.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+{"level":30,"time":1767583412877,"pid":10011,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:53:45 AM [tsx] change in ./src/routes/hq-yield-intelligence.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767583426015,"pid":10197,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:53:56 AM [tsx] change in ./src/routes/hq-fraud-alerts.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+{"level":30,"time":1767583436411,"pid":10341,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:54:07 AM [tsx] change in ./src/routes/hq-enhanced.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ⚙️  suppress all logs with { quiet: true }
+{"level":30,"time":1767583448225,"pid":10497,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:54:24 AM [tsx] change in ./src/routes/hq-analytics.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+{"level":30,"time":1767583465184,"pid":10751,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:54:31 AM [tsx] change in ./src/routes/hq-analytics.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+{"level":30,"time":1767583471357,"pid":10843,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:54:37 AM [tsx] change in ./src/routes/hq-analytics.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+{"level":30,"time":1767583477774,"pid":10936,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:54:48 AM [tsx] change in ./src/routes/franchise-hq.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+{"level":30,"time":1767583488548,"pid":11082,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}
+🚀 API server running on http://localhost:3003
+8:55:00 AM [tsx] change in ./src/routes/hq-replenishment.ts Restarting...
+c[dotenv@17.2.3] injecting env (7) from ../../.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+🚀 API server running on http://localhost:3003
+{"level":30,"time":1767583500857,"pid":11262,"hostname":"Sohams-MacBook-Air.local","msg":"Server listening at http://0.0.0.0:3003"}

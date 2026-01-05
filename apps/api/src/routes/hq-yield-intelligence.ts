@@ -89,8 +89,10 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const totalReceivedKg = receivedLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-          const expectedYieldKg = totalReceivedKg * (expectedYieldPercent / 100);
+          const totalReceivedKg = Math.round(receivedLedgers.reduce((sum: any, l) => {
+            return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+          }, 0) * 100) / 100;
+          const expectedYieldKg = Math.round(totalReceivedKg * (expectedYieldPercent / 100) * 100) / 100;
 
           // Get actual yield (sold)
           const soldLedgers = await prisma.inventoryLedger.findMany({
@@ -103,8 +105,10 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const actualYieldKg = soldLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-          const yieldEfficiency = expectedYieldKg > 0 ? (actualYieldKg / expectedYieldKg) * 100 : 0;
+          const actualYieldKg = Math.round(soldLedgers.reduce((sum: any, l) => {
+            return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+          }, 0) * 100) / 100;
+          const yieldEfficiency = expectedYieldKg > 0 ? Math.round((actualYieldKg / expectedYieldKg) * 100 * 100) / 100 : 0;
 
           // Get wastage (loss attribution)
           const wastageLedgers = await prisma.inventoryLedger.findMany({
@@ -116,7 +120,9 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const totalWastageKg = wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+          const totalWastageKg = Math.round(wastageLedgers.reduce((sum: any, l) => {
+            return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+          }, 0) * 100) / 100;
 
           // Loss attribution (simplified - in production, track specific loss types)
           const totalLossKg = totalReceivedKg - actualYieldKg;

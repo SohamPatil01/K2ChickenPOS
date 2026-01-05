@@ -164,10 +164,10 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const totalWastageKg = wastageLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+            const totalWastageKg = Math.round(wastageLedgers.reduce(
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
-            );
+            ) * 100) / 100;
 
             const config = franchise.franchiseConfig;
             const allowedWastagePercent = config?.allowedWastagePercent || 5.0;
@@ -186,10 +186,8 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const totalReceivedKg =
-              (totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0);
-            const wastagePercent =
-              totalReceivedKg > 0 ? (totalWastageKg / totalReceivedKg) * 100 : 0;
+            const totalReceivedKg = Math.round(((totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0)) * 100) / 100;
+            const wastagePercent = totalReceivedKg > 0 ? Math.round((totalWastageKg / totalReceivedKg) * 100 * 100) / 100 : 0;
 
             return {
               franchiseId: franchise.id,

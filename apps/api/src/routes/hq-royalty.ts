@@ -87,7 +87,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
         const wastageValue = Math.round(wastageLedgers.reduce((sum: any, ledger) => {
           // Get product price at time of wastage (simplified - use current price)
           // In production, you'd want to track the actual cost at time of wastage
-          return sum + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100; // Placeholder: ₹100/kg
+          const qty = (ledger.qtyKg || 0) + (ledger.qtyPcs || 0);
+          return Math.round((sum + qty * 100) * 100) / 100; // Placeholder: ₹100/kg
         }, 0) * 100) / 100;
         
         // Net Sales Formula:
@@ -98,7 +99,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
           : grossSales) * 100) / 100;
 
         const totalWastage = Math.round(wastageLedgers.reduce(
-          (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+          (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
           0
         ) * 100) / 100;
 
@@ -482,7 +483,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               });
 
               const totalWastage = wastageLedgers.reduce(
-                (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+                (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
                 0
               );
 
@@ -499,7 +500,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
                 },
               });
 
-              const totalReceivedKg = (totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0);
+              const totalReceivedKg = Math.round(((totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0)) * 100) / 100;
               const wastagePercent = totalReceivedKg > 0 ? (totalWastage / totalReceivedKg) * 100 : 0;
 
               const allowedWastagePercent = config.allowedWastagePercent || 5.0;
@@ -657,7 +658,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
             });
 
             const wastageValue = Math.round(wastageLedgers.reduce((sum: any, ledger) => {
-              return sum + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100;
+              const qty = (ledger.qtyKg || 0) + (ledger.qtyPcs || 0);
+              return Math.round((sum + qty * 100) * 100) / 100;
             }, 0) * 100) / 100;
 
             const netSales = Math.round((franchise.franchiseConfig.royaltyCalculationBase === 'NET_SALES'
@@ -665,7 +667,7 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               : grossSales) * 100) / 100;
 
             const totalWastage = Math.round(wastageLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
             ) * 100) / 100;
 

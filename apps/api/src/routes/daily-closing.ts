@@ -113,7 +113,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         });
 
         const totalWastageKg = Math.round(wastageLedgers.reduce(
-          (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+          (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
           0
         ) * 100) / 100;
 

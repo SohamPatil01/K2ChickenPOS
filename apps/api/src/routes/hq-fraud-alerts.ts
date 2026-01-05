@@ -211,9 +211,13 @@ export async function hqFraudAlertsRoutes(fastify: FastifyInstance) {
                     },
                   });
 
-                  const totalWastage = wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-                  const totalReceived = receivedLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-                  const wastagePercent = totalReceived > 0 ? (totalWastage / totalReceived) * 100 : 0;
+                  const totalWastage = Math.round(wastageLedgers.reduce((sum: any, l) => {
+                    return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+                  }, 0) * 100) / 100;
+                  const totalReceived = Math.round(receivedLedgers.reduce((sum: any, l) => {
+                    return Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100;
+                  }, 0) * 100) / 100;
+                  const wastagePercent = totalReceived > 0 ? Math.round((totalWastage / totalReceived) * 100 * 100) / 100 : 0;
 
                   shouldAlert = wastagePercent > rule.threshold;
                   alertTitle = 'High Wastage Detected';

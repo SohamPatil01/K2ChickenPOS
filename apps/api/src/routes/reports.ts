@@ -172,10 +172,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
             salesCount: 0,
           };
         }
-        productStats[key].qtyKg += item.qtyKg || 0;
-        productStats[key].qtyPcs += item.qtyPcs || 0;
-        productStats[key].totalQty += (item.qtyKg || 0) + (item.qtyPcs || 0);
-        productStats[key].revenue += item.lineTotal;
+        productStats[key].qtyKg = Math.round((productStats[key].qtyKg + (item.qtyKg || 0)) * 100) / 100;
+        productStats[key].qtyPcs = Math.round(productStats[key].qtyPcs + (item.qtyPcs || 0));
+        productStats[key].totalQty = Math.round((productStats[key].totalQty + (item.qtyKg || 0) + (item.qtyPcs || 0)) * 100) / 100;
+        productStats[key].revenue = Math.round((productStats[key].revenue + item.lineTotal) * 100) / 100;
         productStats[key].salesCount += 1;
       }
     }
@@ -807,11 +807,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const balanceData = products.map((product: any) => {
       const inQty = product.inventoryLedgers
         .filter((l: any) => l.type === 'IN')
-        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+        .reduce((sum: any, l) => Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100, 0);
       const outQty = product.inventoryLedgers
         .filter((l: any) => l.type === 'OUT')
-        .reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-      const balance = inQty - outQty;
+        .reduce((sum: any, l) => Math.round((sum + (l.qtyKg || 0) + (l.qtyPcs || 0)) * 100) / 100, 0);
+      const balance = Math.round((inQty - outQty) * 100) / 100;
 
       return {
         productId: product.id,

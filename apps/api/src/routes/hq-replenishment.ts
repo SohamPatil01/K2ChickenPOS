@@ -87,10 +87,13 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         });
 
         const calculateVelocity = (sales: any[], days: number) => {
-          const totalQty = sales.reduce((sum: any, s: any) => {
-            return sum + s.items.reduce((itemSum: number, item: any) => itemSum + (item.qtyKg || 0) + (item.qtyPcs || 0), 0);
-          }, 0);
-          return days > 0 ? totalQty / days : 0;
+          const totalQty = Math.round(sales.reduce((sum: any, s: any) => {
+            const saleTotal = Math.round(s.items.reduce((itemSum: number, item: any) => {
+              return Math.round((itemSum + (item.qtyKg || 0) + (item.qtyPcs || 0)) * 100) / 100;
+            }, 0) * 100) / 100;
+            return Math.round((sum + saleTotal) * 100) / 100;
+          }, 0) * 100) / 100;
+          return days > 0 ? Math.round((totalQty / days) * 100) / 100 : 0;
         };
 
         const salesVelocity7d = calculateVelocity(sales7d, 7);

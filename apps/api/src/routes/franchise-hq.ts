@@ -264,9 +264,9 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
               let totalQty = 0;
               for (const ledger of ledgers) {
                 if (ledger.type === 'IN') {
-                  totalQty += (ledger.qtyKg || 0) + (ledger.qtyPcs || 0);
+                  totalQty = Math.round((totalQty + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100;
                 } else {
-                  totalQty -= (ledger.qtyKg || 0) + (ledger.qtyPcs || 0);
+                  totalQty = Math.round((totalQty - (ledger.qtyKg || 0) - (ledger.qtyPcs || 0)) * 100) / 100;
                 }
               }
 
@@ -275,7 +275,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
                 productName: product.name,
                 sku: product.sku,
                 category: product.category.name,
-                currentStock: Math.max(0, totalQty),
+                currentStock: Math.max(0, Math.round(totalQty * 100) / 100),
               };
             })
           );

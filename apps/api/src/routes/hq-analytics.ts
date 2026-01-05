@@ -94,12 +94,12 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const receivedWeightKg = receivedLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+            const receivedWeightKg = Math.round(receivedLedgers.reduce(
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
-            );
+            ) * 100) / 100;
 
-            const yieldEfficiency = receivedWeightKg > 0 ? (soldWeightKg / receivedWeightKg) * 100 : 0;
+            const yieldEfficiency = receivedWeightKg > 0 ? Math.round((soldWeightKg / receivedWeightKg) * 100 * 100) / 100 : 0;
 
             // Calculate wastage
             const wastageLedgers = await prisma.inventoryLedger.findMany({
@@ -110,14 +110,14 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const wastageKg = wastageLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+            const wastageKg = Math.round(wastageLedgers.reduce(
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
-            );
-            const wastagePercent = receivedWeightKg > 0 ? (wastageKg / receivedWeightKg) * 100 : 0;
+            ) * 100) / 100;
+            const wastagePercent = receivedWeightKg > 0 ? Math.round((wastageKg / receivedWeightKg) * 100 * 100) / 100 : 0;
 
             // Calculate discount abuse
-            const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
+            const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => Math.round((sum + s.discountTotal) * 100) / 100, 0) * 100) / 100;
             const discountPercent = revenue > 0 ? (totalDiscounts / revenue) * 100 : 0;
 
             const config = franchise.franchiseConfig;
@@ -227,12 +227,12 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const receivedWeightKg = receivedLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+            const receivedWeightKg = Math.round(receivedLedgers.reduce(
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
-            );
+            ) * 100) / 100;
 
-            const yieldEfficiency = receivedWeightKg > 0 ? (soldWeightKg / receivedWeightKg) * 100 : 0;
+            const yieldEfficiency = receivedWeightKg > 0 ? Math.round((soldWeightKg / receivedWeightKg) * 100 * 100) / 100 : 0;
 
             return {
               franchiseId: franchise.id,
@@ -283,10 +283,10 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const receivedWeightKg = receivedLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+            const receivedWeightKg = Math.round(receivedLedgers.reduce(
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
-            );
+            ) * 100) / 100;
 
             const wastageLedgers = await prisma.inventoryLedger.findMany({
               where: {
@@ -296,10 +296,10 @@ export async function hqAnalyticsRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const wastageKg = wastageLedgers.reduce(
-              (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+            const wastageKg = Math.round(wastageLedgers.reduce(
+              (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
               0
-            );
+            ) * 100) / 100;
 
             const wastagePercent = receivedWeightKg > 0 ? (wastageKg / receivedWeightKg) * 100 : 0;
 
