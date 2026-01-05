@@ -66,17 +66,24 @@ export async function backupRoutes(fastify: FastifyInstance) {
   fastify.post('/create', async (request, reply): Promise<BackupResponse> => {
     try {
       // Verify backup secret for security
+      // If BACKUP_SECRET is not set, allow access (for initial setup)
+      // SECURITY: Set BACKUP_SECRET in production environment variables
       const backupSecret = process.env.BACKUP_SECRET;
       const providedSecret = (request.headers['x-backup-secret'] as string) || 
                             (request.query as any).secret;
 
-      if (!backupSecret || providedSecret !== backupSecret) {
-        reply.status(401);
-        return {
-          success: false,
-          message: 'Unauthorized: Invalid backup secret',
-          timestamp: new Date().toISOString()
-        };
+      // Only check secret if it's configured
+      if (backupSecret) {
+        if (!providedSecret || providedSecret !== backupSecret) {
+          reply.status(401);
+          return {
+            success: false,
+            message: 'Unauthorized: Invalid backup secret',
+            timestamp: new Date().toISOString()
+          };
+        }
+      } else {
+        fastify.log.warn('[Backup] BACKUP_SECRET not set - allowing backup without authentication (not recommended for production)');
       }
 
       const timestamp = new Date().toISOString();
