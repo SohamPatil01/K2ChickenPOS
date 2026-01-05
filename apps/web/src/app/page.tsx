@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth';
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
@@ -20,20 +22,30 @@ export default function Home() {
       const token = localStorage.getItem('accessToken');
       const stored = localStorage.getItem('auth-storage');
       let hasUser = false;
+      let userRole = null;
       
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
           hasUser = !!parsed.state?.user;
+          userRole = parsed.state?.user?.role;
         } catch (e) {
           console.error('Error parsing auth storage:', e);
         }
       }
 
+      // Also check from auth store if available
+      const currentUser = user || (hasUser && userRole ? { role: userRole } : null);
+
       setRedirecting(true);
 
       if (token && hasUser) {
-        router.push('/store/pos');
+        // Redirect OWNER users to HQ dashboard
+        if (currentUser?.role === 'OWNER') {
+          router.push('/hq');
+        } else {
+          router.push('/store/pos');
+        }
       } else {
         router.push('/login');
       }
@@ -42,7 +54,7 @@ export default function Home() {
       // Fallback to login if there's an error
       router.push('/login');
     }
-  }, [router, mounted, redirecting]);
+  }, [router, mounted, redirecting, user]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
