@@ -119,7 +119,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const revenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+          const revenue = Math.round(sales.reduce((sum: any, s: any) => sum + (s.grandTotal || 0), 0) * 100) / 100;
           const customers = await prisma.customer.count({
             where: {
               storeId: franchise.id,
@@ -133,7 +133,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             sales: sales.length,
             revenue,
             customers,
-            avgBillValue: sales.length > 0 ? revenue / sales.length : 0,
+            avgBillValue: sales.length > 0 ? Math.round((revenue / sales.length) * 100) / 100 : 0,
           };
         })
       );
@@ -142,9 +142,9 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         summary: {
           totalFranchises: franchises.length,
           totalSales: totalSales,
-          totalRevenue: totalRevenue._sum.grandTotal || 0,
+          totalRevenue: Math.round((totalRevenue._sum.grandTotal || 0) * 100) / 100,
           totalCustomers: totalCustomers,
-          avgRevenuePerFranchise: franchises.length > 0 ? (totalRevenue._sum.grandTotal || 0) / franchises.length : 0,
+          avgRevenuePerFranchise: franchises.length > 0 ? Math.round(((totalRevenue._sum.grandTotal || 0) / franchises.length) * 100) / 100 : 0,
         },
         franchiseBreakdown: franchiseBreakdown.sort((a: any, b: any) => b.revenue - a.revenue),
         period: {
