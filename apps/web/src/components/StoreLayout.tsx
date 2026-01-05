@@ -163,6 +163,12 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           roles: ["OWNER"],
         },
         {
+          label: "HQ Dashboard",
+          href: "/hq",
+          icon: "🏢",
+          roles: ["OWNER"],
+        },
+        {
           label: "Settings",
           href: "/store/settings",
           icon: "⚙️",

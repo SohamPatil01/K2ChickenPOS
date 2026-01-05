@@ -506,6 +506,21 @@ export default function StoreDashboardPage() {
             </div>
           </div>
         )}
+        {/* Owner-Only Actions */}
+        {user?.role === 'OWNER' && (
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Owner Tools</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              <Link
+                href="/hq"
+                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target"
+              >
+                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🏢</span>
+                <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">HQ Dashboard</span>
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
       </div>
     </div>
