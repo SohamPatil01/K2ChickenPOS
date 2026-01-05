@@ -47,16 +47,29 @@ export default function HQPage() {
   });
 
   useEffect(() => {
+    // Wait for user to load from localStorage
+    if (user === undefined) {
+      return; // Still loading
+    }
+
+    // If no user, redirect to login
     if (!user) {
+      console.log('[HQ Page] No user found, redirecting to login');
       router.push('/login');
       return;
     }
 
+    // Check user role
+    console.log('[HQ Page] User role:', user.role, 'User:', user);
+    
     if (user.role !== 'OWNER') {
+      console.log('[HQ Page] User is not OWNER, redirecting to console');
       router.push('/console');
       return;
     }
 
+    // User is OWNER, load dashboard
+    console.log('[HQ Page] User is OWNER, loading dashboard');
     loadDashboard();
     if (activeTab === 'franchises') {
       loadFranchises();
@@ -179,14 +192,22 @@ export default function HQPage() {
     </div>
   );
 
-  if (loading) {
+  // Show loading state while checking user or loading dashboard
+  if (user === undefined || loading) {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-gray-500">Loading HQ Dashboard...</p>
+          <p className="text-gray-500">
+            {user === undefined ? 'Checking authentication...' : 'Loading HQ Dashboard...'}
+          </p>
         </div>
       </Layout>
     );
+  }
+
+  // If no user or not OWNER, show nothing (will redirect)
+  if (!user || user.role !== 'OWNER') {
+    return null;
   }
 
   return (
