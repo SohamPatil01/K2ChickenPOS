@@ -118,7 +118,25 @@ export default function StoreInventoryPage() {
       return;
     }
 
-    // Auto-refresh inventory every 10 seconds
+    if (user.role !== 'MANAGER' && user.role !== 'OWNER') {
+      router.push('/store');
+      return;
+    }
+
+    if (user && (user.role === 'MANAGER' || user.role === 'OWNER')) {
+      loadInventory();
+      loadCategories();
+      if (activeTab === 'addStock') {
+        loadStockProducts();
+      }
+    }
+  }, [user, router, activeTab]);
+
+  // Auto-refresh inventory every 10 seconds and when window gains focus
+  useEffect(() => {
+    if (!user || (user.role !== 'MANAGER' && user.role !== 'OWNER')) return;
+
+    // Auto-refresh every 10 seconds
     const interval = setInterval(() => {
       loadInventory();
     }, 10000);
@@ -143,20 +161,6 @@ export default function StoreInventoryPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user]);
-
-    if (user.role !== 'MANAGER' && user.role !== 'OWNER') {
-      router.push('/store');
-      return;
-    }
-
-    if (user && (user.role === 'MANAGER' || user.role === 'OWNER')) {
-      loadInventory();
-      loadCategories();
-      if (activeTab === 'addStock') {
-        loadStockProducts();
-      }
-    }
-  }, [user, router, activeTab]);
 
   const loadCategories = async () => {
     try {
