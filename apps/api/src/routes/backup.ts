@@ -130,7 +130,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
         prisma.payment.findMany(),
         prisma.inventoryLedger.findMany(),
         prisma.purchaseOrder.findMany(),
-        prisma.purchaseOrderItem.findMany(),
+        prisma.purchaseOrderItem.findMany().catch(() => []), // Handle missing columns gracefully
         prisma.deliveryOrder.findMany(),
         prisma.franchiseConfig.findMany(),
         prisma.royaltyInvoice.findMany(),
