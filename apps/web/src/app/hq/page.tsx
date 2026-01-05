@@ -12,6 +12,7 @@ interface HQDashboard {
     totalFranchises: number;
     totalSales: number;
     totalRevenue: number;
+    totalProductSales?: number; // Sum of lineTotal (before discounts/taxes)
     totalCustomers: number;
     avgRevenuePerFranchise: number;
   };
@@ -289,11 +290,20 @@ export default function HQPage() {
                 icon="💰"
               />
               <StatCard
+                title="Total Product Sales"
+                value={`₹${(dashboard.summary.totalProductSales || dashboard.summary.totalRevenue).toFixed(2)}`}
+                subtitle="Sum of all product line totals"
+                icon="🛒"
+              />
+              <StatCard
                 title="Total Revenue"
                 value={`₹${dashboard.summary.totalRevenue.toFixed(2)}`}
-                subtitle={`Avg: ₹${dashboard.summary.avgRevenuePerFranchise.toFixed(2)} per franchise`}
+                subtitle={`After discounts & taxes | Avg: ₹${dashboard.summary.avgRevenuePerFranchise.toFixed(2)} per franchise`}
                 icon="📈"
               />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
               <StatCard
                 title="Total Customers"
                 value={dashboard.summary.totalCustomers}

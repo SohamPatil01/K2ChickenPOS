@@ -74,7 +74,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       }
 
       // Aggregate sales data
-      const [totalSales, totalRevenue, totalCustomers, franchiseSales] = await Promise.all([
+      const [totalSales, totalRevenue, totalCustomers, franchiseSales, saleItems] = await Promise.all([
         prisma.sale.count({
           where: {
             storeId: { in: franchiseIds },
@@ -106,7 +106,22 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           _count: { id: true },
           _sum: { grandTotal: true },
         }),
+        prisma.saleItem.findMany({
+          where: {
+            sale: {
+              storeId: { in: franchiseIds },
+              status: 'PAID',
+              createdAt: dateFilter,
+            },
+          },
+          select: {
+            lineTotal: true,
+          },
+        }),
       ]);
+
+      // Calculate total product sales (sum of lineTotal from all sale items)
+      const totalProductSales = Math.round(saleItems.reduce((sum: any, item: any) => sum + (item.lineTotal || 0), 0) * 100) / 100;
 
       // Get franchise-wise breakdown
       const franchiseBreakdown = await Promise.all(
@@ -143,6 +158,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           totalFranchises: franchises.length,
           totalSales: totalSales,
           totalRevenue: Math.round((totalRevenue._sum.grandTotal || 0) * 100) / 100,
+          totalProductSales: totalProductSales, // Sum of lineTotal (before discounts/taxes)
           totalCustomers: totalCustomers,
           avgRevenuePerFranchise: franchises.length > 0 ? Math.round(((totalRevenue._sum.grandTotal || 0) / franchises.length) * 100) / 100 : 0,
         },
