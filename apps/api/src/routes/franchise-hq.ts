@@ -257,13 +257,14 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   });
 
   // Get inventory monitoring across franchises
-  fastify.get('/inventory-monitoring', async (request: any, reply: FastifyReply) => {
+  fastify.get('/inventory-monitoring', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     try {
-      const { id } = (request.params as any);
+      const { franchiseId } = (request.query as any) || {};
+      const ownerStoreId = (getUser(request) as any).storeId;
 
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-      if (!ownerStore) {
-        reply.code(404).send({ error: 'Owner store not found' });
+      const ownerStore = await prisma.store.findUnique({ where: { id: ownerStoreId } });
+      if (!ownerStore || ownerStore.type !== 'OWNER') {
+        reply.code(403).send({ error: 'Access denied. Owner store not found.' });
         return;
       }
 
@@ -274,7 +275,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         const franchises = await prisma.store.findMany({
           where: {
             type: 'FRANCHISE',
-            parentOwnerStoreId: ownerStore.id,
+            parentOwnerStoreId: ownerStoreId,
           },
         });
         storeIds = franchises.map(f => f.id);
@@ -283,7 +284,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       // Get all products from owner store
       const products = await prisma.product.findMany({
         where: {
-          ownerStoreId: ownerStore.id,
+          ownerStoreId: ownerStoreId,
           isActive: true,
         },
         include: {
@@ -304,21 +305,32 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
                 },
               });
 
-              let totalQty = 0;
+              // Calculate kg and pcs separately (don't combine different units!)
+              let totalQtyKg = 0;
+              let totalQtyPcs = 0;
+              
               for (const ledger of ledgers) {
                 if (ledger.type === 'IN') {
-                  totalQty = Math.round((totalQty + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100;
+                  totalQtyKg = Math.round((totalQtyKg + (ledger.qtyKg || 0)) * 100) / 100;
+                  totalQtyPcs = Math.round(totalQtyPcs + (ledger.qtyPcs || 0));
                 } else {
-                  totalQty = Math.round((totalQty - (ledger.qtyKg || 0) - (ledger.qtyPcs || 0)) * 100) / 100;
+                  totalQtyKg = Math.round((totalQtyKg - (ledger.qtyKg || 0)) * 100) / 100;
+                  totalQtyPcs = Math.round(totalQtyPcs - (ledger.qtyPcs || 0));
                 }
               }
+
+              // Ensure non-negative values
+              totalQtyKg = Math.max(0, Math.round(totalQtyKg * 100) / 100);
+              totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
 
               return {
                 productId: product.id,
                 productName: product.name,
                 sku: product.sku,
-                category: product.category.name,
-                currentStock: Math.max(0, Math.round(totalQty * 100) / 100),
+                category: product.category?.name || 'Uncategorized',
+                currentQtyKg: totalQtyKg,
+                currentQtyPcs: totalQtyPcs,
+                unitType: product.unitType,
               };
             })
           );
@@ -334,7 +346,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       return inventoryData;
     } catch (error: any) {
       console.error('Failed to load inventory monitoring:', error);
-      reply.code(500).send({ error: 'Failed to load inventory monitoring' });
+      reply.code(500).send({ error: 'Failed to load inventory monitoring', details: error.message });
     }
   });
 

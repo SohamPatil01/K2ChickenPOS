@@ -557,16 +557,7 @@ export default function HQPage() {
 
         {/* Inventory Tab */}
         {activeTab === 'inventory' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Inventory Monitoring</h2>
-            <p className="text-gray-500">Monitor inventory levels across all franchises</p>
-            <Link
-              href="/inventory"
-              className="mt-4 inline-block px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
-            >
-              View Inventory Management
-            </Link>
-          </div>
+          <InventoryView />
         )}
 
         {/* Compliance Tab */}
@@ -777,6 +768,184 @@ function ComplianceView() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Inventory View Component
+function InventoryView() {
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFranchise, setSelectedFranchise] = useState<string>('all');
+
+  useEffect(() => {
+    loadInventory();
+  }, [selectedFranchise]);
+
+  const loadInventory = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/api/v1/hq/inventory-monitoring', {
+        params: { franchiseId: selectedFranchise },
+      });
+      setInventory(response.data || []);
+    } catch (error: any) {
+      console.error('Failed to load inventory:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <p className="text-gray-500">Loading inventory data...</p>
+      </div>
+    );
+  }
+
+  if (!inventory || inventory.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Inventory Monitoring</h2>
+        <p className="text-gray-500">No inventory data available</p>
+      </div>
+    );
+  }
+
+  // Calculate totals across all franchises
+  const allProducts = new Map<string, { name: string; sku: string; category: string; totalKg: number; totalPcs: number; unitType: string }>();
+  
+  inventory.forEach((storeData: any) => {
+    storeData.inventory?.forEach((item: any) => {
+      const key = item.productId;
+      if (!allProducts.has(key)) {
+        allProducts.set(key, {
+          name: item.productName,
+          sku: item.sku,
+          category: item.category,
+          totalKg: 0,
+          totalPcs: 0,
+          unitType: item.unitType || 'KG',
+        });
+      }
+      const product = allProducts.get(key)!;
+      product.totalKg += item.currentQtyKg || 0;
+      product.totalPcs += item.currentQtyPcs || 0;
+    });
+  });
+
+  const productList = Array.from(allProducts.values());
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold">Inventory Monitoring</h2>
+        <select
+          value={selectedFranchise}
+          onChange={(e) => setSelectedFranchise(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-md"
+        >
+          <option value="all">All Franchises</option>
+          {inventory.map((store: any) => (
+            <option key={store.storeId} value={store.storeId}>
+              {store.storeName}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <p className="text-sm text-gray-600">Total Products</p>
+          <p className="text-2xl font-bold">{productList.length}</p>
+        </div>
+        <div className="bg-green-50 p-4 rounded-lg">
+          <p className="text-sm text-gray-600">Total Quantity (Kg)</p>
+          <p className="text-2xl font-bold">
+            {Math.round(productList.reduce((sum, p) => sum + p.totalKg, 0) * 100) / 100} kg
+          </p>
+        </div>
+        <div className="bg-purple-50 p-4 rounded-lg">
+          <p className="text-sm text-gray-600">Total Quantity (Pcs)</p>
+          <p className="text-2xl font-bold">
+            {productList.reduce((sum, p) => sum + p.totalPcs, 0)} pcs
+          </p>
+        </div>
+      </div>
+
+      {/* Inventory Table */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Product
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                SKU
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Category
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Quantity (Kg)
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Quantity (Pcs)
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {productList.map((product, idx) => (
+              <tr key={idx}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {product.name}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {product.sku}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {product.category}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {Math.round(product.totalKg * 100) / 100} kg
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {product.totalPcs} pcs
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Franchise Breakdown */}
+      {selectedFranchise === 'all' && (
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-4">Franchise Breakdown</h3>
+          {inventory.map((storeData: any) => (
+            <div key={storeData.storeId} className="mb-4 border border-gray-200 rounded-lg p-4">
+              <h4 className="font-semibold mb-2">{storeData.storeName}</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600">Total Kg: </span>
+                  <span className="font-medium">
+                    {Math.round((storeData.inventory?.reduce((sum: number, item: any) => sum + (item.currentQtyKg || 0), 0) || 0) * 100) / 100} kg
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Total Pcs: </span>
+                  <span className="font-medium">
+                    {storeData.inventory?.reduce((sum: number, item: any) => sum + (item.currentQtyPcs || 0), 0) || 0} pcs
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
