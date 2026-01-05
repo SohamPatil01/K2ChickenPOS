@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import { useAuthStore } from '@/store/auth';
@@ -76,7 +76,7 @@ export default function HQPage() {
     if (activeTab === 'franchises') {
       loadFranchises();
     }
-  }, [user, router, dateRange, activeTab]);
+  }, [user?.role, router, dateRange.startDate, dateRange.endDate, activeTab, loadDashboard, loadFranchises]);
 
   // Auto-refresh dashboard every 30 seconds and when window gains focus
   useEffect(() => {
@@ -106,16 +106,24 @@ export default function HQPage() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, activeTab, dateRange]);
+  }, [user?.role, activeTab, loadDashboard]);
 
-  const loadFranchises = async () => {
+  const loadFranchises = useCallback(async () => {
     try {
-      const response = await api.get('/api/v1/stores/franchises/summary');
+      const timestamp = Date.now();
+      const response = await api.get('/api/v1/stores/franchises/summary', {
+        params: { _t: timestamp },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       setFranchises(response.data || []);
     } catch (error: any) {
       console.error('Failed to load franchises:', error);
     }
-  };
+  }, []);
 
   const handleAddFranchise = async () => {
     if (!formData.name.trim()) {
@@ -181,7 +189,7 @@ export default function HQPage() {
     setShowEditModal(true);
   };
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -220,7 +228,7 @@ export default function HQPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange]);
 
   const StatCard = ({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle?: string; icon: string }) => (
     <div className="bg-white rounded-lg shadow p-6">
@@ -760,21 +768,54 @@ function ComplianceView() {
   const [compliance, setCompliance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadCompliance();
-  }, []);
-
-  const loadCompliance = async () => {
+  const loadCompliance = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/v1/hq/compliance');
+      const timestamp = Date.now();
+      const response = await api.get('/api/v1/hq/compliance', {
+        params: { _t: timestamp },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       setCompliance(response.data || []);
     } catch (error: any) {
       console.error('Failed to load compliance:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadCompliance();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadCompliance();
+    }, 30000);
+
+    // Refresh when window gains focus
+    const handleFocus = () => {
+      loadCompliance();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Refresh when page becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadCompliance();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadCompliance]);
 
   if (loading) {
     return <p className="text-gray-500">Loading compliance data...</p>;
@@ -831,27 +872,7 @@ function InventoryView() {
   const [selectedFranchise, setSelectedFranchise] = useState<string>('all');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  useEffect(() => {
-    loadInventory();
-    
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(() => {
-      loadInventory();
-    }, 10000);
-
-    // Refresh when window gains focus (user switches back to tab)
-    const handleFocus = () => {
-      loadInventory();
-    };
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [selectedFranchise]);
-
-  const loadInventory = async () => {
+  const loadInventory = useCallback(async () => {
     setLoading(true);
     try {
       const timestamp = Date.now();
@@ -873,7 +894,36 @@ function InventoryView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedFranchise]);
+
+  useEffect(() => {
+    loadInventory();
+    
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(() => {
+      loadInventory();
+    }, 10000);
+
+    // Refresh when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      loadInventory();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Refresh when page becomes visible (user switches tabs)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadInventory();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadInventory]);
 
   if (loading) {
     return (
@@ -1049,15 +1099,20 @@ function PaymentsView({ dateRange }: { dateRange: { startDate: string; endDate: 
   const [payments, setPayments] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadPayments();
-  }, [dateRange]);
-
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     setLoading(true);
     try {
+      const timestamp = Date.now();
       const response = await api.get('/api/v1/hq/payments-commissions', {
-        params: dateRange,
+        params: {
+          ...dateRange,
+          _t: timestamp, // Cache busting
+        },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       setPayments(response.data);
     } catch (error: any) {
@@ -1065,7 +1120,36 @@ function PaymentsView({ dateRange }: { dateRange: { startDate: string; endDate: 
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
+
+  useEffect(() => {
+    loadPayments();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadPayments();
+    }, 30000);
+
+    // Refresh when window gains focus
+    const handleFocus = () => {
+      loadPayments();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Refresh when page becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadPayments();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadPayments]);
 
   if (loading) {
     return <p className="text-gray-500">Loading payments data...</p>;
