@@ -145,7 +145,22 @@ export default function HQPage() {
       setDashboard(response.data);
     } catch (error: any) {
       console.error('Failed to load HQ dashboard:', error);
-      alert(error.response?.data?.error || 'Failed to load HQ dashboard');
+      console.error('Error response:', error.response);
+      console.error('Error details:', error.response?.data);
+      
+      let errorMessage = 'Failed to load HQ dashboard';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+        if (error.response.data.details) {
+          errorMessage += `: ${error.response.data.details}`;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error: Cannot connect to API. Please check if the API is running.';
+      }
+      
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
