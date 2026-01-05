@@ -205,7 +205,7 @@ export default function CashierConsolePage() {
         return createdByName === user?.name || createdByName === user?.email || createdByName === user?.phone;
       });
       const paidSales = cashierSales.filter((s: Sale) => s.status === 'PAID');
-      const revenue = paidSales.reduce((sum, s) => sum + s.grandTotal, 0);
+      const revenue = paidSales.reduce((sum: number, s: Sale) => sum + s.grandTotal, 0);
       const count = paidSales.length;
       const avg = count > 0 ? revenue / count : 0;
 
