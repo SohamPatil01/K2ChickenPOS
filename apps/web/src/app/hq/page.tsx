@@ -303,6 +303,17 @@ export default function HQPage() {
               />
             </div>
             
+            {/* Show difference explanation */}
+            {dashboard.summary.totalProductSales && Math.abs(dashboard.summary.totalProductSales - dashboard.summary.totalRevenue) > 0.01 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Product Sales (₹{dashboard.summary.totalProductSales.toFixed(2)}) is the sum of all product line totals before discounts and taxes. 
+                  Total Revenue (₹{dashboard.summary.totalRevenue.toFixed(2)}) is the final amount after discounts and taxes.
+                  Difference: ₹{Math.abs(dashboard.summary.totalProductSales - dashboard.summary.totalRevenue).toFixed(2)}
+                </p>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
               <StatCard
                 title="Total Customers"
