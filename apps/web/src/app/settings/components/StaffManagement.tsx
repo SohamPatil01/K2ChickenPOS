@@ -27,6 +27,7 @@ export default function StaffManagement() {
     email: '',
     role: 'CASHIER' as 'OWNER' | 'MANAGER' | 'CASHIER' | 'DRIVER',
     password: '',
+    pin: '',
     isActive: true,
   });
   const [formLoading, setFormLoading] = useState(false);
@@ -57,6 +58,7 @@ export default function StaffManagement() {
         email: staffMember.email || '',
         role: staffMember.role,
         password: '',
+        pin: '',
         isActive: staffMember.isActive,
       });
     } else {
@@ -67,6 +69,7 @@ export default function StaffManagement() {
         email: '',
         role: 'CASHIER',
         password: '',
+        pin: '',
         isActive: true,
       });
     }
@@ -89,11 +92,14 @@ export default function StaffManagement() {
         if (formData.password) {
           updateData.password = formData.password;
         }
+        if (formData.pin) {
+          updateData.pin = formData.pin;
+        }
         await api.put(`/api/v1/users/${editingStaff.id}`, updateData);
         alert('Staff member updated successfully!');
       } else {
-        if (!formData.password) {
-          alert('Password is required for new staff members');
+        if (!formData.pin) {
+          alert('PIN is required for new staff members');
           setFormLoading(false);
           return;
         }
@@ -102,7 +108,8 @@ export default function StaffManagement() {
           phone: formData.phone,
           email: formData.email || null,
           role: formData.role,
-          password: formData.password,
+          password: formData.password || undefined,
+          pin: formData.pin,
           isActive: formData.isActive,
         });
         alert('Staff member created successfully!');
@@ -286,16 +293,51 @@ export default function StaffManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password {editingStaff ? '(leave blank to keep current)' : '*'}
+                  Password {editingStaff ? '(leave blank to keep current)' : '(optional)'}
                 </label>
                 <input
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  required={!editingStaff}
                   minLength={6}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  6-Digit PIN {editingStaff ? '(leave blank to keep current)' : '*'}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    value={formData.pin}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      setFormData({ ...formData, pin: value });
+                    }}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="000000"
+                    required={!editingStaff}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomPin = Math.floor(Math.random() * 1000000)
+                        .toString()
+                        .padStart(6, '0');
+                      setFormData({ ...formData, pin: randomPin });
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                  >
+                    Generate
+                  </button>
+                </div>
+                {formData.pin && formData.pin.length === 6 && (
+                  <p className="text-sm text-green-600 mt-1">Valid PIN</p>
+                )}
               </div>
               <div className="flex items-center">
                 <input
