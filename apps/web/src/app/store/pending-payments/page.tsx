@@ -136,9 +136,9 @@ export default function PendingPaymentsPage() {
 
         // If fully paid, the order will be marked as PAID automatically
         if (remaining <= 0.01) {
-          showNotification(`Order ${order.saleNo} fully paid!`, 'success');
+          showNotification(`✅ Order ${order.saleNo} fully paid and completed!`, 'success');
         } else {
-          showNotification(`Payment of ₹${Math.round(amount)} recorded. Remaining: ₹${Math.round(remaining)}`, 'success');
+          showNotification(`Payment of ₹${Math.round(amount)} recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
         }
       } else {
         // Pay all pending orders (distribute payment across orders)
@@ -147,11 +147,22 @@ export default function PendingPaymentsPage() {
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
+        const completedOrders: string[] = [];
+        const partiallyPaidOrders: Array<{ saleNo: string; remaining: number }> = [];
+
         for (const order of ordersToPay) {
           if (remainingAmount <= 0) break;
 
-          const orderPending = order.pending;
-          const paymentForThisOrder = Math.min(remainingAmount, orderPending);
+          // Use remainingBalance if available (for credit orders), otherwise use pending
+          const orderRemaining = order.remainingBalance !== undefined 
+            ? order.remainingBalance 
+            : order.pending;
+          const paymentForThisOrder = Math.min(remainingAmount, orderRemaining);
+          
+          // Calculate if this order will be fully paid
+          const totalPaidBefore = order.totalPaid || 0;
+          const totalPaidAfter = totalPaidBefore + paymentForThisOrder;
+          const willBeFullyPaid = totalPaidAfter >= order.grandTotal - 0.01;
 
           await api.post(`/api/v1/sales/${order.id}/pay`, {
             payments: [
@@ -161,6 +172,13 @@ export default function PendingPaymentsPage() {
               },
             ],
           });
+
+          if (willBeFullyPaid) {
+            completedOrders.push(order.saleNo);
+          } else {
+            const remaining = order.grandTotal - totalPaidAfter;
+            partiallyPaidOrders.push({ saleNo: order.saleNo, remaining: Math.round(remaining) });
+          }
 
           remainingAmount -= paymentForThisOrder;
         }
@@ -172,7 +190,20 @@ export default function PendingPaymentsPage() {
         });
         setShowSuccessAnimation(true);
 
-        showNotification(`Payment of ₹${Math.round(amount)} processed successfully`, 'success');
+        // Build success message
+        let successMessage = `Payment of ₹${Math.round(amount)} processed successfully`;
+        if (completedOrders.length > 0) {
+          successMessage += `. ${completedOrders.length} order${completedOrders.length > 1 ? 's' : ''} completed: ${completedOrders.join(', ')}`;
+        }
+        if (partiallyPaidOrders.length > 0 && remainingAmount <= 0) {
+          const remainingTotal = partiallyPaidOrders.reduce((sum, o) => sum + o.remaining, 0);
+          successMessage += `. ₹${remainingTotal} still pending across ${partiallyPaidOrders.length} order${partiallyPaidOrders.length > 1 ? 's' : ''}`;
+        }
+        if (remainingAmount > 0) {
+          successMessage += `. ₹${Math.round(remainingAmount)} remaining (excess payment)`;
+        }
+
+        showNotification(successMessage, 'success');
       }
 
       setShowPaymentModal(false);
