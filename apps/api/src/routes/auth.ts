@@ -11,6 +11,33 @@ interface LoginBody {
 }
 
 export async function authRoutes(fastify: FastifyInstance) {
+  // Public endpoint to get login profiles (for login screen)
+  fastify.get('/profiles', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const users = await prisma.user.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          role: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      // Sort by role priority: OWNER, MANAGER, CASHIER, DRIVER
+      const roleOrder = { OWNER: 0, MANAGER: 1, CASHIER: 2, DRIVER: 3 };
+      const sortedUsers = users.sort((a, b) => {
+        const roleDiff = (roleOrder[a.role as keyof typeof roleOrder] || 99) - (roleOrder[b.role as keyof typeof roleOrder] || 99);
+        return roleDiff !== 0 ? roleDiff : a.name.localeCompare(b.name);
+      });
+
+      return sortedUsers;
+    } catch (error: any) {
+      reply.code(500).send({ error: 'Failed to fetch profiles' });
+    }
+  });
+
   fastify.post('/login', async (request: any, reply: FastifyReply) => {
     const body = loginSchema.parse(request.body as any);
 

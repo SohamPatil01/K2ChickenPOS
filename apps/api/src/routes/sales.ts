@@ -8,47 +8,102 @@ import { getUser } from '../utils/auth.js';
 export async function saleRoutes(fastify: FastifyInstance) {
 
   // Get sales list
-  fastify.get('/', async (request: any, reply: FastifyReply) => {
-    const limit = parseInt((request.query as any).limit || '50');
-    const status = (request.query as any).status;
-    const startDate = (request.query as any).startDate;
-    const endDate = (request.query as any).endDate;
-    
-    // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const limit = parseInt((request.query as any).limit || '1000');
+      const status = (request.query as any).status;
+      const startDate = (request.query as any).startDate;
+      const endDate = (request.query as any).endDate;
+      
+      // Get storeId from authenticated user
+      const user = getUser(request);
+      const storeId = (user as any).storeId;
+      const userId = (user as any).userId;
+      const userRole = (user as any).role;
 
-    const where: any = { storeId };
-    if (status) {
-      where.status = status;
-    }
-    if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
       }
-      if (endDate) {
-        where.createdAt.lte = new Date(endDate);
-      }
-    }
 
-    const sales = await prisma.sale.findMany({
-      where,
-      include: {
-        items: { include: { product: true } },
-        customer: true,
-        payments: true,
-        createdBy: {
-          select: {
-            name: true,
+      // Get user's store to check if owner
+      const userStore = await prisma.store.findUnique({
+        where: { id: storeId },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      // For OWNER role, get sales from all franchise stores + owner store
+      let storeIds: string[] = [storeId];
+      if (userRole === 'OWNER' && userStore.type === 'OWNER') {
+        // Get all franchise stores under this owner
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+        console.log('[Sales API] Owner accessing sales from stores:', storeIds);
+      }
+
+      const where: any = { 
+        storeId: userRole === 'OWNER' && userStore.type === 'OWNER' 
+          ? { in: storeIds } 
+          : storeId 
+      };
+      
+      if (status) {
+        where.status = status;
+      }
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) {
+          where.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+          where.createdAt.lte = new Date(endDate);
+        }
+      }
+
+      const sales = await prisma.sale.findMany({
+        where,
+        include: {
+          items: { include: { product: true } },
+          customer: true,
+          payments: true,
+          store: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
 
-    return sales;
+      return sales;
+    } catch (error: any) {
+      console.error('Failed to get sales:', error);
+      reply.code(500).send({ 
+        error: 'Failed to get sales',
+        details: error.message 
+      });
+    }
   });
 
   // Dashboard summary
@@ -57,6 +112,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get user's store from authentication
       const user = getUser(request as any);
       const storeId = user?.storeId;
+      const userRole = (user as any).role;
       
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
@@ -70,6 +126,20 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // For OWNER role, get sales from all franchise stores + owner store
+      let storeIds: string[] = [storeId];
+      if (userRole === 'OWNER' && store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+        console.log('[Sales Dashboard] Owner accessing sales from stores:', storeIds);
+      }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayEnd = new Date(today);
@@ -78,7 +148,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
     // Today's sales
     const todaySales = await prisma.sale.findMany({
       where: {
-        storeId,
+        storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
         status: 'PAID',
         createdAt: { gte: today, lte: todayEnd },
       },
@@ -92,7 +162,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthSales = await prisma.sale.findMany({
       where: {
-        storeId,
+        storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
         status: 'PAID',
         createdAt: { gte: monthStart },
       },
@@ -103,7 +173,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
     // Recent sales
     const recentSales = await prisma.sale.findMany({
-      where: { storeId },
+      where: { 
+        storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId 
+      },
       include: {
         items: { include: { product: true } },
         customer: true,
@@ -143,16 +215,22 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
+      console.log('[Sales API] Creating sale, request body:', request.body);
       const data = createSaleSchema.parse(request.body as any);
-      const storeId = (getUser(request) as any).storeId;
-      const userId = (getUser(request) as any).userId;
+      const user = getUser(request);
+      const storeId = (user as any).storeId;
+      const userId = (user as any).userId;
+
+      console.log('[Sales API] Store ID:', storeId, 'User ID:', userId);
 
       if (!storeId) {
+        console.error('[Sales API] Store ID missing');
         reply.code(400).send({ error: 'Store ID is required' });
         return;
       }
 
       if (!userId) {
+        console.error('[Sales API] User ID missing');
         reply.code(400).send({ error: 'User ID is required' });
         return;
       }
@@ -434,6 +512,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
       return sale;
     } catch (error: any) {
       console.error('Failed to create sale:', error);
+      console.error('Error stack:', error.stack);
+      console.error('Request body:', request.body);
+      console.error('User:', getUser(request));
+      
+      // Check for specific error types
+      if (error.code === 'P2002') {
+        reply.code(400).send({ 
+          error: 'Duplicate sale number. Please try again.',
+          details: error.message 
+        });
+        return;
+      }
+      
+      if (error.name === 'ZodError') {
+        reply.code(400).send({ 
+          error: 'Invalid request data',
+          details: error.errors 
+        });
+        return;
+      }
+      
       reply.code(500).send({ 
         error: 'Failed to create sale',
         details: error.message 
@@ -844,13 +943,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Check if user is OWNER
+      // Check if user is OWNER or CASHIER
       const user = await prisma.user.findUnique({
         where: { id: userId },
       });
 
-      if (!user || user.role !== 'OWNER') {
-        reply.code(403).send({ error: 'Only owners can edit orders' });
+      if (!user || (user.role !== 'OWNER' && user.role !== 'CASHIER')) {
+        reply.code(403).send({ error: 'Only owners and cashiers can edit orders' });
         return;
       }
 

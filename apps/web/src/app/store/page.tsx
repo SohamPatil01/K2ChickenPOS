@@ -71,7 +71,45 @@ export default function StoreDashboardPage() {
       router.push('/login');
       return;
     }
+    // Redirect cashiers to POS page
+    if (user.role === 'CASHIER') {
+      router.push('/store/pos');
+      return;
+    }
     loadDashboard();
+    
+    // Listen for sale events to auto-refresh
+    const handleSaleCreated = () => {
+      console.log('[Dashboard] Sale created event received, refreshing...');
+      loadDashboard();
+    };
+    
+    const handleSaleUpdated = () => {
+      console.log('[Dashboard] Sale updated event received, refreshing...');
+      loadDashboard();
+    };
+    
+    const handleSaleDeleted = () => {
+      console.log('[Dashboard] Sale deleted event received, refreshing...');
+      loadDashboard();
+    };
+    
+    window.addEventListener('sale-created', handleSaleCreated);
+    window.addEventListener('sale-updated', handleSaleUpdated);
+    window.addEventListener('sale-deleted', handleSaleDeleted);
+    
+    // Periodic refresh as fallback (every 30 seconds)
+    const refreshInterval = setInterval(() => {
+      loadDashboard();
+    }, 30000);
+    
+    return () => {
+      window.removeEventListener('sale-created', handleSaleCreated);
+      window.removeEventListener('sale-updated', handleSaleUpdated);
+      window.removeEventListener('sale-deleted', handleSaleDeleted);
+      clearInterval(refreshInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router]);
 
   const loadDashboard = async () => {

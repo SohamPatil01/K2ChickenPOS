@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Auth
 export const loginSchema = z.object({
   phone: z.string().min(10),
-  password: z.string().min(6),
+  password: z.string().min(4).max(20).regex(/^\d+$/, 'PIN must contain only numbers'),
 });
 
 export const refreshTokenSchema = z.object({

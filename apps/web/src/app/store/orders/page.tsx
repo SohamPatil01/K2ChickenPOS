@@ -86,13 +86,46 @@ export default function OrdersPage() {
       return;
     }
 
-    if (user.role !== 'OWNER') {
+    if (user.role !== 'OWNER' && user.role !== 'CASHIER') {
       router.push('/store');
       return;
     }
 
     loadSales();
     loadProducts();
+    
+    // Listen for sale events to auto-refresh
+    const handleSaleCreated = () => {
+      console.log('[Orders Page] Sale created event received, refreshing...');
+      loadSales();
+    };
+    
+    const handleSaleUpdated = () => {
+      console.log('[Orders Page] Sale updated event received, refreshing...');
+      loadSales();
+    };
+    
+    const handleSaleDeleted = () => {
+      console.log('[Orders Page] Sale deleted event received, refreshing...');
+      loadSales();
+    };
+    
+    window.addEventListener('sale-created', handleSaleCreated);
+    window.addEventListener('sale-updated', handleSaleUpdated);
+    window.addEventListener('sale-deleted', handleSaleDeleted);
+    
+    // Periodic refresh as fallback (every 30 seconds)
+    const refreshInterval = setInterval(() => {
+      loadSales();
+    }, 30000);
+    
+    return () => {
+      window.removeEventListener('sale-created', handleSaleCreated);
+      window.removeEventListener('sale-updated', handleSaleUpdated);
+      window.removeEventListener('sale-deleted', handleSaleDeleted);
+      clearInterval(refreshInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, dateFilter]);
 
   const loadSales = async () => {
@@ -251,6 +284,9 @@ export default function OrdersPage() {
       setShowEditModal(false);
       setEditingSale(null);
       loadSales();
+      
+      // Notify other consoles about the update
+      window.dispatchEvent(new CustomEvent('sale-updated', { detail: { saleId: editingSale.id } }));
     } catch (error: any) {
       console.error('Failed to update sale:', error);
       showNotification(
@@ -285,11 +321,15 @@ export default function OrdersPage() {
         reason: cancelReason || 'Cancelled by owner',
       });
 
+      const cancelledSaleId = cancellingSale.id;
       showNotification('Bill cancelled successfully', 'success');
       setShowCancelModal(false);
       setCancellingSale(null);
       setCancelReason('');
       loadSales();
+      
+      // Notify other consoles about the deletion/cancellation
+      window.dispatchEvent(new CustomEvent('sale-deleted', { detail: { saleId: cancelledSaleId } }));
     } catch (error: any) {
       console.error('Failed to cancel bill:', error);
       showNotification(
@@ -329,6 +369,10 @@ export default function OrdersPage() {
 
       showNotification('Order completed successfully', 'success');
       loadSales();
+      
+      // Notify other consoles about the update
+      window.dispatchEvent(new CustomEvent('sale-updated', { detail: { saleId: sale.id } }));
+      
       if (selectedSale?.id === sale.id) {
         setSelectedSale(null);
       }
@@ -352,13 +396,21 @@ export default function OrdersPage() {
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       {/* Header */}
-      <div className="mb-3 sm:mb-4 flex-shrink-0">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">
-          Past Orders
-        </h1>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-          View and edit all past orders
-        </p>
+      <div className="mb-3 sm:mb-4 flex-shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">
+            Past Orders
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            View and edit all past orders
+          </p>
+        </div>
+        <button
+          onClick={() => loadSales()}
+          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
+        >
+          🔄 Refresh
+        </button>
       </div>
 
       {/* Filters */}

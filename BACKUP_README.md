@@ -4,10 +4,10 @@
 
 ## 🎯 Quick Overview
 
-Your K2ChickenPOS database now has **automated daily backups** that run every day at 2:00 AM UTC, storing secure copies in Vercel Blob Storage.
+Your K2ChickenPOS database now has **automated daily backups** that run every day at 11:55 AM UTC, storing secure copies in Vercel Blob Storage.
 
 ### What You Get
-- ✅ **Automated daily backups** (2:00 AM UTC)
+- ✅ **Automated daily backups** (11:55 AM UTC)
 - ✅ **Secure cloud storage** (Vercel Blob)
 - ✅ **Manual backup triggers** (on-demand via API)
 - ✅ **Easy restoration** (JSON format)
@@ -82,7 +82,7 @@ All critical data:
 
 ## ⏰ Backup Schedule
 
-**Default**: Daily at 2:00 AM UTC
+**Default**: Daily at 11:55 AM UTC
 
 **Modify** in `apps/api/vercel.json`:
 ```json
@@ -90,7 +90,7 @@ All critical data:
   "crons": [
     {
       "path": "/api/v1/backup/create",
-      "schedule": "0 2 * * *"
+      "schedule": "55 11 * * *"
     }
   ]
 }

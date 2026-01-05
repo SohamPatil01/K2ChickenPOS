@@ -55,13 +55,19 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           label: "Dashboard",
           href: "/store",
           icon: "📊",
-          roles: ["CASHIER", "MANAGER", "DRIVER", "OWNER"],
+          roles: ["MANAGER", "DRIVER", "OWNER"],
         },
         {
           label: "POS",
           href: "/store/pos",
           icon: "🛒",
           roles: ["CASHIER", "MANAGER", "OWNER"],
+        },
+        {
+          label: "Cashier Console",
+          href: "/store/cashier-console",
+          icon: "💼",
+          roles: ["CASHIER"],
         },
         {
           label: "Cart",

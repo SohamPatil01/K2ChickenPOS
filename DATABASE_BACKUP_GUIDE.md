@@ -15,7 +15,7 @@ The backup system provides:
 
 ```
 ┌─────────────────┐
-│  Vercel Cron    │ ──── Triggers at 2:00 AM UTC daily
+│  Vercel Cron    │ ──── Triggers at 11:55 AM UTC daily
 │  (Scheduler)    │
 └────────┬────────┘
          │
@@ -110,13 +110,13 @@ The cron job is already configured in `apps/api/vercel.json`:
   "crons": [
     {
       "path": "/api/v1/backup/create",
-      "schedule": "0 2 * * *"
+      "schedule": "55 11 * * *"
     }
   ]
 }
 ```
 
-This runs the backup **every day at 2:00 AM UTC**.
+This runs the backup **every day at 11:55 AM UTC**.
 
 **Deploy:**
 
@@ -142,7 +142,7 @@ vercel --prod
 2. Click **Settings** → **Cron Jobs**
 3. You should see:
    - **Path**: `/api/v1/backup/create`
-   - **Schedule**: `0 2 * * *` (Daily at 2:00 AM UTC)
+   - **Schedule**: `55 11 * * *` (Daily at 11:55 AM UTC)
    - **Status**: Active
 
 ## API Endpoints
@@ -273,7 +273,7 @@ curl https://k2-chicken-pos-api.vercel.app/api/v1/backup/list \
 
 ### Test 4: Verify Cron Job
 
-1. Wait for the scheduled time (2:00 AM UTC)
+1. Wait for the scheduled time (11:55 AM UTC)
 2. Check Vercel Function Logs:
    - Go to **Deployments** → Click latest deployment
    - Go to **Functions** tab
@@ -281,7 +281,7 @@ curl https://k2-chicken-pos-api.vercel.app/api/v1/backup/list \
 
 ## Backup Schedule
 
-The default schedule is **daily at 2:00 AM UTC**.
+The default schedule is **daily at 11:55 AM UTC**.
 
 ### Modify Backup Schedule
 
@@ -292,7 +292,7 @@ Edit `apps/api/vercel.json`:
   "crons": [
     {
       "path": "/api/v1/backup/create",
-      "schedule": "0 2 * * *"  // Cron expression
+      "schedule": "55 11 * * *"  // Cron expression
     }
   ]
 }
@@ -304,6 +304,7 @@ Edit `apps/api/vercel.json`:
 |----------|----------------|-------------|
 | Every hour | `0 * * * *` | Runs at minute 0 of every hour |
 | Every 6 hours | `0 */6 * * *` | Runs at 00:00, 06:00, 12:00, 18:00 UTC |
+| Daily at 11:55 AM | `55 11 * * *` | Runs at 11:55 AM UTC every day |
 | Daily at 2 AM | `0 2 * * *` | Runs at 2:00 AM UTC every day |
 | Twice daily | `0 2,14 * * *` | Runs at 2:00 AM and 2:00 PM UTC |
 | Weekly (Sunday) | `0 2 * * 0` | Runs at 2:00 AM UTC every Sunday |

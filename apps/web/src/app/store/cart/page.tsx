@@ -278,7 +278,9 @@ export default function StoreCartPage() {
         discountTotal: discountTotal || 0,
       };
 
+      console.log('[Cart] Creating sale with data:', saleData);
       const saleResponse = await api.post('/api/v1/sales', saleData);
+      console.log('[Cart] Sale response:', saleResponse.data);
 
       if (saleResponse.data?.requiresApproval) {
         setShowPaymentModal(false);
@@ -293,6 +295,7 @@ export default function StoreCartPage() {
 
       const sale = saleResponse.data;
       if (!sale || !sale.id) {
+        console.error('[Cart] Invalid sale response:', sale);
         throw new Error('Invalid sale response: Sale ID not found');
       }
 
@@ -316,10 +319,28 @@ export default function StoreCartPage() {
         grandTotal: roundedSaleGrandTotal,
       });
       setShowSuccessAnimation(true);
+      
+      // Trigger a custom event to notify other pages to refresh
+      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id } }));
     } catch (error: any) {
-      console.error('Failed to process payment:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to process payment';
-      showNotification(errorMessage, 'error');
+      console.error('[Cart] Failed to process payment:', error);
+      console.error('[Cart] Error response:', error.response?.data);
+      console.error('[Cart] Error status:', error.response?.status);
+      
+      let errorMessage = 'Failed to process payment';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.';
+        setTimeout(() => router.push('/login'), 2000);
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response?.data?.error || 'Invalid request. Please check your cart items.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showNotification(errorMessage, 'error', 5000);
       // Don't clear processing state on error so user can retry
     } finally {
       setIsProcessingPayment(false);

@@ -100,6 +100,8 @@ async function main() {
   await clearTable(() => prisma.scaleBarcodeConfig.deleteMany(), 'ScaleBarcodeConfig');
   await clearTable(() => prisma.storeProductPrice.deleteMany(), 'StoreProductPrice');
   await clearTable(() => prisma.inventoryLedger.deleteMany(), 'InventoryLedger');
+  await clearTable(() => prisma.purchaseOrderItem.deleteMany(), 'PurchaseOrderItem');
+  await clearTable(() => prisma.purchaseOrder.deleteMany(), 'PurchaseOrder');
   await clearTable(() => prisma.product.deleteMany(), 'Product');
   await clearTable(() => prisma.category.deleteMany(), 'Category');
   await clearTable(() => prisma.user.deleteMany(), 'User');
@@ -123,10 +125,10 @@ async function main() {
   });
 
   // Create Users
-  const ownerPassword = await bcrypt.hash('owner123', 10);
-  const managerPassword = await bcrypt.hash('manager123', 10);
-  const cashierPassword = await bcrypt.hash('cashier123', 10);
-  const driverPassword = await bcrypt.hash('driver123', 10);
+  const ownerPassword = await bcrypt.hash('123456', 10);
+  const managerPassword = await bcrypt.hash('234567', 10);
+  const cashierPassword = await bcrypt.hash('345678', 10);
+  const driverPassword = await bcrypt.hash('456789', 10);
 
   const owner = await prisma.user.create({
     data: {
@@ -387,10 +389,10 @@ async function main() {
 
   console.log('Seed completed!');
   console.log('\nTest Credentials:');
-  console.log('Owner: 9999999999 / owner123');
-  console.log('Manager: 8888888888 / manager123');
-  console.log('Cashier: 7777777777 / cashier123');
-  console.log('Driver: 6666666666 / driver123');
+  console.log('Owner: 9999999999 / 123456');
+  console.log('Manager: 8888888888 / 234567');
+  console.log('Cashier: 7777777777 / 345678');
+  console.log('Driver: 6666666666 / 456789');
 }
 
 main()

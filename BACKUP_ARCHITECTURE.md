@@ -7,8 +7,8 @@
 │                         VERCEL CLOUD PLATFORM                        │
 │                                                                       │
 │  ┌────────────────────┐                                             │
-│  │   Vercel Cron      │  Triggers daily at 2:00 AM UTC              │
-│  │   Scheduler        │  Schedule: "0 2 * * *"                      │
+│  │   Vercel Cron      │  Triggers daily at 11:55 AM UTC              │
+│  │   Scheduler        │  Schedule: "55 11 * * *"                     │
 │  └─────────┬──────────┘                                             │
 │            │                                                          │
 │            │ HTTP POST                                                │
@@ -40,7 +40,7 @@
 │            ▼                                                          │
 │  ┌────────────────────┐                                             │
 │  │  Vercel Blob       │  Stores JSON backup files:                  │
-│  │  Storage           │  backup-2026-01-04T02-00-00.000Z.json      │
+│  │  Storage           │  backup-2026-01-04T11-55-00.000Z.json      │
 │  │                    │  - Secure cloud storage                     │
 │  │                    │  - Public/private access control            │
 │  └────────────────────┘                                             │
@@ -73,7 +73,7 @@
 ```
 START
   │
-  ├─ [Automated] Vercel Cron triggers at 2:00 AM UTC
+  ├─ [Automated] Vercel Cron triggers at 11:55 AM UTC
   │     OR
   └─ [Manual] User calls POST /api/v1/backup/create
   │
@@ -241,11 +241,11 @@ Backup:           🔄
            ─────  ─────  ─────  ─────  ─────  ─────  ─────  ─────  ─────  ─────  ─────  ─────
 
 Legend:
-🔄 = Automated backup runs (2:00 AM UTC daily)
+🔄 = Automated backup runs (11:55 AM UTC daily)
 
-Cron Expression: "0 2 * * *"
-├─ 0: Minute (0 = at the top of the hour)
-├─ 2: Hour (2 = 2:00 AM UTC)
+Cron Expression: "55 11 * * *"
+├─ 55: Minute (55 = at 55 minutes past the hour)
+├─ 11: Hour (11 = 11:55 AM UTC)
 ├─ *: Day of month (every day)
 ├─ *: Month (every month)
 └─ *: Day of week (every day of week)
@@ -391,7 +391,7 @@ Note: Times are estimates. Actual performance depends on:
 - ✅ Cost-effective
 - ❌ Vendor lock-in (mitigated by JSON format)
 
-### 3. **Daily Schedule (2:00 AM UTC)**
+### 3. **Daily Schedule (11:55 AM UTC)**
 
 - ✅ Low traffic time
 - ✅ Minimal impact on users

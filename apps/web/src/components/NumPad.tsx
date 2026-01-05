@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface NumPadProps {
   value: string;
@@ -9,10 +9,16 @@ interface NumPadProps {
   onSubmit?: () => void;
   placeholder?: string;
   maxLength?: number;
+  maskValue?: boolean; // For password/PIN masking
 }
 
-export default function NumPad({ value, onChange, onClose, onSubmit, placeholder = 'Enter number', maxLength = 15 }: NumPadProps) {
+export default function NumPad({ value, onChange, onClose, onSubmit, placeholder = 'Enter number', maxLength = 15, maskValue = false }: NumPadProps) {
   const [displayValue, setDisplayValue] = useState(value);
+
+  // Sync displayValue with value prop when it changes
+  useEffect(() => {
+    setDisplayValue(value);
+  }, [value]);
 
   const handleNumberClick = (num: string) => {
     if (displayValue.length < maxLength) {
@@ -61,7 +67,15 @@ export default function NumPad({ value, onChange, onClose, onSubmit, placeholder
         <div className="p-4">
           <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4">
             <div className="text-3xl font-semibold text-gray-900 dark:text-white text-center min-h-[2.5rem] flex items-center justify-center">
-              {displayValue || <span className="text-gray-400 dark:text-gray-500">{placeholder}</span>}
+              {displayValue ? (
+                maskValue ? (
+                  <span className="tracking-widest">{'•'.repeat(displayValue.length)}</span>
+                ) : (
+                  displayValue
+                )
+              ) : (
+                <span className="text-gray-400 dark:text-gray-500">{placeholder}</span>
+              )}
             </div>
           </div>
 

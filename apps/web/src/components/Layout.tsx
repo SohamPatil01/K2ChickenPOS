@@ -36,7 +36,7 @@ export default function Layout({ children }: LayoutProps) {
   }, [pathname]); // Only depend on pathname
 
   const navItems = [
-    { path: '/store', label: 'Store', roles: ['CASHIER', 'MANAGER', 'OWNER', 'DRIVER'] },
+    { path: '/store', label: 'Store', roles: ['MANAGER', 'OWNER', 'DRIVER'] },
   ];
 
   // Filter nav items based on user role
