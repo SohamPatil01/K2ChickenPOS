@@ -130,16 +130,18 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           }
           
           if (ledger.type === 'IN') {
-            totalQtyKg += ledger.qtyKg || 0;
-            totalQtyPcs += ledger.qtyPcs || 0;
+            // Round during each operation to prevent floating point precision errors
+            totalQtyKg = Math.round((totalQtyKg + (ledger.qtyKg || 0)) * 100) / 100;
+            totalQtyPcs = Math.round(totalQtyPcs + (ledger.qtyPcs || 0));
           } else {
-            totalQtyKg -= ledger.qtyKg || 0;
-            totalQtyPcs -= ledger.qtyPcs || 0;
+            // Round during each operation to prevent floating point precision errors
+            totalQtyKg = Math.round((totalQtyKg - (ledger.qtyKg || 0)) * 100) / 100;
+            totalQtyPcs = Math.round(totalQtyPcs - (ledger.qtyPcs || 0));
           }
         }
         
-        // Round to 2 decimal places for KG, integer for PCS to avoid floating point precision issues
-        totalQtyKg = Math.round((Math.max(0, totalQtyKg)) * 100) / 100;
+        // Ensure non-negative values and final rounding
+        totalQtyKg = Math.max(0, Math.round(totalQtyKg * 100) / 100);
         totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
         
         console.log(`[Inventory Summary] Product ${product.name} calculated totals: ${totalQtyKg} kg, ${totalQtyPcs} pcs`);
