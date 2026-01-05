@@ -440,28 +440,20 @@ export async function customerRoutes(fastify: FastifyInstance) {
   // Shows all unpaid orders (OPEN status) that are either:
   // 1. Associated with a customer, OR
   // 2. Have CREDIT payment method
-  fastify.get('/pending-payments', async (request: any, reply: FastifyReply) => {
+  fastify.get('/pending-payments', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
-      // Try to get storeId from authenticated user, fallback to default store
-      let storeId = '';
+      // Get storeId from authenticated user
+      const user = getUser(request);
+      const storeId = (user as any).storeId || '';
       
-      try {
-        const user = getUser(request);
-        storeId = (user as any).storeId || '';
-      } catch (error) {
-        // Not authenticated, use oldest OWNER store as fallback
-        console.log('[Pending Payments API] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({ 
-          where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' }
-        });
-        storeId = defaultStore?.id || '';
-      }
+      console.log('[Pending Payments API] Using authenticated user storeId:', storeId, 'for user:', user.userId);
       
       if (!storeId) {
-        reply.code(400).send({ error: 'Store ID is required' });
+        reply.code(400).send({ error: 'Store ID is required. Please ensure you are logged in.' });
         return;
       }
+
+      console.log('[Pending Payments API] Querying for storeId:', storeId);
 
       // Get all sales that are credit orders:
       // 1. OPEN status orders (unpaid), OR
@@ -522,6 +514,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
         sale.payments && sale.payments.some((p: any) => p.method === 'CREDIT')
       );
 
+      console.log('[Pending Payments API] Found', openSales.length, 'OPEN sales and', creditSales.length, 'credit sales');
+
       // Combine and deduplicate by sale ID
       const saleMap = new Map();
       [...openSales, ...creditSales].forEach(sale => {
@@ -530,6 +524,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
         }
       });
       const openCreditSales = Array.from(saleMap.values());
+      
+      console.log('[Pending Payments API] Total unique sales after deduplication:', openCreditSales.length);
 
       // Group by customer
       const customerMap = new Map();
