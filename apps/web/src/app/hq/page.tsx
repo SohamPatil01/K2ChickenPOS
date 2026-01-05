@@ -35,6 +35,7 @@ export default function HQPage() {
   const { user } = useAuthStore();
   const [dashboard, setDashboard] = useState<HQDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'franchises' | 'sales' | 'inventory' | 'compliance' | 'payments' | 'marketing' | 'analytics'>('overview');
   const [franchises, setFranchises] = useState<any[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -152,6 +153,7 @@ export default function HQPage() {
 
   const loadDashboard = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await api.get('/api/v1/hq/dashboard', {
         params: dateRange,
@@ -174,7 +176,8 @@ export default function HQPage() {
         errorMessage = 'Network error: Cannot connect to API. Please check if the API is running.';
       }
       
-      alert(errorMessage);
+      setError(errorMessage);
+      console.error('[HQ Page] Dashboard load error:', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -208,7 +211,17 @@ export default function HQPage() {
 
   // If no user or not OWNER, show nothing (will redirect)
   if (!user || user.role !== 'OWNER') {
-    return null;
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto py-12">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+            <p className="text-yellow-800">
+              {!user ? 'No user found. Redirecting to login...' : `Access denied. Your role is ${user.role}. Only OWNER can access HQ dashboard. Redirecting...`}
+            </p>
+          </div>
+        </div>
+      </Layout>
+    );
   }
 
   return (
@@ -219,6 +232,44 @@ export default function HQPage() {
           <h1 className="text-3xl font-bold">Franchise HQ Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">Manage and monitor all franchise outlets</p>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-red-800 font-medium">Error loading dashboard</p>
+                <p className="text-red-600 text-sm mt-1">{error}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setError(null);
+                  loadDashboard();
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Show message if dashboard is null and not loading */}
+        {!loading && !error && !dashboard && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center mb-6">
+            <p className="text-yellow-800">No dashboard data available. Click retry to reload.</p>
+            <button
+              onClick={loadDashboard}
+              className="mt-4 px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Only show dashboard content if we have data */}
+        {dashboard && (
+          <>
 
         {/* Date Range Filter */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -635,6 +686,8 @@ export default function HQPage() {
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </Layout>
