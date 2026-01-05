@@ -2,7 +2,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@azela-pos/db';
-import { loginSchema } from '@azela-pos/shared';
+import { loginSchema, pinLoginSchema } from '@azela-pos/shared';
 import { getUser } from '../utils/auth.js';
 
 interface LoginBody {
@@ -27,6 +27,63 @@ export async function authRoutes(fastify: FastifyInstance) {
     const valid = await bcrypt.compare(body.password, user.passwordHash);
     if (!valid) {
       reply.code(401).send({ error: 'Invalid credentials' });
+      return;
+    }
+
+    const accessToken = fastify.jwt.sign(
+      {
+        userId: user.id,
+        storeId: user.storeId,
+        role: user.role,
+      },
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+    );
+
+    const refreshToken = fastify.jwt.sign(
+      {
+        userId: user.id,
+        storeId: user.storeId,
+        role: user.role,
+      },
+      { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+        storeId: user.storeId,
+        store: {
+          id: user.store.id,
+          name: user.store.name,
+          type: user.store.type,
+        },
+      },
+    };
+  });
+
+  // PIN-based login
+  fastify.post('/login/pin', async (request: any, reply: FastifyReply) => {
+    const body = pinLoginSchema.parse(request.body as any);
+
+    const user = await prisma.user.findUnique({
+      where: { id: body.userId },
+      include: { store: true },
+    });
+
+    if (!user || !user.isActive || !user.pinHash) {
+      reply.code(401).send({ error: 'Invalid credentials' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(body.pin, user.pinHash);
+    if (!valid) {
+      reply.code(401).send({ error: 'Invalid PIN' });
       return;
     }
 
@@ -127,6 +184,30 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     return user;
+  });
+
+  // Get active users for a store (for PIN login user selection)
+  fastify.get('/store/:storeId/users', async (request: any, reply: FastifyReply) => {
+    const { storeId } = request.params;
+
+    const users = await prisma.user.findMany({
+      where: {
+        storeId,
+        isActive: true,
+        pinHash: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+      },
+      orderBy: [
+        { role: 'asc' },
+        { name: 'asc' },
+      ],
+    });
+
+    return users;
   });
 }
 
