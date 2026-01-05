@@ -75,14 +75,36 @@ export async function poRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate, storeId: queryStoreId, status } = (request.query as any);
-      // Get default store (since auth is disabled for now)
-      // Use the oldest OWNER store to ensure consistency
-      const defaultStore = await prisma.store.findFirst({ 
-        where: { type: 'OWNER' },
-        orderBy: { createdAt: 'asc' }
-      });
-      const storeId = defaultStore?.id || '';
-      const userRole = 'OWNER'; // Default
+      
+      // Try to get user's store from authentication, fallback to default store
+      let storeId = '';
+      let userRole = '';
+      
+      try {
+        const user = getUser(request);
+        storeId = queryStoreId || (user as any).storeId || '';
+        userRole = (user as any).role || '';
+        console.log(`[PO API] Authenticated user - storeId: ${storeId}, role: ${userRole}`);
+      } catch (error) {
+        // Not authenticated, use query param or default to oldest OWNER store
+        if (queryStoreId) {
+          storeId = queryStoreId;
+          console.log(`[PO API] Using query store ID: ${storeId}`);
+        } else {
+          console.log('[PO API] User not authenticated, using fallback store');
+          const defaultStore = await prisma.store.findFirst({ 
+            where: { type: 'OWNER' },
+            orderBy: { createdAt: 'asc' }
+          });
+          storeId = defaultStore?.id || '';
+          userRole = 'OWNER';
+        }
+      }
+
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
 
       const store = await prisma.store.findUnique({
         where: { id: storeId },
@@ -95,10 +117,32 @@ export async function poRoutes(fastify: FastifyInstance) {
 
       const where: any = {};
 
+      // For franchise stores, show POs for that franchise
       if (store.type === 'FRANCHISE') {
         where.franchiseStoreId = storeId;
       } else if (store.type === 'OWNER') {
-        where.ownerStoreId = storeId;
+        // For owner stores, show POs where this is the owner store
+        // Optionally, also include POs from all franchises if user is OWNER role
+        if (userRole === 'OWNER') {
+          // Get all franchise stores under this owner
+          const franchises = await prisma.store.findMany({
+            where: {
+              type: 'FRANCHISE',
+              parentOwnerStoreId: storeId,
+            },
+            select: { id: true },
+          });
+          const franchiseIds = franchises.map(f => f.id);
+          
+          // Show POs where ownerStoreId matches OR franchiseStoreId is one of the franchises
+          where.OR = [
+            { ownerStoreId: storeId },
+            { franchiseStoreId: { in: [storeId, ...franchiseIds] } }
+          ];
+        } else {
+          // For non-OWNER roles, just show POs for this owner store
+          where.ownerStoreId = storeId;
+        }
       }
 
       if (status) {
