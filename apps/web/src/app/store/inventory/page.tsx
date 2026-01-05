@@ -118,6 +118,32 @@ export default function StoreInventoryPage() {
       return;
     }
 
+    // Auto-refresh inventory every 10 seconds
+    const interval = setInterval(() => {
+      loadInventory();
+    }, 10000);
+
+    // Refresh when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      loadInventory();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Refresh when page becomes visible (user switches tabs)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadInventory();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
+
     if (user.role !== 'MANAGER' && user.role !== 'OWNER') {
       router.push('/store');
       return;

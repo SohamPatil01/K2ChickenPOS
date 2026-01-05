@@ -78,6 +78,36 @@ export default function HQPage() {
     }
   }, [user, router, dateRange, activeTab]);
 
+  // Auto-refresh dashboard every 30 seconds and when window gains focus
+  useEffect(() => {
+    if (user?.role !== 'OWNER' || activeTab !== 'overview') return;
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadDashboard();
+    }, 30000);
+
+    // Refresh when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      loadDashboard();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Refresh when page becomes visible (user switches tabs)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadDashboard();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, activeTab, dateRange]);
+
   const loadFranchises = async () => {
     try {
       const response = await api.get('/api/v1/stores/franchises/summary');
@@ -155,8 +185,17 @@ export default function HQPage() {
     setLoading(true);
     setError(null);
     try {
+      const timestamp = Date.now();
       const response = await api.get('/api/v1/hq/dashboard', {
-        params: dateRange,
+        params: {
+          ...dateRange,
+          _t: timestamp, // Cache busting
+        },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       setDashboard(response.data);
     } catch (error: any) {
@@ -777,18 +816,45 @@ function InventoryView() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFranchise, setSelectedFranchise] = useState<string>('all');
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   useEffect(() => {
     loadInventory();
+    
+    // Auto-refresh every 10 seconds
+    const interval = setInterval(() => {
+      loadInventory();
+    }, 10000);
+
+    // Refresh when window gains focus (user switches back to tab)
+    const handleFocus = () => {
+      loadInventory();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [selectedFranchise]);
 
   const loadInventory = async () => {
     setLoading(true);
     try {
+      const timestamp = Date.now();
       const response = await api.get('/api/v1/hq/inventory-monitoring', {
-        params: { franchiseId: selectedFranchise },
+        params: { 
+          franchiseId: selectedFranchise,
+          _t: timestamp, // Cache busting
+        },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       setInventory(response.data || []);
+      setLastRefresh(new Date());
     } catch (error: any) {
       console.error('Failed to load inventory:', error);
     } finally {
@@ -840,19 +906,34 @@ function InventoryView() {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Inventory Monitoring</h2>
-        <select
-          value={selectedFranchise}
-          onChange={(e) => setSelectedFranchise(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-md"
-        >
-          <option value="all">All Franchises</option>
-          {inventory.map((store: any) => (
-            <option key={store.storeId} value={store.storeId}>
-              {store.storeName}
-            </option>
-          ))}
-        </select>
+        <div>
+          <h2 className="text-xl font-semibold">Inventory Monitoring</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Last updated: {lastRefresh.toLocaleTimeString()} | Auto-refreshes every 10 seconds
+          </p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={loadInventory}
+            disabled={loading}
+            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2"
+          >
+            <span>🔄</span>
+            <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
+          <select
+            value={selectedFranchise}
+            onChange={(e) => setSelectedFranchise(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-md"
+          >
+            <option value="all">All Franchises</option>
+            {inventory.map((store: any) => (
+              <option key={store.storeId} value={store.storeId}>
+                {store.storeName}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Summary Stats */}
