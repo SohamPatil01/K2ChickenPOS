@@ -293,14 +293,14 @@ export default function StoreInventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, activeTab, loadInventory]);
 
-  // Auto-refresh inventory every 10 seconds and when window gains focus
+  // Auto-refresh inventory every 30 seconds and when window gains focus
   useEffect(() => {
     if (!user || (user.role !== "MANAGER" && user.role !== "OWNER")) return;
 
-    // Auto-refresh every 10 seconds
+    // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       loadInventory();
-    }, 10000);
+    }, 30000);
 
     // Refresh when window gains focus (user switches back to tab)
     // Only trigger if focus was lost for more than 2 seconds
@@ -960,7 +960,7 @@ export default function StoreInventoryPage() {
               onClick={() => loadInventory(true)}
               disabled={loading}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
-              title="Refresh inventory (auto-refreshes every 10 seconds)"
+              title="Refresh inventory (auto-refreshes every 30 seconds)"
             >
               <span>🔄</span>
               <span>{loading ? "Refreshing..." : "Refresh"}</span>

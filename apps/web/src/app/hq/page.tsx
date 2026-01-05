@@ -916,10 +916,10 @@ function InventoryView() {
   useEffect(() => {
     loadInventory(true); // Force initial load
     
-    // Auto-refresh every 10 seconds
+    // Auto-refresh every 30 seconds
     const interval = setInterval(() => {
       loadInventory();
-    }, 10000);
+    }, 30000);
 
     // Refresh when window gains focus (user switches back to tab)
     // Only trigger if focus was lost for more than 2 seconds
@@ -1008,7 +1008,7 @@ function InventoryView() {
         <div>
           <h2 className="text-xl font-semibold">Inventory Monitoring</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Last updated: {lastRefresh.toLocaleTimeString()} | Auto-refreshes every 10 seconds
+            Last updated: {lastRefresh.toLocaleTimeString()} | Auto-refreshes every 30 seconds
           </p>
         </div>
         <div className="flex gap-2 items-center">
