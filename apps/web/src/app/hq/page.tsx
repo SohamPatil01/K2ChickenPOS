@@ -278,15 +278,28 @@ export default function HQPage() {
               </button>
               <p className="text-sm text-gray-500 mt-1">Manage and monitor all franchise outlets</p>
             </div>
-            {activeTab !== 'overview' && (
-              <button
-                onClick={() => setActiveTab('overview')}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors flex items-center gap-2"
-              >
-                <span>←</span>
-                <span>Back to Overview</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {activeTab === 'overview' && (
+                <button
+                  onClick={loadDashboard}
+                  disabled={loading}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
+                  title="Refresh dashboard (auto-refreshes every 30 seconds)"
+                >
+                  <span>🔄</span>
+                  <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+                </button>
+              )}
+              {activeTab !== 'overview' && (
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors flex items-center gap-2"
+                >
+                  <span>←</span>
+                  <span>Back to Overview</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
