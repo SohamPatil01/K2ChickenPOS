@@ -68,11 +68,11 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
           },
         });
 
-        // Calculate gross sales (total revenue before any deductions)
-        const grossSales = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+        // Calculate gross sales (total revenue before any deductions) - Round to 2 decimal places
+        const grossSales = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
         
-        // Calculate total discounts
-        const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
+        // Calculate total discounts - Round to 2 decimal places
+        const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 100) / 100;
         
         // Calculate wastage (must be fetched before using it)
         const wastageLedgers = await prisma.inventoryLedger.findMany({
@@ -83,24 +83,24 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
           },
         });
         
-        // Calculate total wastage value (cost of wasted inventory)
-        const wastageValue = wastageLedgers.reduce((sum: any, ledger) => {
+        // Calculate total wastage value (cost of wasted inventory) - Round to 2 decimal places
+        const wastageValue = Math.round(wastageLedgers.reduce((sum: any, ledger) => {
           // Get product price at time of wastage (simplified - use current price)
           // In production, you'd want to track the actual cost at time of wastage
           return sum + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100; // Placeholder: ₹100/kg
-        }, 0);
+        }, 0) * 100) / 100;
         
         // Net Sales Formula:
         // If NET_SALES base: Gross Sales - Discounts - Wastage Value
         // If GROSS_SALES base: Gross Sales (no deductions)
-        const netSales = config.royaltyCalculationBase === 'NET_SALES' 
+        const netSales = Math.round((config.royaltyCalculationBase === 'NET_SALES' 
           ? grossSales - totalDiscounts - wastageValue
-          : grossSales;
+          : grossSales) * 100) / 100;
 
-        const totalWastage = wastageLedgers.reduce(
+        const totalWastage = Math.round(wastageLedgers.reduce(
           (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
           0
-        );
+        ) * 100) / 100;
 
         // Get total received to calculate wastage percentage
         const totalReceived = await prisma.inventoryLedger.aggregate({
@@ -116,13 +116,13 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalReceivedKg = (totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0);
-        const wastagePercent = totalReceivedKg > 0 ? (totalWastage / totalReceivedKg) * 100 : 0;
+        const totalReceivedKg = Math.round(((totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0)) * 100) / 100;
+        const wastagePercent = Math.round((totalReceivedKg > 0 ? (totalWastage / totalReceivedKg) * 100 : 0) * 100) / 100;
 
-        // Calculate penalties
+        // Calculate penalties - Round to 2 decimal places
         const allowedWastagePercent = config.allowedWastagePercent || 5.0;
         const excessWastage = Math.max(0, wastagePercent - allowedWastagePercent);
-        const wastagePenalty = excessWastage > 0 ? grossSales * (excessWastage / 100) * 0.1 : 0; // 10% of excess wastage value
+        const wastagePenalty = Math.round((excessWastage > 0 ? grossSales * (excessWastage / 100) * 0.1 : 0) * 100) / 100; // 10% of excess wastage value
 
         // Check for pricing violations (simplified - check if prices match HQ locked prices)
         let pricingViolationPenalty = 0;
@@ -139,12 +139,12 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
 
         const compliancePenalty = complianceRecords.length * 1000; // Fixed penalty per violation
 
-        // Calculate base royalty
+        // Calculate base royalty - Round to 2 decimal places
         const royaltyBase = config.royaltyCalculationBase === 'NET_SALES' ? netSales : grossSales;
-        const baseRoyalty = royaltyBase * (config.royaltyPercentage / 100);
+        const baseRoyalty = Math.round(royaltyBase * (config.royaltyPercentage / 100) * 100) / 100;
 
-        // Total royalty = base - penalties (ensure non-negative)
-        const totalRoyalty = Math.max(0, baseRoyalty - wastagePenalty - pricingViolationPenalty - compliancePenalty);
+        // Total royalty = base - penalties (ensure non-negative) - Round to 2 decimal places
+        const totalRoyalty = Math.round(Math.max(0, baseRoyalty - wastagePenalty - pricingViolationPenalty - compliancePenalty) * 100) / 100;
 
         // Generate invoice number
         const year = new Date(periodStart).getFullYear();
@@ -645,8 +645,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const grossSales = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
-            const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
+            const grossSales = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
+            const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 100) / 100;
 
             const wastageLedgers = await prisma.inventoryLedger.findMany({
               where: {
@@ -656,18 +656,18 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const wastageValue = wastageLedgers.reduce((sum: any, ledger) => {
+            const wastageValue = Math.round(wastageLedgers.reduce((sum: any, ledger) => {
               return sum + ((ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100;
-            }, 0);
+            }, 0) * 100) / 100;
 
-            const netSales = franchise.franchiseConfig.royaltyCalculationBase === 'NET_SALES'
+            const netSales = Math.round((franchise.franchiseConfig.royaltyCalculationBase === 'NET_SALES'
               ? grossSales - totalDiscounts - wastageValue
-              : grossSales;
+              : grossSales) * 100) / 100;
 
-            const totalWastage = wastageLedgers.reduce(
+            const totalWastage = Math.round(wastageLedgers.reduce(
               (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
               0
-            );
+            ) * 100) / 100;
 
             const totalReceived = await prisma.inventoryLedger.aggregate({
               where: {
@@ -682,12 +682,12 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
               },
             });
 
-            const totalReceivedKg = (totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0);
-            const wastagePercent = totalReceivedKg > 0 ? (totalWastage / totalReceivedKg) * 100 : 0;
+            const totalReceivedKg = Math.round(((totalReceived._sum.qtyKg || 0) + (totalReceived._sum.qtyPcs || 0)) * 100) / 100;
+            const wastagePercent = Math.round((totalReceivedKg > 0 ? (totalWastage / totalReceivedKg) * 100 : 0) * 100) / 100;
 
             const allowedWastagePercent = franchise.franchiseConfig.allowedWastagePercent || 5.0;
             const excessWastage = Math.max(0, wastagePercent - allowedWastagePercent);
-            const wastagePenalty = excessWastage > 0 ? grossSales * (excessWastage / 100) * 0.1 : 0;
+            const wastagePenalty = Math.round((excessWastage > 0 ? grossSales * (excessWastage / 100) * 0.1 : 0) * 100) / 100;
 
             const complianceRecords = await prisma.complianceRecord.findMany({
               where: {
@@ -699,8 +699,8 @@ export async function hqRoyaltyRoutes(fastify: FastifyInstance) {
 
             const compliancePenalty = complianceRecords.length * 1000;
             const royaltyBase = franchise.franchiseConfig.royaltyCalculationBase === 'NET_SALES' ? netSales : grossSales;
-            const baseRoyalty = royaltyBase * (franchise.franchiseConfig.royaltyPercentage / 100);
-            const totalRoyalty = Math.max(0, baseRoyalty - wastagePenalty - compliancePenalty);
+            const baseRoyalty = Math.round(royaltyBase * (franchise.franchiseConfig.royaltyPercentage / 100) * 100) / 100;
+            const totalRoyalty = Math.round(Math.max(0, baseRoyalty - wastagePenalty - compliancePenalty) * 100) / 100;
 
             const invoiceNo = `ROY-${franchise.id.substring(0, 6)}-${targetYear}-${String(targetMonth).padStart(2, '0')}`;
 

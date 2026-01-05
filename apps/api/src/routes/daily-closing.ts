@@ -65,30 +65,30 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           },
         });
 
-        // Calculate totals
+        // Calculate totals - Round to 2 decimal places for money
         const totalSales = sales.length;
-        const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
-        const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
-        const totalTax = sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0);
+        const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
+        const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 100) / 100;
+        const totalTax = Math.round(sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0) * 100) / 100;
 
-        // Calculate payment method breakdown
-        const cashSales = sales.reduce((sum: any, s: any) => {
+        // Calculate payment method breakdown - Round to 2 decimal places
+        const cashSales = Math.round(sales.reduce((sum: any, s: any) => {
           const cashPayments = s.payments.filter((p: any) => p.method === 'CASH');
           return sum + cashPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0);
+        }, 0) * 100) / 100;
 
-        const cardSales = sales.reduce((sum: any, s: any) => {
+        const cardSales = Math.round(sales.reduce((sum: any, s: any) => {
           const cardPayments = s.payments.filter((p: any) => p.method === 'CARD');
           return sum + cardPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0);
+        }, 0) * 100) / 100;
 
-        const upiSales = sales.reduce((sum: any, s: any) => {
+        const upiSales = Math.round(sales.reduce((sum: any, s: any) => {
           const upiPayments = s.payments.filter((p: any) => p.method === 'UPI');
           return sum + upiPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0);
+        }, 0) * 100) / 100;
 
-        // Calculate total weight sold
-        const totalWeightSoldKg = sales.reduce((sum: any, s: any) => {
+        // Calculate total weight sold - Round to 2 decimal places for KG
+        const totalWeightSoldKg = Math.round(sales.reduce((sum: any, s: any) => {
           return (
             sum +
             s.items.reduce((itemSum, item) => {
@@ -98,7 +98,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
               return itemSum;
             }, 0)
           );
-        }, 0);
+        }, 0) * 100) / 100;
 
         // Get wastage for the day
         const wastageLedgers = await prisma.inventoryLedger.findMany({
@@ -112,10 +112,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalWastageKg = wastageLedgers.reduce(
+        const totalWastageKg = Math.round(wastageLedgers.reduce(
           (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
           0
-        );
+        ) * 100) / 100;
 
         // Get closing stock for all products
         // First get the owner store ID
@@ -163,9 +163,9 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           };
         }
 
-        // Calculate cash difference
-        const cashExpected = openingCash + cashSales;
-        const cashDifference = closingCash - cashExpected;
+        // Calculate cash difference - Round to 2 decimal places
+        const cashExpected = Math.round((openingCash + cashSales) * 100) / 100;
+        const cashDifference = Math.round((closingCash - cashExpected) * 100) / 100;
 
         // Create or update daily closing
         const dailyClosing = await prisma.dailyClosing.upsert({

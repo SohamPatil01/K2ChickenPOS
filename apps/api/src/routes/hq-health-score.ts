@@ -138,8 +138,9 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const yieldEfficiencyPercent = expectedYieldKg > 0 ? (totalSoldKg / expectedYieldKg) * 100 : 0;
-        const yieldEfficiencyScore = Math.max(0, Math.min(100, yieldEfficiencyPercent));
+        // Round to 2 decimal places
+        const yieldEfficiencyPercent = Math.round((expectedYieldKg > 0 ? (totalSoldKg / expectedYieldKg) * 100 : 0) * 100) / 100;
+        const yieldEfficiencyScore = Math.round(Math.max(0, Math.min(100, yieldEfficiencyPercent)) * 100) / 100;
 
         // 3. Wastage Score (0-100) - Lower wastage = Higher score
         const wastageLedgers = await prisma.inventoryLedger.findMany({
@@ -153,11 +154,11 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalWastageKg = wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-        const wastagePercent = totalReceivedKg > 0 ? (totalWastageKg / totalReceivedKg) * 100 : 0;
+        const totalWastageKg = Math.round(wastageLedgers.reduce((sum: any, l) => sum + (l.qtyKg || 0) + (l.qtyPcs || 0), 0) * 100) / 100;
+        const wastagePercent = Math.round((totalReceivedKg > 0 ? (totalWastageKg / totalReceivedKg) * 100 : 0) * 100) / 100;
         const allowedWastage = config.allowedWastagePercent || 5.0;
         // Score: 100 if wastage = 0, 50 if wastage = allowed, 0 if wastage = 2x allowed
-        const wastageScore = Math.max(0, Math.min(100, 100 - ((wastagePercent / (allowedWastage * 2)) * 100)));
+        const wastageScore = Math.round(Math.max(0, Math.min(100, 100 - ((wastagePercent / (allowedWastage * 2)) * 100))) * 100) / 100;
 
         // 4. Discount Score (0-100) - Lower discount = Higher score
         const sales = await prisma.sale.findMany({
@@ -171,12 +172,12 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           },
         });
 
-        const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
-        const totalDiscounts = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
-        const discountPercent = totalRevenue > 0 ? (totalDiscounts / totalRevenue) * 100 : 0;
+        const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
+        const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 100) / 100;
+        const discountPercent = Math.round((totalRevenue > 0 ? (totalDiscounts / totalRevenue) * 100 : 0) * 100) / 100;
         const allowedDiscount = config.allowedDiscountPercent || 10.0;
         // Score: 100 if discount = 0, 50 if discount = allowed, 0 if discount = 2x allowed
-        const discountScore = Math.max(0, Math.min(100, 100 - ((discountPercent / (allowedDiscount * 2)) * 100)));
+        const discountScore = Math.round(Math.max(0, Math.min(100, 100 - ((discountPercent / (allowedDiscount * 2)) * 100))) * 100) / 100;
 
         // 5. Compliance Score (0-100)
         const complianceRecords = await prisma.complianceRecord.findMany({
@@ -190,9 +191,9 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
         });
 
         const complianceScores = complianceRecords.filter((r: any) => r.score !== null).map((r) => r.score!);
-        const compliancePercent = complianceScores.length > 0
+        const compliancePercent = Math.round((complianceScores.length > 0
           ? complianceScores.reduce((sum: any, s: any) => sum + s, 0) / complianceScores.length
-          : 100; // Default to 100 if no records
+          : 100) * 100) / 100; // Default to 100 if no records
         const complianceScore = compliancePercent;
 
         // 6. Stock Variance Score (0-100)
@@ -255,8 +256,8 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const avgVariance = varianceCount > 0 ? totalVariance / varianceCount : 0;
-        const stockVarianceScore = Math.max(0, Math.min(100, 100 - avgVariance));
+        const avgVariance = Math.round((varianceCount > 0 ? totalVariance / varianceCount : 0) * 100) / 100;
+        const stockVarianceScore = Math.round(Math.max(0, Math.min(100, 100 - avgVariance)) * 100) / 100;
 
         // Calculate Overall Health Score (weighted average)
         const weights = {
@@ -268,13 +269,14 @@ export async function hqHealthScoreRoutes(fastify: FastifyInstance) {
           stockVariance: 0.15,
         };
 
-        const overallScore =
+        const overallScore = Math.round((
           salesGrowthScore * weights.salesGrowth +
           yieldEfficiencyScore * weights.yieldEfficiency +
           wastageScore * weights.wastage +
           discountScore * weights.discount +
           complianceScore * weights.compliance +
-          stockVarianceScore * weights.stockVariance;
+          stockVarianceScore * weights.stockVariance
+        ) * 100) / 100;
 
         // Create or update health score
         const healthScore = await prisma.franchiseHealthScore.upsert({

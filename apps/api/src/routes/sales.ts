@@ -84,9 +84,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const todayRevenue = todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+    const todayRevenue = Math.round(todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
     const todayCount = todaySales.length;
-    const todayAvgBill = todayCount > 0 ? todayRevenue / todayCount : 0;
+    const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 100) / 100 : 0;
 
     // This month
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -98,7 +98,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const monthRevenue = monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+    const monthRevenue = Math.round(monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
     const monthCount = monthSales.length;
 
     // Recent sales
@@ -274,18 +274,23 @@ export async function saleRoutes(fastify: FastifyInstance) {
             subTotal,
             discountTotal: 0, // Start with 0, will be updated after approval
             taxTotal,
-            grandTotal: Math.round(Math.round((subTotal + taxTotal) * 100) / 100),
+            grandTotal: Math.round(subTotal + taxTotal),
             createdByUserId: userId,
             items: {
-              create: data.items.map((item: any) => ({
-                productId: item.productId,
-                qtyKg: item.qtyKg,
-                qtyPcs: item.qtyPcs,
-                rate: item.rate,
-                lineTotal: (item.qtyKg || item.qtyPcs || 0) * item.rate,
-                taxRate: item.taxRate,
-                taxAmount: (item.qtyKg || item.qtyPcs || 0) * item.rate * (item.taxRate / 100),
-              })),
+              create: data.items.map((item: any) => {
+                const qty = item.qtyKg || item.qtyPcs || 0;
+                const lineTotal = Math.round(qty * item.rate * 100) / 100;
+                const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
+                return {
+                  productId: item.productId,
+                  qtyKg: item.qtyKg,
+                  qtyPcs: item.qtyPcs,
+                  rate: item.rate,
+                  lineTotal,
+                  taxRate: item.taxRate,
+                  taxAmount,
+                };
+              }),
             },
           },
           include: {
@@ -373,16 +378,21 @@ export async function saleRoutes(fastify: FastifyInstance) {
           grandTotal: roundedGrandTotal,
           createdByUserId: userId,
           items: {
-            create: data.items.map((item: any) => ({
-              productId: item.productId,
-              qtyKg: item.qtyKg,
-              qtyPcs: item.qtyPcs,
-              rate: item.rate,
-              lineTotal: (item.qtyKg || item.qtyPcs || 0) * item.rate,
-              taxRate: item.taxRate,
-              taxAmount: ((item.qtyKg || item.qtyPcs || 0) * item.rate) * (item.taxRate / 100),
-              metaJson: item.metaJson,
-            })),
+            create: data.items.map((item: any) => {
+              const qty = item.qtyKg || item.qtyPcs || 0;
+              const lineTotal = Math.round(qty * item.rate * 100) / 100;
+              const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
+              return {
+                productId: item.productId,
+                qtyKg: item.qtyKg,
+                qtyPcs: item.qtyPcs,
+                rate: item.rate,
+                lineTotal,
+                taxRate: item.taxRate,
+                taxAmount,
+                metaJson: item.metaJson,
+              };
+            }),
           },
         },
         include: {
@@ -894,16 +904,21 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Create new items
       await prisma.saleItem.createMany({
-        data: data.items.map((item: any) => ({
-          saleId: id,
-          productId: item.productId,
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
-          rate: item.rate,
-          lineTotal: (item.qtyKg || item.qtyPcs || 0) * item.rate,
-          taxRate: item.taxRate,
-          taxAmount: ((item.qtyKg || item.qtyPcs || 0) * item.rate) * (item.taxRate / 100),
-        })),
+        data: data.items.map((item: any) => {
+          const qty = item.qtyKg || item.qtyPcs || 0;
+          const lineTotal = Math.round(qty * item.rate * 100) / 100;
+          const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
+          return {
+            saleId: id,
+            productId: item.productId,
+            qtyKg: item.qtyKg,
+            qtyPcs: item.qtyPcs,
+            rate: item.rate,
+            lineTotal,
+            taxRate: item.taxRate,
+            taxAmount,
+          };
+        }),
       });
 
       // Update sale totals
