@@ -90,6 +90,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
       fastify.log.info(`Starting database backup at ${timestamp}`);
 
       // Fetch all critical data from database
+      // Use try-catch for queries that might fail due to missing columns in older database schemas
       const [
         stores,
         users,
@@ -109,7 +110,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
         discountOverrides,
         dailyClosings
       ] = await Promise.all([
-        prisma.store.findMany(),
+        prisma.store.findMany().catch((err) => { console.error('Error fetching stores:', err); return []; }),
         prisma.user.findMany({
           select: {
             id: true,
@@ -122,22 +123,45 @@ export async function backupRoutes(fastify: FastifyInstance) {
             updatedAt: true,
             // Exclude password hash for security
           }
-        }),
-        prisma.product.findMany(),
-        prisma.customer.findMany(),
-        prisma.sale.findMany(),
-        prisma.saleItem.findMany(),
-        prisma.payment.findMany(),
-        prisma.inventoryLedger.findMany(),
-        prisma.purchaseOrder.findMany(),
-        prisma.purchaseOrderItem.findMany().catch(() => []), // Handle missing columns gracefully
-        prisma.deliveryOrder.findMany(),
-        prisma.franchiseConfig.findMany(),
-        prisma.royaltyInvoice.findMany(),
-        prisma.royaltyLedger.findMany(),
-        prisma.complianceRecord.findMany(),
-        prisma.discountOverride.findMany(),
-        prisma.dailyClosing.findMany()
+        }).catch((err) => { console.error('Error fetching users:', err); return []; }),
+        prisma.product.findMany().catch((err) => { console.error('Error fetching products:', err); return []; }),
+        prisma.customer.findMany().catch((err) => { console.error('Error fetching customers:', err); return []; }),
+        prisma.sale.findMany().catch((err) => { console.error('Error fetching sales:', err); return []; }),
+        prisma.saleItem.findMany().catch((err) => { console.error('Error fetching saleItems:', err); return []; }),
+        prisma.payment.findMany().catch((err) => { console.error('Error fetching payments:', err); return []; }),
+        prisma.inventoryLedger.findMany().catch((err) => { console.error('Error fetching inventoryLedger:', err); return []; }),
+        prisma.purchaseOrder.findMany().catch((err) => { console.error('Error fetching purchaseOrders:', err); return []; }),
+        // PurchaseOrderItem might have missing columns (receivedQtyKg, receivedQtyPcs, updatedAt) in older schemas
+        // Try with all columns first, fallback to basic query if columns don't exist
+        (async () => {
+          try {
+            return await prisma.purchaseOrderItem.findMany();
+          } catch (err: any) {
+            // If error is about missing columns, try with raw SQL selecting only existing columns
+            if (err.message?.includes('does not exist') || err.message?.includes('column')) {
+              console.warn('[Backup] PurchaseOrderItem missing new columns, using fallback query');
+              try {
+                const result = await prisma.$queryRawUnsafe(`
+                  SELECT id, "poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt"
+                  FROM "PurchaseOrderItem"
+                `);
+                return result || [];
+              } catch (fallbackErr) {
+                console.error('[Backup] Error fetching purchaseOrderItems (fallback failed):', fallbackErr);
+                return [];
+              }
+            }
+            console.error('[Backup] Error fetching purchaseOrderItems:', err);
+            return [];
+          }
+        })(),
+        prisma.deliveryOrder.findMany().catch((err) => { console.error('Error fetching deliveryOrders:', err); return []; }),
+        prisma.franchiseConfig.findMany().catch((err) => { console.error('Error fetching franchiseConfigs:', err); return []; }),
+        prisma.royaltyInvoice.findMany().catch((err) => { console.error('Error fetching royaltyInvoices:', err); return []; }),
+        prisma.royaltyLedger.findMany().catch((err) => { console.error('Error fetching royaltyLedgers:', err); return []; }),
+        prisma.complianceRecord.findMany().catch((err) => { console.error('Error fetching complianceRecords:', err); return []; }),
+        prisma.discountOverride.findMany().catch((err) => { console.error('Error fetching discountOverrides:', err); return []; }),
+        prisma.dailyClosing.findMany().catch((err) => { console.error('Error fetching dailyClosings:', err); return []; })
       ]);
 
       // Create backup object
