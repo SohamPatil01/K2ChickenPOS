@@ -48,6 +48,64 @@ export default function HQPage() {
     endDate: new Date().toISOString().split('T')[0],
   });
 
+  const loadFranchises = useCallback(async () => {
+    try {
+      const timestamp = Date.now();
+      const response = await api.get('/api/v1/stores/franchises/summary', {
+        params: { _t: timestamp },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      setFranchises(response.data || []);
+    } catch (error: any) {
+      console.error('Failed to load franchises:', error);
+    }
+  }, []);
+
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const timestamp = Date.now();
+      const response = await api.get('/api/v1/hq/dashboard', {
+        params: {
+          ...dateRange,
+          _t: timestamp, // Cache busting
+        },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      setDashboard(response.data);
+    } catch (error: any) {
+      console.error('Failed to load HQ dashboard:', error);
+      console.error('Error response:', error.response);
+      console.error('Error details:', error.response?.data);
+      
+      let errorMessage = 'Failed to load HQ dashboard';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+        if (error.response.data.details) {
+          errorMessage += `: ${error.response.data.details}`;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error: Cannot connect to API. Please check if the API is running.';
+      }
+      
+      setError(errorMessage);
+      console.error('[HQ Page] Dashboard load error:', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange]);
+
   useEffect(() => {
     // Wait for user to load from localStorage
     if (user === undefined) {
@@ -107,23 +165,6 @@ export default function HQPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user?.role, activeTab, loadDashboard]);
-
-  const loadFranchises = useCallback(async () => {
-    try {
-      const timestamp = Date.now();
-      const response = await api.get('/api/v1/stores/franchises/summary', {
-        params: { _t: timestamp },
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      setFranchises(response.data || []);
-    } catch (error: any) {
-      console.error('Failed to load franchises:', error);
-    }
-  }, []);
 
   const handleAddFranchise = async () => {
     if (!formData.name.trim()) {
@@ -188,47 +229,6 @@ export default function HQPage() {
     setFormData({ name: franchise.name });
     setShowEditModal(true);
   };
-
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const timestamp = Date.now();
-      const response = await api.get('/api/v1/hq/dashboard', {
-        params: {
-          ...dateRange,
-          _t: timestamp, // Cache busting
-        },
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      setDashboard(response.data);
-    } catch (error: any) {
-      console.error('Failed to load HQ dashboard:', error);
-      console.error('Error response:', error.response);
-      console.error('Error details:', error.response?.data);
-      
-      let errorMessage = 'Failed to load HQ dashboard';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-        if (error.response.data.details) {
-          errorMessage += `: ${error.response.data.details}`;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      } else if (error.code === 'ERR_NETWORK') {
-        errorMessage = 'Network error: Cannot connect to API. Please check if the API is running.';
-      }
-      
-      setError(errorMessage);
-      console.error('[HQ Page] Dashboard load error:', errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange]);
 
   const StatCard = ({ title, value, subtitle, icon }: { title: string; value: string | number; subtitle?: string; icon: string }) => (
     <div className="bg-white rounded-lg shadow p-6">
