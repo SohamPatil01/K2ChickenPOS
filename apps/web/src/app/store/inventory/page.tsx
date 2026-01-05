@@ -838,12 +838,25 @@ export default function StoreInventoryPage() {
       {/* Header Section - Stacked on mobile */}
       <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4 flex-shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">Inventory</h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            {activeTab === 'inventory' 
-              ? 'Click "Adjust" on any product to add or subtract inventory'
-              : 'Add multiple items to inventory at once'}
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">Inventory</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                {activeTab === 'inventory' 
+                  ? 'Click "Adjust" on any product to add or subtract inventory'
+                  : 'Add multiple items to inventory at once'}
+              </p>
+            </div>
+            <button
+              onClick={loadInventory}
+              disabled={loading}
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
+              title="Refresh inventory (auto-refreshes every 10 seconds)"
+            >
+              <span>🔄</span>
+              <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+          </div>
         </div>
         
         {/* Tabs */}
