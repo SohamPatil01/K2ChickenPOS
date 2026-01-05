@@ -152,8 +152,14 @@ export default function StoreInventoryPage() {
         console.log(
           `[Frontend] Loading inventory at ${new Date(timestamp).toISOString()}`
         );
+        // Pass storeId if user is authenticated and has a store
+        const params: any = { _t: timestamp };
+        if (user?.storeId) {
+          params.storeId = user.storeId;
+        }
+        
         const response = await api.get("/api/v1/inventory/summary", {
-          params: { _t: timestamp },
+          params,
           headers: {
             "Cache-Control": "no-cache, no-store, must-revalidate",
             Pragma: "no-cache",
@@ -290,6 +296,18 @@ export default function StoreInventoryPage() {
         loadStockProducts();
       }
     }
+    
+    // Listen for PO finalization events to refresh inventory
+    const handlePOFinalized = () => {
+      console.log('[Inventory] PO finalized event received, refreshing inventory...');
+      loadInventory(true);
+    };
+    
+    window.addEventListener('po-finalized', handlePOFinalized);
+    
+    return () => {
+      window.removeEventListener('po-finalized', handlePOFinalized);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, activeTab, loadInventory]);
 

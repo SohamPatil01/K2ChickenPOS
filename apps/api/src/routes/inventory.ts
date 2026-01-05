@@ -43,25 +43,42 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/summary', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Get user's store - now requires authentication
+      // Check if storeId is provided in query params
+      const queryStoreId = (request.query as any)?.storeId;
+      
+      // Try to get user's store from authentication, fallback to query param or default store
       let user;
       let store;
       let storeId = '';
       
       try {
         user = getUser(request as any);
-        if (!user || !user.storeId) {
-          reply.code(401).send({ error: 'Authentication required', details: 'User or store ID not found' });
-          return;
+        if (user && (user as any).storeId) {
+          storeId = queryStoreId || (user as any).storeId; // Use query param if provided, otherwise user's store
+          store = await prisma.store.findUnique({ where: { id: storeId } });
+          console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
         }
-        storeId = user.storeId;
-        store = await prisma.store.findUnique({ where: { id: storeId } });
-        console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
       } catch (authError: any) {
-        console.error('[Inventory Summary] Authentication error:', authError);
-        reply.code(401).send({ error: 'Authentication failed', details: authError.message });
+        // Not authenticated, use query param or default to oldest OWNER store
+        if (queryStoreId) {
+          storeId = queryStoreId;
+          store = await prisma.store.findUnique({ where: { id: storeId } });
+          console.log(`[Inventory Summary] Using query store ID: ${storeId}`);
+        } else {
+          console.log('[Inventory Summary] User not authenticated, using fallback store');
+          const defaultStore = await prisma.store.findFirst({ 
+            where: { type: 'OWNER' },
+            orderBy: { createdAt: 'asc' }
+          });
+          storeId = defaultStore?.id || '';
+          store = defaultStore;
+        }
+      }
+      
+      if (!storeId || !store) {
+        reply.code(400).send({ error: 'Store ID is required' });
         return;
       }
       

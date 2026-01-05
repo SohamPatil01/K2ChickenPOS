@@ -508,6 +508,9 @@ export async function poRoutes(fastify: FastifyInstance) {
       const franchiseStoreId = po.franchiseStoreId;
       const inventoryEntries = [];
 
+      console.log(`[PO Finalize] Finalizing PO ${po.poNo} (${id}) for store ${franchiseStoreId}`);
+      console.log(`[PO Finalize] PO has ${po.items.length} items`);
+
       // Add inventory for each item using received quantities (or original if not set)
       for (const item of po.items) {
         // Use received quantities if available, otherwise use original quantities
@@ -517,6 +520,8 @@ export async function poRoutes(fastify: FastifyInstance) {
         const qtyPcs = item.receivedQtyPcs !== null && item.receivedQtyPcs !== undefined 
           ? item.receivedQtyPcs 
           : item.qtyPcs;
+
+        console.log(`[PO Finalize] Item ${item.product?.name || item.productId}: originalKg=${item.qtyKg}, receivedKg=${item.receivedQtyKg}, finalKg=${qtyKg}`);
 
         // Skip items with no quantity
         const hasQtyKg = qtyKg !== null && qtyKg !== undefined && qtyKg > 0;
@@ -532,7 +537,7 @@ export async function poRoutes(fastify: FastifyInstance) {
           productId: item.productId,
           type: 'IN',
           reason: 'RECEIVE',
-          refId: id,
+          refId: id, // Ensure refId is always set
         };
 
         if (hasQtyKg) {
@@ -543,15 +548,21 @@ export async function poRoutes(fastify: FastifyInstance) {
           ledgerEntry.qtyPcs = qtyPcs;
         }
 
+        console.log(`[PO Finalize] Creating ledger entry:`, ledgerEntry);
+
         try {
           const created = await prisma.inventoryLedger.create({
             data: ledgerEntry,
           });
+          console.log(`[PO Finalize] ✅ Created ledger entry ${created.id} for product ${item.productId}`);
           inventoryEntries.push(created);
         } catch (error: any) {
-          console.error(`[PO Finalize] Failed to create inventory ledger entry:`, error);
+          console.error(`[PO Finalize] ❌ Failed to create inventory ledger entry:`, error);
+          console.error(`[PO Finalize] Error details:`, error.message, error.stack);
         }
       }
+
+      console.log(`[PO Finalize] Created ${inventoryEntries.length} inventory entries`);
 
       // Update PO status to CLOSED
       const updated = await prisma.purchaseOrder.update({

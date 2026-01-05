@@ -108,8 +108,23 @@ export default function POPage() {
   const loadPOs = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/api/v1/po');
-      setPos(response.data);
+      const timestamp = Date.now();
+      const response = await api.get('/api/v1/po', {
+        params: { _t: timestamp },
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      setPos(response.data || []);
+      // Also update selectedPO if it exists
+      if (selectedPO) {
+        const updatedPO = response.data?.find((p: PO) => p.id === selectedPO.id);
+        if (updatedPO) {
+          setSelectedPO(updatedPO);
+        }
+      }
     } catch (error) {
       console.error('Failed to load POs:', error);
     } finally {
@@ -120,6 +135,8 @@ export default function POPage() {
   const handleAction = async (poId: string, action: string) => {
     try {
       const response = await api.post(`/api/v1/po/${poId}/${action}`);
+      // Force reload with a small delay to ensure backend has processed
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
       const actionName = action.charAt(0).toUpperCase() + action.slice(1);
       if (action === 'approve') {
@@ -140,6 +157,8 @@ export default function POPage() {
     }
     try {
       await api.post(`/api/v1/po/dispatch/${dispatchId}/receive`);
+      // Force reload with a small delay to ensure backend has processed
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
       alert('Dispatch received! You can now edit received quantities to account for shrinkage.');
     } catch (error: any) {
@@ -179,6 +198,8 @@ export default function POPage() {
       }));
 
       await api.put(`/api/v1/po/${selectedPO.id}/receive`, { items });
+      // Force reload with a small delay to ensure backend has processed
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
       setShowEditReceivedModal(false);
       setSelectedPO(null);
@@ -196,7 +217,15 @@ export default function POPage() {
 
     try {
       await api.post(`/api/v1/po/${poId}/finalize`);
+      // Force reload with a small delay to ensure backend has processed
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
+      // Close modals if open
+      setShowViewModal(false);
+      setShowEditReceivedModal(false);
+      setSelectedPO(null);
+      // Dispatch event to notify inventory page to refresh
+      window.dispatchEvent(new Event('po-finalized'));
       alert('PO finalized! Stock has been added to inventory.');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to finalize PO');
@@ -268,6 +297,8 @@ export default function POPage() {
         notes: poNotes || undefined,
       });
 
+      // Force reload with a small delay to ensure backend has processed
+      await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
       setShowCreateModal(false);
       setPoItems([]);
