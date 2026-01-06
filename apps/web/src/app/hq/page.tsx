@@ -17,6 +17,10 @@ export default function HQPage() {
   const [editingFranchise, setEditingFranchise] = useState<any | null>(null);
   const [formData, setFormData] = useState({ name: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+  });
 
   const loadFranchises = useCallback(async () => {
     try {
