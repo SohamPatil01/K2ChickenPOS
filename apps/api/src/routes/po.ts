@@ -212,9 +212,11 @@ export async function poRoutes(fastify: FastifyInstance) {
             if (poIds.length === 0) {
               pos = [];
             } else {
-              // Use Prisma's queryRaw with proper parameter binding
-              const items = await prisma.$queryRaw`
-                SELECT 
+              // Use Prisma's queryRawUnsafe with proper array formatting
+              // Build placeholders for the array
+              const placeholders = poIds.map((_, i) => `$${i + 1}`).join(', ');
+              const items = await prisma.$queryRawUnsafe(
+                `SELECT 
                   poi.id,
                   poi."poId",
                   poi."productId",
@@ -231,8 +233,9 @@ export async function poRoutes(fastify: FastifyInstance) {
                   p."isActive" as "product_isActive"
                 FROM "PurchaseOrderItem" poi
                 LEFT JOIN "Product" p ON p.id = poi."productId"
-                WHERE poi."poId" = ANY(${poIds}::text[])
-              ` as any[];
+                WHERE poi."poId" IN (${placeholders})`,
+                ...poIds
+              ) as any[];
               
               // Group items by poId
               const itemsByPoId = new Map<string, any[]>();
