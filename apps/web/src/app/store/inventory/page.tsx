@@ -294,7 +294,7 @@ export default function StoreInventoryPage() {
     }
 
     if (user && (user.role === "MANAGER" || user.role === "OWNER")) {
-      loadInventory(true); // Force initial load
+      loadInventoryRef.current?.(true); // Force initial load
       loadCategories();
       if (activeTab === "addStock") {
         loadStockProducts();
@@ -304,7 +304,7 @@ export default function StoreInventoryPage() {
     // Listen for PO finalization events to refresh inventory
     const handlePOFinalized = () => {
       console.log('[Inventory] PO finalized event received, refreshing inventory...');
-      loadInventory(true);
+      loadInventoryRef.current?.(true);
     };
     
     window.addEventListener('po-finalized', handlePOFinalized);
