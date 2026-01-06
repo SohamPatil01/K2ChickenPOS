@@ -321,7 +321,18 @@ export default function StoreCartPage() {
       setShowSuccessAnimation(true);
       
       // Trigger a custom event to notify other pages to refresh
-      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id } }));
+      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, paymentMethod } }));
+      
+      // Dispatch specific event for cash sales to update daily closing in real-time
+      if (paymentMethod === 'CASH') {
+        window.dispatchEvent(new CustomEvent('cash-sale-completed', { 
+          detail: { 
+            saleId: sale.id, 
+            amount: amountPaid,
+            grandTotal: roundedSaleGrandTotal 
+          } 
+        }));
+      }
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
       console.error('[Cart] Error response:', error.response?.data);
