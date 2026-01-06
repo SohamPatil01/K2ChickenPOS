@@ -17,7 +17,7 @@
   "crons": [
     {
       "path": "/api/v1/backup/create",
-      "schedule": "55 11 * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }

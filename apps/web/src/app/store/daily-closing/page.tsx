@@ -28,6 +28,39 @@ export default function StoreDailyClosingPage() {
     loadClosing();
   }, [user, router, closingDate]);
 
+  // Auto-calculate closing cash when opening cash or cash sales changes
+  useEffect(() => {
+    if (summary?.cashSales !== undefined && formData.openingCash !== undefined) {
+      const calculatedClosingCash = (formData.openingCash || 0) + (summary.cashSales || 0);
+      setFormData(prev => ({ ...prev, closingCash: calculatedClosingCash }));
+    }
+  }, [formData.openingCash, summary?.cashSales]);
+
+  // Listen for cash sale events to refresh data in real-time
+  useEffect(() => {
+    const handleCashSaleCompleted = () => {
+      console.log('[Daily Closing] Cash sale completed, refreshing data...');
+      loadClosing();
+    };
+
+    const handleSaleCreated = (event: any) => {
+      // Check if it's a cash sale
+      const paymentMethod = event.detail?.paymentMethod;
+      if (paymentMethod === 'CASH') {
+        console.log('[Daily Closing] Cash sale created, refreshing data...');
+        loadClosing();
+      }
+    };
+
+    window.addEventListener('cash-sale-completed', handleCashSaleCompleted);
+    window.addEventListener('sale-created', handleSaleCreated as EventListener);
+
+    return () => {
+      window.removeEventListener('cash-sale-completed', handleCashSaleCompleted);
+      window.removeEventListener('sale-created', handleSaleCreated as EventListener);
+    };
+  }, [closingDate]);
+
   const loadClosing = async () => {
     setLoading(true);
     try {
@@ -224,7 +257,10 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Closing Cash</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Closing Cash
+                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Auto-calculated)</span>
+              </label>
               <input
                 type="number"
                 value={formData.closingCash || ''}

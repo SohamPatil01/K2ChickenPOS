@@ -71,18 +71,26 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const backupSecret = process.env.BACKUP_SECRET;
       const providedSecret = (request.headers['x-backup-secret'] as string) || 
                             (request.query as any).secret;
+      
+      // Allow Vercel Cron Jobs to authenticate (they send x-vercel-cron header)
+      const isVercelCron = request.headers['x-vercel-cron'] === '1';
+      
+      // Authenticate: Vercel Cron job OR valid secret OR no secret configured (for initial setup)
+      const isAuthenticated = isVercelCron || 
+                             (backupSecret && providedSecret === backupSecret) ||
+                             !backupSecret;
 
-      // Only check secret if it's configured
-      if (backupSecret) {
-        if (!providedSecret || providedSecret !== backupSecret) {
-          reply.status(401);
-          return {
-            success: false,
-            message: 'Unauthorized: Invalid backup secret',
-            timestamp: new Date().toISOString()
-          };
-        }
-      } else {
+      if (!isAuthenticated) {
+        reply.status(401);
+        return {
+          success: false,
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      // Log warning if BACKUP_SECRET is not set (for production security)
+      if (!backupSecret && !isVercelCron) {
         fastify.log.warn('[Backup] BACKUP_SECRET not set - allowing backup without authentication (not recommended for production)');
       }
 
@@ -262,12 +270,18 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const backupSecret = process.env.BACKUP_SECRET;
       const providedSecret = (request.headers['x-backup-secret'] as string) || 
                             (request.query as any).secret;
+      
+      // Allow Vercel Cron Jobs to authenticate (they send x-vercel-cron header)
+      const isVercelCron = request.headers['x-vercel-cron'] === '1';
+      
+      // Authenticate: either valid secret OR Vercel Cron job
+      const isAuthenticated = isVercelCron || (backupSecret && providedSecret === backupSecret);
 
-      if (!backupSecret || providedSecret !== backupSecret) {
+      if (!isAuthenticated) {
         reply.status(401);
         return {
           success: false,
-          message: 'Unauthorized: Invalid backup secret'
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job'
         };
       }
 
