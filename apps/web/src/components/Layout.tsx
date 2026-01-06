@@ -37,18 +37,20 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: '/store', label: 'Store', roles: ['MANAGER', 'OWNER', 'DRIVER'] },
+    { path: '/hq', label: 'HQ', roles: ['OWNER'] },
   ];
 
   // Filter nav items based on user role
   // Hide Store tab when on reports, purchase orders, or analytics pages
   const visibleNavItems = navItems.filter((item) => {
     if (!user?.role) return false;
-    // Hide Store tab when viewing reports, purchase orders, or analytics
+    // Hide Store tab when viewing reports, purchase orders, or analytics (but keep HQ visible)
     if (
-      pathname?.startsWith('/store/reports') ||
+      item.path === '/store' &&
+      (pathname?.startsWith('/store/reports') ||
       pathname?.startsWith('/reports') ||
       pathname?.startsWith('/po') ||
-      pathname?.startsWith('/analytics')
+      pathname?.startsWith('/analytics'))
     ) {
       return false;
     }
