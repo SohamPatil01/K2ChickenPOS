@@ -72,15 +72,25 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const providedSecret = (request.headers['x-backup-secret'] as string) || 
                             (request.query as any).secret;
       
-      // Allow Vercel Cron Jobs to authenticate (they send x-vercel-cron header)
-      const isVercelCron = request.headers['x-vercel-cron'] === '1';
+      // Allow Vercel Cron Jobs to authenticate
+      // Vercel sends x-vercel-cron header (value can be '1' or just present)
+      const vercelCronHeader = request.headers['x-vercel-cron'];
+      const isVercelCron = vercelCronHeader === '1' || vercelCronHeader === 'true' || !!vercelCronHeader;
+      
+      // Also check for Vercel's user-agent or other indicators
+      const userAgent = request.headers['user-agent'] || '';
+      const isVercelRequest = userAgent.includes('vercel') || isVercelCron;
+      
+      // Log authentication attempt for debugging
+      fastify.log.info(`[Backup] Auth check - VercelCron: ${isVercelCron}, Header: ${vercelCronHeader}, UserAgent: ${userAgent.substring(0, 50)}`);
       
       // Authenticate: Vercel Cron job OR valid secret OR no secret configured (for initial setup)
-      const isAuthenticated = isVercelCron || 
+      const isAuthenticated = isVercelRequest || 
                              (backupSecret && providedSecret === backupSecret) ||
-                             !backupSecret;
+                             (!backupSecret);
 
       if (!isAuthenticated) {
+        fastify.log.warn(`[Backup] Authentication failed - VercelCron: ${isVercelCron}, HasSecret: ${!!backupSecret}, ProvidedSecret: ${!!providedSecret}`);
         reply.status(401);
         return {
           success: false,
@@ -90,7 +100,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
       }
 
       // Log warning if BACKUP_SECRET is not set (for production security)
-      if (!backupSecret && !isVercelCron) {
+      if (!backupSecret && !isVercelRequest) {
         fastify.log.warn('[Backup] BACKUP_SECRET not set - allowing backup without authentication (not recommended for production)');
       }
 
@@ -225,21 +235,32 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const backupJson = JSON.stringify(backup, null, 2);
       const backupSize = Buffer.byteLength(backupJson, 'utf8');
 
+      fastify.log.info(`[Backup] Data fetched successfully. Total size: ${backupSize} bytes`);
+
       // Store backup based on configured storage method
       const storageMethod = process.env.BACKUP_STORAGE_METHOD || 'vercel-blob';
+      fastify.log.info(`[Backup] Storage method: ${storageMethod}`);
       
       if (storageMethod === 'vercel-blob') {
         // Use Vercel Blob Storage (recommended)
+        fastify.log.info('[Backup] Attempting to store in Vercel Blob...');
+        const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+        if (!blobToken) {
+          throw new Error('BLOB_READ_WRITE_TOKEN environment variable is not set. Please enable Vercel Blob Storage in your project settings.');
+        }
         await storeInVercelBlob(backupJson, timestamp);
+        fastify.log.info('[Backup] Successfully stored in Vercel Blob');
       } else if (storageMethod === 's3') {
         // Use AWS S3
+        fastify.log.info('[Backup] Attempting to store in AWS S3...');
         await storeInS3(backupJson, timestamp);
+        fastify.log.info('[Backup] Successfully stored in S3');
       } else {
         // Log only (for testing)
-        fastify.log.info(`Backup created (${backupSize} bytes) but not stored (BACKUP_STORAGE_METHOD not configured)`);
+        fastify.log.warn(`[Backup] Backup created (${backupSize} bytes) but not stored (BACKUP_STORAGE_METHOD=${storageMethod} not configured)`);
       }
 
-      fastify.log.info(`Database backup completed successfully. Size: ${backupSize} bytes`);
+      fastify.log.info(`[Backup] Database backup completed successfully. Size: ${backupSize} bytes`);
 
       return {
         success: true,
@@ -250,13 +271,18 @@ export async function backupRoutes(fastify: FastifyInstance) {
       };
 
     } catch (error: any) {
-      fastify.log.error('Backup failed:', error);
+      fastify.log.error('[Backup] Backup failed with error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code
+      });
       reply.status(500);
       return {
         success: false,
         message: 'Backup failed',
         timestamp: new Date().toISOString(),
-        error: error.message
+        error: error.message || 'Unknown error occurred'
       };
     }
   });
@@ -331,16 +357,28 @@ async function storeInVercelBlob(backupJson: string, timestamp: string) {
     
     const filename = `backup-${timestamp.replace(/:/g, '-')}.json`;
     
+    console.log(`[Backup] Uploading to Vercel Blob: ${filename} (${backupJson.length} bytes)`);
+    
     const blob = await put(filename, backupJson, {
       access: 'public',
       addRandomSuffix: false,
     });
 
-    console.log(`Backup stored in Vercel Blob: ${blob.url}`);
+    console.log(`[Backup] Successfully stored in Vercel Blob: ${blob.url}`);
     return blob;
   } catch (error: any) {
-    console.error('Failed to store in Vercel Blob:', error);
-    throw new Error(`Vercel Blob storage failed: ${error.message}`);
+    console.error('[Backup] Failed to store in Vercel Blob:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    // Provide more helpful error messages
+    if (error.message?.includes('BLOB_READ_WRITE_TOKEN') || error.message?.includes('token')) {
+      throw new Error(`Vercel Blob storage failed: BLOB_READ_WRITE_TOKEN is missing or invalid. Please check your Vercel environment variables. Original error: ${error.message}`);
+    }
+    
+    throw new Error(`Vercel Blob storage failed: ${error.message || 'Unknown error'}`);
   }
 }
 
