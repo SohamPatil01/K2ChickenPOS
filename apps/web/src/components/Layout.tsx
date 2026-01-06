@@ -37,7 +37,6 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: '/store', label: 'Store', roles: ['MANAGER', 'OWNER', 'DRIVER'] },
-    { path: '/hq', label: 'HQ', roles: ['OWNER'] },
   ];
 
   // Filter nav items based on user role
@@ -83,6 +82,14 @@ export default function Layout({ children }: LayoutProps) {
                     {item.label}
                   </Link>
                 ))}
+                {user?.role === 'OWNER' && (
+                  <a
+                    href="http://localhost:3002/dashboard"
+                    className="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600"
+                  >
+                    HQ
+                  </a>
+                )}
               </div>
             </div>
             <div className="flex items-center">

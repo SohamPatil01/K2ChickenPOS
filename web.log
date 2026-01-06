@@ -2,98 +2,22 @@
 > @azela-pos/web@1.0.0 dev /Users/soham/Desktop/K2POS/K2ChickenPOS/apps/web
 > next dev -p 3001
 
-   ▲ Next.js 14.0.4
-   - Local:        http://localhost:3001
-
- ✓ Ready in 5.2s
- ✓ Compiled /src/middleware in 469ms (64 modules)
- ○ Compiling / ...
- ✓ Compiled / in 4.7s (451 modules)
- ✓ Compiled in 1627ms (229 modules)
- ○ Compiling /hq ...
- ✓ Compiled /hq in 1627ms (662 modules)
- ○ Compiling /store ...
- ✓ Compiled /store in 754ms (701 modules)
- ✓ Compiled in 447ms (324 modules)
- ✓ Compiled in 317ms (324 modules)
- ✓ Compiled in 529ms (324 modules)
- ✓ Compiled in 246ms (324 modules)
- ✓ Compiled in 1035ms (324 modules)
- ✓ Compiled in 529ms (324 modules)
- ✓ Compiled in 429ms (324 modules)
- ✓ Compiled in 349ms (324 modules)
- ○ Compiling /po ...
- ✓ Compiled /po in 704ms (717 modules)
- ○ Compiling /login ...
- ✓ Compiled /store/pos in 3s (749 modules)
- ✓ Compiled /pos in 156ms (755 modules)
- ✓ Compiled /not-found in 270ms (760 modules)
- ✓ Compiled /store/customers in 274ms (766 modules)
- ✓ Compiled / in 245ms (419 modules)
- ○ Compiling /not-found ...
- ✓ Compiled /not-found in 681ms (757 modules)
- ✓ Compiled /pos in 353ms (422 modules)
- ○ Compiling /store/inventory ...
- ✓ Compiled /store/inventory in 675ms (767 modules)
- ✓ Compiled /store/wastage in 198ms (773 modules)
- ○ Compiling /store/pending-payments ...
- ✓ Compiled /store/pending-payments in 694ms (777 modules)
- ✓ Compiled /store/customers in 160ms (435 modules)
- ✓ Compiled in 1743ms (758 modules)
- ✓ Compiled in 588ms (758 modules)
- ✓ Compiled in 567ms (758 modules)
- ✓ Compiled in 384ms (758 modules)
- ○ Compiling /not-found ...
- ✓ Compiled /not-found in 2.2s (749 modules)
- ○ Compiling /login ...
- ✓ Compiled /login in 564ms (423 modules)
- ✓ Compiled /pos in 147ms (427 modules)
- ○ Compiling /store/orders ...
- ✓ Compiled /store/orders in 612ms (779 modules)
- ✓ Compiled in 857ms (760 modules)
- ✓ Compiled in 1343ms (760 modules)
- ✓ Compiled in 1739ms (760 modules)
- ✓ Compiled in 1601ms (760 modules)
- ✓ Compiled in 1738ms (760 modules)
- ✓ Compiled in 340ms (760 modules)
- ○ Compiling /not-found ...
- ✓ Compiled /not-found in 920ms (751 modules)
- ○ Compiling /login ...
- ✓ Compiled /login in 1228ms (423 modules)
- ○ Compiling /pos ...
- ✓ Compiled /pos in 1570ms (427 modules)
- ✓ Compiled /hq in 467ms (432 modules)
- ✓ Compiled /franchises/[id] in 449ms (782 modules)
- ✓ Compiled /franchises in 435ms (788 modules)
- ○ Compiling /store ...
- ✓ Compiled /store in 800ms (420 modules)
- ○ Compiling /store/cart ...
- ✓ Compiled /store/cart in 1738ms (780 modules)
- ✓ Compiled /store/orders in 113ms (430 modules)
- ✓ Compiled /po in 189ms (430 modules)
- ✓ Compiled /store/inventory in 221ms (425 modules)
- ○ Compiling /store/stock-ledger ...
- ✓ Compiled /store/stock-ledger in 558ms (785 modules)
- ✓ Compiled /pos in 266ms (425 modules)
- ✓ Compiled /store/pos in 112ms (429 modules)
- ✓ Compiled /not-found in 273ms (784 modules)
- ✓ Compiled in 2.4s (785 modules)
- ✓ Compiled in 1275ms (785 modules)
- ✓ Compiled in 1542ms (785 modules)
- ✓ Compiled in 2.4s (785 modules)
- ✓ Compiled in 2s (785 modules)
- ✓ Compiled /pos in 316ms (419 modules)
- ○ Compiling /not-found ...
- ✓ Compiled /not-found in 613ms (780 modules)
- ✓ Compiled in 3.5s (794 modules)
- ✓ Compiled in 1250ms (794 modules)
- ✓ Compiled in 2.6s (785 modules)
- ✓ Compiled in 2.5s (785 modules)
- ✓ Compiled in 660ms (785 modules)
- ✓ Compiled in 1118ms (785 modules)
- ✓ Compiled /not-found in 379ms (776 modules)
- ✓ Compiled /pos in 95ms (422 modules)
- ✓ Compiled /store/settings in 448ms (808 modules)
- ✓ Compiled /store in 144ms (441 modules)
- ✓ Compiled /store/cart in 265ms (443 modules)
- ✓ Compiled /store/customers in 151ms (447 modules)
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at Server.listen (node:net:2099:7)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:279:16
+    at new Promise (<anonymous>)
+    at startServer (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:190:11)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:309:52
+    at Span.traceAsyncFn (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/trace/trace.js:147:26)
+    at process.<anonymous> (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:309:35)
+    at process.emit (node:events:518:28) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[?25h

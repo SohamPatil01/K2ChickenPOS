@@ -2,10 +2,22 @@
 > @azela-pos/hq-web@1.0.0 dev /Users/soham/Desktop/K2POS/K2ChickenPOS/apps/hq-web
 > next dev -p 3002
 
-   ▲ Next.js 14.0.4
-   - Local:        http://localhost:3002
-
- ✓ Ready in 4.9s
- ○ Compiling / ...
- ✓ Compiled / in 6s (438 modules)
- ✓ Compiled in 333ms (226 modules)
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3002
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at Server.listen (node:net:2099:7)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:279:16
+    at new Promise (<anonymous>)
+    at startServer (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:190:11)
+    at /Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:309:52
+    at Span.traceAsyncFn (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/trace/trace.js:147:26)
+    at process.<anonymous> (/Users/soham/Desktop/K2POS/K2ChickenPOS/node_modules/.pnpm/next@14.0.4_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js:309:35)
+    at process.emit (node:events:518:28) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3002
+}
+[?25h
