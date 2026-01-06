@@ -160,21 +160,108 @@ export async function poRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const pos = await prisma.purchaseOrder.findMany({
-        where,
-        include: {
-          items: {
-            include: { product: true },
+      // Try to fetch POs with all fields first
+      // If database doesn't have new columns (receivedQtyKg, receivedQtyPcs), catch error and use fallback
+      let pos;
+      try {
+        pos = await prisma.purchaseOrder.findMany({
+          where,
+          include: {
+            items: {
+              include: { product: true },
+            },
+            franchiseStore: {
+              select: { id: true, name: true },
+            },
+            ownerStore: {
+              select: { id: true, name: true },
+            },
           },
-          franchiseStore: {
-            select: { id: true, name: true },
-          },
-          ownerStore: {
-            select: { id: true, name: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          orderBy: { createdAt: 'desc' },
+        });
+      } catch (error: any) {
+        // If error is due to missing columns (receivedQtyKg, receivedQtyPcs), fetch without those fields
+        if (error.message?.includes('receivedQtyKg') || error.message?.includes('does not exist') || error.message?.includes('column')) {
+          console.warn('[PO API] Missing new columns in database, fetching without receivedQtyKg/receivedQtyPcs');
+          
+          // Fetch POs and items separately, then manually join
+          const posWithoutItems = await prisma.purchaseOrder.findMany({
+            where,
+            include: {
+              franchiseStore: {
+                select: { id: true, name: true },
+              },
+              ownerStore: {
+                select: { id: true, name: true },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          
+          // Fetch items separately using raw query to avoid column errors
+          const poIds = posWithoutItems.map(po => po.id);
+          if (poIds.length === 0) {
+            return [];
+          }
+          
+          const items = await prisma.$queryRawUnsafe(`
+            SELECT 
+              poi.id,
+              poi."poId",
+              poi."productId",
+              poi."qtyKg",
+              poi."qtyPcs",
+              poi."requestedRate",
+              poi."createdAt",
+              p.id as "product_id",
+              p.name as "product_name",
+              p.sku as "product_sku",
+              p.plu as "product_plu",
+              p."unitType" as "product_unitType",
+              p."imageUrl" as "product_imageUrl",
+              p."isActive" as "product_isActive"
+            FROM "PurchaseOrderItem" poi
+            LEFT JOIN "Product" p ON p.id = poi."productId"
+            WHERE poi."poId" = ANY($1::text[])
+          `, poIds) as any[];
+          
+          // Group items by poId
+          const itemsByPoId = new Map<string, any[]>();
+          items.forEach((item: any) => {
+            if (!itemsByPoId.has(item.poId)) {
+              itemsByPoId.set(item.poId, []);
+            }
+            itemsByPoId.get(item.poId)!.push({
+              id: item.id,
+              poId: item.poId,
+              productId: item.productId,
+              qtyKg: item.qtyKg,
+              qtyPcs: item.qtyPcs,
+              requestedRate: item.requestedRate,
+              receivedQtyKg: null, // Default to null for missing columns
+              receivedQtyPcs: null,
+              createdAt: item.createdAt,
+              product: item.product_id ? {
+                id: item.product_id,
+                name: item.product_name,
+                sku: item.product_sku,
+                plu: item.product_plu,
+                unitType: item.product_unitType,
+                imageUrl: item.product_imageUrl,
+                isActive: item.product_isActive,
+              } : null,
+            });
+          });
+          
+          // Combine POs with their items
+          pos = posWithoutItems.map(po => ({
+            ...po,
+            items: itemsByPoId.get(po.id) || [],
+          }));
+        } else {
+          throw error;
+        }
+      }
 
       return pos;
     } catch (error: any) {
