@@ -46,28 +46,114 @@ export async function poRoutes(fastify: FastifyInstance) {
     });
     const poNo = `PO-${dateStr}-${String(count + 1).padStart(4, '0')}`;
 
-    const po = await prisma.purchaseOrder.create({
-      data: {
-        franchiseStoreId,
-        ownerStoreId,
-        poNo,
-        status: 'DRAFT',
-        notes: data.notes,
-        items: {
-          create: data.items.map((item: any) => ({
-            productId: item.productId,
-            qtyKg: item.qtyKg && item.qtyKg > 0 ? item.qtyKg : null,
-            qtyPcs: item.qtyPcs && item.qtyPcs > 0 ? item.qtyPcs : null,
-            requestedRate: item.requestedRate || 0,
-          })),
+    // Try to create PO with Prisma first
+    let po;
+    try {
+      po = await prisma.purchaseOrder.create({
+        data: {
+          franchiseStoreId,
+          ownerStoreId,
+          poNo,
+          status: 'DRAFT',
+          notes: data.notes,
+          items: {
+            create: data.items.map((item: any) => ({
+              productId: item.productId,
+              qtyKg: item.qtyKg && item.qtyKg > 0 ? item.qtyKg : null,
+              qtyPcs: item.qtyPcs && item.qtyPcs > 0 ? item.qtyPcs : null,
+              requestedRate: item.requestedRate || 0,
+            })),
+          },
         },
-      },
-      include: {
-        items: {
-          include: { product: true },
+        include: {
+          items: {
+            include: { product: true },
+          },
         },
-      },
-    });
+      });
+    } catch (error: any) {
+      // If error is due to missing columns (updatedAt, receivedQtyKg, receivedQtyPcs), use raw SQL
+      const errorMessage = error.message || error.toString() || '';
+      if (errorMessage.includes('updatedAt') || errorMessage.includes('does not exist') || errorMessage.includes('column')) {
+        console.warn('[PO API] Missing columns in database, creating PO with raw SQL');
+        
+        // Create PO first
+        const poResult = await prisma.$queryRawUnsafe(`
+          INSERT INTO "PurchaseOrder" (id, "franchiseStoreId", "ownerStoreId", "poNo", status, notes, "createdAt", "updatedAt")
+          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW(), NOW())
+          RETURNING *
+        `, franchiseStoreId, ownerStoreId, poNo, 'DRAFT', data.notes || null) as any[];
+        
+        if (!poResult || poResult.length === 0) {
+          throw new Error('Failed to create purchase order');
+        }
+        
+        const createdPO = poResult[0];
+        const poId = createdPO.id;
+        
+        // Create items using raw SQL (without updatedAt if it doesn't exist)
+        const itemPromises = data.items.map(async (item: any) => {
+          const qtyKg = item.qtyKg && item.qtyKg > 0 ? item.qtyKg : null;
+          const qtyPcs = item.qtyPcs && item.qtyPcs > 0 ? item.qtyPcs : null;
+          
+          // Try with updatedAt first, fallback without it
+          try {
+            const itemResult = await prisma.$queryRawUnsafe(`
+              INSERT INTO "PurchaseOrderItem" (id, "poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt", "updatedAt")
+              VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW(), NOW())
+              RETURNING *
+            `, poId, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
+            return itemResult[0];
+          } catch (itemError: any) {
+            // If updatedAt doesn't exist, create without it
+            if (itemError.message?.includes('updatedAt')) {
+              const itemResult = await prisma.$queryRawUnsafe(`
+                INSERT INTO "PurchaseOrderItem" (id, "poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt")
+                VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, NOW())
+                RETURNING *
+              `, poId, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
+              return itemResult[0];
+            }
+            throw itemError;
+          }
+        });
+        
+        const createdItems = await Promise.all(itemPromises);
+        
+        // Fetch the complete PO with items and products
+        const fullPO = await prisma.purchaseOrder.findUnique({
+          where: { id: poId },
+          include: {
+            items: {
+              include: { product: true },
+            },
+            franchiseStore: {
+              select: { id: true, name: true },
+            },
+            ownerStore: {
+              select: { id: true, name: true },
+            },
+          },
+        });
+        
+        // Add null values for missing columns
+        if (fullPO) {
+          po = {
+            ...fullPO,
+            items: fullPO.items.map((item: any) => ({
+              ...item,
+              receivedQtyKg: item.receivedQtyKg ?? null,
+              receivedQtyPcs: item.receivedQtyPcs ?? null,
+              updatedAt: item.updatedAt ?? item.createdAt,
+            })),
+          };
+        } else {
+          throw new Error('Failed to fetch created purchase order');
+        }
+      } else {
+        throw error;
+      }
+    }
 
     return po;
   });
