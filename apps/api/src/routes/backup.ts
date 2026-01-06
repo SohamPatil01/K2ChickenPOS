@@ -69,12 +69,18 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const backupSecret = process.env.BACKUP_SECRET;
       const providedSecret = (request.headers['x-backup-secret'] as string) || 
                             (request.query as any).secret;
+      
+      // Allow Vercel Cron Jobs to authenticate (they send x-vercel-cron header)
+      const isVercelCron = request.headers['x-vercel-cron'] === '1';
+      
+      // Authenticate: either valid secret OR Vercel Cron job
+      const isAuthenticated = isVercelCron || (backupSecret && providedSecret === backupSecret);
 
-      if (!backupSecret || providedSecret !== backupSecret) {
+      if (!isAuthenticated) {
         reply.status(401);
         return {
           success: false,
-          message: 'Unauthorized: Invalid backup secret',
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
           timestamp: new Date().toISOString()
         };
       }
@@ -231,12 +237,18 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const backupSecret = process.env.BACKUP_SECRET;
       const providedSecret = (request.headers['x-backup-secret'] as string) || 
                             (request.query as any).secret;
+      
+      // Allow Vercel Cron Jobs to authenticate (they send x-vercel-cron header)
+      const isVercelCron = request.headers['x-vercel-cron'] === '1';
+      
+      // Authenticate: either valid secret OR Vercel Cron job
+      const isAuthenticated = isVercelCron || (backupSecret && providedSecret === backupSecret);
 
-      if (!backupSecret || providedSecret !== backupSecret) {
+      if (!isAuthenticated) {
         reply.status(401);
         return {
           success: false,
-          message: 'Unauthorized: Invalid backup secret'
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job'
         };
       }
 
