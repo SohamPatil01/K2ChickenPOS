@@ -504,8 +504,8 @@ export default function StoreCartPage() {
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10 rounded-t-2xl">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -545,7 +545,7 @@ export default function StoreCartPage() {
                     )}
                   </div>
 
-                  <div className="relative">
+                  <div className="relative z-50">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Customer Name
                     </label>
@@ -645,7 +645,7 @@ export default function StoreCartPage() {
                     </div>
                     
                     {showNameDropdown && customerSearchResults.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                      <div className="absolute z-[100] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto">
                         {customerSearchResults.map((customer) => (
                           <button
                             key={customer.id}
