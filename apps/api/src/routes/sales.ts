@@ -1041,13 +1041,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Check if user is OWNER or CASHIER
+      // Check if user is OWNER, MANAGER, or CASHIER
       const user = await prisma.user.findUnique({
         where: { id: userId },
       });
 
-      if (!user || (user.role !== 'OWNER' && user.role !== 'CASHIER')) {
-        reply.code(403).send({ error: 'Only owners and cashiers can edit orders' });
+      if (!user || (user.role !== 'OWNER' && user.role !== 'MANAGER' && user.role !== 'CASHIER')) {
+        reply.code(403).send({ error: 'Only owners, managers, and cashiers can edit orders' });
         return;
       }
 

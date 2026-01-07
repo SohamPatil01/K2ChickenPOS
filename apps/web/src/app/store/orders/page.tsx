@@ -87,7 +87,7 @@ export default function OrdersPage() {
       return;
     }
 
-    if (user.role !== 'OWNER' && user.role !== 'CASHIER') {
+    if (user.role !== 'OWNER' && user.role !== 'CASHIER' && user.role !== 'MANAGER') {
       router.push('/store');
       return;
     }
@@ -318,7 +318,7 @@ export default function OrdersPage() {
     setCancelling(true);
     try {
       await api.post(`/api/v1/sales/${cancellingSale.id}/void`, {
-        reason: cancelReason || 'Cancelled by owner',
+        reason: cancelReason || `Cancelled by ${user?.role?.toLowerCase() || 'user'}`,
       });
 
       const cancelledSaleId = cancellingSale.id;
