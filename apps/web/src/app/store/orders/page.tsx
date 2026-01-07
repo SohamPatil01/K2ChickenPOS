@@ -348,6 +348,12 @@ export default function OrdersPage() {
     }
 
     try {
+      // Verify sale still exists and is accessible
+      if (!sale.id) {
+        showNotification('Invalid sale ID', 'error');
+        return;
+      }
+
       // Check if there are existing payments (credit payments)
       const existingPayments = sale.payments || [];
       const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -357,6 +363,8 @@ export default function OrdersPage() {
       // If already fully paid via credit, add a CASH payment for the grand total to mark as PAID
       // If partially paid, add payment for remaining amount
       const paymentAmount = remainingAmount <= 0 ? Math.round(sale.grandTotal) : remainingAmount;
+      
+      console.log('[Orders] Processing payment for sale:', sale.id, 'Amount:', paymentAmount);
       
       await api.post(`/api/v1/sales/${sale.id}/pay`, {
         payments: [
@@ -378,10 +386,22 @@ export default function OrdersPage() {
       }
     } catch (error: any) {
       console.error('Failed to complete order:', error);
-      showNotification(
-        error.response?.data?.error || 'Failed to complete order',
-        'error'
-      );
+      console.error('Error details:', {
+        saleId: sale.id,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      
+      let errorMessage = 'Failed to complete order';
+      if (error.response?.status === 404) {
+        errorMessage = 'Sale not found. It may have been deleted or does not belong to your store.';
+      } else if (error.response?.status === 403) {
+        errorMessage = error.response?.data?.error || 'You do not have permission to process this sale.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      showNotification(errorMessage, 'error');
     }
   };
 

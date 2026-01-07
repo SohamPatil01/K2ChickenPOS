@@ -577,12 +577,39 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const storeId = (getUser(request) as any).storeId;
       const userId = (getUser(request) as any).userId;
 
+      console.log('[Payment API] Processing payment for sale:', id, 'Store ID:', storeId, 'User ID:', userId);
+
       if (!storeId || !userId) {
+        console.error('[Payment API] Missing storeId or userId. StoreId:', storeId, 'UserId:', userId);
         reply.code(400).send({ error: 'Store ID and User ID are required' });
         return;
       }
 
-      // Fetch sale with items and payments first
+      // First check if sale exists (without storeId filter to get better error message)
+      const saleExists = await prisma.sale.findUnique({
+        where: { id },
+        select: { id: true, storeId: true, saleNo: true },
+      });
+
+      if (!saleExists) {
+        console.error('[Payment API] Sale not found:', id);
+        reply.code(404).send({ error: 'Sale not found', saleId: id });
+        return;
+      }
+
+      // Check if sale belongs to user's store
+      if (saleExists.storeId !== storeId) {
+        console.error('[Payment API] Sale belongs to different store. Sale storeId:', saleExists.storeId, 'User storeId:', storeId);
+        reply.code(403).send({ 
+          error: 'Sale does not belong to your store',
+          saleId: id,
+          saleStoreId: saleExists.storeId,
+          userStoreId: storeId,
+        });
+        return;
+      }
+
+      // Fetch sale with items and payments
       const sale = await prisma.sale.findFirst({
         where: { 
           id,
@@ -595,6 +622,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
 
       if (!sale) {
+        console.error('[Payment API] Sale not found after storeId check:', id, 'StoreId:', storeId);
         reply.code(404).send({ error: 'Sale not found' });
         return;
       }
