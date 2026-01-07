@@ -119,17 +119,10 @@ export default function CashierConsolePage() {
     window.addEventListener('sale-updated', handleSaleUpdated);
     window.addEventListener('sale-deleted', handleSaleDeleted);
     
-    // Periodic refresh as fallback (every 30 seconds)
-    const refreshInterval = setInterval(() => {
-      loadSales();
-      loadStats();
-    }, 30000);
-    
     return () => {
       window.removeEventListener('sale-created', handleSaleCreated);
       window.removeEventListener('sale-updated', handleSaleUpdated);
       window.removeEventListener('sale-deleted', handleSaleDeleted);
-      clearInterval(refreshInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router]);

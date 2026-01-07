@@ -315,55 +315,6 @@ export default function StoreInventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, activeTab]);
 
-  // Auto-refresh inventory every 30 seconds and when window gains focus
-  useEffect(() => {
-    if (!user || (user.role !== "MANAGER" && user.role !== "OWNER")) return;
-
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
-      loadInventoryRef.current?.();
-    }, 30000);
-
-    // Refresh when window gains focus (user switches back to tab)
-    // Only trigger if focus was lost for more than 2 seconds
-    let focusLostTime = 0;
-    const handleFocus = () => {
-      const now = Date.now();
-      if (now - focusLostTime > 2000) {
-        loadInventoryRef.current?.();
-      }
-    };
-
-    const handleBlur = () => {
-      focusLostTime = Date.now();
-    };
-
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener("blur", handleBlur);
-
-    // Refresh when page becomes visible (user switches tabs)
-    // Only trigger if page was hidden for more than 2 seconds
-    let hiddenTime = 0;
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        hiddenTime = Date.now();
-      } else {
-        const now = Date.now();
-        if (now - hiddenTime > 2000) {
-          loadInventoryRef.current?.();
-        }
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   const loadCategories = async () => {
     try {
@@ -983,7 +934,7 @@ export default function StoreInventoryPage() {
               onClick={() => loadInventory(true)}
               disabled={loading}
               className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
-              title="Refresh inventory (auto-refreshes every 30 seconds)"
+              title="Refresh inventory"
             >
               <span>🔄</span>
               <span>{loading ? "Refreshing..." : "Refresh"}</span>
