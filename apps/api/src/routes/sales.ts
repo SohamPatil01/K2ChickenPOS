@@ -928,11 +928,76 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const storeId = (getUser(request) as any).storeId;
       const userId = (getUser(request) as any).userId;
 
+      console.log('[Void API] Processing void for sale:', id, 'Store ID:', storeId, 'User ID:', userId);
+
+      if (!storeId || !userId) {
+        console.error('[Void API] Missing storeId or userId. StoreId:', storeId, 'UserId:', userId);
+        reply.code(400).send({ error: 'Store ID and User ID are required' });
+        return;
+      }
+
+      // First check if sale exists (without storeId filter to get better error message)
+      const saleExists = await prisma.sale.findUnique({
+        where: { id },
+        select: { id: true, storeId: true, saleNo: true, status: true },
+      });
+
+      if (!saleExists) {
+        console.error('[Void API] Sale not found:', id);
+        reply.code(404).send({ error: 'Sale not found', saleId: id });
+        return;
+      }
+
+      // Get user's role and store to check access
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { store: true },
+      });
+
+      if (!user) {
+        console.error('[Void API] User not found:', userId);
+        reply.code(401).send({ error: 'User not found' });
+        return;
+      }
+
+      // Check if user has access to this sale's store
+      let hasAccess = false;
+      
+      if (saleExists.storeId === storeId) {
+        // Direct match - user's store matches sale's store
+        hasAccess = true;
+      } else if (user.role === 'OWNER' && user.store?.type === 'OWNER') {
+        // OWNER users can access sales from their franchise stores
+        const saleStore = await prisma.store.findUnique({
+          where: { id: saleExists.storeId },
+          select: { id: true, type: true, parentOwnerStoreId: true },
+        });
+        
+        if (saleStore && saleStore.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === storeId) {
+          // Sale belongs to a franchise store owned by this user
+          hasAccess = true;
+        }
+      }
+
+      if (!hasAccess) {
+        console.error('[Void API] User does not have access to sale. Sale storeId:', saleExists.storeId, 'User storeId:', storeId, 'User role:', user.role);
+        reply.code(403).send({ 
+          error: 'You do not have permission to void this sale',
+          saleId: id,
+          saleStoreId: saleExists.storeId,
+          userStoreId: storeId,
+          userRole: user.role,
+        });
+        return;
+      }
+
+      // Fetch full sale data
       const sale = await prisma.sale.findUnique({
         where: { id },
       });
 
-      if (!sale || sale.storeId !== storeId) {
+      if (!sale) {
+        console.error('[Void API] Sale not found after access check:', id);
         reply.code(404).send({ error: 'Sale not found' });
         return;
       }
@@ -952,14 +1017,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
         data: { status: 'VOID' },
       });
 
+      // Use sale's storeId for audit log to track which store the sale belongs to
       await prisma.auditLog.create({
         data: {
-          storeId,
+          storeId: sale.storeId, // Use sale's storeId, not user's storeId
           actorUserId: userId,
           action: 'SALE_VOIDED',
           entityType: 'Sale',
           entityId: id,
-          metaJson: { reason: reason || 'No reason provided' },
+          metaJson: { reason: reason || 'No reason provided', userStoreId: storeId }, // Include user's storeId in metadata
         },
       });
 
