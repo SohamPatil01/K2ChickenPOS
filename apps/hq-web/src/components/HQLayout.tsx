@@ -52,6 +52,7 @@ export default function HQLayout({
     { path: '/pricing', label: 'Pricing', icon: '💰', roles: ['OWNER'] },
     { path: '/royalty', label: 'Royalty', icon: '💵', roles: ['OWNER'] },
     { path: '/sales', label: 'Sales', icon: '📊', roles: ['OWNER'] },
+    { path: '/orders', label: 'Orders', icon: '🛒', roles: ['OWNER'] },
     { path: '/inventory', label: 'Inventory', icon: '📦', roles: ['OWNER'] },
     { path: '/compliance', label: 'Compliance', icon: '✅', roles: ['OWNER'] },
     { path: '/payments', label: 'Payments', icon: '💳', roles: ['OWNER'] },

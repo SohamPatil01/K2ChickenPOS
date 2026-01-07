@@ -33,8 +33,16 @@ export default function StoreRegionSwitcher({
 
   const loadStores = async () => {
     try {
-      const response = await api.get('/api/v1/stores?type=FRANCHISE');
-      setStores(response.data || []);
+      // Load both owner store and franchise stores
+      const [ownerResponse, franchiseResponse] = await Promise.all([
+        api.get('/api/v1/stores?type=OWNER').catch(() => ({ data: [] })),
+        api.get('/api/v1/stores?type=FRANCHISE').catch(() => ({ data: [] })),
+      ]);
+      const allStores = [
+        ...(ownerResponse.data || []),
+        ...(franchiseResponse.data || []),
+      ];
+      setStores(allStores);
     } catch (error) {
       console.error('Failed to load stores:', error);
     }
