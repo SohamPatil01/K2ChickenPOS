@@ -597,23 +597,54 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Check if sale belongs to user's store
-      if (saleExists.storeId !== storeId) {
-        console.error('[Payment API] Sale belongs to different store. Sale storeId:', saleExists.storeId, 'User storeId:', storeId);
+      // Get user's role and store to check access
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { store: true },
+      });
+
+      if (!user) {
+        console.error('[Payment API] User not found:', userId);
+        reply.code(401).send({ error: 'User not found' });
+        return;
+      }
+
+      // Check if user has access to this sale's store
+      let hasAccess = false;
+      
+      if (saleExists.storeId === storeId) {
+        // Direct match - user's store matches sale's store
+        hasAccess = true;
+      } else if (user.role === 'OWNER' && user.store?.type === 'OWNER') {
+        // OWNER users can access sales from their franchise stores
+        const saleStore = await prisma.store.findUnique({
+          where: { id: saleExists.storeId },
+          select: { id: true, type: true, parentOwnerStoreId: true },
+        });
+        
+        if (saleStore && saleStore.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === storeId) {
+          // Sale belongs to a franchise store owned by this user
+          hasAccess = true;
+        }
+      }
+
+      if (!hasAccess) {
+        console.error('[Payment API] User does not have access to sale. Sale storeId:', saleExists.storeId, 'User storeId:', storeId, 'User role:', user.role);
         reply.code(403).send({ 
-          error: 'Sale does not belong to your store',
+          error: 'You do not have permission to process this sale',
           saleId: id,
           saleStoreId: saleExists.storeId,
           userStoreId: storeId,
+          userRole: user.role,
         });
         return;
       }
 
-      // Fetch sale with items and payments
-      const sale = await prisma.sale.findFirst({
+      // Fetch sale with items and payments using the sale's storeId (not user's storeId)
+      // This allows OWNER users to pay for sales from franchise stores
+      const sale = await prisma.sale.findUnique({
         where: { 
           id,
-          storeId,
         },
         include: { 
           items: { include: { product: true } },
@@ -622,8 +653,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
 
       if (!sale) {
-        console.error('[Payment API] Sale not found after storeId check:', id, 'StoreId:', storeId);
+        console.error('[Payment API] Sale not found:', id);
         reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+
+      // Verify the sale's storeId matches what we checked earlier
+      if (sale.storeId !== saleExists.storeId) {
+        console.error('[Payment API] Sale storeId mismatch');
+        reply.code(500).send({ error: 'Internal error: Sale data inconsistency' });
         return;
       }
 
@@ -765,6 +803,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Update inventory - only if not already deducted
       // Check if inventory was already deducted for this sale (when order was created)
+      // Use sale's storeId, not user's storeId (for OWNER users paying franchise sales)
       try {
         const existingLedger = await prisma.inventoryLedger.findFirst({
           where: {
@@ -779,7 +818,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           for (const item of sale.items) {
             await prisma.inventoryLedger.create({
               data: {
-                storeId,
+                storeId: sale.storeId, // Use sale's storeId, not user's storeId
                 productId: item.productId,
                 type: 'OUT',
                 qtyKg: item.qtyKg,
@@ -826,7 +865,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
                 await prisma.loyaltyTransaction.create({
                   data: {
                     customerId: sale.customerId,
-                    storeId,
+                    storeId: sale.storeId, // Use sale's storeId, not user's storeId
                     type: 'EARN',
                     points: pointsEarned,
                     balance: newBalance,
@@ -848,15 +887,16 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // Create audit log (non-blocking)
+      // Use sale's storeId for audit log to track which store the sale belongs to
       try {
         await prisma.auditLog.create({
           data: {
-            storeId,
+            storeId: sale.storeId, // Use sale's storeId, not user's storeId
             actorUserId: userId,
             action: 'SALE_PAID',
             entityType: 'Sale',
             entityId: id,
-            metaJson: { payments },
+            metaJson: { payments, userStoreId: storeId }, // Include user's storeId in metadata for tracking
           },
         });
       } catch (auditError: any) {
