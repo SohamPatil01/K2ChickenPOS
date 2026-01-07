@@ -83,10 +83,9 @@ export default function OrdersPage() {
   const loadSales = async () => {
     setLoading(true);
     try {
-      const startDate = new Date(dateFilter.startDate);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(dateFilter.endDate);
-      endDate.setHours(23, 59, 59, 999);
+      // Use UTC to avoid timezone issues - date strings like "2025-01-06" should be treated as UTC midnight
+      const startDate = new Date(dateFilter.startDate + 'T00:00:00.000Z');
+      const endDate = new Date(dateFilter.endDate + 'T23:59:59.999Z');
 
       const params: any = {
         startDate: startDate.toISOString(),
@@ -317,7 +316,12 @@ export default function OrdersPage() {
                         {sale.customer?.name || 'Walk-in'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(sale.createdAt).toLocaleDateString()}
+                        {new Date(sale.createdAt).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          timeZoneName: 'short'
+                        })}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
@@ -402,7 +406,14 @@ export default function OrdersPage() {
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Date</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {new Date(selectedSale.createdAt).toLocaleString()}
+                      {new Date(selectedSale.createdAt).toLocaleString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                      })}
                     </p>
                   </div>
                   <div>

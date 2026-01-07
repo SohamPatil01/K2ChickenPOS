@@ -79,10 +79,26 @@ export async function saleRoutes(fastify: FastifyInstance) {
       if (startDate || endDate) {
         where.createdAt = {};
         if (startDate) {
-          where.createdAt.gte = new Date(startDate);
+          // Parse as UTC to avoid timezone issues
+          const start = new Date(startDate);
+          // If it's an ISO string without time, treat as UTC midnight
+          if (startDate.includes('T')) {
+            where.createdAt.gte = start;
+          } else {
+            // Date string like "2025-01-06" - treat as UTC
+            where.createdAt.gte = new Date(startDate + 'T00:00:00.000Z');
+          }
         }
         if (endDate) {
-          where.createdAt.lte = new Date(endDate);
+          // Parse as UTC to avoid timezone issues
+          const end = new Date(endDate);
+          // If it's an ISO string without time, treat as UTC end of day
+          if (endDate.includes('T')) {
+            where.createdAt.lte = end;
+          } else {
+            // Date string like "2025-01-06" - treat as UTC end of day
+            where.createdAt.lte = new Date(endDate + 'T23:59:59.999Z');
+          }
         }
       }
 

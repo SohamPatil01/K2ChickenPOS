@@ -132,10 +132,9 @@ export default function OrdersPage() {
   const loadSales = async () => {
     setLoading(true);
     try {
-      const startDate = new Date(dateFilter.startDate);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(dateFilter.endDate);
-      endDate.setHours(23, 59, 59, 999);
+      // Use UTC to avoid timezone issues - date strings like "2025-01-06" should be treated as UTC midnight
+      const startDate = new Date(dateFilter.startDate + 'T00:00:00.000Z');
+      const endDate = new Date(dateFilter.endDate + 'T23:59:59.999Z');
 
       const params: any = {
         startDate: startDate.toISOString(),
@@ -558,7 +557,14 @@ export default function OrdersPage() {
                           </p>
                           <p>
                             Created by: {sale.createdBy.name} •{" "}
-                            {new Date(sale.createdAt).toLocaleString()}
+                            {new Date(sale.createdAt).toLocaleString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZoneName: 'short'
+                            })}
                           </p>
                           <p className="text-xs">
                             {sale.items.length} item(s) • Total: ₹
@@ -669,7 +675,14 @@ export default function OrdersPage() {
                   </p>
                   <p className="text-sm dark:text-white mt-1">
                     <span className="font-medium">Date:</span>{" "}
-                    {new Date(selectedSale.createdAt).toLocaleString()}
+                    {new Date(selectedSale.createdAt).toLocaleString(undefined, {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZoneName: 'short'
+                    })}
                   </p>
                 </div>
               </div>
