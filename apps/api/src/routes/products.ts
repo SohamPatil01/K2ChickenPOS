@@ -240,11 +240,85 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.put('/:id', async (request: any, reply: FastifyReply) => {
+  fastify.put('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
     const updates = request.body as any;
-
+    const { sku, plu } = updates || {};
+    
     try {
+
+      // Get the existing product to check current SKU/PLU
+      const existingProduct = await prisma.product.findUnique({
+        where: { id },
+        select: { id: true, sku: true, plu: true, ownerStoreId: true },
+      });
+
+      if (!existingProduct) {
+        reply.code(404).send({ error: 'Product not found' });
+        return;
+      }
+
+      // Get user's store
+      const user = getUser(request);
+      const userStore = await prisma.store.findUnique({ where: { id: user.storeId } });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store not found' });
+        return;
+      }
+
+      // Verify product belongs to user's store
+      if (existingProduct.ownerStoreId !== ownerStoreId) {
+        reply.code(403).send({ error: 'Access denied' });
+        return;
+      }
+
+      // Check for SKU/PLU conflicts only if they're being changed
+      if (sku && sku !== existingProduct.sku) {
+        const skuExists = await prisma.product.findFirst({
+          where: {
+            ownerStoreId,
+            sku,
+            id: { not: id }, // Exclude current product
+          },
+        });
+
+        if (skuExists) {
+          reply.code(400).send({
+            error: `SKU "${sku}" already exists. Please use a different SKU.`,
+            code: 'DUPLICATE_SKU',
+            field: 'sku',
+          });
+          return;
+        }
+      }
+
+      if (plu && plu !== existingProduct.plu) {
+        const pluExists = await prisma.product.findFirst({
+          where: {
+            ownerStoreId,
+            plu,
+            id: { not: id }, // Exclude current product
+          },
+        });
+
+        if (pluExists) {
+          reply.code(400).send({
+            error: `PLU "${plu}" already exists. Please use a different PLU.`,
+            code: 'DUPLICATE_PLU',
+            field: 'plu',
+          });
+          return;
+        }
+      }
+
+      // Update the product
       const product = await prisma.product.update({
         where: { id },
         data: updates,
@@ -252,8 +326,29 @@ export async function productRoutes(fastify: FastifyInstance) {
       });
 
       return product;
-    } catch (error) {
-      reply.code(500).send({ error: 'Failed to update product' });
+    } catch (error: any) {
+      console.error('Failed to update product:', error);
+      if (error.code === 'P2002') {
+        // Prisma unique constraint violation (fallback)
+        const target = error.meta?.target;
+        let errorMessage = 'SKU or PLU already exists';
+        
+        if (Array.isArray(target)) {
+          if (target.includes('sku') && sku) {
+            errorMessage = `SKU "${sku}" already exists. Please use a different SKU.`;
+          } else if (target.includes('plu') && plu) {
+            errorMessage = `PLU "${plu}" already exists. Please use a different PLU.`;
+          }
+        }
+        
+        reply.code(400).send({
+          error: errorMessage,
+          code: 'DUPLICATE_SKU_OR_PLU',
+          field: Array.isArray(target) && target.includes('sku') ? 'sku' : Array.isArray(target) && target.includes('plu') ? 'plu' : null,
+        });
+        return;
+      }
+      reply.code(500).send({ error: 'Failed to update product', details: error.message });
     }
   });
 
