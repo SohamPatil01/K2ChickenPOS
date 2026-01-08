@@ -217,7 +217,23 @@ export async function productRoutes(fastify: FastifyInstance) {
     } catch (error: any) {
       console.error('Failed to create product:', error);
       if (error.code === 'P2002') {
-        reply.code(400).send({ error: 'SKU or PLU already exists' });
+        // Prisma unique constraint violation
+        const target = error.meta?.target;
+        let errorMessage = 'SKU or PLU already exists';
+        
+        if (Array.isArray(target)) {
+          if (target.includes('sku')) {
+            errorMessage = `SKU "${body.sku}" already exists. Please use a different SKU.`;
+          } else if (target.includes('plu')) {
+            errorMessage = `PLU "${body.plu}" already exists. Please use a different PLU.`;
+          }
+        }
+        
+        reply.code(400).send({ 
+          error: errorMessage,
+          code: 'DUPLICATE_SKU_OR_PLU',
+          field: target?.includes('sku') ? 'sku' : target?.includes('plu') ? 'plu' : null,
+        });
         return;
       }
       reply.code(500).send({ error: 'Failed to create product', details: error.message });
