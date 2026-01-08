@@ -107,6 +107,16 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
             where: { storeId },
             // Remove orderBy to get all entries, order doesn't matter for calculation
           },
+          storeProductPrices: {
+            where: {
+              storeId,
+              isActive: true,
+            },
+            orderBy: {
+              effectiveFrom: 'desc',
+            },
+            take: 1,
+          },
         },
       });
 
@@ -176,6 +186,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           currentQtyKg: totalQtyKg,
           currentQtyPcs: totalQtyPcs,
           imageUrl: product.imageUrl,
+          pricePerUnit: product.storeProductPrices[0]?.pricePerUnit || 0,
         };
       });
 
