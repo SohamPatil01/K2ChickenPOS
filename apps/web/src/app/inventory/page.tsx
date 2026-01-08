@@ -88,7 +88,16 @@ export default function InventoryPage() {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const response = await api.get("/api/v1/inventory/summary");
+      // Add cache-busting timestamp to ensure fresh data
+      const timestamp = Date.now();
+      const response = await api.get("/api/v1/inventory/summary", {
+        params: { _t: timestamp },
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      });
       console.log("Inventory loaded:", response.data?.length || 0);
       if (response.data && Array.isArray(response.data)) {
         setInventory(response.data);
@@ -453,7 +462,7 @@ export default function InventoryPage() {
         });
       }
 
-      // Refresh inventory
+      // Force refresh to ensure updated product data is loaded
       await loadInventory();
 
       setShowEditModal(false);

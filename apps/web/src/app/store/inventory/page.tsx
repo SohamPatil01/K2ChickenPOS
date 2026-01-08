@@ -877,7 +877,8 @@ export default function StoreInventoryPage() {
         });
       }
 
-      await loadInventory();
+      // Force refresh to ensure updated product data is loaded
+      await loadInventory(true);
 
       setShowEditModal(false);
       setEditingProduct(null);
