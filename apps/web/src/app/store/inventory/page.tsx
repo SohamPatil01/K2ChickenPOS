@@ -16,6 +16,7 @@ interface InventoryItem {
   currentQtyKg: number;
   currentQtyPcs: number;
   imageUrl?: string | null;
+  pricePerUnit?: number;
 }
 
 interface Category {

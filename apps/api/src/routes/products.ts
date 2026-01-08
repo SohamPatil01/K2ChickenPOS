@@ -103,12 +103,19 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/:id', async (request: any, reply: FastifyReply) => {
-    const { id } = (request.params as any);
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
-
+  fastify.get('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
+      const { id } = (request.params as any);
+      const user = getUser(request);
+      const userStore = await prisma.store.findUnique({ where: { id: user.storeId } });
+      
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const storeId = user.storeId;
+
       const product = await prisma.product.findUnique({
         where: { id },
         include: {
@@ -144,8 +151,9 @@ export async function productRoutes(fastify: FastifyInstance) {
         imageUrl: product.imageUrl,
         isActive: product.isActive,
       };
-    } catch (error) {
-      reply.code(500).send({ error: 'Failed to get product' });
+    } catch (error: any) {
+      console.error('Failed to get product:', error);
+      reply.code(500).send({ error: 'Failed to get product', details: error.message });
     }
   });
 
