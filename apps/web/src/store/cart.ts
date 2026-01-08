@@ -78,7 +78,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ items });
   },
   setCustomer: (customerId, customerPhone, customerName) => {
-    set({ customerId, customerPhone, customerName: customerName ?? null });
+    // Ensure name is preserved as string, not null/undefined
+    const name = customerName ? String(customerName) : null;
+    console.log('[Cart Store] setCustomer called:', { customerId, customerPhone, customerName: name });
+    set({ customerId, customerPhone, customerName: name });
   },
   setDiscount: (discountTotal) => {
     set({ discountTotal });

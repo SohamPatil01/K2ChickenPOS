@@ -117,9 +117,12 @@ export default function StoreCartPage() {
     try {
       const response = await api.get(`/api/v1/customers?phone=${phone}`);
       if (response.data) {
-        setCustomer(response.data.id, response.data.phone, response.data.name || null);
-        setTempCustomerPhone(response.data.phone);
-        setTempCustomerName(response.data.name || '');
+        const customerName = response.data.name || '';
+        const customerPhone = response.data.phone || '';
+        console.log('[Cart] Customer found by phone:', { id: response.data.id, phone: customerPhone, name: customerName });
+        setCustomer(response.data.id, customerPhone, customerName);
+        setTempCustomerPhone(customerPhone);
+        setTempCustomerName(customerName);
         setCustomerSearchResults([]);
       } else {
         const allCustomers = await api.get('/api/v1/customers');
@@ -134,8 +137,10 @@ export default function StoreCartPage() {
   };
 
   const createOrUpdateCustomer = async (phone: string, name: string) => {
-    const trimmedPhone = phone ? phone.trim() : '';
-    const fullName = name ? name.trim() : '';
+    const trimmedPhone = phone ? String(phone).trim() : '';
+    const fullName = name ? String(name).trim() : '';
+    
+    console.log('[Cart] createOrUpdateCustomer called with:', { phone: trimmedPhone, name: fullName, nameLength: fullName.length });
     
     if (!trimmedPhone || trimmedPhone.length < 10) {
       showNotification('Phone number must be at least 10 characters', 'warning');
@@ -154,6 +159,7 @@ export default function StoreCartPage() {
             name: fullName,
           });
           if (response.data) {
+            console.log('[Cart] Customer updated:', response.data);
             setCustomer(response.data.id, response.data.phone, response.data.name);
             setTempCustomerPhone(response.data.phone);
             setTempCustomerName(response.data.name);
@@ -174,14 +180,17 @@ export default function StoreCartPage() {
           }
         }
       } else {
+        console.log('[Cart] Creating new customer:', { phone: trimmedPhone, name: fullName });
         const response = await api.post('/api/v1/customers', {
           phone: trimmedPhone,
           name: fullName,
         });
         if (response.data) {
+          console.log('[Cart] Customer created:', response.data);
           setCustomer(response.data.id, response.data.phone, response.data.name);
           setTempCustomerPhone(response.data.phone);
           setTempCustomerName(response.data.name);
+          showNotification('Customer saved successfully', 'success');
         }
       }
     } catch (error: any) {
@@ -190,19 +199,22 @@ export default function StoreCartPage() {
     }
   };
 
+  // Debounced auto-save for new customers (only when both phone and name are complete)
   useEffect(() => {
-    if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
-      if (!customerId) {
-        const timeoutId = setTimeout(() => {
-          const currentState = useCartStore.getState();
-          const latestName = (currentState.customerName || tempCustomerName).trim();
-          const latestPhone = tempCustomerPhone.trim();
-          if (latestName.length > 0 && latestPhone.length >= 10) {
-            createOrUpdateCustomer(latestPhone, latestName);
-          }
-        }, 2000);
-        return () => clearTimeout(timeoutId);
-      }
+    if (!customerId && tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
+      const timeoutId = setTimeout(() => {
+        // Get the latest values at the time of execution
+        const currentState = useCartStore.getState();
+        const latestName = (tempCustomerName || currentState.customerName || '').trim();
+        const latestPhone = (tempCustomerPhone || currentState.customerPhone || '').trim();
+        
+        // Only save if both are still valid
+        if (latestName.length > 0 && latestPhone.length >= 10) {
+          console.log('[Cart] Auto-saving customer:', { phone: latestPhone, name: latestName });
+          createOrUpdateCustomer(latestPhone, latestName);
+        }
+      }, 2000);
+      return () => clearTimeout(timeoutId);
     }
   }, [tempCustomerPhone, tempCustomerName, customerId]);
 
@@ -643,10 +655,11 @@ export default function StoreCartPage() {
                       <input
                         type="text"
                         placeholder="Enter customer name"
-                        value={tempCustomerName}
+                        value={tempCustomerName || ''}
                         onChange={(e) => {
                           const newName = e.target.value;
                           setTempCustomerName(newName);
+                          // Update cart store with the full name (not trimmed) to preserve what user is typing
                           setCustomer(customerId, tempCustomerPhone || null, newName || null);
                           if (newName.length >= 1) {
                             const filtered = allCustomers.filter((c: any) => 
@@ -659,7 +672,7 @@ export default function StoreCartPage() {
                           }
                         }}
                         onFocus={() => {
-                          if (tempCustomerName.length >= 1) {
+                          if (tempCustomerName && tempCustomerName.length >= 1) {
                             const filtered = allCustomers.filter((c: any) => 
                               c.name.toLowerCase().startsWith(tempCustomerName.toLowerCase())
                             ).slice(0, 5);
@@ -669,15 +682,15 @@ export default function StoreCartPage() {
                         }}
                         onBlur={() => {
                           setTimeout(() => setShowNameDropdown(false), 200);
+                          // Save on blur only if we have complete data
                           setTimeout(() => {
-                            const currentName = tempCustomerName.trim();
-                            const currentPhone = tempCustomerPhone.trim();
+                            const currentName = (tempCustomerName || '').trim();
+                            const currentPhone = (tempCustomerPhone || '').trim();
                             if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
-                              if (!customerId) {
-                                createOrUpdateCustomer(currentPhone, currentName);
-                              }
+                              console.log('[Cart] Saving customer on blur:', { phone: currentPhone, name: currentName });
+                              createOrUpdateCustomer(currentPhone, currentName);
                             }
-                          }, 100);
+                          }, 300);
                         }}
                         className="w-full px-4 py-3 pr-24 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -741,15 +754,18 @@ export default function StoreCartPage() {
                             key={customer.id}
                             type="button"
                             onClick={() => {
-                              setCustomer(customer.id, customer.phone, customer.name);
-                              setTempCustomerPhone(customer.phone);
-                              setTempCustomerName(customer.name);
+                              const customerName = customer.name || '';
+                              const customerPhone = customer.phone || '';
+                              console.log('[Cart] Customer selected from dropdown:', { id: customer.id, phone: customerPhone, name: customerName });
+                              setCustomer(customer.id, customerPhone, customerName);
+                              setTempCustomerPhone(customerPhone);
+                              setTempCustomerName(customerName);
                               setShowNameDropdown(false);
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
+                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name || 'Unknown'}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone || 'No phone'}</div>
                           </button>
                         ))}
                       </div>
