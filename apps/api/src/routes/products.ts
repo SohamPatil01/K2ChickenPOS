@@ -174,10 +174,10 @@ export async function productRoutes(fastify: FastifyInstance) {
 
   // Product CRUD routes
   fastify.post('/', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
+    const body = request.body as any;
+    const { sku, plu, name, categoryId, unitType, taxRate, imageUrl } = body || {};
+    
     try {
-      const body = request.body as any;
-      const { sku, plu, name, categoryId, unitType, taxRate, imageUrl } = body;
-      
       // Validate required fields
       if (!sku || !plu || !name || !categoryId || !unitType) {
         reply.code(400).send({ error: 'Missing required fields: sku, plu, name, categoryId, unitType are required' });
@@ -222,17 +222,17 @@ export async function productRoutes(fastify: FastifyInstance) {
         let errorMessage = 'SKU or PLU already exists';
         
         if (Array.isArray(target)) {
-          if (target.includes('sku')) {
-            errorMessage = `SKU "${body.sku}" already exists. Please use a different SKU.`;
-          } else if (target.includes('plu')) {
-            errorMessage = `PLU "${body.plu}" already exists. Please use a different PLU.`;
+          if (target.includes('sku') && sku) {
+            errorMessage = `SKU "${sku}" already exists. Please use a different SKU.`;
+          } else if (target.includes('plu') && plu) {
+            errorMessage = `PLU "${plu}" already exists. Please use a different PLU.`;
           }
         }
         
         reply.code(400).send({ 
           error: errorMessage,
           code: 'DUPLICATE_SKU_OR_PLU',
-          field: target?.includes('sku') ? 'sku' : target?.includes('plu') ? 'plu' : null,
+          field: Array.isArray(target) && target.includes('sku') ? 'sku' : Array.isArray(target) && target.includes('plu') ? 'plu' : null,
         });
         return;
       }
