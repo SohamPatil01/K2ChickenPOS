@@ -132,12 +132,12 @@ export default function StoreDashboardPage() {
       const tomorrow = new Date(today);
       tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-      // Get month stats - use UTC for consistency
+      // Get month stats - use UTC for consistency, only PAID sales
       const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
       const monthSalesRes = await api.get('/api/v1/sales', {
         params: {
           startDate: monthStart.toISOString(),
-          status: 'PAID',
+          status: 'PAID', // Only get PAID sales for revenue calculations
         },
       }).catch(() => ({ data: [] }));
 
@@ -145,15 +145,16 @@ export default function StoreDashboardPage() {
       const monthCount = monthSales.length;
       const monthRevenue = monthSales.reduce((sum: number, s: any) => sum + (s.grandTotal || 0), 0);
 
+      // Only fetch PAID sales to avoid including OPEN orders in payment calculations
       const salesRes = await api.get('/api/v1/sales', {
         params: {
           startDate: today.toISOString(),
           endDate: tomorrow.toISOString(),
+          status: 'PAID', // Only get PAID sales for payment calculations
         },
       }).catch(() => ({ data: [] }));
 
-      const todaySales = salesRes.data || [];
-      const paidSales = todaySales.filter((s: any) => s.status === 'PAID');
+      const paidSales = salesRes.data || [];
 
       // Calculate payment breakdown by method
       const paymentBreakdown = {
@@ -168,13 +169,13 @@ export default function StoreDashboardPage() {
           const method = (payment.method || '').toUpperCase();
           const amount = payment.amount || 0;
           if (method === 'CASH') {
-            paymentBreakdown.cash += amount;
+            paymentBreakdown.cash = Math.round((paymentBreakdown.cash + amount) * 1000) / 1000;
           } else if (method === 'UPI') {
-            paymentBreakdown.upi += amount;
+            paymentBreakdown.upi = Math.round((paymentBreakdown.upi + amount) * 1000) / 1000;
           } else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
-            paymentBreakdown.card += amount;
+            paymentBreakdown.card = Math.round((paymentBreakdown.card + amount) * 1000) / 1000;
           } else {
-            paymentBreakdown.other += amount;
+            paymentBreakdown.other = Math.round((paymentBreakdown.other + amount) * 1000) / 1000;
           }
         });
       });

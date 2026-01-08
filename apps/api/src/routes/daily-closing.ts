@@ -25,10 +25,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         const userId = (getUser(request) as any).userId;
         const { closingDate, openingCash, cashReceived, closingCash, notes, shiftId } = (request.body as any);
 
-        const closingDateObj = new Date(closingDate);
-        closingDateObj.setHours(0, 0, 0, 0);
-        const closingDateEnd = new Date(closingDateObj);
-        closingDateEnd.setHours(23, 59, 59, 999);
+        // Use UTC to avoid timezone issues - consistent with other date filtering
+        const closingDateStr = closingDate.split('T')[0]; // Get YYYY-MM-DD
+        const closingDateObj = new Date(closingDateStr + 'T00:00:00.000Z');
+        const closingDateEnd = new Date(closingDateStr + 'T23:59:59.999Z');
 
         // Check if closing already exists for this date
         const existing = await prisma.dailyClosing.findUnique({
@@ -65,27 +65,31 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           },
         });
 
-        // Calculate totals - Round to 2 decimal places for money
+        // Calculate totals - Round to 3 decimal places for money to avoid calculation mismatches
         const totalSales = sales.length;
-        const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
-        const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 100) / 100;
-        const totalTax = Math.round(sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0) * 100) / 100;
+        const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
+        const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 1000) / 1000;
+        const totalTax = Math.round(sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0) * 1000) / 1000;
 
-        // Calculate payment method breakdown - Round to 2 decimal places
+        // Calculate payment method breakdown - Round to 3 decimal places
         const cashSales = Math.round(sales.reduce((sum: any, s: any) => {
           const cashPayments = s.payments.filter((p: any) => p.method === 'CASH');
           return sum + cashPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0) * 100) / 100;
+        }, 0) * 1000) / 1000;
 
         const cardSales = Math.round(sales.reduce((sum: any, s: any) => {
           const cardPayments = s.payments.filter((p: any) => p.method === 'CARD');
           return sum + cardPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0) * 100) / 100;
+        }, 0) * 1000) / 1000;
 
         const upiSales = Math.round(sales.reduce((sum: any, s: any) => {
           const upiPayments = s.payments.filter((p: any) => p.method === 'UPI');
           return sum + upiPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0) * 100) / 100;
+        }, 0) * 1000) / 1000;
+
+        // Auto-set cashReceived from cashSales (cash revenue)
+        // If cashReceived is provided, use it; otherwise use cashSales
+        const finalCashReceived = cashReceived !== undefined && cashReceived !== null ? cashReceived : cashSales;
 
         // Calculate total weight sold - Round to 2 decimal places for KG
         const totalWeightSoldKg = Math.round(sales.reduce((sum: any, s: any) => {
@@ -163,9 +167,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           };
         }
 
-        // Calculate cash difference - Round to 2 decimal places
-        const cashExpected = Math.round((openingCash + cashSales) * 100) / 100;
-        const cashDifference = Math.round((closingCash - cashExpected) * 100) / 100;
+        // Calculate cash difference - Round to 3 decimal places
+        // Expected cash = opening cash + cash received (which is auto-set from cash sales)
+        const cashExpected = Math.round((openingCash + finalCashReceived) * 1000) / 1000;
+        const cashDifference = Math.round((closingCash - cashExpected) * 1000) / 1000;
 
         // Create or update daily closing
         const dailyClosing = await prisma.dailyClosing.upsert({
@@ -181,7 +186,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
             cashSales,
             cardSales,
             upiSales,
-            cashReceived,
+            cashReceived: finalCashReceived,
             cashExpected,
             cashDifference,
             closingCash,
@@ -203,7 +208,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
             cashSales,
             cardSales,
             upiSales,
-            cashReceived,
+            cashReceived: finalCashReceived,
             cashExpected,
             cashDifference,
             closingCash,
@@ -309,10 +314,11 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const storeId = (getUser(request) as any).storeId;
-        const { startDate, endDate } = (request.query as any);
+        const { date } = request.params as any;
 
-        const closingDate = new Date(date);
-        closingDate.setHours(0, 0, 0, 0);
+        // Use UTC to avoid timezone issues - consistent with other date filtering
+        const closingDateStr = date.split('T')[0]; // Get YYYY-MM-DD
+        const closingDate = new Date(closingDateStr + 'T00:00:00.000Z');
 
         const closing = await prisma.dailyClosing.findUnique({
           where: {

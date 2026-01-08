@@ -146,19 +146,23 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
             continue; // Skip entries that don't match
           }
           
+          // Handle null/undefined values properly
+          const qtyKg = ledger.qtyKg !== null && ledger.qtyKg !== undefined ? ledger.qtyKg : 0;
+          const qtyPcs = ledger.qtyPcs !== null && ledger.qtyPcs !== undefined ? ledger.qtyPcs : 0;
+          
           if (ledger.type === 'IN') {
             // Round during each operation to prevent floating point precision errors
-            totalQtyKg = Math.round((totalQtyKg + (ledger.qtyKg || 0)) * 100) / 100;
-            totalQtyPcs = Math.round(totalQtyPcs + (ledger.qtyPcs || 0));
+            totalQtyKg = Math.round((totalQtyKg + qtyKg) * 1000) / 1000;
+            totalQtyPcs = Math.round(totalQtyPcs + qtyPcs);
           } else {
             // Round during each operation to prevent floating point precision errors
-            totalQtyKg = Math.round((totalQtyKg - (ledger.qtyKg || 0)) * 100) / 100;
-            totalQtyPcs = Math.round(totalQtyPcs - (ledger.qtyPcs || 0));
+            totalQtyKg = Math.round((totalQtyKg - qtyKg) * 1000) / 1000;
+            totalQtyPcs = Math.round(totalQtyPcs - qtyPcs);
           }
         }
         
-        // Ensure non-negative values and final rounding
-        totalQtyKg = Math.max(0, Math.round(totalQtyKg * 100) / 100);
+        // Ensure non-negative values and final rounding (use 3 decimal places for consistency)
+        totalQtyKg = Math.max(0, Math.round(totalQtyKg * 1000) / 1000);
         totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
         
         console.log(`[Inventory Summary] Product ${product.name} calculated totals: ${totalQtyKg} kg, ${totalQtyPcs} pcs`);

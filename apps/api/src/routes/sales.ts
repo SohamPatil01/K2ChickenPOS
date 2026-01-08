@@ -200,9 +200,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const todayRevenue = Math.round(todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
+    const todayRevenue = Math.round(todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
     const todayCount = todaySales.length;
-    const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 100) / 100 : 0;
+    const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 1000) / 1000 : 0;
 
     // This month - use UTC for consistency
     const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
@@ -214,7 +214,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const monthRevenue = Math.round(monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 100) / 100;
+    const monthRevenue = Math.round(monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
     const monthCount = monthSales.length;
 
     // Recent sales
@@ -422,6 +422,28 @@ export async function saleRoutes(fastify: FastifyInstance) {
           },
         });
 
+        // Deduct inventory for OPEN orders (even when discount override is required)
+        // Inventory should be deducted when order is created, not when payment is made
+        for (const item of sale.items) {
+          // Only create ledger entry if there's actual quantity to deduct
+          const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
+          const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
+          
+          if (hasQtyKg || hasQtyPcs) {
+            await prisma.inventoryLedger.create({
+              data: {
+                storeId,
+                productId: item.productId,
+                type: 'OUT',
+                qtyKg: hasQtyKg ? item.qtyKg : null,
+                qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+                reason: 'SALE',
+                refId: sale.id,
+              },
+            });
+          }
+        }
+
         // Create discount override request
         const override = await prisma.discountOverride.create({
           data: {
@@ -530,17 +552,23 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Deduct inventory for OPEN orders (credit sales)
       // Inventory should be deducted when order is created, not when payment is made
       for (const item of sale.items) {
-        await prisma.inventoryLedger.create({
-          data: {
-            storeId,
-            productId: item.productId,
-            type: 'OUT',
-            qtyKg: item.qtyKg,
-            qtyPcs: item.qtyPcs,
-            reason: 'SALE',
-            refId: sale.id,
-          },
-        });
+        // Only create ledger entry if there's actual quantity to deduct
+        const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
+        const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
+        
+        if (hasQtyKg || hasQtyPcs) {
+          await prisma.inventoryLedger.create({
+            data: {
+              storeId,
+              productId: item.productId,
+              type: 'OUT',
+              qtyKg: hasQtyKg ? item.qtyKg : null,
+              qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+              reason: 'SALE',
+              refId: sale.id,
+            },
+          });
+        }
       }
 
       // Create audit log
@@ -821,28 +849,36 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Check if inventory was already deducted for this sale (when order was created)
       // Use sale's storeId, not user's storeId (for OWNER users paying franchise sales)
       try {
-        const existingLedger = await prisma.inventoryLedger.findFirst({
+        // Check if any ledger entries exist for this sale to prevent double-deduction
+        const existingLedgerCount = await prisma.inventoryLedger.count({
           where: {
             refId: id,
             reason: 'SALE',
+            storeId: sale.storeId, // Also check by storeId to be more precise
           },
         });
 
-        // Only create inventory ledger if it doesn't exist
+        // Only create inventory ledger if no entries exist for this sale
         // This prevents double-deduction for credit/OPEN orders
-        if (!existingLedger) {
+        if (existingLedgerCount === 0) {
           for (const item of sale.items) {
-            await prisma.inventoryLedger.create({
-              data: {
-                storeId: sale.storeId, // Use sale's storeId, not user's storeId
-                productId: item.productId,
-                type: 'OUT',
-                qtyKg: item.qtyKg,
-                qtyPcs: item.qtyPcs,
-                reason: 'SALE',
-                refId: id,
-              },
-            });
+            // Only create ledger entry if there's actual quantity to deduct
+            const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
+            const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
+            
+            if (hasQtyKg || hasQtyPcs) {
+              await prisma.inventoryLedger.create({
+                data: {
+                  storeId: sale.storeId, // Use sale's storeId, not user's storeId
+                  productId: item.productId,
+                  type: 'OUT',
+                  qtyKg: hasQtyKg ? item.qtyKg : null,
+                  qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+                  reason: 'SALE',
+                  refId: id,
+                },
+              });
+            }
           }
         }
       } catch (inventoryError: any) {
@@ -1007,9 +1043,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Fetch full sale data
+      // Fetch full sale data with items
       const sale = await prisma.sale.findUnique({
         where: { id },
+        include: {
+          items: true,
+        },
       });
 
       if (!sale) {
@@ -1023,9 +1062,44 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      if (sale.status !== 'PAID') {
-        reply.code(400).send({ error: 'Only paid sales can be voided' });
+      // Allow voiding both PAID and OPEN sales
+      if (sale.status !== 'PAID' && sale.status !== 'OPEN') {
+        reply.code(400).send({ error: 'Only paid or open sales can be voided' });
         return;
+      }
+
+      // Restore inventory when voiding a sale
+      // Find existing inventory deductions for this sale
+      const existingLedgers = await prisma.inventoryLedger.findMany({
+        where: {
+          refId: id,
+          reason: 'SALE',
+          storeId: sale.storeId,
+        },
+      });
+
+      console.log(`[Void API] Found ${existingLedgers.length} inventory ledger entries to reverse for sale ${id}`);
+
+      // Restore inventory by creating IN entries for each OUT entry
+      for (const ledger of existingLedgers) {
+        // Only restore if there's actual quantity
+        const hasQtyKg = ledger.qtyKg !== null && ledger.qtyKg !== undefined && ledger.qtyKg > 0;
+        const hasQtyPcs = ledger.qtyPcs !== null && ledger.qtyPcs !== undefined && ledger.qtyPcs > 0;
+        
+        if (hasQtyKg || hasQtyPcs) {
+          await prisma.inventoryLedger.create({
+            data: {
+              storeId: sale.storeId,
+              productId: ledger.productId,
+              type: 'IN', // Restore inventory
+              qtyKg: hasQtyKg ? ledger.qtyKg : null,
+              qtyPcs: hasQtyPcs ? ledger.qtyPcs : null,
+              reason: 'RETURN', // Use RETURN reason for voided sales
+              refId: id,
+            },
+          });
+          console.log(`[Void API] Restored inventory for product ${ledger.productId}: ${ledger.qtyKg || 0} kg, ${ledger.qtyPcs || 0} pcs`);
+        }
       }
 
       const updatedSale = await prisma.sale.update({
@@ -1041,7 +1115,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
           action: 'SALE_VOIDED',
           entityType: 'Sale',
           entityId: id,
-          metaJson: { reason: reason || 'No reason provided', userStoreId: storeId }, // Include user's storeId in metadata
+          metaJson: { 
+            reason: reason || 'No reason provided', 
+            userStoreId: storeId,
+            inventoryRestored: existingLedgers.length,
+          }, // Include user's storeId in metadata
         },
       });
 
@@ -1176,13 +1254,38 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
       const roundedGrandTotal = Math.round(grandTotal);
 
+      // Adjust inventory when items are changed
+      // First, reverse the existing inventory deductions
+      const existingLedgers = await prisma.inventoryLedger.findMany({
+        where: {
+          refId: id,
+          reason: 'SALE',
+          storeId: existingSale.storeId,
+        },
+      });
+
+      // Reverse existing inventory deductions
+      for (const ledger of existingLedgers) {
+        await prisma.inventoryLedger.create({
+          data: {
+            storeId: existingSale.storeId,
+            productId: ledger.productId,
+            type: 'IN', // Reverse the OUT entry
+            qtyKg: ledger.qtyKg,
+            qtyPcs: ledger.qtyPcs,
+            reason: 'ADJUSTMENT',
+            refId: id,
+          },
+        });
+      }
+
       // Delete existing items
       await prisma.saleItem.deleteMany({
         where: { saleId: id },
       });
 
       // Create new items
-      await prisma.saleItem.createMany({
+      const newItems = await prisma.saleItem.createMany({
         data: data.items.map((item: any) => {
           const qty = item.qtyKg || item.qtyPcs || 0;
           const lineTotal = Math.round(qty * item.rate * 100) / 100;
@@ -1199,6 +1302,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
           };
         }),
       });
+
+      // Deduct inventory for new/updated items
+      for (const item of data.items) {
+        // Only create ledger entry if there's actual quantity to deduct
+        const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
+        const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
+        
+        if (hasQtyKg || hasQtyPcs) {
+          await prisma.inventoryLedger.create({
+            data: {
+              storeId: existingSale.storeId,
+              productId: item.productId,
+              type: 'OUT',
+              qtyKg: hasQtyKg ? item.qtyKg : null,
+              qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+              reason: 'SALE',
+              refId: id,
+            },
+          });
+        }
+      }
 
       // Update sale totals
       const updatedSale = await prisma.sale.update({

@@ -445,15 +445,36 @@ export async function customerRoutes(fastify: FastifyInstance) {
       // Get storeId from authenticated user
       const user = getUser(request);
       const storeId = (user as any).storeId || '';
+      const userRole = (user as any).role || '';
       
-      console.log('[Pending Payments API] Using authenticated user storeId:', storeId, 'for user:', user.userId);
+      console.log('[Pending Payments API] Using authenticated user storeId:', storeId, 'for user:', user.userId, 'role:', userRole);
       
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required. Please ensure you are logged in.' });
         return;
       }
 
-      console.log('[Pending Payments API] Querying for storeId:', storeId);
+      // For OWNER users, get all franchise stores
+      let storeIds: string[] = [storeId];
+      if (userRole === 'OWNER') {
+        const userStore = await prisma.store.findUnique({
+          where: { id: storeId },
+        });
+        
+        if (userStore && userStore.type === 'OWNER') {
+          const franchises = await prisma.store.findMany({
+            where: {
+              type: 'FRANCHISE',
+              parentOwnerStoreId: storeId,
+            },
+            select: { id: true },
+          });
+          storeIds = [storeId, ...franchises.map(f => f.id)];
+          console.log('[Pending Payments API] Owner accessing pending payments from stores:', storeIds);
+        }
+      }
+
+      console.log('[Pending Payments API] Querying for storeIds:', storeIds);
 
       // Get all sales that are credit orders:
       // 1. OPEN status orders (unpaid), OR
@@ -461,7 +482,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
       // First get all OPEN sales
       const openSales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'OPEN',
         },
         include: {
@@ -484,11 +505,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
       });
 
       // Then get all sales with CREDIT payments (even if PAID)
-      // First get all sales for this store, then filter for credit payments in JavaScript
+      // First get all sales for this store/storeIds, then filter for credit payments in JavaScript
       // This avoids complex Prisma queries that might fail
       const allStoreSales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
         },
         include: {
           customer: true,

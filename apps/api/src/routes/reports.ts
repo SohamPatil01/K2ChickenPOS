@@ -89,17 +89,21 @@ export async function reportRoutes(fastify: FastifyInstance) {
       let outQtyPcs = 0;
       
       product.inventoryLedgers.forEach((l: any) => {
+        // Handle null/undefined values properly
+        const qtyKg = l.qtyKg !== null && l.qtyKg !== undefined ? l.qtyKg : 0;
+        const qtyPcs = l.qtyPcs !== null && l.qtyPcs !== undefined ? l.qtyPcs : 0;
+        
         if (l.type === 'IN') {
-          inQtyKg += l.qtyKg || 0;
-          inQtyPcs += l.qtyPcs || 0;
+          inQtyKg += qtyKg;
+          inQtyPcs += qtyPcs;
         } else {
-          outQtyKg += l.qtyKg || 0;
-          outQtyPcs += l.qtyPcs || 0;
+          outQtyKg += qtyKg;
+          outQtyPcs += qtyPcs;
         }
       });
       
-      // Round to 2 decimal places for KG, integer for PCS
-      const currentQtyKg = Math.round((Math.max(0, inQtyKg - outQtyKg)) * 100) / 100;
+      // Round to 3 decimal places for KG (for consistency with other calculations), integer for PCS
+      const currentQtyKg = Math.round((Math.max(0, inQtyKg - outQtyKg)) * 1000) / 1000;
       const currentQtyPcs = Math.max(0, Math.round(inQtyPcs - outQtyPcs));
       
       // For display, use the appropriate unit based on product unitType

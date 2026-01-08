@@ -28,13 +28,20 @@ export default function StoreDailyClosingPage() {
     loadClosing();
   }, [user, router, closingDate]);
 
-  // Auto-calculate closing cash when opening cash or cash sales changes
+  // Auto-set cashReceived from cashSales (cash revenue)
   useEffect(() => {
-    if (summary?.cashSales !== undefined && formData.openingCash !== undefined) {
-      const calculatedClosingCash = (formData.openingCash || 0) + (summary.cashSales || 0);
+    if (summary?.cashSales !== undefined) {
+      setFormData(prev => ({ ...prev, cashReceived: summary.cashSales || 0 }));
+    }
+  }, [summary?.cashSales]);
+
+  // Auto-calculate closing cash when opening cash or cash received changes
+  useEffect(() => {
+    if (formData.openingCash !== undefined && formData.cashReceived !== undefined) {
+      const calculatedClosingCash = (formData.openingCash || 0) + (formData.cashReceived || 0);
       setFormData(prev => ({ ...prev, closingCash: calculatedClosingCash }));
     }
-  }, [formData.openingCash, summary?.cashSales]);
+  }, [formData.openingCash, formData.cashReceived]);
 
   // Listen for cash sale events to refresh data in real-time
   useEffect(() => {
@@ -160,7 +167,7 @@ export default function StoreDailyClosingPage() {
     }
   };
 
-  const cashExpected = (formData.openingCash || 0) + (summary?.cashSales || 0);
+  const cashExpected = (formData.openingCash || 0) + (formData.cashReceived || 0);
   const cashDifference = (formData.closingCash || 0) - cashExpected;
 
   if (loading && !summary) {
@@ -223,7 +230,7 @@ export default function StoreDailyClosingPage() {
                 value={formData.openingCash || ''}
                 onChange={(e) => setFormData({ ...formData, openingCash: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                step="0.01"
+                step="0.001"
                 min="0"
               />
             </div>
@@ -237,12 +244,15 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cash Received</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cash Received
+                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Auto from Cash Sales)</span>
+              </label>
               <input
                 type="number"
-                value={formData.cashReceived || ''}
-                onChange={(e) => setFormData({ ...formData, cashReceived: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                value={formData.cashReceived || 0}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800"
                 step="0.01"
                 min="0"
               />
@@ -251,7 +261,7 @@ export default function StoreDailyClosingPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Expected Cash</label>
               <input
                 type="number"
-                value={cashExpected.toFixed(2)}
+                value={cashExpected.toFixed(3)}
                 readOnly
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800"
               />
@@ -259,14 +269,14 @@ export default function StoreDailyClosingPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Closing Cash
-                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Auto-calculated)</span>
+                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Auto-calculated: Opening + Cash Received)</span>
               </label>
               <input
                 type="number"
-                value={formData.closingCash || ''}
-                onChange={(e) => setFormData({ ...formData, closingCash: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                step="0.01"
+                value={formData.closingCash || 0}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800"
+                step="0.001"
                 min="0"
               />
             </div>
@@ -274,7 +284,7 @@ export default function StoreDailyClosingPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cash Difference</label>
               <input
                 type="number"
-                value={cashDifference.toFixed(2)}
+                value={cashDifference.toFixed(3)}
                 readOnly
                 className={`w-full px-3 py-2 border rounded-md ${
                   cashDifference === 0
