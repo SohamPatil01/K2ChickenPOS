@@ -10,38 +10,27 @@ interface QueryParams {
 
 export async function productRoutes(fastify: FastifyInstance) {
 
-  fastify.get('/', async (request: any, reply: FastifyReply) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { search, categoryId } = (request.query as any);
       
-      // Try to get user's store, fallback to first store if not authenticated
-      let store;
-      let storeId = '';
+      // Get authenticated user's store
+      const user = getUser(request);
+      const store = await prisma.store.findUnique({ where: { id: user.storeId } });
       
-      try {
-        const user = getUser(request);
-        store = await prisma.store.findUnique({ where: { id: user.storeId } });
-        storeId = user.storeId;
-      } catch (error) {
-        // Not authenticated, use oldest OWNER store as fallback to ensure consistency
-        console.log('User not authenticated, using fallback store');
-        store = await prisma.store.findFirst({ 
-          where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' }
-        });
-        storeId = store?.id || '';
-      }
-
       if (!store) {
         reply.code(404).send({ error: 'Store not found' });
         return;
       }
 
+      const storeId = user.storeId;
       const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
       if (!ownerStoreId) {
         reply.code(400).send({ error: 'Owner store not found' });
         return;
       }
+      
+      console.log(`[Products List] Fetching products for storeId: ${storeId}, ownerStoreId: ${ownerStoreId}`);
 
       const where: any = {
         ownerStoreId,
@@ -65,10 +54,8 @@ export async function productRoutes(fastify: FastifyInstance) {
         include: {
           category: true,
           storeProductPrices: {
-            where: storeId ? {
+            where: {
               storeId,
-              isActive: true,
-            } : {
               isActive: true,
             },
             orderBy: {
@@ -82,20 +69,27 @@ export async function productRoutes(fastify: FastifyInstance) {
         },
       });
 
-      const result = products.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        plu: p.plu,
-        categoryId: p.categoryId,
-        categoryName: p.category?.name || '',
-        unitType: p.unitType,
-        taxRate: p.taxRate,
-        pricePerUnit: p.storeProductPrices[0]?.pricePerUnit || 0,
-        imageUrl: p.imageUrl,
-        isActive: p.isActive,
-      }));
+      const result = products.map((p: any) => {
+        const pricePerUnit = p.storeProductPrices[0]?.pricePerUnit || 0;
+        if (pricePerUnit === 0 && p.storeProductPrices.length === 0) {
+          console.log(`[Products List] Product ${p.name} (${p.id}) has no active price for storeId: ${storeId}`);
+        }
+        return {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          plu: p.plu,
+          categoryId: p.categoryId,
+          categoryName: p.category?.name || '',
+          unitType: p.unitType,
+          taxRate: p.taxRate,
+          pricePerUnit,
+          imageUrl: p.imageUrl,
+          isActive: p.isActive,
+        };
+      });
 
+      console.log(`[Products List] Returning ${result.length} products for storeId: ${storeId}`);
       return result;
     } catch (error: any) {
       console.error('Failed to get products:', error);
