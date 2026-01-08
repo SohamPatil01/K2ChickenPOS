@@ -305,33 +305,58 @@ export async function productRoutes(fastify: FastifyInstance) {
   });
 
   // Price management
-  fastify.post('/:id/price', async (request: any, reply: FastifyReply) => {
-    const { id } = (request.params as any);
-    // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const storeId = store?.id || '';
+  fastify.post('/:id/price', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = (request.params as any);
+      const { pricePerUnit, effectiveFrom } = request.body as any;
+      const user = getUser(request);
+      const storeId = (user as any).storeId;
 
-    // Deactivate old prices
-    await prisma.storeProductPrice.updateMany({
-      where: {
-        storeId,
-        productId: id,
-        isActive: true,
-      },
-      data: { isActive: false },
-    });
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
 
-    // Create new price
-    const price = await prisma.storeProductPrice.create({
-      data: {
-        storeId,
-        productId: id,
-        pricePerUnit,
-        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
-      },
-    });
+      if (!pricePerUnit || pricePerUnit <= 0) {
+        reply.code(400).send({ error: 'Valid price per unit is required' });
+        return;
+      }
 
-    return price;
+      // Verify product exists
+      const product = await prisma.product.findUnique({
+        where: { id },
+      });
+
+      if (!product) {
+        reply.code(404).send({ error: 'Product not found' });
+        return;
+      }
+
+      // Deactivate old prices
+      await prisma.storeProductPrice.updateMany({
+        where: {
+          storeId,
+          productId: id,
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+
+      // Create new price
+      const price = await prisma.storeProductPrice.create({
+        data: {
+          storeId,
+          productId: id,
+          pricePerUnit: parseFloat(pricePerUnit),
+          effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
+        },
+      });
+
+      return price;
+    } catch (error: any) {
+      console.error('Failed to set product price:', error);
+      reply.code(500).send({ error: 'Failed to set product price', details: error.message });
+    }
   });
 
   // Category management
