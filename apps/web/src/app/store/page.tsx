@@ -126,13 +126,14 @@ export default function StoreDashboardPage() {
       const topItems = results[1]?.data || [];
 
       // Also get today's detailed stats
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Use UTC to avoid timezone issues - consistent with orders page
+      const todayStr = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD in UTC
+      const today = new Date(todayStr + 'T00:00:00.000Z');
       const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-      // Get month stats
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      // Get month stats - use UTC for consistency
+      const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
       const monthSalesRes = await api.get('/api/v1/sales', {
         params: {
           startDate: monthStart.toISOString(),
@@ -188,7 +189,7 @@ export default function StoreDashboardPage() {
         }, 0);
       }, 0);
 
-      // Get stock info
+      // Get stock info - use same UTC dates
       const inventoryRes = await api.get('/api/v1/inventory/ledger', {
         params: {
           startDate: today.toISOString(),

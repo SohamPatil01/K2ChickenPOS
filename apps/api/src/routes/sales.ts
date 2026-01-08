@@ -186,10 +186,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.log('[Sales Dashboard] Owner accessing sales from stores:', storeIds);
       }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(today);
-    todayEnd.setHours(23, 59, 59, 999);
+    // Use UTC to avoid timezone issues - consistent with frontend
+    const todayStr = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD in UTC
+    const today = new Date(todayStr + 'T00:00:00.000Z');
+    const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
 
     // Today's sales
     const todaySales = await prisma.sale.findMany({
@@ -204,8 +204,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
     const todayCount = todaySales.length;
     const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 100) / 100 : 0;
 
-    // This month
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    // This month - use UTC for consistency
+    const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
     const monthSales = await prisma.sale.findMany({
       where: {
         storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
