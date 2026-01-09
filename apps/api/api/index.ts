@@ -228,6 +228,18 @@ async function build() {
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
 
+  // 404 handler for undefined routes
+  fastify.setNotFoundHandler({
+    preHandler: [fastify.authenticate]
+  }, async (request: any, reply: FastifyReply) => {
+    reply.code(404).send({
+      error: 'Route not found',
+      path: request.url,
+      method: request.method,
+      message: `The requested endpoint ${request.method} ${request.url} does not exist. Please check the API documentation.`
+    });
+  });
+
   app = fastify;
   return fastify;
 }
