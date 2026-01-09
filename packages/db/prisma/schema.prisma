@@ -412,7 +412,7 @@ model Sale {
 
   @@unique([storeId, saleNo])
   @@index([storeId, createdAt])
-  @@index([storeId, businessDate])
+  // @@index([storeId, businessDate]) // Commented out - column doesn't exist in production DB
   @@index([customerId])
   @@index([status])
 }
