@@ -413,7 +413,11 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       // Get franchise config to check wastage lock
       const store = await prisma.store.findUnique({
         where: { id: storeId },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          parentOwnerStoreId: true,
           franchiseConfig: true,
         },
       });
