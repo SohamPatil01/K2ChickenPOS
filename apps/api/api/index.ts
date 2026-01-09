@@ -229,9 +229,7 @@ async function build() {
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
 
   // 404 handler for undefined routes
-  fastify.setNotFoundHandler({
-    preHandler: [fastify.authenticate]
-  }, async (request: any, reply: FastifyReply) => {
+  fastify.setNotFoundHandler(async (request: any, reply: FastifyReply) => {
     reply.code(404).send({
       error: 'Route not found',
       path: request.url,
