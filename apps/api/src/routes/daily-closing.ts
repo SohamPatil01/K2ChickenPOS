@@ -314,13 +314,24 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const storeId = (getUser(request) as any).storeId;
-        const { date } = request.params as any;
+        let { date } = request.params as any;
+
+        // Decode URL-encoded date if needed
+        date = decodeURIComponent(date);
 
         // Use UTC to avoid timezone issues - consistent with other date filtering
+        // Handle both YYYY-MM-DD and ISO date strings
         const closingDateStr = date.split('T')[0]; // Get YYYY-MM-DD
         const closingDate = new Date(closingDateStr + 'T00:00:00.000Z');
+        
+        // Validate date
+        if (isNaN(closingDate.getTime())) {
+          reply.code(400).send({ error: 'Invalid date format. Expected YYYY-MM-DD' });
+          return;
+        }
 
-        const closing = await prisma.dailyClosing.findUnique({
+        // Try to find closing with exact date match
+        let closing = await prisma.dailyClosing.findUnique({
           where: {
             storeId_closingDate: {
               storeId,
@@ -337,6 +348,30 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           },
         });
 
+        // If not found with exact match, try finding by date range (in case of timezone issues)
+        if (!closing) {
+          const closingDateStart = new Date(closingDateStr + 'T00:00:00.000Z');
+          const closingDateEnd = new Date(closingDateStr + 'T23:59:59.999Z');
+          
+          closing = await prisma.dailyClosing.findFirst({
+            where: {
+              storeId,
+              closingDate: {
+                gte: closingDateStart,
+                lte: closingDateEnd,
+              },
+            },
+            include: {
+              closer: {
+                select: { id: true, name: true },
+              },
+              shift: {
+                select: { id: true, openedAt: true, closedAt: true },
+              },
+            },
+          });
+        }
+
         if (!closing) {
           reply.code(404).send({ error: 'Daily closing not found for this date' });
           return;
@@ -345,7 +380,8 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         return closing;
       } catch (error: any) {
         console.error('Failed to load daily closing:', error);
-        reply.code(500).send({ error: 'Failed to load daily closing' });
+        console.error('Date parameter:', request.params?.date);
+        reply.code(500).send({ error: 'Failed to load daily closing', details: error.message });
       }
     }
   );

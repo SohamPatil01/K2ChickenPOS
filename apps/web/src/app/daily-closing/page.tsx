@@ -32,7 +32,9 @@ export default function DailyClosingPage() {
   const loadClosing = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/v1/daily-closing/${closingDate}`);
+      // Encode the date to handle any special characters
+      const encodedDate = encodeURIComponent(closingDate);
+      const response = await api.get(`/api/v1/daily-closing/${encodedDate}`);
       setExistingClosing(response.data);
       setFormData({
         openingCash: response.data.openingCash || 0,
@@ -58,6 +60,7 @@ export default function DailyClosingPage() {
       }
     } catch (error: any) {
       if (error.response?.status === 404) {
+        // 404 is expected when no daily closing exists for this date - not an error
         setExistingClosing(null);
         // Load summary for new closing
         await loadSummary();

@@ -37,7 +37,13 @@ api.interceptors.response.use(
         message: 'Check if API server is running and NEXT_PUBLIC_API_URL is set correctly',
       });
     } else {
-      console.error('API response error:', error.config?.url, error.response?.status, error.response?.data);
+      // Don't log 404 errors for daily-closing endpoints as they're expected when no closing exists
+      const isDailyClosing404 = error.response?.status === 404 && 
+                                 error.config?.url?.includes('/daily-closing/');
+      
+      if (!isDailyClosing404) {
+        console.error('API response error:', error.config?.url, error.response?.status, error.response?.data);
+      }
     }
     const originalRequest = error.config;
 
