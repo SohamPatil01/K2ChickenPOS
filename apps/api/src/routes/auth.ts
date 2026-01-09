@@ -46,7 +46,16 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       const user = await prisma.user.findUnique({
         where: { phone: body.phone },
-        include: { store: true },
+        include: { 
+          store: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              // timezone is optional, don't select it to avoid errors if column doesn't exist
+            }
+          }
+        },
       });
 
       if (!user) {
@@ -122,7 +131,16 @@ export async function authRoutes(fastify: FastifyInstance) {
       const decoded = fastify.jwt.verify((request.body as any).refreshToken) as any;
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
-        include: { store: true },
+        include: { 
+          store: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              // timezone is optional, don't select it to avoid errors if column doesn't exist
+            }
+          }
+        },
       });
 
       if (!user || !user.isActive) {

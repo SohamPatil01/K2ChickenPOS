@@ -180,7 +180,7 @@ model Store {
   parentOwnerStoreId String?
   parentOwnerStore Store?    @relation("StoreOwner", fields: [parentOwnerStoreId], references: [id])
   franchises       Store[]   @relation("StoreOwner")
-  timezone         String    @default("Asia/Kolkata")
+  timezone         String?   @default("Asia/Kolkata")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
