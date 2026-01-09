@@ -106,8 +106,24 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       const sales = await prisma.sale.findMany({
         where,
-        include: {
-          items: { include: { product: true } },
+        select: {
+          id: true,
+          saleNo: true,
+          status: true,
+          subTotal: true,
+          discountTotal: true,
+          taxTotal: true,
+          grandTotal: true,
+          createdAt: true,
+          updatedAt: true,
+          storeId: true,
+          customerId: true,
+          createdByUserId: true,
+          items: { 
+            include: { 
+              product: true 
+            } 
+          },
           customer: true,
           payments: true,
           store: {
