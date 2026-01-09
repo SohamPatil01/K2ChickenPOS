@@ -108,11 +108,34 @@ async function build() {
   });
 
   await fastify.register(cors, {
-    origin: true, // Allow all origins - Fastify CORS plugin handles this properly
+    origin: (origin, cb) => {
+      // Allow all origins, including Vercel deployments
+      const allowedOrigins = [
+        'https://k2-chicken-pos-web.vercel.app',
+        'https://k2-chicken-pos-hq-web.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+      ];
+      
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        return cb(null, true);
+      }
+      
+      // Check if origin is in allowed list or is a Vercel preview deployment
+      if (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost')) {
+        return cb(null, true);
+      }
+      
+      // Default: allow all origins for now
+      return cb(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'Pragma', 'If-Modified-Since', 'Expires'],
     exposedHeaders: ['Content-Type', 'Authorization'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // Register rate limiting with higher limits to prevent blocking legitimate requests
@@ -247,11 +270,24 @@ export default async function handler(req: any, res: any) {
   try {
     // Handle OPTIONS preflight requests immediately with CORS headers
     if (req.method === 'OPTIONS') {
-      const origin = req.headers.origin || '*';
-      res.setHeader('Access-Control-Allow-Origin', origin);
+      const origin = req.headers.origin || req.headers.Origin;
+      const allowedOrigins = [
+        'https://k2-chicken-pos-web.vercel.app',
+        'https://k2-chicken-pos-hq-web.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+      ];
+      
+      if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma, If-Modified-Since, Expires');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
       res.status(200).end();
       return;
@@ -321,15 +357,24 @@ export default async function handler(req: any, res: any) {
       });
       
       // Set CORS headers before sending error
-      const origin = req.headers.origin;
-      if (origin) {
+      const origin = req.headers.origin || req.headers.Origin;
+      const allowedOrigins = [
+        'https://k2-chicken-pos-web.vercel.app',
+        'https://k2-chicken-pos-hq-web.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+      ];
+      
+      if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
       } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
       }
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma, If-Modified-Since, Expires');
       
       res.status(500).json({
         error: 'Request processing failed',
@@ -401,15 +446,24 @@ export default async function handler(req: any, res: any) {
     
     // Ensure CORS headers are set even on error
     if (!res.headersSent) {
-      const origin = req.headers?.origin;
-      if (origin) {
+      const origin = req.headers?.origin || req.headers?.Origin;
+      const allowedOrigins = [
+        'https://k2-chicken-pos-web.vercel.app',
+        'https://k2-chicken-pos-hq-web.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+      ];
+      
+      if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
       } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
       }
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma, If-Modified-Since, Expires');
       
       // Send error response
       res.status(500).json({ 
