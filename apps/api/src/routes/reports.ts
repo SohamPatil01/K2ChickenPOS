@@ -179,7 +179,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
         productStats[key].qtyKg = Math.round((productStats[key].qtyKg + (item.qtyKg || 0)) * 100) / 100;
         productStats[key].qtyPcs = Math.round(productStats[key].qtyPcs + (item.qtyPcs || 0));
         productStats[key].totalQty = Math.round((productStats[key].totalQty + (item.qtyKg || 0) + (item.qtyPcs || 0)) * 100) / 100;
-        productStats[key].revenue = Math.round((productStats[key].revenue + item.lineTotal) * 100) / 100;
+        // Round revenue to 3 decimal places for consistency with other financial calculations
+        productStats[key].revenue = Math.round((productStats[key].revenue + item.lineTotal) * 1000) / 1000;
         productStats[key].salesCount += 1;
       }
     }
@@ -550,17 +551,19 @@ export async function reportRoutes(fastify: FastifyInstance) {
             avgPrice: 0,
           };
         }
-        skuStats[sku].qtyKg += item.qtyKg || 0;
-        skuStats[sku].qtyPcs += item.qtyPcs || 0;
-        skuStats[sku].revenue += item.lineTotal;
+        skuStats[sku].qtyKg = Math.round((skuStats[sku].qtyKg + (item.qtyKg || 0)) * 100) / 100;
+        skuStats[sku].qtyPcs = Math.round(skuStats[sku].qtyPcs + (item.qtyPcs || 0));
+        skuStats[sku].revenue = Math.round((skuStats[sku].revenue + item.lineTotal) * 1000) / 1000;
         skuStats[sku].salesCount += 1;
       }
     }
 
-    // Calculate average price
+    // Calculate average price - Round to 3 decimal places
     Object.values(skuStats).forEach((stat: any) => {
       const totalQty = stat.qtyKg + stat.qtyPcs;
-      stat.avgPrice = totalQty > 0 ? stat.revenue / totalQty : 0;
+      stat.avgPrice = totalQty > 0 ? Math.round((stat.revenue / totalQty) * 1000) / 1000 : 0;
+      // Also round the final revenue to 3 decimal places
+      stat.revenue = Math.round(stat.revenue * 1000) / 1000;
     });
 
       return Object.values(skuStats).sort((a: any, b: any) => b.revenue - a.revenue);
