@@ -502,11 +502,51 @@ body {
 @keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ============================================
+   PRINT STYLES FOR THERMAL RECEIPTS
+   ============================================ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  .thermal-receipt,
+  .thermal-receipt * {
+    visibility: visible;
+  }
+  
+  .thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    background: white !important;
+    color: black !important;
+    font-family: monospace !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  
+  @page {
+    size: 80mm auto;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Hide everything except the receipt */
+  body > *:not(.thermal-receipt-container) {
+    display: none !important;
   }
 }
 
