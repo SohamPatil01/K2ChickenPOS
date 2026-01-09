@@ -115,8 +115,11 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
           margin: "5px 0",
           textTransform: "uppercase"
         }}>
-          {storeName}
+          K2 Chicken
         </h2>
+        <div style={{ fontSize: "12px", marginTop: "5px", fontWeight: "bold" }}>
+          Phone: 8484978622
+        </div>
         <div style={{ fontSize: "10px", marginTop: "5px" }}>
           Thank you for your visit!
         </div>
@@ -288,6 +291,13 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
       <div style={{ textAlign: "center", marginTop: "15px", fontSize: "10px" }}>
         <div style={{ marginBottom: "5px" }}>
           Status: {sale.status === "PAID" ? "PAID" : sale.status === "VOID" ? "CANCELLED" : "OPEN"}
+        </div>
+        <hr style={{ border: "1px dashed #000", margin: "10px 0" }} />
+        <div style={{ marginTop: "10px", fontWeight: "bold" }}>
+          K2 Chicken
+        </div>
+        <div style={{ marginTop: "5px" }}>
+          Phone: 8484978622
         </div>
         <div style={{ marginTop: "10px" }}>
           Thank you for your business!
