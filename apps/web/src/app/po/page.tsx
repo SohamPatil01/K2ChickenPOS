@@ -353,17 +353,17 @@ export default function POPage() {
           </button>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispatch</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispatch</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky right-0 bg-gray-50 z-10">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -385,11 +385,11 @@ export default function POPage() {
                   }}
                   className="cursor-pointer hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">{po.poNo}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap font-medium">{po.poNo}</td>
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {po.franchiseStore?.name || po.ownerStore?.name || 'N/A'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded text-xs ${
                       po.status === 'APPROVED' ? 'bg-primary-100 text-primary-800' :
                       po.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
@@ -400,63 +400,63 @@ export default function POPage() {
                       {po.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  <td className="px-4 sm:px-6 py-4 text-sm text-gray-500">
                     {po.items.length} item(s)
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
                     {po.dispatch ? (
                       <span className="text-blue-600">{po.dispatch.dispatchNo}</span>
                     ) : (
                       <span className="text-gray-400">No dispatch</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(po.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
                     {po.status === 'DRAFT' && (
                       <>
                         {user?.role !== 'OWNER' && (
                           <button
                             onClick={() => handleAction(po.id, 'submit')}
-                            className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium"
+                            className="px-3 py-2 sm:py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium min-w-[80px] touch-target"
                           >
                             Submit
                           </button>
                         )}
                         {user?.role === 'OWNER' && (
-                          <>
+                          <div className="flex flex-wrap gap-2">
                             <button
                               onClick={() => handleAction(po.id, 'submit')}
-                              className="px-3 py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium mr-2"
+                              className="px-3 py-2 sm:py-1.5 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors text-sm font-medium min-w-[80px] touch-target"
                             >
                               Submit
                             </button>
                             <button
                               onClick={() => handleAction(po.id, 'approve')}
-                              className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                              className="px-3 py-2 sm:py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium min-w-[80px] touch-target"
                             >
                               Approve
                             </button>
-                          </>
+                          </div>
                         )}
                       </>
                     )}
                     {po.status === 'SUBMITTED' && user?.role === 'OWNER' && (
-                      <>
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => handleAction(po.id, 'approve')}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium mr-2"
+                          className="px-3 py-2 sm:py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium min-w-[80px] touch-target"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => handleAction(po.id, 'reject')}
-                          className="px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm font-medium"
+                          className="px-3 py-2 sm:py-1.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm font-medium min-w-[80px] touch-target"
                         >
                           Reject
                         </button>
-                      </>
+                      </div>
                     )}
                     {po.status === 'APPROVED' && user?.role === 'OWNER' && (
                       <button
@@ -475,20 +475,20 @@ export default function POPage() {
                       </button>
                     )}
                     {(po.status === 'RECEIVED' || po.status === 'DISPATCHED') && (
-                      <>
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => handleEditReceivedQuantities(po)}
-                          className="px-3 py-1.5 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors text-sm font-medium mr-2"
+                          className="px-3 py-2 sm:py-1.5 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors text-sm font-medium min-w-[100px] touch-target"
                         >
                           Edit Received
                         </button>
                         <button
                           onClick={() => handleFinalizePO(po.id)}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                          className="px-3 py-2 sm:py-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm font-medium min-w-[80px] touch-target"
                         >
                           Finalize
                         </button>
-                      </>
+                      </div>
                     )}
                   </td>
                 </tr>
