@@ -509,9 +509,9 @@ export default function ThermalReceipt({
       >
         <div
           style={{
-            marginBottom: "6px",
+            marginBottom: "5px",
             fontWeight: "bold",
-            fontSize: "11px",
+            fontSize: "9px",
           }}
         >
           Status:{" "}
@@ -543,21 +543,21 @@ export default function ThermalReceipt({
 
         <div
           style={{
-            marginTop: "8px",
+            marginTop: "6px",
             fontWeight: "bold",
-            fontSize: "12px",
+            fontSize: "10px",
           }}
         >
           K2 Chicken
         </div>
-        <div style={{ marginTop: "4px", fontSize: "11px" }}>
+        <div style={{ marginTop: "3px", fontSize: "9px" }}>
           📞 8484978622
         </div>
 
         <div
           style={{
-            marginTop: "10px",
-            fontSize: "10px",
+            marginTop: "6px",
+            fontSize: "8px",
             fontStyle: "italic",
           }}
         >
@@ -565,8 +565,8 @@ export default function ThermalReceipt({
         </div>
         <div
           style={{
-            marginTop: "6px",
-            fontSize: "9px",
+            marginTop: "4px",
+            fontSize: "8px",
             color: "#666",
           }}
         >

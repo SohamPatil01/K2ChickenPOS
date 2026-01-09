@@ -92,7 +92,7 @@ export default function OrdersPage() {
     },
     pageStyle: `
       @page {
-        size: 80mm auto;
+        size: 58mm auto;
         margin: 0;
       }
       @media print {
@@ -107,14 +107,14 @@ export default function OrdersPage() {
           position: absolute !important;
           left: 0 !important;
           top: 0 !important;
-          width: 80mm !important;
-          max-width: 80mm !important;
+          width: 58mm !important;
+          max-width: 58mm !important;
         }
         .thermal-receipt {
-          width: 80mm !important;
-          max-width: 80mm !important;
+          width: 58mm !important;
+          max-width: 58mm !important;
           margin: 0 !important;
-          padding: 10px !important;
+          padding: 6px !important;
         }
         body {
           margin: 0;
