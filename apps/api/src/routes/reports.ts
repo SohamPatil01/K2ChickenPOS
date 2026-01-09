@@ -13,8 +13,28 @@ interface QueryParams {
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
-    const start = new Date(startDate + 'T00:00:00.000Z');
-    const end = new Date(endDate + 'T23:59:59.999Z');
+    // Ensure dates are in YYYY-MM-DD format
+    const startDateStr = startDate.split('T')[0]; // Handle ISO strings
+    const endDateStr = endDate.split('T')[0];
+    
+    const start = new Date(startDateStr + 'T00:00:00.000Z');
+    const end = new Date(endDateStr + 'T23:59:59.999Z');
+    
+    // Validate dates
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      console.error('Invalid date range:', { startDate, endDate, startDateStr, endDateStr });
+      // Fallback to default range
+      const endDefault = new Date();
+      endDefault.setUTCHours(23, 59, 59, 999);
+      const startDefault = new Date();
+      startDefault.setUTCDate(startDefault.getUTCDate() - 30);
+      startDefault.setUTCHours(0, 0, 0, 0);
+      return {
+        gte: startDefault,
+        lte: endDefault,
+      };
+    }
+    
     return {
       gte: start,
       lte: end,
@@ -156,6 +176,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
         },
       },
     });
+    
+    console.log(`Found ${sales.length} sales for product-wise report`);
 
     const productStats: Record<string, any> = {};
 

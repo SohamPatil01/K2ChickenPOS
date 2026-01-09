@@ -22,12 +22,21 @@ export default function SummaryReportPage() {
     try {
       const effectiveStartDate = start !== undefined ? start : startDate;
       const effectiveEndDate = end !== undefined ? end : endDate;
+      
+      // Log dates for debugging
+      console.log('Loading report data with dates:', { effectiveStartDate, effectiveEndDate });
+      
       const response = await api.get('/api/v1/reports/summary-report', {
         params: { startDate: effectiveStartDate, endDate: effectiveEndDate },
       });
+      
+      console.log('Report data received:', response.data);
       setData(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load data:', error);
+      console.error('Error details:', error.response?.data);
+      // Set empty data on error to show "no data" message
+      setData(null);
     } finally {
       setLoading(false);
     }

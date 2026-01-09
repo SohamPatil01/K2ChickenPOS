@@ -22,12 +22,19 @@ export default function ProductWiseSalePage() {
     try {
       const effectiveStartDate = start !== undefined ? start : startDate;
       const effectiveEndDate = end !== undefined ? end : endDate;
+      
+      console.log('Loading product-wise sale report with dates:', { effectiveStartDate, effectiveEndDate });
+      
       const response = await api.get('/api/v1/reports/product-wise-sale', {
         params: { startDate: effectiveStartDate, endDate: effectiveEndDate },
       });
+      
+      console.log('Product-wise sale data received:', response.data?.length || 0, 'items');
       setData(response.data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load data:', error);
+      console.error('Error details:', error.response?.data);
+      setData([]);
     } finally {
       setLoading(false);
     }
