@@ -180,6 +180,7 @@ model Store {
   parentOwnerStoreId String?
   parentOwnerStore Store?    @relation("StoreOwner", fields: [parentOwnerStoreId], references: [id])
   franchises       Store[]   @relation("StoreOwner")
+  timezone         String    @default("Asia/Kolkata")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -399,6 +400,7 @@ model Sale {
   grandTotal    Float      @default(0)
   createdByUserId String
   createdBy     User       @relation("SaleCreator", fields: [createdByUserId], references: [id])
+  businessDate  DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -410,6 +412,7 @@ model Sale {
 
   @@unique([storeId, saleNo])
   @@index([storeId, createdAt])
+  @@index([storeId, businessDate])
   @@index([customerId])
   @@index([status])
 }
@@ -458,6 +461,7 @@ model Shift {
   openingCash   Float    @default(0)
   closingCash   Float?
   notes         String?
+  businessDate  DateTime?
   dailyClosings DailyClosing[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
