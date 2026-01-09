@@ -796,8 +796,12 @@ export async function reportRoutes(fastify: FastifyInstance) {
           include: {
             po: {
               include: {
-                franchiseStore: true,
-                ownerStore: true,
+                franchiseStore: {
+                  select: { id: true, name: true, type: true }
+                },
+                ownerStore: {
+                  select: { id: true, name: true, type: true }
+                },
               },
             },
             items: {

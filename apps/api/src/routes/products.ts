@@ -367,7 +367,13 @@ export async function productRoutes(fastify: FastifyInstance) {
       const product = await prisma.product.findUnique({
         where: { id },
         include: {
-          ownerStore: true,
+          ownerStore: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            }
+          },
         },
       });
 

@@ -247,7 +247,9 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         const req = await prisma.replenishmentRequest.findUnique({
           where: { id },
           include: {
-            franchiseStore: true,
+            franchiseStore: {
+              select: { id: true, name: true, type: true }
+            },
           },
         });
 

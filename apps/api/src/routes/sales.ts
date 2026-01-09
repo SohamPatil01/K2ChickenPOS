@@ -644,7 +644,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get user's role and store to check access
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { store: true },
+        include: { 
+          store: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            }
+          }
+        },
       });
 
       if (!user) {
@@ -1003,7 +1011,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get user's role and store to check access
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { store: true },
+        include: { 
+          store: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            }
+          }
+        },
       });
 
       if (!user) {

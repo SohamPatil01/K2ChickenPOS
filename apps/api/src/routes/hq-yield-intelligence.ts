@@ -41,7 +41,9 @@ export async function hqYieldIntelligenceRoutes(fastify: FastifyInstance) {
         const config = await prisma.franchiseConfig.findUnique({
           where: { id: franchiseConfigId },
           include: {
-            franchiseStore: true,
+            franchiseStore: {
+              select: { id: true, name: true, type: true }
+            },
           },
         });
 
