@@ -49,24 +49,28 @@ interface ThermalReceiptProps {
   storeName?: string;
 }
 
-export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: ThermalReceiptProps) {
+export default function ThermalReceipt({
+  sale,
+  storeName = "K2 Chicken POS",
+}: ThermalReceiptProps) {
   const barcodeRefs = useRef<{ [key: string]: HTMLCanvasElement | null }>({});
 
   useEffect(() => {
     // Generate barcodes for each product
     sale.items.forEach((item) => {
-      const barcodeValue = item.product.sku || item.product.plu || item.product.id;
+      const barcodeValue =
+        item.product.sku || item.product.plu || item.product.id;
       const canvasId = `barcode-${item.id}`;
       const canvas = barcodeRefs.current[canvasId];
-      
+
       if (canvas && barcodeValue) {
         try {
           // Clear canvas first
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext("2d");
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
           }
-          
+
           JsBarcode(canvas, String(barcodeValue), {
             format: "CODE128",
             width: 2,
@@ -94,56 +98,145 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
     });
   };
 
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
-    <div className="thermal-receipt" style={{ 
-      width: "80mm", 
-      maxWidth: "80mm",
-      margin: "0 auto",
-      padding: "10px",
-      fontFamily: "monospace",
-      fontSize: "12px",
-      lineHeight: "1.4",
-      backgroundColor: "white",
-      color: "black"
-    }}>
+    <div
+      className="thermal-receipt"
+      style={{
+        width: "80mm",
+        maxWidth: "80mm",
+        margin: "0 auto",
+        padding: "8px",
+        fontFamily: "monospace",
+        fontSize: "11px",
+        lineHeight: "1.5",
+        backgroundColor: "white",
+        color: "black",
+        boxSizing: "border-box",
+      }}
+    >
       {/* Store Header */}
-      <div style={{ textAlign: "center", marginBottom: "10px" }}>
-        <h2 style={{ 
-          fontSize: "18px", 
-          fontWeight: "bold", 
-          margin: "5px 0",
-          textTransform: "uppercase"
-        }}>
-          {storeName}
-        </h2>
-        <div style={{ fontSize: "10px", marginTop: "5px" }}>
+      <div style={{ textAlign: "center", marginBottom: "12px" }}>
+        <div
+          style={{
+            fontSize: "20px",
+            fontWeight: "bold",
+            margin: "8px 0 4px 0",
+            textTransform: "uppercase",
+            letterSpacing: "1px",
+          }}
+        >
+          K2 Chicken
+        </div>
+        <div
+          style={{
+            fontSize: "11px",
+            marginTop: "4px",
+            fontWeight: "bold",
+            marginBottom: "6px",
+          }}
+        >
+          📞 8484978622
+        </div>
+        <div
+          style={{
+            fontSize: "9px",
+            marginTop: "4px",
+            color: "#555",
+          }}
+        >
           Thank you for your visit!
         </div>
       </div>
 
-      <hr style={{ border: "1px dashed #000", margin: "10px 0" }} />
+      <div
+        style={{
+          borderTop: "1px dashed #000",
+          margin: "8px 0",
+        }}
+      />
 
-      {/* Sale Info */}
-      <div style={{ marginBottom: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-          <span>Bill No:</span>
+      {/* Bill Information */}
+      <div style={{ marginBottom: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "4px",
+            fontSize: "11px",
+          }}
+        >
+          <span style={{ fontWeight: "bold" }}>Bill No:</span>
           <span style={{ fontWeight: "bold" }}>{sale.saleNo}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "4px",
+            fontSize: "11px",
+          }}
+        >
           <span>Date:</span>
           <span>{formatDate(sale.createdAt)}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "4px",
+            fontSize: "11px",
+          }}
+        >
+          <span>Time:</span>
+          <span>{formatTime(sale.createdAt)}</span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "4px",
+            fontSize: "11px",
+          }}
+        >
           <span>Cashier:</span>
           <span>{sale.createdBy.name}</span>
         </div>
         {sale.customer && (
           <>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-              <span>Customer:</span>
-              <span>{sale.customer.name}</span>
+            <div
+              style={{
+                borderTop: "1px dashed #ccc",
+                margin: "6px 0",
+                paddingTop: "6px",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "4px",
+                fontSize: "11px",
+              }}
+            >
+              <span style={{ fontWeight: "bold" }}>Customer:</span>
+              <span style={{ fontWeight: "bold" }}>{sale.customer.name}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "4px",
+                fontSize: "11px",
+              }}
+            >
               <span>Phone:</span>
               <span>{sale.customer.phone}</span>
             </div>
@@ -151,68 +244,127 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
         )}
       </div>
 
-      <hr style={{ border: "1px dashed #000", margin: "10px 0" }} />
+      <div
+        style={{
+          borderTop: "1px dashed #000",
+          margin: "8px 0",
+        }}
+      />
 
-      {/* Items */}
-      <div style={{ marginBottom: "10px" }}>
-        <div style={{ 
-          display: "grid", 
-          gridTemplateColumns: "2fr 1fr 1fr",
+      {/* Items Header */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "3fr 1fr 1.2fr",
           fontWeight: "bold",
-          marginBottom: "8px",
-          paddingBottom: "5px",
-          borderBottom: "1px solid #000"
-        }}>
-          <span>Item</span>
-          <span style={{ textAlign: "right" }}>Qty</span>
-          <span style={{ textAlign: "right" }}>Amount</span>
-        </div>
-        
-        {sale.items.map((item) => {
-          const qty = item.qtyKg 
+          marginBottom: "6px",
+          paddingBottom: "4px",
+          borderBottom: "2px solid #000",
+          fontSize: "11px",
+        }}
+      >
+        <span>Item</span>
+        <span style={{ textAlign: "right" }}>Qty</span>
+        <span style={{ textAlign: "right" }}>Amount</span>
+      </div>
+
+      {/* Items List */}
+      <div style={{ marginBottom: "12px" }}>
+        {sale.items.map((item, index) => {
+          const qty = item.qtyKg
             ? `${item.qtyKg.toFixed(2)} kg`
-            : item.qtyPcs 
+            : item.qtyPcs
             ? `${item.qtyPcs} pcs`
             : "1";
-          
+
           return (
-            <div key={item.id} style={{ marginBottom: "12px" }}>
-              <div style={{ marginBottom: "5px" }}>
-                <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                  {item.product.name}
-                </div>
-                <div style={{ fontSize: "10px", color: "#666" }}>
-                  SKU: {item.product.sku} | {item.product.unitType}
-                </div>
+            <div
+              key={item.id}
+              style={{
+                marginBottom: index < sale.items.length - 1 ? "10px" : "0",
+                paddingBottom: index < sale.items.length - 1 ? "8px" : "0",
+                borderBottom:
+                  index < sale.items.length - 1 ? "1px dashed #ccc" : "none",
+              }}
+            >
+              {/* Product Name */}
+              <div
+                style={{
+                  fontWeight: "bold",
+                  marginBottom: "3px",
+                  fontSize: "11px",
+                }}
+              >
+                {item.product.name}
               </div>
-              
+
+              {/* Product Details */}
+              <div
+                style={{
+                  fontSize: "9px",
+                  color: "#666",
+                  marginBottom: "4px",
+                }}
+              >
+                SKU: {item.product.sku} | {item.product.unitType}
+              </div>
+
               {/* Barcode */}
               {(item.product.sku || item.product.plu) && (
-                <div style={{ textAlign: "center", margin: "5px 0" }}>
+                <div
+                  style={{
+                    textAlign: "center",
+                    margin: "4px 0",
+                  }}
+                >
                   <canvas
                     ref={(el) => {
                       barcodeRefs.current[`barcode-${item.id}`] = el;
                     }}
-                    style={{ maxWidth: "100%", height: "auto", display: "block" }}
+                    style={{
+                      maxWidth: "100%",
+                      height: "auto",
+                      display: "block",
+                    }}
                   />
                 </div>
               )}
-              
-              <div style={{ 
-                display: "grid", 
-                gridTemplateColumns: "2fr 1fr 1fr",
-                fontSize: "11px",
-                marginTop: "5px"
-              }}>
-                <span>₹{item.rate.toFixed(2)} × {qty}</span>
-                <span style={{ textAlign: "right" }}>{qty}</span>
-                <span style={{ textAlign: "right", fontWeight: "bold" }}>
+
+              {/* Price Details */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "3fr 1fr 1.2fr",
+                  fontSize: "10px",
+                  marginTop: "4px",
+                }}
+              >
+                <span style={{ color: "#666" }}>
+                  ₹{item.rate.toFixed(2)} × {qty}
+                </span>
+                <span style={{ textAlign: "right", color: "#666" }}>
+                  {qty}
+                </span>
+                <span
+                  style={{
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
                   ₹{item.lineTotal.toFixed(2)}
                 </span>
               </div>
-              
+
+              {/* Tax Info */}
               {item.taxRate > 0 && (
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "3px" }}>
+                <div
+                  style={{
+                    fontSize: "9px",
+                    color: "#666",
+                    marginTop: "3px",
+                    textAlign: "right",
+                  }}
+                >
                   Tax ({item.taxRate}%): ₹{item.taxAmount.toFixed(2)}
                 </div>
               )}
@@ -221,58 +373,117 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
         })}
       </div>
 
-      <hr style={{ border: "1px dashed #000", margin: "10px 0" }} />
+      <div
+        style={{
+          borderTop: "1px dashed #000",
+          margin: "8px 0",
+        }}
+      />
 
-      {/* Totals */}
-      <div style={{ marginBottom: "10px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+      {/* Totals Section */}
+      <div style={{ marginBottom: "12px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "5px",
+            fontSize: "11px",
+          }}
+        >
           <span>Subtotal:</span>
           <span>₹{sale.subTotal.toFixed(2)}</span>
         </div>
         {sale.taxTotal > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "5px",
+              fontSize: "11px",
+            }}
+          >
             <span>Tax:</span>
             <span>₹{sale.taxTotal.toFixed(2)}</span>
           </div>
         )}
         {sale.discountTotal > 0 && (
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px", color: "#d32f2f" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "5px",
+              fontSize: "11px",
+              color: "#d32f2f",
+            }}
+          >
             <span>Discount:</span>
             <span>-₹{sale.discountTotal.toFixed(2)}</span>
           </div>
         )}
-        <div style={{ 
-          display: "flex", 
-          justifyContent: "space-between", 
-          marginTop: "10px",
-          paddingTop: "10px",
-          borderTop: "2px solid #000",
-          fontWeight: "bold",
-          fontSize: "14px"
-        }}>
-          <span>Grand Total:</span>
+        <div
+          style={{
+            borderTop: "2px solid #000",
+            marginTop: "8px",
+            paddingTop: "8px",
+            display: "flex",
+            justifyContent: "space-between",
+            fontWeight: "bold",
+            fontSize: "14px",
+          }}
+        >
+          <span>GRAND TOTAL:</span>
           <span>₹{sale.grandTotal.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Payments */}
+      {/* Payment Section */}
       {sale.payments.length > 0 && (
         <>
-          <hr style={{ border: "1px dashed #000", margin: "10px 0" }} />
-          <div style={{ marginBottom: "10px" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "5px" }}>Payment:</div>
-            {sale.payments.map((payment) => (
-              <div key={payment.id} style={{ 
-                display: "flex", 
-                justifyContent: "space-between",
-                marginBottom: "3px",
-                fontSize: "11px"
-              }}>
-                <span>{payment.method}:</span>
-                <span>₹{payment.amount.toFixed(2)}</span>
+          <div
+            style={{
+              borderTop: "1px dashed #000",
+              margin: "8px 0",
+            }}
+          />
+          <div style={{ marginBottom: "12px" }}>
+            <div
+              style={{
+                fontWeight: "bold",
+                marginBottom: "6px",
+                fontSize: "11px",
+              }}
+            >
+              Payment Details:
+            </div>
+            {sale.payments.map((payment, index) => (
+              <div key={payment.id}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "4px",
+                    fontSize: "11px",
+                  }}
+                >
+                  <span style={{ fontWeight: "bold" }}>{payment.method}:</span>
+                  <span style={{ fontWeight: "bold" }}>
+                    ₹{payment.amount.toFixed(2)}
+                  </span>
+                </div>
                 {payment.txnRef && (
-                  <div style={{ fontSize: "10px", color: "#666", width: "100%" }}>
-                    Ref: {payment.txnRef}
+                  <div
+                    style={{
+                      fontSize: "9px",
+                      color: "#666",
+                      marginBottom: index < sale.payments.length - 1 ? "6px" : "0",
+                      paddingBottom: index < sale.payments.length - 1 ? "4px" : "0",
+                      borderBottom:
+                        index < sale.payments.length - 1
+                          ? "1px dashed #ccc"
+                          : "none",
+                    }}
+                  >
+                    Transaction Ref: {payment.txnRef}
                   </div>
                 )}
               </div>
@@ -281,21 +492,87 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
         </>
       )}
 
-      <hr style={{ border: "1px dashed #000", margin: "10px 0" }} />
+      <div
+        style={{
+          borderTop: "1px dashed #000",
+          margin: "8px 0",
+        }}
+      />
 
       {/* Footer */}
-      <div style={{ textAlign: "center", marginTop: "15px", fontSize: "10px" }}>
-        <div style={{ marginBottom: "5px" }}>
-          Status: {sale.status === "PAID" ? "PAID" : sale.status === "VOID" ? "CANCELLED" : "OPEN"}
+      <div
+        style={{
+          textAlign: "center",
+          marginTop: "12px",
+          fontSize: "10px",
+        }}
+      >
+        <div
+          style={{
+            marginBottom: "6px",
+            fontWeight: "bold",
+            fontSize: "11px",
+          }}
+        >
+          Status:{" "}
+          <span
+            style={{
+              color:
+                sale.status === "PAID"
+                  ? "#16a34a"
+                  : sale.status === "VOID"
+                  ? "#dc2626"
+                  : "#f59e0b",
+            }}
+          >
+            {sale.status === "PAID"
+              ? "PAID"
+              : sale.status === "VOID"
+              ? "CANCELLED"
+              : "OPEN"}
+          </span>
         </div>
-        <div style={{ marginTop: "10px" }}>
+
+        <div
+          style={{
+            borderTop: "1px dashed #000",
+            margin: "10px 0",
+            paddingTop: "10px",
+          }}
+        />
+
+        <div
+          style={{
+            marginTop: "8px",
+            fontWeight: "bold",
+            fontSize: "12px",
+          }}
+        >
+          K2 Chicken
+        </div>
+        <div style={{ marginTop: "4px", fontSize: "11px" }}>
+          📞 8484978622
+        </div>
+
+        <div
+          style={{
+            marginTop: "10px",
+            fontSize: "10px",
+            fontStyle: "italic",
+          }}
+        >
           Thank you for your business!
         </div>
-        <div style={{ marginTop: "5px", fontSize: "9px" }}>
+        <div
+          style={{
+            marginTop: "6px",
+            fontSize: "9px",
+            color: "#666",
+          }}
+        >
           Visit us again soon
         </div>
       </div>
     </div>
   );
 }
-

@@ -59,7 +59,7 @@ export default function OrdersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [editForm, setEditForm] = useState({
-    discountTotal: "0",
+    discountTotal: '0',
     items: [] as Array<{
       id: string;
       productId: string;
@@ -71,38 +71,54 @@ export default function OrdersPage() {
     }>,
   });
   const [dateFilter, setDateFilter] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
   });
-  const [statusFilter, setStatusFilter] = useState<string>("ALL"); // ALL, OPEN, PAID, VOID
+  const [statusFilter, setStatusFilter] = useState<string>('ALL'); // ALL, OPEN, PAID, VOID
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancellingSale, setCancellingSale] = useState<Sale | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
     documentTitle: `Bill-${selectedSale?.saleNo || "Receipt"}`,
+    onBeforeGetContent: async () => {
+      // Wait a bit to ensure barcodes are rendered
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    },
     pageStyle: `
       @page {
         size: 80mm auto;
         margin: 0;
       }
       @media print {
-        body {
-          margin: 0;
-          padding: 0;
+        * {
+          visibility: hidden;
+        }
+        .thermal-receipt-container,
+        .thermal-receipt-container * {
+          visibility: visible !important;
+        }
+        .thermal-receipt-container {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
         }
         .thermal-receipt {
           width: 80mm !important;
           max-width: 80mm !important;
           margin: 0 !important;
           padding: 10px !important;
+        }
+        body {
+          margin: 0;
+          padding: 0;
         }
       }
     `,
@@ -112,46 +128,48 @@ export default function OrdersPage() {
     if (user === undefined) return;
 
     if (!user) {
-      router.push("/login");
+      router.push('/login');
       return;
     }
 
-    if (
-      user.role !== "OWNER" &&
-      user.role !== "CASHIER" &&
-      user.role !== "MANAGER"
-    ) {
-      router.push("/store");
+    if (user.role !== 'OWNER' && user.role !== 'CASHIER') {
+      router.push('/store');
       return;
     }
 
     loadSales();
     loadProducts();
-
+    
     // Listen for sale events to auto-refresh
     const handleSaleCreated = () => {
-      console.log("[Orders Page] Sale created event received, refreshing...");
+      console.log('[Orders Page] Sale created event received, refreshing...');
       loadSales();
     };
-
+    
     const handleSaleUpdated = () => {
-      console.log("[Orders Page] Sale updated event received, refreshing...");
+      console.log('[Orders Page] Sale updated event received, refreshing...');
       loadSales();
     };
-
+    
     const handleSaleDeleted = () => {
-      console.log("[Orders Page] Sale deleted event received, refreshing...");
+      console.log('[Orders Page] Sale deleted event received, refreshing...');
       loadSales();
     };
-
-    window.addEventListener("sale-created", handleSaleCreated);
-    window.addEventListener("sale-updated", handleSaleUpdated);
-    window.addEventListener("sale-deleted", handleSaleDeleted);
-
+    
+    window.addEventListener('sale-created', handleSaleCreated);
+    window.addEventListener('sale-updated', handleSaleUpdated);
+    window.addEventListener('sale-deleted', handleSaleDeleted);
+    
+    // Periodic refresh as fallback (every 30 seconds)
+    const refreshInterval = setInterval(() => {
+      loadSales();
+    }, 30000);
+    
     return () => {
-      window.removeEventListener("sale-created", handleSaleCreated);
-      window.removeEventListener("sale-updated", handleSaleUpdated);
-      window.removeEventListener("sale-deleted", handleSaleDeleted);
+      window.removeEventListener('sale-created', handleSaleCreated);
+      window.removeEventListener('sale-updated', handleSaleUpdated);
+      window.removeEventListener('sale-deleted', handleSaleDeleted);
+      clearInterval(refreshInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, dateFilter, statusFilter]);
@@ -159,25 +177,26 @@ export default function OrdersPage() {
   const loadSales = async () => {
     setLoading(true);
     try {
-      // Use UTC to avoid timezone issues - date strings like "2025-01-06" should be treated as UTC midnight
-      const startDate = new Date(dateFilter.startDate + 'T00:00:00.000Z');
-      const endDate = new Date(dateFilter.endDate + 'T23:59:59.999Z');
+      const startDate = new Date(dateFilter.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(dateFilter.endDate);
+      endDate.setHours(23, 59, 59, 999);
 
       const params: any = {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
       };
-
+      
       // Add status filter if not 'ALL'
-      if (statusFilter !== "ALL") {
+      if (statusFilter !== 'ALL') {
         params.status = statusFilter;
       }
-
-      const response = await api.get("/api/v1/sales", { params });
+      
+      const response = await api.get('/api/v1/sales', { params });
       setSales(response.data || []);
     } catch (error: any) {
-      console.error("Failed to load sales:", error);
-      showNotification("Failed to load orders", "error");
+      console.error('Failed to load sales:', error);
+      showNotification('Failed to load orders', 'error');
     } finally {
       setLoading(false);
     }
@@ -185,10 +204,10 @@ export default function OrdersPage() {
 
   const loadProducts = async () => {
     try {
-      const response = await api.get("/api/v1/products");
+      const response = await api.get('/api/v1/products');
       setProducts(response.data || []);
     } catch (error) {
-      console.error("Failed to load products:", error);
+      console.error('Failed to load products:', error);
     }
   };
 
@@ -215,9 +234,9 @@ export default function OrdersPage() {
       items: [
         ...editForm.items,
         {
-          id: "",
-          productId: "",
-          productName: "",
+          id: '',
+          productId: '',
+          productName: '',
           qtyKg: undefined,
           qtyPcs: undefined,
           rate: 0,
@@ -236,12 +255,12 @@ export default function OrdersPage() {
 
   const handleUpdateItem = (index: number, field: string, value: any) => {
     const newItems = [...editForm.items];
-    if (field === "productId") {
+    if (field === 'productId') {
       const product = products.find((p) => p.id === value);
       newItems[index] = {
         ...newItems[index],
         productId: value,
-        productName: product?.name || "",
+        productName: product?.name || '',
         rate: product?.pricePerUnit || 0,
         taxRate: product?.taxRate || 0,
       };
@@ -271,8 +290,7 @@ export default function OrdersPage() {
 
     const discountTotal = parseFloat(editForm.discountTotal) || 0;
     // Calculate grand total and round to nearest integer to match backend
-    const grandTotal =
-      Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+    const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
     const roundedGrandTotal = Math.round(grandTotal);
 
     return { subTotal, taxTotal, discountTotal, grandTotal: roundedGrandTotal };
@@ -282,24 +300,22 @@ export default function OrdersPage() {
     if (!editingSale) return;
 
     if (editForm.items.length === 0) {
-      showNotification("Please add at least one item", "error");
+      showNotification('Please add at least one item', 'error');
       return;
     }
 
     const invalidItems = editForm.items.filter(
-      (item) =>
-        !item.productId || (!item.qtyKg && !item.qtyPcs) || item.rate <= 0
+      (item) => !item.productId || (!item.qtyKg && !item.qtyPcs) || item.rate <= 0
     );
 
     if (invalidItems.length > 0) {
-      showNotification("Please fill in all item details correctly", "error");
+      showNotification('Please fill in all item details correctly', 'error');
       return;
     }
 
     setSaving(true);
     try {
-      const { subTotal, taxTotal, discountTotal, grandTotal } =
-        calculateTotals();
+      const { subTotal, taxTotal, discountTotal, grandTotal } = calculateTotals();
 
       await api.put(`/api/v1/sales/${editingSale.id}`, {
         items: editForm.items.map((item) => ({
@@ -315,20 +331,18 @@ export default function OrdersPage() {
         grandTotal,
       });
 
-      showNotification("Order updated successfully", "success");
+      showNotification('Order updated successfully', 'success');
       setShowEditModal(false);
       setEditingSale(null);
       loadSales();
-
+      
       // Notify other consoles about the update
-      window.dispatchEvent(
-        new CustomEvent("sale-updated", { detail: { saleId: editingSale.id } })
-      );
+      window.dispatchEvent(new CustomEvent('sale-updated', { detail: { saleId: editingSale.id } }));
     } catch (error: any) {
-      console.error("Failed to update sale:", error);
+      console.error('Failed to update sale:', error);
       showNotification(
-        error.response?.data?.error || "Failed to update order",
-        "error"
+        error.response?.data?.error || 'Failed to update order',
+        'error'
       );
     } finally {
       setSaving(false);
@@ -336,16 +350,16 @@ export default function OrdersPage() {
   };
 
   const handleCancelBill = (sale: Sale) => {
-    if (sale.status === "VOID") {
-      showNotification("This bill is already cancelled", "warning");
+    if (sale.status === 'VOID') {
+      showNotification('This bill is already cancelled', 'warning');
       return;
     }
-    if (sale.status !== "PAID") {
-      showNotification("Only paid bills can be cancelled", "warning");
+    if (sale.status !== 'PAID') {
+      showNotification('Only paid bills can be cancelled', 'warning');
       return;
     }
     setCancellingSale(sale);
-    setCancelReason("");
+    setCancelReason('');
     setShowCancelModal(true);
   };
 
@@ -355,26 +369,23 @@ export default function OrdersPage() {
     setCancelling(true);
     try {
       await api.post(`/api/v1/sales/${cancellingSale.id}/void`, {
-        reason:
-          cancelReason || `Cancelled by ${user?.role?.toLowerCase() || "user"}`,
+        reason: cancelReason || 'Cancelled by owner',
       });
 
       const cancelledSaleId = cancellingSale.id;
-      showNotification("Bill cancelled successfully", "success");
+      showNotification('Bill cancelled successfully', 'success');
       setShowCancelModal(false);
       setCancellingSale(null);
-      setCancelReason("");
+      setCancelReason('');
       loadSales();
-
+      
       // Notify other consoles about the deletion/cancellation
-      window.dispatchEvent(
-        new CustomEvent("sale-deleted", { detail: { saleId: cancelledSaleId } })
-      );
+      window.dispatchEvent(new CustomEvent('sale-deleted', { detail: { saleId: cancelledSaleId } }));
     } catch (error: any) {
-      console.error("Failed to cancel bill:", error);
+      console.error('Failed to cancel bill:', error);
       showNotification(
-        error.response?.data?.error || "Failed to cancel bill",
-        "error"
+        error.response?.data?.error || 'Failed to cancel bill',
+        'error'
       );
     } finally {
       setCancelling(false);
@@ -382,18 +393,12 @@ export default function OrdersPage() {
   };
 
   const handleCompleteOrder = async (sale: Sale) => {
-    if (sale.status !== "OPEN") {
-      showNotification("Only open orders can be completed", "warning");
+    if (sale.status !== 'OPEN') {
+      showNotification('Only open orders can be completed', 'warning');
       return;
     }
 
     try {
-      // Verify sale still exists and is accessible
-      if (!sale.id) {
-        showNotification("Invalid sale ID", "error");
-        return;
-      }
-
       // Check if there are existing payments (credit payments)
       const existingPayments = sale.payments || [];
       const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -402,57 +407,32 @@ export default function OrdersPage() {
       // Complete the order by adding a CASH payment
       // If already fully paid via credit, add a CASH payment for the grand total to mark as PAID
       // If partially paid, add payment for remaining amount
-      const paymentAmount =
-        remainingAmount <= 0 ? Math.round(sale.grandTotal) : remainingAmount;
-
-      console.log(
-        "[Orders] Processing payment for sale:",
-        sale.id,
-        "Amount:",
-        paymentAmount
-      );
-
+      const paymentAmount = remainingAmount <= 0 ? Math.round(sale.grandTotal) : remainingAmount;
+      
       await api.post(`/api/v1/sales/${sale.id}/pay`, {
         payments: [
           {
-            method: "CASH",
+            method: 'CASH',
             amount: paymentAmount,
           },
         ],
       });
 
-      showNotification("Order completed successfully", "success");
+      showNotification('Order completed successfully', 'success');
       loadSales();
-
+      
       // Notify other consoles about the update
-      window.dispatchEvent(
-        new CustomEvent("sale-updated", { detail: { saleId: sale.id } })
-      );
-
+      window.dispatchEvent(new CustomEvent('sale-updated', { detail: { saleId: sale.id } }));
+      
       if (selectedSale?.id === sale.id) {
         setSelectedSale(null);
       }
     } catch (error: any) {
-      console.error("Failed to complete order:", error);
-      console.error("Error details:", {
-        saleId: sale.id,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-
-      let errorMessage = "Failed to complete order";
-      if (error.response?.status === 404) {
-        errorMessage =
-          "Sale not found. It may have been deleted or does not belong to your store.";
-      } else if (error.response?.status === 403) {
-        errorMessage =
-          error.response?.data?.error ||
-          "You do not have permission to process this sale.";
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      }
-
-      showNotification(errorMessage, "error");
+      console.error('Failed to complete order:', error);
+      showNotification(
+        error.response?.data?.error || 'Failed to complete order',
+        'error'
+      );
     }
   };
 
@@ -473,9 +453,7 @@ export default function OrdersPage() {
             Orders
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            {statusFilter === "OPEN"
-              ? "View and complete pending orders"
-              : "View and edit all orders"}
+            {statusFilter === 'OPEN' ? 'View and complete pending orders' : 'View and edit all orders'}
           </p>
         </div>
         <button
@@ -538,9 +516,7 @@ export default function OrdersPage() {
         <div className="flex-1 overflow-y-auto min-h-0">
           {sales.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">
-                No orders found
-              </p>
+              <p className="text-gray-500 dark:text-gray-400">No orders found</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -550,8 +526,8 @@ export default function OrdersPage() {
                     key={sale.id}
                     className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
                       selectedSale?.id === sale.id
-                        ? "bg-brand-50 dark:bg-brand-900/20"
-                        : ""
+                        ? 'bg-brand-50 dark:bg-brand-900/20'
+                        : ''
                     }`}
                     onClick={() => setSelectedSale(sale)}
                   >
@@ -563,35 +539,28 @@ export default function OrdersPage() {
                           </h3>
                           <span
                             className={`px-2 py-1 rounded text-xs font-medium ${
-                              sale.status === "PAID"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                                : sale.status === "OPEN"
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
-                                : sale.status === "VOID"
-                                ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                              sale.status === 'PAID'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                : sale.status === 'OPEN'
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                : sale.status === 'VOID'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                             }`}
                           >
-                            {sale.status === "VOID" ? "CANCELLED" : sale.status}
+                            {sale.status === 'VOID' ? 'CANCELLED' : sale.status}
                           </span>
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                           <p>
-                            Customer:{" "}
+                            Customer:{' '}
                             {sale.customer
                               ? `${sale.customer.name} (${sale.customer.phone})`
-                              : "Walk-in"}
+                              : 'Walk-in'}
                           </p>
                           <p>
-                            Created by: {sale.createdBy.name} •{" "}
-                            {new Date(sale.createdAt).toLocaleString(undefined, {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              timeZoneName: 'short'
-                            })}
+                            Created by: {sale.createdBy.name} •{' '}
+                            {new Date(sale.createdAt).toLocaleString()}
                           </p>
                           <p className="text-xs">
                             {sale.items.length} item(s) • Total: ₹
@@ -609,7 +578,7 @@ export default function OrdersPage() {
                         >
                           View Details
                         </button>
-                        {sale.status === "PAID" && (
+                        {sale.status === 'PAID' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -620,7 +589,7 @@ export default function OrdersPage() {
                             Edit
                           </button>
                         )}
-                        {sale.status === "OPEN" && (
+                        {sale.status === 'OPEN' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -631,7 +600,7 @@ export default function OrdersPage() {
                             Complete Order
                           </button>
                         )}
-                        {sale.status === "PAID" && (
+                        {sale.status === 'PAID' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -687,29 +656,22 @@ export default function OrdersPage() {
                 </h3>
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4">
                   <p className="text-sm dark:text-white">
-                    <span className="font-medium">Name:</span>{" "}
-                    {selectedSale.customer?.name || "Walk-in"}
+                    <span className="font-medium">Name:</span>{' '}
+                    {selectedSale.customer?.name || 'Walk-in'}
                   </p>
                   {selectedSale.customer && (
                     <p className="text-sm dark:text-white mt-1">
-                      <span className="font-medium">Phone:</span>{" "}
+                      <span className="font-medium">Phone:</span>{' '}
                       {selectedSale.customer.phone}
                     </p>
                   )}
                   <p className="text-sm dark:text-white mt-1">
-                    <span className="font-medium">Created by:</span>{" "}
+                    <span className="font-medium">Created by:</span>{' '}
                     {selectedSale.createdBy.name}
                   </p>
                   <p className="text-sm dark:text-white mt-1">
-                    <span className="font-medium">Date:</span>{" "}
-                    {new Date(selectedSale.createdAt).toLocaleString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      timeZoneName: 'short'
-                    })}
+                    <span className="font-medium">Date:</span>{' '}
+                    {new Date(selectedSale.createdAt).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -735,9 +697,8 @@ export default function OrdersPage() {
                         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                           {item.qtyKg
                             ? `${item.qtyKg.toFixed(2)} kg`
-                            : `${item.qtyPcs} pcs`}{" "}
-                          × ₹{item.rate.toFixed(2)} = ₹
-                          {item.lineTotal.toFixed(2)}
+                            : `${item.qtyPcs} pcs`}{' '}
+                          × ₹{item.rate.toFixed(2)} = ₹{item.lineTotal.toFixed(2)}
                         </p>
                         {item.taxRate > 0 && (
                           <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
@@ -811,7 +772,7 @@ export default function OrdersPage() {
               )}
             </div>
             <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex gap-2 sm:gap-3 sticky bottom-0">
-              {selectedSale.status === "OPEN" && (
+              {selectedSale.status === 'OPEN' && (
                 <button
                   onClick={() => {
                     handleCompleteOrder(selectedSale);
@@ -822,7 +783,7 @@ export default function OrdersPage() {
                   Complete Order
                 </button>
               )}
-              {selectedSale.status === "PAID" && (
+              {selectedSale.status === 'PAID' && (
                 <button
                   onClick={() => {
                     setSelectedSale(null);
@@ -863,14 +824,22 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Hidden Receipt for Printing */}
-      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
-        {selectedSale && (
-          <div ref={receiptRef}>
-            <ThermalReceipt sale={selectedSale} storeName={user?.store?.name || "K2 Chicken POS"} />
-          </div>
-        )}
-      </div>
+      {/* Receipt for Printing - Hidden but accessible */}
+      {selectedSale && (
+        <div 
+          ref={receiptRef}
+          className="thermal-receipt-container"
+          style={{ 
+            position: "absolute", 
+            left: "-9999px", 
+            top: 0,
+            width: "80mm",
+            maxWidth: "80mm"
+          }}
+        >
+          <ThermalReceipt sale={selectedSale} storeName={user?.store?.name || "K2 Chicken POS"} />
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && editingSale && (
@@ -930,49 +899,41 @@ export default function OrdersPage() {
                           <select
                             value={item.productId}
                             onChange={(e) =>
-                              handleUpdateItem(
-                                index,
-                                "productId",
-                                e.target.value
-                              )
+                              handleUpdateItem(index, 'productId', e.target.value)
                             }
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm"
                           >
                             <option value="">Select product</option>
                             {products.map((p) => (
                               <option key={p.id} value={p.id}>
-                                {p.name} ({p.sku}) - ₹
-                                {p.pricePerUnit?.toFixed(2) || "0.00"}
+                                {p.name} ({p.sku}) - ₹{p.pricePerUnit?.toFixed(2) || '0.00'}
                               </option>
                             ))}
                           </select>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            {products.find((p) => p.id === item.productId)
-                              ?.unitType === "KG"
-                              ? "Quantity (Kg)"
-                              : "Quantity (Pcs)"}{" "}
+                            {products.find((p) => p.id === item.productId)?.unitType === 'KG'
+                              ? 'Quantity (Kg)'
+                              : 'Quantity (Pcs)'}{' '}
                             *
                           </label>
                           <input
                             type="number"
                             step="0.01"
                             value={
-                              products.find((p) => p.id === item.productId)
-                                ?.unitType === "KG"
-                                ? item.qtyKg || ""
-                                : item.qtyPcs || ""
+                              products.find((p) => p.id === item.productId)?.unitType === 'KG'
+                                ? item.qtyKg || ''
+                                : item.qtyPcs || ''
                             }
                             onChange={(e) => {
                               const value = parseFloat(e.target.value) || 0;
                               if (
-                                products.find((p) => p.id === item.productId)
-                                  ?.unitType === "KG"
+                                products.find((p) => p.id === item.productId)?.unitType === 'KG'
                               ) {
-                                handleUpdateItem(index, "qtyKg", value);
+                                handleUpdateItem(index, 'qtyKg', value);
                               } else {
-                                handleUpdateItem(index, "qtyPcs", value);
+                                handleUpdateItem(index, 'qtyPcs', value);
                               }
                             }}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm"
@@ -986,11 +947,11 @@ export default function OrdersPage() {
                           <input
                             type="number"
                             step="0.01"
-                            value={item.rate || ""}
+                            value={item.rate || ''}
                             onChange={(e) =>
                               handleUpdateItem(
                                 index,
-                                "rate",
+                                'rate',
                                 parseFloat(e.target.value) || 0
                               )
                             }
@@ -1085,7 +1046,7 @@ export default function OrdersPage() {
                 className="flex-1 px-4 py-2.5 sm:py-3 bg-brand-500 text-white rounded-lg font-semibold hover:bg-brand-600 transition-all touch-target"
                 disabled={saving}
               >
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -1101,8 +1062,7 @@ export default function OrdersPage() {
                 Cancel Bill - {cancellingSale.saleNo}
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Are you sure you want to cancel this bill? This action cannot be
-                undone.
+                Are you sure you want to cancel this bill? This action cannot be undone.
               </p>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1121,7 +1081,7 @@ export default function OrdersPage() {
                   onClick={() => {
                     setShowCancelModal(false);
                     setCancellingSale(null);
-                    setCancelReason("");
+                    setCancelReason('');
                   }}
                   className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
                   disabled={cancelling}
@@ -1133,7 +1093,7 @@ export default function OrdersPage() {
                   className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={cancelling}
                 >
-                  {cancelling ? "Cancelling..." : "Yes, Cancel Bill"}
+                  {cancelling ? 'Cancelling...' : 'Yes, Cancel Bill'}
                 </button>
               </div>
             </div>
@@ -1143,3 +1103,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
