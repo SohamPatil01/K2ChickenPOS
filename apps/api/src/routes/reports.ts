@@ -288,7 +288,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
           };
         }
         paymentStats[payment.method].count += 1;
-        paymentStats[payment.method].total += payment.amount;
+        // Round to 3 decimal places for consistency
+        paymentStats[payment.method].total = Math.round((paymentStats[payment.method].total + payment.amount) * 1000) / 1000;
       }
     }
 
