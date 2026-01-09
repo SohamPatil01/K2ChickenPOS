@@ -45,6 +45,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get user's store to check if owner
       const userStore = await prisma.store.findUnique({
         where: { id: storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!userStore) {
@@ -154,7 +155,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.log('[Sales Dashboard] User not authenticated, using fallback store');
         const defaultStore = await prisma.store.findFirst({ 
           where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' }
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
         storeId = defaultStore?.id || '';
         userRole = 'OWNER';
@@ -166,7 +168,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
       
       // Verify store exists
-      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      const store = await prisma.store.findUnique({ 
+        where: { id: storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
       if (!store) {
         reply.code(404).send({ error: 'Store not found' });
         return;
@@ -284,6 +289,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get store
       const store = await prisma.store.findUnique({
         where: { id: storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!store) {

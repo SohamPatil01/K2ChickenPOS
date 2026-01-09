@@ -16,7 +16,10 @@ export async function productRoutes(fastify: FastifyInstance) {
       
       // Get authenticated user's store
       const user = getUser(request);
-      const store = await prisma.store.findUnique({ where: { id: user.storeId } });
+      const store = await prisma.store.findUnique({ 
+        where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
       
       if (!store) {
         reply.code(404).send({ error: 'Store not found' });
@@ -101,7 +104,10 @@ export async function productRoutes(fastify: FastifyInstance) {
     try {
       const { id } = (request.params as any);
       const user = getUser(request);
-      const userStore = await prisma.store.findUnique({ where: { id: user.storeId } });
+      const userStore = await prisma.store.findUnique({ 
+        where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
       
       if (!userStore) {
         reply.code(404).send({ error: 'Store not found' });
@@ -153,7 +159,10 @@ export async function productRoutes(fastify: FastifyInstance) {
 
   fastify.get('/categories', async (request: FastifyRequest, reply: FastifyReply) => {
     // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ 
+      where: { type: 'OWNER' },
+      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+    });
 
     if (!store) {
       reply.code(404).send({ error: 'Store not found' });
@@ -188,7 +197,10 @@ export async function productRoutes(fastify: FastifyInstance) {
 
       // Get user's store
       const user = getUser(request);
-      const userStore = await prisma.store.findUnique({ where: { id: user.storeId } });
+      const userStore = await prisma.store.findUnique({ 
+        where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
 
       if (!userStore) {
         reply.code(404).send({ error: 'Store not found' });
@@ -262,7 +274,10 @@ export async function productRoutes(fastify: FastifyInstance) {
 
       // Get user's store
       const user = getUser(request);
-      const userStore = await prisma.store.findUnique({ where: { id: user.storeId } });
+      const userStore = await prisma.store.findUnique({ 
+        where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
 
       if (!userStore) {
         reply.code(404).send({ error: 'Store not found' });
@@ -386,7 +401,7 @@ export async function productRoutes(fastify: FastifyInstance) {
       }
 
       // Verify user has access to this product's store
-      const store = await prisma.store.findUnique({ where: { id: user.storeId } });
+      const store = await prisma.store.findUnique({ where: { id: user.storeId }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       if (!store) {
         console.log('DELETE - Store not found:', user.storeId);
         reply.code(404).send({ error: 'Store not found' });
@@ -482,7 +497,10 @@ export async function productRoutes(fastify: FastifyInstance) {
   fastify.post('/categories', async (request: any, reply: FastifyReply) => {
     const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
     // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ 
+      where: { type: 'OWNER' },
+      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+    });
 
     if (!store) {
       reply.code(404).send({ error: 'Store not found' });

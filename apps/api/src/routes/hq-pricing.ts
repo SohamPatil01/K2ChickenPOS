@@ -289,6 +289,7 @@ export async function hqPricingRoutes(fastify: FastifyInstance) {
         // Verify franchise belongs to owner
         const franchise = await prisma.store.findUnique({
           where: { id: franchiseId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
 
         if (!franchise || franchise.parentOwnerStoreId !== ownerStoreId) {

@@ -49,7 +49,8 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         console.log('[HQ Dashboard] User not authenticated, using fallback store');
         const defaultStore = await prisma.store.findFirst({ 
           where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' }
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
         ownerStoreId = defaultStore?.id || '';
       }
@@ -59,7 +60,10 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const ownerStore = await prisma.store.findUnique({ where: { id: ownerStoreId } });
+      const ownerStore = await prisma.store.findUnique({ 
+        where: { id: ownerStoreId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
       if (!ownerStore || ownerStore.type !== 'OWNER') {
         reply.code(403).send({ error: 'Access denied. Owner store not found.' });
         return;
@@ -208,7 +212,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       const { startDate, endDate } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
 
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       if (!ownerStore) {
         reply.code(404).send({ error: 'Owner store not found' });
         return;
@@ -281,7 +285,10 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       const { franchiseId } = (request.query as any) || {};
       const ownerStoreId = (getUser(request) as any).storeId;
 
-      const ownerStore = await prisma.store.findUnique({ where: { id: ownerStoreId } });
+      const ownerStore = await prisma.store.findUnique({ 
+        where: { id: ownerStoreId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
       if (!ownerStore || ownerStore.type !== 'OWNER') {
         reply.code(403).send({ error: 'Access denied. Owner store not found.' });
         return;
@@ -314,7 +321,10 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       // Get inventory for each franchise
       const inventoryData = await Promise.all(
         storeIds.map(async (storeId) => {
-          const store = await prisma.store.findUnique({ where: { id: storeId } });
+          const store = await prisma.store.findUnique({ 
+            where: { id: storeId },
+            select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+          });
           const inventory = await Promise.all(
             products.map(async (product) => {
               const ledgers = await prisma.inventoryLedger.findMany({
@@ -372,7 +382,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get compliance status
   fastify.get('/compliance', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       if (!ownerStore) {
         reply.code(404).send({ error: 'Owner store not found' });
         return;
@@ -441,7 +451,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       const { startDate, endDate } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
 
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       if (!ownerStore) {
         reply.code(404).send({ error: 'Owner store not found' });
         return;
@@ -465,7 +475,10 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
 
       const franchisePayments = await Promise.all(
         storeIds.map(async (storeId) => {
-          const store = await prisma.store.findUnique({ where: { id: storeId } });
+          const store = await prisma.store.findUnique({ 
+            where: { id: storeId },
+            select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+          });
           const sales = await prisma.sale.findMany({
             where: {
               storeId,

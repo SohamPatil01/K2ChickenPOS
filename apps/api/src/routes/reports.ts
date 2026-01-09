@@ -62,6 +62,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       // Get user's store
       const userStore = await prisma.store.findUnique({
         where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!userStore) {
@@ -524,6 +525,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       // Get user's store
       const userStore = await prisma.store.findUnique({
         where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!userStore) {
@@ -606,6 +608,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       // Get user's store
       const userStore = await prisma.store.findUnique({
         where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!userStore) {
@@ -774,6 +777,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       // Get user's store
       const userStore = await prisma.store.findUnique({
         where: { id: user.storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!userStore) {

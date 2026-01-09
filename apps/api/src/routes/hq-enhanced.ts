@@ -70,7 +70,10 @@ export async function hqEnhancedRoutes(fastify: FastifyInstance) {
         const dateFilter = getDateRange(startDate, endDate);
         const ownerStoreId = (getUser(request) as any).storeId;
 
-        const ownerStore = await prisma.store.findUnique({ where: { id: ownerStoreId } });
+        const ownerStore = await prisma.store.findUnique({ 
+          where: { id: ownerStoreId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+        });
         if (!ownerStore || ownerStore.type !== 'OWNER') {
           reply.code(403).send({ error: 'Access denied' });
           return;

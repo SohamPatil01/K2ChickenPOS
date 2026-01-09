@@ -125,6 +125,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         // First get the owner store ID
         const store = await prisma.store.findUnique({
           where: { id: storeId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
         
         const ownerStoreId = store?.type === 'FRANCHISE' ? store.parentOwnerStoreId : storeId;

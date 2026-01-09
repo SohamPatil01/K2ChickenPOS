@@ -10,8 +10,8 @@ export async function poRoutes(fastify: FastifyInstance) {
     const data = createPOSchema.parse(request.body as any);
     
     // Get stores - allow both franchise and owner stores to create POs
-    const defaultOwnerStore = await prisma.store.findFirst({ where: { type: 'OWNER' } });
-    const defaultFranchiseStore = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
+    const defaultOwnerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
+    const defaultFranchiseStore = await prisma.store.findFirst({ where: { type: 'FRANCHISE' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     
     // Use provided ownerStoreId or default to first owner store
     let ownerStoreId = data.ownerStoreId || defaultOwnerStore?.id || '';
@@ -198,6 +198,7 @@ export async function poRoutes(fastify: FastifyInstance) {
 
       const store = await prisma.store.findUnique({
         where: { id: storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!store) {
@@ -383,7 +384,7 @@ export async function poRoutes(fastify: FastifyInstance) {
   fastify.post('/:id/submit', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
+      const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       const storeId = store?.id || '';
 
       const po = await prisma.purchaseOrder.findUnique({
@@ -421,6 +422,7 @@ export async function poRoutes(fastify: FastifyInstance) {
       // Get user's store to check if it's an owner store
       const userStore = await prisma.store.findUnique({
         where: { id: userStoreId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
 
       if (!userStore) {
@@ -483,7 +485,7 @@ export async function poRoutes(fastify: FastifyInstance) {
   fastify.post('/:id/reject', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       const storeId = store?.id || '';
 
       const po = await prisma.purchaseOrder.findUnique({
@@ -518,7 +520,7 @@ export async function poRoutes(fastify: FastifyInstance) {
   fastify.post('/:id/dispatch', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       const storeId = store?.id || '';
 
       const po = await prisma.purchaseOrder.findUnique({
@@ -584,7 +586,7 @@ export async function poRoutes(fastify: FastifyInstance) {
     try {
       const { dispatchId } = (request.params as any);
       // Get default store and user (since auth is disabled for now)
-      const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' } });
+      const store = await prisma.store.findFirst({ where: { type: 'FRANCHISE' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       const storeId = store?.id || '';
       const user = await prisma.user.findFirst({ where: { role: 'MANAGER' } });
       const userId = user?.id || '';

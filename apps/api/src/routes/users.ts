@@ -28,7 +28,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   // Get all users (staff) - Only OWNER can access
   fastify.get('/', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     const storeId = store?.id || (getUser(request) as any).storeId;
 
     const users = await prisma.user.findMany({
@@ -52,7 +52,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   // Create new user (staff) - Only OWNER can create
   fastify.post('/', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     const storeId = store?.id || (getUser(request) as any).storeId;
     const data = createUserSchema.parse(request.body as any);
 
@@ -97,7 +97,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   // Update user (staff) - Only OWNER can update
   fastify.put('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     const storeId = store?.id || (getUser(request) as any).storeId;
     const { id } = (request.params as any);
     const data = updateUserSchema.parse(request.body as any);
@@ -161,7 +161,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   // Delete user (staff) - Only OWNER can delete
   fastify.delete('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     const storeId = store?.id || (getUser(request) as any).storeId;
     const { id } = (request.params as any);
 
@@ -196,7 +196,7 @@ export async function userRoutes(fastify: FastifyInstance) {
   // Get single user - Only OWNER can access
   fastify.get('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
     // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     const storeId = store?.id || (getUser(request) as any).storeId;
     const { id } = (request.params as any);
 

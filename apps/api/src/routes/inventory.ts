@@ -57,14 +57,20 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         user = getUser(request as any);
         if (user && (user as any).storeId) {
           storeId = queryStoreId || (user as any).storeId; // Use query param if provided, otherwise user's store
-        store = await prisma.store.findUnique({ where: { id: storeId } });
+        store = await prisma.store.findUnique({ 
+          where: { id: storeId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+        });
         console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
         }
       } catch (authError: any) {
         // Not authenticated, use query param or default to oldest OWNER store
         if (queryStoreId) {
           storeId = queryStoreId;
-          store = await prisma.store.findUnique({ where: { id: storeId } });
+          store = await prisma.store.findUnique({ 
+          where: { id: storeId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+        });
           console.log(`[Inventory Summary] Using query store ID: ${storeId}`);
         } else {
           console.log('[Inventory Summary] User not authenticated, using fallback store');

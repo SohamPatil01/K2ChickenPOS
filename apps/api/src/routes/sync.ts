@@ -50,6 +50,7 @@ export async function syncRoutes(fastify: FastifyInstance) {
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },
+      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
     });
 
     if (!store) {

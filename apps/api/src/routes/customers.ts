@@ -16,7 +16,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
     // Use the oldest OWNER store to ensure consistency
     const store = await prisma.store.findFirst({ 
       where: { type: 'OWNER' },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
     });
     const storeId = store?.id || '';
 
@@ -104,7 +105,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
     // Use the oldest OWNER store to ensure consistency
     const store = await prisma.store.findFirst({ 
       where: { type: 'OWNER' },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
     });
     const storeId = store?.id || '';
 
@@ -377,7 +379,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const offset = parseInt((request.query as any).offset || '0');
 
       // Get default store (since auth is disabled)
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' } });
+      const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
       const storeId = store?.id || '';
 
       const customer = await prisma.customer.findUnique({
@@ -459,6 +461,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
       if (userRole === 'OWNER') {
         const userStore = await prisma.store.findUnique({
           where: { id: storeId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
         
         if (userStore && userStore.type === 'OWNER') {
