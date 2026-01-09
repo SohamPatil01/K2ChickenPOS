@@ -134,7 +134,11 @@ export default function POPage() {
 
   const handleAction = async (poId: string, action: string) => {
     try {
-      const response = await api.post(`/api/v1/po/${poId}/${action}`);
+      const response = await api.post(`/api/v1/po/${poId}/${action}`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       // Force reload with a small delay to ensure backend has processed
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
