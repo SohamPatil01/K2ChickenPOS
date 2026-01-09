@@ -86,21 +86,39 @@ export default function OrdersPage() {
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
     documentTitle: `Bill-${selectedSale?.saleNo || "Receipt"}`,
+    onBeforeGetContent: async () => {
+      // Wait a bit to ensure barcodes are rendered
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    },
     pageStyle: `
       @page {
         size: 80mm auto;
         margin: 0;
       }
       @media print {
-        body {
-          margin: 0;
-          padding: 0;
+        * {
+          visibility: hidden;
+        }
+        .thermal-receipt-container,
+        .thermal-receipt-container * {
+          visibility: visible !important;
+        }
+        .thermal-receipt-container {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
         }
         .thermal-receipt {
           width: 80mm !important;
           max-width: 80mm !important;
           margin: 0 !important;
           padding: 10px !important;
+        }
+        body {
+          margin: 0;
+          padding: 0;
         }
       }
     `,
@@ -806,14 +824,22 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Hidden Receipt for Printing */}
-      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
-        {selectedSale && (
-          <div ref={receiptRef}>
-            <ThermalReceipt sale={selectedSale} storeName={user?.store?.name || "K2 Chicken POS"} />
-          </div>
-        )}
-      </div>
+      {/* Receipt for Printing - Hidden but accessible */}
+      {selectedSale && (
+        <div 
+          ref={receiptRef}
+          className="thermal-receipt-container"
+          style={{ 
+            position: "absolute", 
+            left: "-9999px", 
+            top: 0,
+            width: "80mm",
+            maxWidth: "80mm"
+          }}
+        >
+          <ThermalReceipt sale={selectedSale} storeName={user?.store?.name || "K2 Chicken POS"} />
+        </div>
+      )}
 
       {/* Edit Modal */}
       {showEditModal && editingSale && (

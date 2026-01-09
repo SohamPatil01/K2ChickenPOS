@@ -104,7 +104,8 @@ export default function ThermalReceipt({ sale, storeName = "K2 Chicken POS" }: T
       fontSize: "12px",
       lineHeight: "1.4",
       backgroundColor: "white",
-      color: "black"
+      color: "black",
+      boxSizing: "border-box"
     }}>
       {/* Store Header */}
       <div style={{ textAlign: "center", marginBottom: "10px" }}>
