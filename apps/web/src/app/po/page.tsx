@@ -160,7 +160,11 @@ export default function POPage() {
       return;
     }
     try {
-      await api.post(`/api/v1/po/dispatch/${dispatchId}/receive`);
+      await api.post(`/api/v1/po/dispatch/${dispatchId}/receive`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       // Force reload with a small delay to ensure backend has processed
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();
@@ -220,7 +224,11 @@ export default function POPage() {
     }
 
     try {
-      await api.post(`/api/v1/po/${poId}/finalize`);
+      await api.post(`/api/v1/po/${poId}/finalize`, {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       // Force reload with a small delay to ensure backend has processed
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadPOs();

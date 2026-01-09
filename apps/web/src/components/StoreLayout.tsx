@@ -39,7 +39,11 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
 
   const handleLogout = async () => {
     try {
-      await api.post("/api/v1/auth/logout");
+      await api.post("/api/v1/auth/logout", {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
     } catch (error) {
       console.error("Logout error:", error);
     }

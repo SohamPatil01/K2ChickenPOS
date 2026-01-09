@@ -99,7 +99,11 @@ export default function RoyaltyPage() {
   const handleCalculateMonthly = async () => {
     if (!confirm('Calculate monthly royalties for all franchises (previous month)? This may take a moment.')) return;
     try {
-      const response = await api.post('/api/v1/hq/royalty/calculate-monthly');
+      const response = await api.post('/api/v1/hq/royalty/calculate-monthly', {}, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       await loadData();
       alert(`Calculated monthly royalties: ${response.data.successful} successful, ${response.data.failed} failed`);
       if (response.data.errors.length > 0) {

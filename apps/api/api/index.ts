@@ -134,6 +134,19 @@ async function build() {
     secret: process.env.JWT_SECRET || 'your-secret-key',
   });
 
+  // Add content-type parser for empty JSON bodies to prevent 415 errors
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    try {
+      if (body === '' || body === undefined || body === null) {
+        return done(null, {});
+      }
+      const json = JSON.parse(body as string);
+      done(null, json);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
   // Register authenticate decorator
   fastify.decorate('authenticate', authenticate);
 
