@@ -73,11 +73,11 @@ export default function ThermalReceipt({
 
           JsBarcode(canvas, String(barcodeValue), {
             format: "CODE128",
-            width: 2,
-            height: 50,
+            width: 1.5,
+            height: 40,
             displayValue: true,
-            fontSize: 12,
-            margin: 5,
+            fontSize: 10,
+            margin: 3,
             background: "transparent",
           });
         } catch (error) {
@@ -110,13 +110,13 @@ export default function ThermalReceipt({
     <div
       className="thermal-receipt"
       style={{
-        width: "80mm",
-        maxWidth: "80mm",
+        width: "58mm",
+        maxWidth: "58mm",
         margin: "0 auto",
-        padding: "8px",
+        padding: "6px",
         fontFamily: "monospace",
-        fontSize: "11px",
-        lineHeight: "1.5",
+        fontSize: "10px",
+        lineHeight: "1.4",
         backgroundColor: "white",
         color: "black",
         boxSizing: "border-box",
@@ -137,10 +137,10 @@ export default function ThermalReceipt({
         </div>
         <div
           style={{
-            fontSize: "11px",
-            marginTop: "4px",
+            fontSize: "9px",
+            marginTop: "3px",
             fontWeight: "bold",
-            marginBottom: "6px",
+            marginBottom: "4px",
           }}
         >
           📞 8484978622
@@ -164,13 +164,13 @@ export default function ThermalReceipt({
       />
 
       {/* Bill Information */}
-      <div style={{ marginBottom: "12px" }}>
+      <div style={{ marginBottom: "8px" }}>
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "4px",
-            fontSize: "11px",
+            marginBottom: "3px",
+            fontSize: "9px",
           }}
         >
           <span style={{ fontWeight: "bold" }}>Bill No:</span>
@@ -180,8 +180,8 @@ export default function ThermalReceipt({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "4px",
-            fontSize: "11px",
+            marginBottom: "3px",
+            fontSize: "9px",
           }}
         >
           <span>Date:</span>
@@ -191,8 +191,8 @@ export default function ThermalReceipt({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "4px",
-            fontSize: "11px",
+            marginBottom: "3px",
+            fontSize: "9px",
           }}
         >
           <span>Time:</span>
@@ -202,8 +202,8 @@ export default function ThermalReceipt({
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "4px",
-            fontSize: "11px",
+            marginBottom: "3px",
+            fontSize: "9px",
           }}
         >
           <span>Cashier:</span>
@@ -260,7 +260,7 @@ export default function ThermalReceipt({
           marginBottom: "6px",
           paddingBottom: "4px",
           borderBottom: "2px solid #000",
-          fontSize: "11px",
+          fontSize: "9px",
         }}
       >
         <span>Item</span>
@@ -269,7 +269,7 @@ export default function ThermalReceipt({
       </div>
 
       {/* Items List */}
-      <div style={{ marginBottom: "12px" }}>
+      <div style={{ marginBottom: "8px" }}>
         {sale.items.map((item, index) => {
           const qty = item.qtyKg
             ? `${item.qtyKg.toFixed(2)} kg`
@@ -292,7 +292,7 @@ export default function ThermalReceipt({
                 style={{
                   fontWeight: "bold",
                   marginBottom: "3px",
-                  fontSize: "11px",
+                  fontSize: "9px",
                 }}
               >
                 {item.product.name}
@@ -381,13 +381,13 @@ export default function ThermalReceipt({
       />
 
       {/* Totals Section */}
-      <div style={{ marginBottom: "12px" }}>
+      <div style={{ marginBottom: "8px" }}>
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "5px",
-            fontSize: "11px",
+            marginBottom: "4px",
+            fontSize: "9px",
           }}
         >
           <span>Subtotal:</span>
@@ -398,8 +398,8 @@ export default function ThermalReceipt({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              marginBottom: "5px",
-              fontSize: "11px",
+              marginBottom: "4px",
+              fontSize: "9px",
             }}
           >
             <span>Tax:</span>
@@ -411,8 +411,8 @@ export default function ThermalReceipt({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              marginBottom: "5px",
-              fontSize: "11px",
+              marginBottom: "4px",
+              fontSize: "9px",
               color: "#d32f2f",
             }}
           >
@@ -423,12 +423,12 @@ export default function ThermalReceipt({
         <div
           style={{
             borderTop: "2px solid #000",
-            marginTop: "8px",
-            paddingTop: "8px",
+            marginTop: "6px",
+            paddingTop: "6px",
             display: "flex",
             justifyContent: "space-between",
             fontWeight: "bold",
-            fontSize: "14px",
+            fontSize: "12px",
           }}
         >
           <span>GRAND TOTAL:</span>
@@ -445,7 +445,7 @@ export default function ThermalReceipt({
               margin: "8px 0",
             }}
           />
-          <div style={{ marginBottom: "12px" }}>
+          <div style={{ marginBottom: "8px" }}>
             <div
               style={{
                 fontWeight: "bold",
