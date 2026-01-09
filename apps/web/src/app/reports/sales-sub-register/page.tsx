@@ -17,11 +17,13 @@ export default function SalesSubRegisterPage() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (start?: string, end?: string) => {
     setLoading(true);
     try {
+      const effectiveStartDate = start !== undefined ? start : startDate;
+      const effectiveEndDate = end !== undefined ? end : endDate;
       const response = await api.get('/api/v1/reports/sales-sub-register', {
-        params: { startDate, endDate },
+        params: { startDate: effectiveStartDate, endDate: effectiveEndDate },
       });
       setData(response.data || []);
     } catch (error) {
@@ -34,7 +36,8 @@ export default function SalesSubRegisterPage() {
   const handleDateChange = (start: string, end: string) => {
     setStartDate(start);
     setEndDate(end);
-    loadData();
+    // Use the new dates directly instead of state
+    loadData(start, end);
   };
 
   const handleExport = () => {

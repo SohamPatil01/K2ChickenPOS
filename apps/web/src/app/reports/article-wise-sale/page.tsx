@@ -17,12 +17,14 @@ export default function ArticleWiseSalePage() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (start?: string, end?: string) => {
     setLoading(true);
     try {
+      const effectiveStartDate = start !== undefined ? start : startDate;
+      const effectiveEndDate = end !== undefined ? end : endDate;
       // Article wise is same as product wise
       const response = await api.get('/api/v1/reports/product-wise-sale', {
-        params: { startDate, endDate },
+        params: { startDate: effectiveStartDate, endDate: effectiveEndDate },
       });
       setData(response.data || []);
     } catch (error) {
@@ -35,7 +37,8 @@ export default function ArticleWiseSalePage() {
   const handleDateChange = (start: string, end: string) => {
     setStartDate(start);
     setEndDate(end);
-    loadData();
+    // Use the new dates directly instead of state
+    loadData(start, end);
   };
 
   const handleExport = () => {

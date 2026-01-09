@@ -26,9 +26,12 @@ export default function ReportLayout({
   );
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
-  const handleDateChange = () => {
+  const handleDateChange = (newStartDate?: string, newEndDate?: string) => {
+    const effectiveStartDate = newStartDate !== undefined ? newStartDate : startDate;
+    const effectiveEndDate = newEndDate !== undefined ? newEndDate : endDate;
+    
     if (onDateRangeChange) {
-      onDateRangeChange(startDate, endDate);
+      onDateRangeChange(effectiveStartDate, effectiveEndDate);
     }
   };
 
@@ -73,8 +76,9 @@ export default function ReportLayout({
                     type="date"
                     value={startDate}
                     onChange={(e) => {
-                      setStartDate(e.target.value);
-                      handleDateChange();
+                      const newStartDate = e.target.value;
+                      setStartDate(newStartDate);
+                      handleDateChange(newStartDate, endDate);
                     }}
                     className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base min-w-[140px] dark:[color-scheme:dark]"
                   />
@@ -87,14 +91,15 @@ export default function ReportLayout({
                     type="date"
                     value={endDate}
                     onChange={(e) => {
-                      setEndDate(e.target.value);
-                      handleDateChange();
+                      const newEndDate = e.target.value;
+                      setEndDate(newEndDate);
+                      handleDateChange(startDate, newEndDate);
                     }}
                     className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base min-w-[140px] dark:[color-scheme:dark]"
                   />
                 </div>
                 <button
-                  onClick={handleDateChange}
+                  onClick={() => handleDateChange()}
                   className="px-4 py-2 bg-primary-500 text-white rounded-md hover:bg-primary-600 text-sm sm:text-base whitespace-nowrap"
                 >
                   Apply

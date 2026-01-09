@@ -291,10 +291,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Round to 3 decimal places for consistency
     const totalSales = sales.length;
-    const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
-    const totalDiscount = sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0);
-    const totalTax = sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0);
+    const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
+    const totalDiscount = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 1000) / 1000;
+    const totalTax = Math.round(sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0) * 1000) / 1000;
 
     return {
       period: {
@@ -621,14 +622,15 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }),
     ]);
 
-    const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+    // Round to 3 decimal places for consistency
+    const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
     const totalItemsSold = sales.reduce((sum: any, s: any) => sum + s.items.length, 0);
-    const avgBillValue = sales.length > 0 ? totalRevenue / sales.length : 0;
+    const avgBillValue = sales.length > 0 ? Math.round((totalRevenue / sales.length) * 1000) / 1000 : 0;
 
     const paymentBreakdown: Record<string, number> = {};
     sales.forEach((sale) => {
       sale.payments.forEach((payment: any) => {
-        paymentBreakdown[payment.method] = (paymentBreakdown[payment.method] || 0) + payment.amount;
+        paymentBreakdown[payment.method] = Math.round(((paymentBreakdown[payment.method] || 0) + payment.amount) * 1000) / 1000;
       });
     });
 
