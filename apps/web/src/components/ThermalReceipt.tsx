@@ -449,8 +449,8 @@ export default function ThermalReceipt({
             <div
               style={{
                 fontWeight: "bold",
-                marginBottom: "6px",
-                fontSize: "11px",
+                marginBottom: "5px",
+                fontSize: "9px",
               }}
             >
               Payment Details:
@@ -461,8 +461,8 @@ export default function ThermalReceipt({
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    marginBottom: "4px",
-                    fontSize: "11px",
+                    marginBottom: "3px",
+                    fontSize: "9px",
                   }}
                 >
                   <span style={{ fontWeight: "bold" }}>{payment.method}:</span>
