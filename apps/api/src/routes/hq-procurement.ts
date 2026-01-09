@@ -456,6 +456,7 @@ export async function hqProcurementRoutes(fastify: FastifyInstance) {
         // Verify franchise belongs to owner
         const franchise = await prisma.store.findUnique({
           where: { id: data.franchiseStoreId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
 
         if (!franchise || franchise.parentOwnerStoreId !== ownerStoreId) {

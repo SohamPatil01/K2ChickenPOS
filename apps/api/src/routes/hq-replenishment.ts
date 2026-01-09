@@ -31,6 +31,7 @@ export async function hqReplenishmentRoutes(fastify: FastifyInstance) {
         // Verify store access
         const franchise = await prisma.store.findUnique({
           where: { id: franchiseStoreId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
         });
 
         if (!franchise || (franchise.id !== storeId && franchise.parentOwnerStoreId !== storeId)) {
