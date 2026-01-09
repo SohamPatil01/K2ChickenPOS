@@ -1,10 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth';
-import api from '@/lib/api';
-import { useNotificationStore } from '@/store/notification';
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/auth";
+import api from "@/lib/api";
+import { useNotificationStore } from "@/store/notification";
+import { useReactToPrint } from "react-to-print";
+import ThermalReceipt from "@/components/ThermalReceipt";
 
 interface Sale {
   id: string;
@@ -29,7 +31,8 @@ interface Sale {
       id: string;
       name: string;
       sku: string;
-      unitType: 'KG' | 'PCS';
+      plu: string;
+      unitType: "KG" | "PCS";
     };
     qtyKg?: number;
     qtyPcs?: number;
@@ -78,6 +81,30 @@ export default function OrdersPage() {
   const [cancellingSale, setCancellingSale] = useState<Sale | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    content: () => receiptRef.current,
+    documentTitle: `Bill-${selectedSale?.saleNo || "Receipt"}`,
+    pageStyle: `
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+        }
+        .thermal-receipt {
+          width: 80mm !important;
+          max-width: 80mm !important;
+          margin: 0 !important;
+          padding: 10px !important;
+        }
+      }
+    `,
+  });
 
   useEffect(() => {
     if (user === undefined) return;
@@ -750,6 +777,25 @@ export default function OrdersPage() {
                 </button>
               )}
               <button
+                onClick={handlePrint}
+                className="px-4 py-2.5 sm:py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-all touch-target flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                  />
+                </svg>
+                Print Bill
+              </button>
+              <button
                 onClick={() => setSelectedSale(null)}
                 className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"
               >
@@ -759,6 +805,15 @@ export default function OrdersPage() {
           </div>
         </div>
       )}
+
+      {/* Hidden Receipt for Printing */}
+      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
+        {selectedSale && (
+          <div ref={receiptRef}>
+            <ThermalReceipt sale={selectedSale} storeName={user?.store?.name || "K2 Chicken POS"} />
+          </div>
+        )}
+      </div>
 
       {/* Edit Modal */}
       {showEditModal && editingSale && (
