@@ -76,7 +76,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           console.log('[Inventory Summary] User not authenticated, using fallback store');
           const defaultStore = await prisma.store.findFirst({ 
             where: { type: 'OWNER' },
-            orderBy: { createdAt: 'asc' }
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, name: true, type: true, parentOwnerStoreId: true }
           });
           storeId = defaultStore?.id || '';
           store = defaultStore;
