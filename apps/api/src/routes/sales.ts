@@ -1145,7 +1145,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
               type: 'IN', // Restore inventory
               qtyKg: hasQtyKg ? ledger.qtyKg : null,
               qtyPcs: hasQtyPcs ? ledger.qtyPcs : null,
-              reason: 'RETURN', // Use RETURN reason for voided sales
+              reason: 'ADJUSTMENT', // Use ADJUSTMENT reason for voided sales (restoring inventory)
               refId: id,
             },
           });
