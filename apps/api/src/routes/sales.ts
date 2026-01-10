@@ -1085,7 +1085,19 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Fetch full sale data with items
       const sale = await prisma.sale.findUnique({
         where: { id },
-        include: {
+        select: {
+          id: true,
+          saleNo: true,
+          status: true,
+          subTotal: true,
+          discountTotal: true,
+          taxTotal: true,
+          grandTotal: true,
+          storeId: true,
+          customerId: true,
+          createdByUserId: true,
+          createdAt: true,
+          updatedAt: true,
           items: true,
         },
       });
