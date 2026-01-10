@@ -285,22 +285,31 @@ export default function StoreCartPage() {
       await clearCart();
       setShowPaymentModal(false);
       
-      setCompletedSale({
-        saleNo: sale.saleNo || 'N/A',
-        grandTotal: roundedSaleGrandTotal,
-      });
-      setShowSuccessAnimation(true);
-      
       window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, paymentMethod } }));
       
-      if (paymentMethod === 'CASH') {
-        window.dispatchEvent(new CustomEvent('cash-sale-completed', { 
-          detail: { 
-            saleId: sale.id, 
-            amount: amountPaid,
-            grandTotal: roundedSaleGrandTotal 
-          } 
-        }));
+      if (paymentMethod === 'CREDIT') {
+        // For credit payments, show notification and immediately return to POS
+        showNotification(`Credit sale #${sale.saleNo} created successfully`, 'success');
+        setTimeout(() => {
+          router.push('/store/pos');
+        }, 500);
+      } else {
+        // For other payment methods, show success animation
+        setCompletedSale({
+          saleNo: sale.saleNo || 'N/A',
+          grandTotal: roundedSaleGrandTotal,
+        });
+        setShowSuccessAnimation(true);
+        
+        if (paymentMethod === 'CASH') {
+          window.dispatchEvent(new CustomEvent('cash-sale-completed', { 
+            detail: { 
+              saleId: sale.id, 
+              amount: amountPaid,
+              grandTotal: roundedSaleGrandTotal 
+            } 
+          }));
+        }
       }
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
