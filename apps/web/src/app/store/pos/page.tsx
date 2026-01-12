@@ -210,11 +210,18 @@ export default function StorePOSPage() {
         if (!product) {
           try {
             const productResponse = await api.get(`/api/v1/products/${parsed.productId}`);
-            product = productResponse.data;
+            const fetchedProduct: Product | undefined = productResponse.data;
             
             // Add to local products array for future use
-            if (product) {
-              setProducts(prev => [...prev, product]);
+            if (fetchedProduct) {
+              product = fetchedProduct;
+              setProducts(prev => {
+                // Check if product already exists to avoid duplicates
+                if (!prev.find(p => p.id === fetchedProduct.id)) {
+                  return [...prev, fetchedProduct];
+                }
+                return prev;
+              });
             }
           } catch (error: any) {
             console.error('Failed to fetch product:', error);
