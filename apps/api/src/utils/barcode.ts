@@ -26,6 +26,7 @@ export async function parseScaleBarcode(
 
   // First, try to find by SKU (simple barcode) - try both original and cleaned
   // Search within the owner store's products
+  // Note: We search by ownerStoreId to find products, but prices are filtered by storeId
   let productBySku = await prisma.product.findFirst({
     where: {
       ownerStoreId,
@@ -43,6 +44,30 @@ export async function parseScaleBarcode(
       },
     },
   });
+  
+  // Debug logging
+  if (!productBySku) {
+    console.log(`[Barcode] SKU lookup failed - checking if product exists without ownerStoreId filter...`);
+    const productWithoutFilter = await prisma.product.findFirst({
+      where: {
+        sku: cleanBarcode,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        ownerStoreId: true,
+      },
+    });
+    
+    if (productWithoutFilter) {
+      console.log(`[Barcode] Product exists but ownerStoreId mismatch:`);
+      console.log(`  Product ownerStoreId: ${productWithoutFilter.ownerStoreId}`);
+      console.log(`  Expected ownerStoreId: ${ownerStoreId}`);
+      console.log(`  Match: ${productWithoutFilter.ownerStoreId === ownerStoreId ? 'YES' : 'NO'}`);
+    }
+  }
 
   // If not found with cleaned barcode, try original
   if (!productBySku && cleanBarcode !== barcode) {
@@ -84,6 +109,52 @@ export async function parseScaleBarcode(
         },
       },
     });
+  }
+  
+  // Fallback: If still not found, try without ownerStoreId filter (for products that might be shared)
+  // This is a safety net in case ownerStoreId doesn't match
+  if (!productBySku) {
+    console.log(`[Barcode] Trying lookup without ownerStoreId filter as fallback...`);
+    productBySku = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { sku: cleanBarcode },
+          { plu: cleanBarcode }
+        ],
+        isActive: true,
+      },
+      include: {
+        storeProductPrices: {
+          where: {
+            storeId,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    
+    if (productBySku) {
+      console.log(`[Barcode] Found product without ownerStoreId filter - ownerStoreId: ${productBySku.ownerStoreId}, expected: ${ownerStoreId}`);
+      // Verify the product's ownerStoreId matches or is related
+      const productOwnerStore = await prisma.store.findUnique({
+        where: { id: productBySku.ownerStoreId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+      
+      if (productOwnerStore) {
+        const productOwnerStoreId = productOwnerStore.type === 'OWNER' 
+          ? productOwnerStore.id 
+          : productOwnerStore.parentOwnerStoreId;
+        
+        if (productOwnerStoreId === ownerStoreId) {
+          console.log(`[Barcode] Product ownerStoreId is valid (franchise store's owner matches)`);
+        } else {
+          console.log(`[Barcode] WARNING: Product ownerStoreId doesn't match expected owner`);
+        }
+      }
+    }
   }
 
   if (productBySku) {
