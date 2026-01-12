@@ -204,7 +204,23 @@ export default function StorePOSPage() {
       const parsed = await parseScaleBarcode(barcodeInput, storeId);
 
       if (parsed) {
-        const product = products.find((p) => p.id === parsed.productId);
+        let product = products.find((p) => p.id === parsed.productId);
+        
+        // If product not in local array, fetch it from API
+        if (!product) {
+          try {
+            const productResponse = await api.get(`/api/v1/products/${parsed.productId}`);
+            product = productResponse.data;
+            
+            // Add to local products array for future use
+            if (product) {
+              setProducts(prev => [...prev, product]);
+            }
+          } catch (error: any) {
+            console.error('Failed to fetch product:', error);
+          }
+        }
+        
         if (product) {
           await handleAddProductToCart(product, parsed.weightKg, parsed.qtyPcs, parsed.pricePerKg);
           setBarcodeInput('');
@@ -213,6 +229,30 @@ export default function StorePOSPage() {
           }
           return;
         } else {
+          // If we have parsed data but no product, try to add directly using parsed data
+          if (parsed.productId && parsed.pricePerKg) {
+            try {
+              // Fetch product details
+              const productResponse = await api.get(`/api/v1/products/${parsed.productId}`);
+              const fetchedProduct = productResponse.data;
+              
+              if (fetchedProduct) {
+                await handleAddProductToCart(
+                  fetchedProduct, 
+                  parsed.weightKg, 
+                  parsed.qtyPcs, 
+                  parsed.pricePerKg
+                );
+                setBarcodeInput('');
+                if (barcodeInputRef.current) {
+                  barcodeInputRef.current.focus();
+                }
+                return;
+              }
+            } catch (error: any) {
+              console.error('Failed to fetch product details:', error);
+            }
+          }
           showNotification(`Product not found for barcode: ${barcodeInput}`, 'error', 4000);
         }
       }
