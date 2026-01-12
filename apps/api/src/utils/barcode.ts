@@ -6,10 +6,13 @@ export async function parseScaleBarcode(
   storeId: string,
   configId?: string
 ): Promise<ParsedBarcode | null> {
-  // First, try to find by SKU (simple barcode)
-  const productBySku = await prisma.product.findFirst({
+  // Clean barcode (remove spaces, trim)
+  const cleanBarcode = barcode.trim().replace(/\s/g, '');
+  
+  // First, try to find by SKU (simple barcode) - try both original and cleaned
+  let productBySku = await prisma.product.findFirst({
     where: {
-      sku: barcode,
+      sku: cleanBarcode,
       isActive: true,
     },
     include: {
@@ -24,13 +27,54 @@ export async function parseScaleBarcode(
     },
   });
 
+  // If not found with cleaned barcode, try original
+  if (!productBySku && cleanBarcode !== barcode) {
+    productBySku = await prisma.product.findFirst({
+      where: {
+        sku: barcode,
+        isActive: true,
+      },
+      include: {
+        storeProductPrices: {
+          where: {
+            storeId,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+      },
+    });
+  }
+
+  // Also try PLU
+  if (!productBySku) {
+    productBySku = await prisma.product.findFirst({
+      where: {
+        plu: cleanBarcode,
+        isActive: true,
+      },
+      include: {
+        storeProductPrices: {
+          where: {
+            storeId,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+      },
+    });
+  }
+
   if (productBySku) {
+    const price = productBySku.storeProductPrices[0]?.pricePerUnit || 0;
     return {
       productId: productBySku.id,
       plu: productBySku.plu,
       qtyPcs: 1,
-      pricePerKg: productBySku.storeProductPrices[0]?.pricePerUnit || 0,
-      lineTotal: productBySku.storeProductPrices[0]?.pricePerUnit || 0,
+      pricePerKg: price,
+      lineTotal: price,
       raw: barcode,
     };
   }

@@ -112,7 +112,70 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     const result = await parseScaleBarcode(barcode, storeId, configId);
 
     if (!result) {
-      reply.code(400).send({ error: 'Failed to parse barcode' });
+      // Check if product exists by SKU to provide better error message
+      const productBySku = await prisma.product.findFirst({
+        where: {
+          sku: barcode,
+          isActive: true,
+        },
+        include: {
+          storeProductPrices: {
+            where: {
+              storeId,
+              isActive: true,
+            },
+            take: 1,
+          },
+        },
+      });
+
+      if (productBySku) {
+        if (productBySku.storeProductPrices.length === 0) {
+          reply.code(400).send({ 
+            error: 'Product found but no price set for this store',
+            productId: productBySku.id,
+            productName: productBySku.name,
+            sku: productBySku.sku
+          });
+          return;
+        }
+      }
+
+      // Check if scale config exists but doesn't match
+      const config = await prisma.scaleBarcodeConfig.findFirst({
+        where: {
+          storeId,
+          isActive: true,
+        },
+      });
+
+      if (config && !barcode.startsWith(config.prefix)) {
+        reply.code(400).send({ 
+          error: 'Barcode format does not match scale barcode configuration',
+          message: `Barcode "${barcode}" does not start with prefix "${config.prefix}". This might be a standard product barcode (EAN-13) that should be looked up by SKU directly.`,
+          barcode,
+          configPrefix: config.prefix,
+          suggestion: 'Ensure product SKU matches the barcode exactly'
+        });
+        return;
+      }
+
+      if (config) {
+        reply.code(400).send({ 
+          error: 'Failed to parse barcode',
+          message: 'Barcode configuration exists but barcode format does not match, or product not found',
+          barcode,
+          configName: config.name
+        });
+        return;
+      }
+
+      reply.code(400).send({ 
+        error: 'Failed to parse barcode',
+        message: 'No barcode configuration exists and product not found by SKU',
+        barcode,
+        suggestion: 'For standard product barcodes (EAN-13), ensure product SKU matches the barcode exactly'
+      });
       return;
     }
 
