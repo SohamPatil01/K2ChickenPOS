@@ -115,51 +115,65 @@ export async function scaleRoutes(fastify: FastifyInstance) {
       // Clean barcode for lookup
       const cleanBarcode = barcode.trim().replace(/\s/g, '');
       
-      // Check if product exists by SKU to provide better error message
-      const productBySku = await prisma.product.findFirst({
-        where: {
-          OR: [
-            { sku: cleanBarcode },
-            { sku: barcode },
-            { plu: cleanBarcode },
-            { plu: barcode }
-          ],
-          isActive: true,
-        },
-        include: {
-          storeProductPrices: {
-            where: {
-              storeId,
-              isActive: true,
-            },
-            take: 1,
-          },
-        },
+      // Get store to find ownerStoreId (same logic as parseScaleBarcode)
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
       });
 
-      if (productBySku) {
-        if (productBySku.storeProductPrices.length === 0) {
-          reply.code(400).send({ 
-            error: 'Product found but no price set for this store',
-            productId: productBySku.id,
-            productName: productBySku.name,
-            sku: productBySku.sku,
-            plu: productBySku.plu,
-            suggestion: 'Set a price for this product in the current store'
+      if (store) {
+        const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+        
+        if (ownerStoreId) {
+          // Check if product exists by SKU with correct ownerStoreId
+          const productBySku = await prisma.product.findFirst({
+            where: {
+              ownerStoreId,
+              OR: [
+                { sku: cleanBarcode },
+                { sku: barcode },
+                { plu: cleanBarcode },
+                { plu: barcode }
+              ],
+              isActive: true,
+            },
+            include: {
+              storeProductPrices: {
+                where: {
+                  storeId,
+                  isActive: true,
+                },
+                orderBy: { effectiveFrom: 'desc' },
+                take: 1,
+              },
+            },
           });
-          return;
-        } else {
-          // Product exists and has price, but parseScaleBarcode didn't find it
-          // This shouldn't happen, but if it does, return the product info
-          reply.code(400).send({ 
-            error: 'Product found but barcode parsing failed',
-            productId: productBySku.id,
-            productName: productBySku.name,
-            sku: productBySku.sku,
-            plu: productBySku.plu,
-            suggestion: 'Try using the product directly from the product list'
-          });
-          return;
+
+          if (productBySku) {
+            if (productBySku.storeProductPrices.length === 0) {
+              reply.code(400).send({ 
+                error: 'Product found but no price set for this store',
+                productId: productBySku.id,
+                productName: productBySku.name,
+                sku: productBySku.sku,
+                plu: productBySku.plu,
+                suggestion: 'Set a price for this product in the current store'
+              });
+              return;
+            } else {
+              // Product exists and has price - return it as if parseScaleBarcode found it
+              // This is a fallback in case parseScaleBarcode missed it
+              const price = productBySku.storeProductPrices[0]?.pricePerUnit || 0;
+              return {
+                productId: productBySku.id,
+                plu: productBySku.plu,
+                qtyPcs: 1,
+                pricePerKg: price,
+                lineTotal: price,
+                raw: barcode,
+              };
+            }
+          }
         }
       }
 

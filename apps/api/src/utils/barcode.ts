@@ -88,6 +88,8 @@ export async function parseScaleBarcode(
 
   if (productBySku) {
     const price = productBySku.storeProductPrices[0]?.pricePerUnit || 0;
+    // Log for debugging (can be removed in production)
+    console.log(`[Barcode] Found product by SKU/PLU: ${productBySku.name} (${productBySku.sku}), price: ${price}`);
     return {
       productId: productBySku.id,
       plu: productBySku.plu,
@@ -97,6 +99,9 @@ export async function parseScaleBarcode(
       raw: barcode,
     };
   }
+  
+  // Log if not found (for debugging)
+  console.log(`[Barcode] Product not found by SKU/PLU: ${cleanBarcode}, ownerStoreId: ${ownerStoreId}, storeId: ${storeId}`);
 
   // Get scale barcode config
   let config;
