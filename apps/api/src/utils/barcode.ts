@@ -9,9 +9,26 @@ export async function parseScaleBarcode(
   // Clean barcode (remove spaces, trim)
   const cleanBarcode = barcode.trim().replace(/\s/g, '');
   
+  // Get store to find ownerStoreId
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { id: true, type: true, parentOwnerStoreId: true },
+  });
+
+  if (!store) {
+    return null;
+  }
+
+  const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+  if (!ownerStoreId) {
+    return null;
+  }
+
   // First, try to find by SKU (simple barcode) - try both original and cleaned
+  // Search within the owner store's products
   let productBySku = await prisma.product.findFirst({
     where: {
+      ownerStoreId,
       sku: cleanBarcode,
       isActive: true,
     },
@@ -31,6 +48,7 @@ export async function parseScaleBarcode(
   if (!productBySku && cleanBarcode !== barcode) {
     productBySku = await prisma.product.findFirst({
       where: {
+        ownerStoreId,
         sku: barcode,
         isActive: true,
       },
@@ -51,6 +69,7 @@ export async function parseScaleBarcode(
   if (!productBySku) {
     productBySku = await prisma.product.findFirst({
       where: {
+        ownerStoreId,
         plu: cleanBarcode,
         isActive: true,
       },

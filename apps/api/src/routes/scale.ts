@@ -112,10 +112,18 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     const result = await parseScaleBarcode(barcode, storeId, configId);
 
     if (!result) {
+      // Clean barcode for lookup
+      const cleanBarcode = barcode.trim().replace(/\s/g, '');
+      
       // Check if product exists by SKU to provide better error message
       const productBySku = await prisma.product.findFirst({
         where: {
-          sku: barcode,
+          OR: [
+            { sku: cleanBarcode },
+            { sku: barcode },
+            { plu: cleanBarcode },
+            { plu: barcode }
+          ],
           isActive: true,
         },
         include: {
@@ -135,7 +143,21 @@ export async function scaleRoutes(fastify: FastifyInstance) {
             error: 'Product found but no price set for this store',
             productId: productBySku.id,
             productName: productBySku.name,
-            sku: productBySku.sku
+            sku: productBySku.sku,
+            plu: productBySku.plu,
+            suggestion: 'Set a price for this product in the current store'
+          });
+          return;
+        } else {
+          // Product exists and has price, but parseScaleBarcode didn't find it
+          // This shouldn't happen, but if it does, return the product info
+          reply.code(400).send({ 
+            error: 'Product found but barcode parsing failed',
+            productId: productBySku.id,
+            productName: productBySku.name,
+            sku: productBySku.sku,
+            plu: productBySku.plu,
+            suggestion: 'Try using the product directly from the product list'
           });
           return;
         }
@@ -149,33 +171,28 @@ export async function scaleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      if (config && !barcode.startsWith(config.prefix)) {
-        reply.code(400).send({ 
-          error: 'Barcode format does not match scale barcode configuration',
-          message: `Barcode "${barcode}" does not start with prefix "${config.prefix}". This might be a standard product barcode (EAN-13) that should be looked up by SKU directly.`,
-          barcode,
-          configPrefix: config.prefix,
-          suggestion: 'Ensure product SKU matches the barcode exactly'
-        });
+      // If barcode doesn't start with scale prefix, it's a standard product barcode
+      // Return null (not an error) so frontend can try direct SKU lookup
+      if (config && !cleanBarcode.startsWith(config.prefix) && !barcode.startsWith(config.prefix)) {
+        // This is a standard product barcode, not a scale barcode
+        // Return null so frontend can handle it
+        reply.code(200).send(null);
         return;
       }
 
       if (config) {
         reply.code(400).send({ 
-          error: 'Failed to parse barcode',
-          message: 'Barcode configuration exists but barcode format does not match, or product not found',
+          error: 'Failed to parse scale barcode',
+          message: 'Barcode format does not match scale barcode configuration',
           barcode,
-          configName: config.name
+          configName: config.name,
+          configPrefix: config.prefix
         });
         return;
       }
 
-      reply.code(400).send({ 
-        error: 'Failed to parse barcode',
-        message: 'No barcode configuration exists and product not found by SKU',
-        barcode,
-        suggestion: 'For standard product barcodes (EAN-13), ensure product SKU matches the barcode exactly'
-      });
+      // No config and no product found - return null for frontend to handle
+      reply.code(200).send(null);
       return;
     }
 
