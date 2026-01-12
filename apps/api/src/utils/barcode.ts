@@ -134,19 +134,8 @@ export async function parseScaleBarcode(
     config.prefix.length + config.pluStart + config.pluLength
   );
 
-  // Find product by PLU or SKU (product ID)
-  const store = await prisma.store.findUnique({
-    where: { id: storeId },
-  });
-
-  if (!store) {
-    return null;
-  }
-
-  const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
-  if (!ownerStoreId) {
-    return null;
-  }
+  // Note: store and ownerStoreId are already defined above from SKU lookup
+  // Reuse them here for scale barcode parsing
 
   // Try to find product by PLU first, then by SKU (for numeric product IDs)
   let product = await prisma.product.findFirst({
