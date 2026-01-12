@@ -95,12 +95,17 @@ export async function parseScaleBarcode(
     });
   }
 
+  // If no config exists, return null (product not found by SKU and no scale config)
   if (!config) {
     return null;
   }
 
-  // Validate prefix
-  if (!barcode.startsWith(config.prefix)) {
+  // IMPORTANT: Only try scale barcode parsing if barcode starts with the config prefix
+  // This prevents masale/EAN-13 barcodes (starting with 8 or 9) from being parsed as scale barcodes
+  if (!cleanBarcode.startsWith(config.prefix) && !barcode.startsWith(config.prefix)) {
+    // Barcode doesn't match scale format - return null
+    // This is a standard product barcode that should be looked up by SKU
+    // If we got here, SKU lookup already failed, so product doesn't exist
     return null;
   }
 
