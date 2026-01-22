@@ -215,6 +215,11 @@ export default function StoreDashboardPage() {
       const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
       paidSales.forEach((sale: any) => {
         (sale.items || []).forEach((item: any) => {
+          // Skip items where product is null (deleted products)
+          if (!item.product) {
+            return;
+          }
+          
           if (!productSales[item.productId]) {
             productSales[item.productId] = {
               name: item.product?.name || 'Unknown',
