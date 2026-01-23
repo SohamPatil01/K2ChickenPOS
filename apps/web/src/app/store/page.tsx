@@ -864,7 +864,7 @@ export default function StoreDashboardPage() {
                 7-Day Revenue Trend
               </h2>
             </div>
-            <div className="flex items-end justify-between h-48 gap-3">
+            <div className="flex items-end justify-between h-64 gap-3">
               {[
                 { day: 'Last Week', value: stats.lastWeek.revenue },
                 { day: 'Day -5', value: stats.lastWeek.revenue * 0.9 },
@@ -875,20 +875,20 @@ export default function StoreDashboardPage() {
                 { day: 'Today', value: stats.today.revenue },
               ].map((item, idx) => {
                 const maxValue = Math.max(stats.today.revenue, stats.yesterday.revenue, stats.lastWeek.revenue, 1);
-                const height = (item.value / maxValue) * 100;
+                const heightPx = Math.max((item.value / maxValue) * 240, 8); // 240px = h-64 minus space for labels
                 const isToday = idx === 6;
                 return (
                   <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
-                    <div className="relative w-full">
+                    <div className="relative w-full flex items-end justify-center" style={{ height: '240px' }}>
                       <div 
-                        className={`w-full rounded-t-lg transition-all duration-300 group-hover:scale-110 ${
+                        className={`w-full rounded-t-lg transition-all duration-300 group-hover:scale-105 ${
                           isToday 
                             ? 'bg-gradient-to-t from-brand-500 to-brand-400 shadow-lg' 
                             : 'bg-gradient-to-t from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-500'
                         }`}
-                        style={{ height: `${Math.max(height, 5)}%` }}
+                        style={{ height: `${heightPx}px` }}
                       />
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-10">
                         ₹{item.value.toLocaleString()}
                       </div>
                     </div>
@@ -993,64 +993,6 @@ export default function StoreDashboardPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Stats Section - Enhanced Design */}
-      {(userRole === 'MANAGER' || userRole === 'OWNER') && (
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700">
-          <h2 className="text-xl font-bold dark:text-white mb-6 flex items-center gap-2">
-            <span className="text-2xl">⚡</span>
-            Quick Insights
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-              <div className="absolute top-0 right-0 opacity-20 text-6xl">💵</div>
-              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Avg Transaction</p>
-              <p className="relative z-10 text-2xl font-bold text-white mb-1">
-                ₹{stats.today.avgBill.toFixed(0)}
-              </p>
-              <p className="relative z-10 text-xs text-white/80">
-                {stats.yesterday.count > 0 
-                  ? `${((stats.today.avgBill / (stats.yesterday.revenue / stats.yesterday.count || 1) - 1) * 100).toFixed(0)}% vs yesterday`
-                  : 'First day'}
-              </p>
-            </div>
-            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-              <div className="absolute top-0 right-0 opacity-20 text-6xl">⏱️</div>
-              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Hourly Rate</p>
-              <p className="relative z-10 text-2xl font-bold text-white mb-1">
-                ₹{(stats.today.revenue / Math.max(1, new Date().getHours() - 8)).toFixed(0)}/hr
-              </p>
-              <p className="relative z-10 text-xs text-white/80">
-                Since 8 AM
-              </p>
-            </div>
-            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-              <div className="absolute top-0 right-0 opacity-20 text-6xl">📦</div>
-              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Items/Sale</p>
-              <p className="relative z-10 text-2xl font-bold text-white mb-1">
-                {stats.today.count > 0 
-                  ? (stats.recentSales.reduce((sum, s) => sum + (s.itemCount || 0), 0) / Math.min(stats.today.count, stats.recentSales.length)).toFixed(1)
-                  : '0'}
-              </p>
-              <p className="relative z-10 text-xs text-white/80">
-                Average
-              </p>
-            </div>
-            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-              <div className="absolute top-0 right-0 opacity-20 text-6xl">📊</div>
-              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Stock Turnover</p>
-              <p className="relative z-10 text-2xl font-bold text-white mb-1">
-                {stats.todayStock.soldStock > 0 && stats.todayStock.currentStock > 0
-                  ? `${((stats.todayStock.soldStock / stats.todayStock.currentStock) * 100).toFixed(0)}%`
-                  : 'N/A'}
-              </p>
-              <p className="relative z-10 text-xs text-white/80">
-                Today
-              </p>
             </div>
           </div>
         </div>
