@@ -59,6 +59,7 @@ export default function POPage() {
   const [selectedPO, setSelectedPO] = useState<PO | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditReceivedModal, setShowEditReceivedModal] = useState(false);
+  const [showSinkageModal, setShowSinkageModal] = useState(false);
   const [editingReceivedItems, setEditingReceivedItems] = useState<Array<{
     itemId: string;
     productName: string;
@@ -66,6 +67,15 @@ export default function POPage() {
     originalQtyPcs?: number;
     receivedQtyKg?: number | null;
     receivedQtyPcs?: number | null;
+    unitType?: 'KG' | 'PCS';
+  }>>([]);
+  const [sinkageItems, setSinkageItems] = useState<Array<{
+    itemId: string;
+    productName: string;
+    receivedQtyKg?: number | null;
+    receivedQtyPcs?: number | null;
+    sinkageQtyKg: number;
+    sinkageQtyPcs: number;
     unitType?: 'KG' | 'PCS';
   }>>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -238,9 +248,62 @@ export default function POPage() {
       setSelectedPO(null);
       // Dispatch event to notify inventory page to refresh
       window.dispatchEvent(new Event('po-finalized'));
-      alert('PO finalized! Stock has been added to inventory.');
+      alert('PO finalized! Stock has been added to inventory. You can now calculate sinkage if needed.');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to finalize PO');
+    }
+  };
+
+  const handleOpenSinkageModal = (po: PO) => {
+    setSelectedPO(po);
+    const items = po.items.map(item => ({
+      itemId: item.id,
+      productName: item.product.name,
+      receivedQtyKg: item.receivedQtyKg,
+      receivedQtyPcs: item.receivedQtyPcs,
+      sinkageQtyKg: 0,
+      sinkageQtyPcs: 0,
+      unitType: item.product.unitType,
+    }));
+    setSinkageItems(items);
+    setShowSinkageModal(true);
+  };
+
+  const handleCalculateSinkage = async () => {
+    if (!selectedPO) return;
+
+    // Filter items that have sinkage > 0
+    const itemsWithSinkage = sinkageItems.filter(item => 
+      (item.sinkageQtyKg > 0) || (item.sinkageQtyPcs > 0)
+    );
+
+    if (itemsWithSinkage.length === 0) {
+      alert('Please enter sinkage amounts for at least one item');
+      return;
+    }
+
+    if (!confirm(`Calculate sinkage for ${itemsWithSinkage.length} item(s)? This will subtract the sinkage from inventory.`)) {
+      return;
+    }
+
+    try {
+      const items = itemsWithSinkage.map(item => ({
+        itemId: item.itemId,
+        sinkageQtyKg: item.sinkageQtyKg > 0 ? item.sinkageQtyKg : undefined,
+        sinkageQtyPcs: item.sinkageQtyPcs > 0 ? item.sinkageQtyPcs : undefined,
+      }));
+
+      await api.post(`/api/v1/po/${selectedPO.id}/calculate-sinkage`, { items });
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadPOs();
+      setShowSinkageModal(false);
+      setSelectedPO(null);
+      setSinkageItems([]);
+      window.dispatchEvent(new Event('po-finalized'));
+      alert('Sinkage calculated and applied successfully!');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to calculate sinkage');
     }
   };
 
@@ -829,6 +892,14 @@ export default function POPage() {
                   </button>
                 </>
               )}
+              {selectedPO.status === 'CLOSED' && (
+                <button
+                  onClick={() => handleOpenSinkageModal(selectedPO)}
+                  className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
+                >
+                  Calculate Sinkage
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowViewModal(false);
@@ -953,6 +1024,125 @@ export default function POPage() {
                 className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
               >
                 Update Quantities
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sinkage Calculation Modal */}
+      {showSinkageModal && selectedPO && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold dark:text-white mb-2">Calculate Sinkage</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    PO Number: <span className="font-semibold dark:text-white">{selectedPO.poNo}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    Enter sinkage amounts for each item. Sinkage will be subtracted from inventory.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowSinkageModal(false);
+                    setSelectedPO(null);
+                    setSinkageItems([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-4">
+                {sinkageItems.map((item, index) => (
+                  <div key={item.itemId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold dark:text-white">{item.productName}</h4>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Received: {item.receivedQtyKg ? `${item.receivedQtyKg} kg` : item.receivedQtyPcs ? `${item.receivedQtyPcs} pcs` : 'N/A'}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {(item.unitType === 'KG' || item.receivedQtyKg) && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Sinkage (kg)
+                          </label>
+                          <input
+                            type="number"
+                            value={item.sinkageQtyKg || ''}
+                            onChange={(e) => {
+                              const newItems = [...sinkageItems];
+                              newItems[index].sinkageQtyKg = parseFloat(e.target.value) || 0;
+                              setSinkageItems(newItems);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter sinkage amount"
+                            step="0.01"
+                            min="0"
+                            max={item.receivedQtyKg || undefined}
+                          />
+                          {item.sinkageQtyKg > 0 && item.receivedQtyKg && (
+                            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                              {((item.sinkageQtyKg / item.receivedQtyKg) * 100).toFixed(1)}% of received quantity
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {(item.unitType === 'PCS' || item.receivedQtyPcs) && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Sinkage (pcs)
+                          </label>
+                          <input
+                            type="number"
+                            value={item.sinkageQtyPcs || ''}
+                            onChange={(e) => {
+                              const newItems = [...sinkageItems];
+                              newItems[index].sinkageQtyPcs = parseInt(e.target.value) || 0;
+                              setSinkageItems(newItems);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter sinkage amount"
+                            step="1"
+                            min="0"
+                            max={item.receivedQtyPcs || undefined}
+                          />
+                          {item.sinkageQtyPcs > 0 && item.receivedQtyPcs && (
+                            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                              {((item.sinkageQtyPcs / item.receivedQtyPcs) * 100).toFixed(1)}% of received quantity
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowSinkageModal(false);
+                  setSelectedPO(null);
+                  setSinkageItems([]);
+                }}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCalculateSinkage}
+                className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
+              >
+                Calculate Sinkage
               </button>
             </div>
           </div>

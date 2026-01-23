@@ -822,5 +822,107 @@ export async function poRoutes(fastify: FastifyInstance) {
       reply.code(500).send({ error: 'Failed to finalize PO', details: error.message });
     }
   });
+
+  // Calculate and apply sinkage after PO finalization
+  fastify.post('/:id/calculate-sinkage', async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = (request.params as any);
+      const { items } = (request.body as any); // Array of { itemId, sinkageQtyKg?, sinkageQtyPcs? }
+
+      if (!items || !Array.isArray(items)) {
+        reply.code(400).send({ error: 'Items array is required' });
+        return;
+      }
+
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id },
+        include: {
+          items: {
+            include: { product: true },
+          },
+        },
+      });
+
+      if (!po) {
+        reply.code(404).send({ error: 'PO not found' });
+        return;
+      }
+
+      // Only allow sinkage calculation for CLOSED POs (after finalization)
+      if (po.status !== 'CLOSED') {
+        reply.code(400).send({ error: 'PO must be finalized (CLOSED) before calculating sinkage' });
+        return;
+      }
+
+      const franchiseStoreId = po.franchiseStoreId;
+      const sinkageLedgerEntries = [];
+
+      console.log(`[PO Sinkage] Calculating sinkage for PO ${po.poNo} (${id})`);
+
+      // Process each item's sinkage
+      for (const sinkageItem of items) {
+        const poItem = po.items.find(item => item.id === sinkageItem.itemId);
+        
+        if (!poItem) {
+          console.warn(`[PO Sinkage] Item ${sinkageItem.itemId} not found in PO`);
+          continue;
+        }
+
+        const sinkageQtyKg = sinkageItem.sinkageQtyKg || 0;
+        const sinkageQtyPcs = sinkageItem.sinkageQtyPcs || 0;
+
+        // Skip if no sinkage
+        if (sinkageQtyKg === 0 && sinkageQtyPcs === 0) {
+          continue;
+        }
+
+        // Update PO item with sinkage amounts
+        await prisma.purchaseOrderItem.update({
+          where: { id: poItem.id },
+          data: {
+            sinkageQtyKg: sinkageQtyKg > 0 ? sinkageQtyKg : null,
+            sinkageQtyPcs: sinkageQtyPcs > 0 ? sinkageQtyPcs : null,
+          },
+        });
+
+        // Create inventory ledger entry to subtract sinkage from stock
+        const ledgerEntry: any = {
+          storeId: franchiseStoreId,
+          productId: poItem.productId,
+          type: 'OUT',
+          reason: 'SINKAGE',
+          refId: id,
+        };
+
+        if (sinkageQtyKg > 0) {
+          ledgerEntry.qtyKg = sinkageQtyKg;
+        }
+
+        if (sinkageQtyPcs > 0) {
+          ledgerEntry.qtyPcs = sinkageQtyPcs;
+        }
+
+        console.log(`[PO Sinkage] Creating sinkage ledger entry:`, ledgerEntry);
+
+        const created = await prisma.inventoryLedger.create({
+          data: ledgerEntry,
+        });
+
+        console.log(`[PO Sinkage] ✅ Created sinkage ledger entry ${created.id} for product ${poItem.productId}`);
+        sinkageLedgerEntries.push(created);
+      }
+
+      console.log(`[PO Sinkage] Created ${sinkageLedgerEntries.length} sinkage ledger entries`);
+
+      return {
+        success: true,
+        sinkageEntriesCreated: sinkageLedgerEntries.length,
+        message: 'Sinkage calculated and applied successfully',
+      };
+    } catch (error: any) {
+      console.error('Failed to calculate sinkage:', error);
+      reply.code(500).send({ error: 'Failed to calculate sinkage', details: error.message });
+    }
+  });
 }
 

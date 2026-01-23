@@ -59,6 +59,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
       const user = getUser(request);
       const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
       
+      console.log('[Stock Report] Request params:', { startDate, endDate, queryStoreId, userId: user.userId });
+      
       // Get user's store
       const userStore = await prisma.store.findUnique({
         where: { id: user.storeId },
@@ -66,6 +68,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       });
 
       if (!userStore) {
+        console.error('[Stock Report] Store not found:', user.storeId);
         reply.code(404).send({ error: 'Store not found' });
         return;
       }

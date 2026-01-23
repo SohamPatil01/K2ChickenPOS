@@ -116,9 +116,31 @@ export default function StoreDailyClosingPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.openingCash && !formData.closingCash) {
-      alert('Please enter opening cash and closing cash');
+    // Validation
+    if (formData.openingCash === undefined || formData.openingCash === null || formData.openingCash < 0) {
+      alert('Please enter a valid opening cash amount (must be 0 or greater)');
       return;
+    }
+
+    if (formData.closingCash === undefined || formData.closingCash === null || formData.closingCash < 0) {
+      alert('Please enter a valid closing cash amount (must be 0 or greater)');
+      return;
+    }
+
+    // Warning for large cash difference
+    const diff = Math.abs(cashDifference);
+    if (diff > 1000) {
+      if (!confirm(`Warning: Cash difference is ₹${diff.toFixed(2)}. This is a large discrepancy. Do you want to continue?`)) {
+        return;
+      }
+    }
+
+    // Confirm if closing date is not today
+    const today = new Date().toISOString().split('T')[0];
+    if (closingDate !== today) {
+      if (!confirm(`You are creating a daily closing for ${closingDate}, which is not today (${today}). Continue?`)) {
+        return;
+      }
     }
 
     try {
@@ -146,7 +168,8 @@ export default function StoreDailyClosingPage() {
       alert('Daily closing saved successfully!');
     } catch (error: any) {
       console.error('Failed to save daily closing:', error);
-      alert(error.response?.data?.error || 'Failed to save daily closing');
+      const errorMsg = error.response?.data?.error || error.response?.data?.details || 'Failed to save daily closing';
+      alert(`Error: ${errorMsg}`);
     }
   };
 
@@ -238,13 +261,18 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cash Sales</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Cash Sales (Generated Today)
+              </label>
               <input
                 type="number"
-                value={summary?.cashSales || 0}
+                value={(summary?.cashSales || 0).toFixed(2)}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800 font-semibold"
               />
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                ₹{(summary?.cashSales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -253,9 +281,9 @@ export default function StoreDailyClosingPage() {
               </label>
               <input
                 type="number"
-                value={formData.cashReceived || 0}
+                value={(formData.cashReceived || 0).toFixed(2)}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800 font-semibold"
                 step="0.01"
                 min="0"
               />
@@ -276,9 +304,9 @@ export default function StoreDailyClosingPage() {
               </label>
               <input
                 type="number"
-                value={formData.closingCash || 0}
+                value={(formData.closingCash || 0).toFixed(2)}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md bg-gray-50 dark:bg-gray-800 font-semibold"
                 step="0.001"
                 min="0"
               />
@@ -287,9 +315,9 @@ export default function StoreDailyClosingPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cash Difference</label>
               <input
                 type="number"
-                value={cashDifference.toFixed(3)}
+                value={cashDifference.toFixed(2)}
                 readOnly
-                className={`w-full px-3 py-2 border rounded-md ${
+                className={`w-full px-3 py-2 border rounded-md font-bold ${
                   cashDifference === 0
                     ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-800 dark:text-green-400'
                     : cashDifference > 0
@@ -297,6 +325,9 @@ export default function StoreDailyClosingPage() {
                     : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-400'
                 }`}
               />
+              <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                {cashDifference === 0 ? '✓ Balanced' : cashDifference > 0 ? '↑ Excess' : '↓ Shortage'}
+              </p>
             </div>
           </div>
         </div>

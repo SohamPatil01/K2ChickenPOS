@@ -523,6 +523,8 @@ model PurchaseOrderItem {
   requestedRate Float?
   receivedQtyKg Float?   // Actual received quantity (after shrinkage)
   receivedQtyPcs Int?    // Actual received quantity (after shrinkage)
+  sinkageQtyKg  Float?   // Sinkage/wastage during receiving
+  sinkageQtyPcs Int?     // Sinkage/wastage during receiving
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
