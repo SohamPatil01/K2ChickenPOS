@@ -84,28 +84,103 @@ export default function StoreDailyClosingPage() {
       // Encode the date to handle any special characters
       const encodedDate = encodeURIComponent(closingDate);
       const response = await api.get(`/api/v1/daily-closing/${encodedDate}`);
-      setExistingClosing(response.data);
-      setFormData({
-        openingCash: response.data.openingCash || 0,
-        cashReceived: response.data.cashReceived || 0,
-        closingCash: response.data.closingCash || 0,
-        notes: response.data.notes || '',
-      });
-      setSummary({
-        totalSales: response.data.totalSales || 0,
-        totalRevenue: response.data.totalRevenue || 0,
-        totalDiscounts: response.data.totalDiscounts || 0,
-        totalTax: response.data.totalTax || 0,
-        totalWeightSoldKg: response.data.totalWeightSoldKg || 0,
-        totalWastageKg: response.data.totalWastageKg || 0,
-        cashSales: response.data.cashSales || 0,
-        cardSales: response.data.cardSales || 0,
-        upiSales: response.data.upiSales || 0,
-      });
+      
+      // Check if we got actual data or just calculated data
+      if (response.data) {
+        setExistingClosing(response.data.id ? response.data : null);
+        setFormData({
+          openingCash: response.data.openingCash || 0,
+          cashReceived: response.data.cashReceived || 0,
+          closingCash: response.data.closingCash || 0,
+          notes: response.data.notes || '',
+        });
+        setSummary({
+          totalSales: response.data.totalSales || 0,
+          totalRevenue: response.data.totalRevenue || 0,
+          totalDiscounts: response.data.totalDiscounts || 0,
+          totalTax: response.data.totalTax || 0,
+          totalWeightSoldKg: response.data.totalWeightSoldKg || 0,
+          totalWastageKg: response.data.totalWastageKg || 0,
+          cashSales: response.data.cashSales || 0,
+          cardSales: response.data.cardSales || 0,
+          upiSales: response.data.upiSales || 0,
+        });
+      }
     } catch (error: any) {
       if (error.response?.status === 404) {
-        // 404 is expected when no daily closing exists for this date - not an error
+        // 404 is expected when no daily closing exists for this date
+        // But we should still try to fetch sales data
+        console.log('[Daily Closing] No existing closing found, will fetch sales data');
         setExistingClosing(null);
+        
+        // Try to fetch today's sales data directly
+        try {
+          const dateObj = new Date(closingDate + 'T00:00:00.000Z');
+          const nextDay = new Date(dateObj);
+          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+          
+          const salesRes = await api.get('/api/v1/sales', {
+            params: {
+              startDate: dateObj.toISOString(),
+              endDate: nextDay.toISOString(),
+              status: 'PAID',
+            },
+          });
+          
+          const sales = salesRes.data || [];
+          
+          // Calculate payment breakdown
+          let cashTotal = 0;
+          let cardTotal = 0;
+          let upiTotal = 0;
+          let totalRevenue = 0;
+          
+          sales.forEach((sale: any) => {
+            totalRevenue += sale.grandTotal || 0;
+            (sale.payments || []).forEach((payment: any) => {
+              const method = (payment.method || '').toUpperCase();
+              const amount = payment.amount || 0;
+              if (method === 'CASH') {
+                cashTotal += amount;
+              } else if (method === 'UPI') {
+                upiTotal += amount;
+              } else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+                cardTotal += amount;
+              }
+            });
+          });
+          
+          console.log('[Daily Closing] Fetched sales data:', { cashTotal, cardTotal, upiTotal, totalRevenue, salesCount: sales.length });
+          
+          setSummary({
+            totalSales: sales.length,
+            totalRevenue,
+            totalDiscounts: 0,
+            totalTax: 0,
+            totalWeightSoldKg: 0,
+            totalWastageKg: 0,
+            cashSales: cashTotal,
+            cardSales: cardTotal,
+            upiSales: upiTotal,
+          });
+        } catch (salesError) {
+          console.error('[Daily Closing] Failed to fetch sales data:', salesError);
+          // Set default values
+          setSummary({
+            totalSales: 0,
+            totalRevenue: 0,
+            totalDiscounts: 0,
+            totalTax: 0,
+            totalWeightSoldKg: 0,
+            totalWastageKg: 0,
+            cashSales: 0,
+            cardSales: 0,
+            upiSales: 0,
+          });
+        }
+      } else {
+        console.error('Failed to load daily closing:', error);
+        // Set default values for other errors
         setSummary({
           totalSales: 0,
           totalRevenue: 0,
@@ -117,8 +192,6 @@ export default function StoreDailyClosingPage() {
           cardSales: 0,
           upiSales: 0,
         });
-      } else {
-        console.error('Failed to load daily closing:', error);
       }
     } finally {
       setLoading(false);
