@@ -75,6 +75,10 @@ export default function StoreDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [pendingPaymentsTotal, setPendingPaymentsTotal] = useState(0);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [historicalData, setHistoricalData] = useState<any>(null);
 
   useEffect(() => {
     if (!user) {
@@ -362,9 +366,95 @@ export default function StoreDashboardPage() {
       
       setStats(newStats);
       setLastRefresh(new Date());
+      
+      // Load pending payments
+      loadPendingPayments();
     } catch (error: any) {
       console.error('[Dashboard] Failed to load dashboard:', error);
       alert(error.response?.data?.error || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPendingPayments = async () => {
+    try {
+      const response = await api.get('/api/v1/customers/pending-payments');
+      const customers = response.data || [];
+      const total = customers.reduce((sum: number, c: any) => sum + c.totalPending, 0);
+      const count = customers.reduce((sum: number, c: any) => sum + c.orderCount, 0);
+      setPendingPaymentsTotal(total);
+      setPendingPaymentsCount(count);
+    } catch (error) {
+      console.error('[Dashboard] Failed to load pending payments:', error);
+    }
+  };
+
+  const loadHistoricalData = async (date: string) => {
+    try {
+      setLoading(true);
+      const dateObj = new Date(date + 'T00:00:00.000Z');
+      const nextDay = new Date(dateObj);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+      // Get sales for the selected date
+      const salesRes = await api.get('/api/v1/sales', {
+        params: {
+          startDate: dateObj.toISOString(),
+          endDate: nextDay.toISOString(),
+          status: 'PAID',
+        },
+      });
+
+      const sales = salesRes.data || [];
+      
+      // Calculate payment breakdown
+      const paymentBreakdown = {
+        cash: 0,
+        upi: 0,
+        card: 0,
+        other: 0,
+      };
+
+      sales.forEach((sale: any) => {
+        (sale.payments || []).forEach((payment: any) => {
+          const method = (payment.method || '').toUpperCase();
+          const amount = payment.amount || 0;
+          if (method === 'CASH') {
+            paymentBreakdown.cash += amount;
+          } else if (method === 'UPI') {
+            paymentBreakdown.upi += amount;
+          } else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
+            paymentBreakdown.card += amount;
+          } else {
+            paymentBreakdown.other += amount;
+          }
+        });
+      });
+
+      // Get pending payments for that date (OPEN sales created on that date)
+      const openSalesRes = await api.get('/api/v1/sales', {
+        params: {
+          startDate: dateObj.toISOString(),
+          endDate: nextDay.toISOString(),
+          status: 'OPEN',
+        },
+      });
+
+      const openSales = openSalesRes.data || [];
+      const pendingAmount = openSales.reduce((sum: number, s: any) => sum + (s.grandTotal - s.totalPaid), 0);
+
+      setHistoricalData({
+        date,
+        salesCount: sales.length,
+        totalRevenue: sales.reduce((sum: number, s: any) => sum + s.grandTotal, 0),
+        paymentBreakdown,
+        pendingAmount,
+        pendingCount: openSales.length,
+      });
+    } catch (error) {
+      console.error('[Dashboard] Failed to load historical data:', error);
+      alert('Failed to load historical data');
     } finally {
       setLoading(false);
     }
@@ -405,35 +495,57 @@ export default function StoreDashboardPage() {
     );
   }
 
-  const StatCard = ({ title, value, subtitle, icon, comparison }: { 
+  const StatCard = ({ title, value, subtitle, icon, comparison, gradient }: { 
     title: string; 
     value: string | number; 
     subtitle?: string; 
     icon: string;
     comparison?: { label: string; value: number; change: number };
+    gradient?: string;
   }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-5 lg:p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
-          <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2 truncate">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">{subtitle}</p>}
+    <div className={`relative overflow-hidden rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 p-6 ${
+      gradient || 'bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900'
+    }`}>
+      {/* Background Pattern */}
+      <div className="absolute top-0 right-0 opacity-10">
+        <div className="text-7xl">{icon}</div>
+      </div>
+      
+      {/* Content */}
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-4">
+          <div className={`p-3 rounded-lg ${gradient ? 'bg-white/20 backdrop-blur-sm' : 'bg-gray-100 dark:bg-gray-700'}`}>
+            <span className="text-3xl">{icon}</span>
+          </div>
           {comparison && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className={`text-xs font-semibold ${
-                comparison.change > 0 
-                  ? 'text-green-600 dark:text-green-400' 
-                  : comparison.change < 0 
-                  ? 'text-red-600 dark:text-red-400' 
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}>
-                {comparison.change > 0 ? '↑' : comparison.change < 0 ? '↓' : '→'} {Math.abs(comparison.change).toFixed(1)}%
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">{comparison.label}</span>
+            <div className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+              comparison.change > 0 
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                : comparison.change < 0 
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' 
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400'
+            }`}>
+              {comparison.change > 0 ? '↑' : comparison.change < 0 ? '↓' : '→'} {Math.abs(comparison.change).toFixed(1)}%
             </div>
           )}
         </div>
-        <div className="text-2xl sm:text-3xl lg:text-4xl flex-shrink-0 ml-2">{icon}</div>
+        
+        <p className={`text-sm font-semibold uppercase tracking-wide mb-2 ${gradient ? 'text-white/90' : 'text-gray-600 dark:text-gray-400'}`}>
+          {title}
+        </p>
+        <p className={`text-3xl font-bold mb-1 truncate ${gradient ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+          {value}
+        </p>
+        {subtitle && (
+          <p className={`text-sm truncate ${gradient ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
+            {subtitle}
+          </p>
+        )}
+        {comparison && (
+          <p className={`text-xs mt-2 ${gradient ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+            {comparison.label}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -489,14 +601,15 @@ export default function StoreDashboardPage() {
         </div>
       </div>
 
-      {/* Key Metrics - Console Style */}
+      {/* Key Metrics - Modern Console Style */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 mb-6">
         <StatCard
           title="Today's Revenue"
-          value={`₹${stats.today.revenue.toFixed(2)}`}
-          subtitle={`${stats.today.count} sales`}
+          value={`₹${stats.today.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle={`${stats.today.count} sales today`}
           icon="💰"
+          gradient="bg-gradient-to-br from-green-500 to-green-600"
           comparison={{
             label: 'vs yesterday',
             value: stats.yesterday.revenue,
@@ -506,25 +619,122 @@ export default function StoreDashboardPage() {
           }}
         />
         <StatCard
-          title="Today's Sales"
+          title="Today's Sales Count"
           value={stats.today.count}
-          subtitle={`Avg: ₹${stats.today.avgBill.toFixed(2)}`}
+          subtitle={`Avg: ₹${Math.round(stats.today.avgBill).toLocaleString()}`}
           icon="📊"
+          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
           comparison={{
-            label: 'vs last week',
-            value: stats.lastWeek.count,
-            change: stats.lastWeek.count > 0 
-              ? ((stats.today.count - stats.lastWeek.count) / stats.lastWeek.count) * 100 
+            label: 'vs yesterday',
+            value: stats.yesterday.count,
+            change: stats.yesterday.count > 0 
+              ? ((stats.today.count - stats.yesterday.count) / stats.yesterday.count) * 100 
               : 0
           }}
         />
         <StatCard
-          title="This Month"
-          value={`₹${stats.month.revenue.toFixed(2)}`}
+          title="Pending Payments"
+          value={`₹${Math.round(pendingPaymentsTotal).toLocaleString()}`}
+          subtitle={`${pendingPaymentsCount} pending orders`}
+          icon="⏳"
+          gradient="bg-gradient-to-br from-orange-500 to-orange-600"
+        />
+        <StatCard
+          title="Monthly Revenue"
+          value={`₹${stats.month.revenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
           subtitle={`${stats.month.count} total sales`}
           icon="📈"
+          gradient="bg-gradient-to-br from-purple-500 to-purple-600"
         />
       </div>
+
+      {/* Historical Data Viewer */}
+      {(userRole === 'MANAGER' || userRole === 'OWNER') && (
+        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
+              <span className="text-2xl">📅</span>
+              Historical Data
+            </h2>
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 dark:[color-scheme:dark]"
+              />
+              <button
+                onClick={() => loadHistoricalData(selectedDate)}
+                disabled={loading}
+                className="px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-colors"
+              >
+                {loading ? 'Loading...' : 'Load'}
+              </button>
+            </div>
+          </div>
+
+          {historicalData && (
+            <div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-4">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1 font-semibold">Total Sales</p>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-300">{historicalData.salesCount}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">₹{Math.round(historicalData.totalRevenue).toLocaleString()}</p>
+                </div>
+                <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-4">
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mb-1 font-semibold">Pending</p>
+                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-300">{historicalData.pendingCount}</p>
+                  <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">₹{Math.round(historicalData.pendingAmount).toLocaleString()}</p>
+                </div>
+                <div className="bg-purple-100 dark:bg-purple-900/30 rounded-lg p-4 col-span-2 md:col-span-1">
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mb-1 font-semibold">Date</p>
+                  <p className="text-lg font-bold text-purple-900 dark:text-purple-300">
+                    {new Date(historicalData.date).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 border border-green-200 dark:border-green-800">
+                  <p className="text-xs text-green-600 dark:text-green-400 mb-1">Cash</p>
+                  <p className="text-xl font-bold text-green-900 dark:text-green-300">
+                    ₹{Math.round(historicalData.paymentBreakdown.cash).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">UPI</p>
+                  <p className="text-xl font-bold text-blue-900 dark:text-blue-300">
+                    ₹{Math.round(historicalData.paymentBreakdown.upi).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Card</p>
+                  <p className="text-xl font-bold text-purple-900 dark:text-purple-300">
+                    ₹{Math.round(historicalData.paymentBreakdown.card).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800">
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">Other</p>
+                  <p className="text-xl font-bold text-orange-900 dark:text-orange-300">
+                    ₹{Math.round(historicalData.paymentBreakdown.other).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!historicalData && (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              Select a date and click Load to view historical data
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Alerts Section */}
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
@@ -576,136 +786,269 @@ export default function StoreDashboardPage() {
         </div>
       )}
 
-      {/* Payment Breakdown Box */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-5 lg:p-6 mb-4 sm:mb-6">
-        <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white mb-4">Today's Payment Breakdown</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 sm:p-4 border border-green-200 dark:border-green-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm font-medium text-green-700 dark:text-green-400">Cash</span>
-              <span className="text-lg sm:text-xl">💵</span>
+      {/* Payment Breakdown Box - Modern Design */}
+      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
+            <span className="text-2xl">💳</span>
+            Today's Payment Breakdown
+          </h2>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Total: <span className="font-bold text-gray-900 dark:text-white">₹{Math.round(stats.paymentBreakdown.total).toLocaleString()}</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Cash</span>
+              <span className="text-2xl">💵</span>
             </div>
-            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-900 dark:text-green-300">
+            <p className="text-3xl font-bold text-white mb-1">
               ₹{Math.round(stats.paymentBreakdown.cash).toLocaleString()}
             </p>
-          </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-400">UPI</span>
-              <span className="text-lg sm:text-xl">📱</span>
+            <div className="flex items-center gap-2 text-white/80 text-xs">
+              <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
+              <span>of total</span>
             </div>
-            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900 dark:text-blue-300">
+          </div>
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">UPI</span>
+              <span className="text-2xl">📱</span>
+            </div>
+            <p className="text-3xl font-bold text-white mb-1">
               ₹{Math.round(stats.paymentBreakdown.upi).toLocaleString()}
             </p>
-          </div>
-          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 sm:p-4 border border-purple-200 dark:border-purple-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm font-medium text-purple-700 dark:text-purple-400">Card</span>
-              <span className="text-lg sm:text-xl">💳</span>
+            <div className="flex items-center gap-2 text-white/80 text-xs">
+              <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.upi / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
+              <span>of total</span>
             </div>
-            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900 dark:text-purple-300">
+          </div>
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Card</span>
+              <span className="text-2xl">💳</span>
+            </div>
+            <p className="text-3xl font-bold text-white mb-1">
               ₹{Math.round(stats.paymentBreakdown.card).toLocaleString()}
             </p>
-          </div>
-          <div className="bg-brand-50 dark:bg-brand-900/20 rounded-lg p-3 sm:p-4 border border-brand-200 dark:border-brand-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs sm:text-sm font-medium text-brand-700 dark:text-brand-400">Total</span>
-              <span className="text-lg sm:text-xl">💰</span>
+            <div className="flex items-center gap-2 text-white/80 text-xs">
+              <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.card / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
+              <span>of total</span>
             </div>
-            <p className="text-lg sm:text-xl lg:text-2xl font-bold text-brand-900 dark:text-brand-300">
-              ₹{Math.round(stats.paymentBreakdown.total).toLocaleString()}
+          </div>
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Other</span>
+              <span className="text-2xl">🔄</span>
+            </div>
+            <p className="text-3xl font-bold text-white mb-1">
+              ₹{Math.round(stats.paymentBreakdown.other).toLocaleString()}
             </p>
+            <div className="flex items-center gap-2 text-white/80 text-xs">
+              <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.other / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
+              <span>of total</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Sales Trend Mini Chart */}
+      {/* Charts Section */}
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-5 lg:p-6 mb-4 sm:mb-6">
-          <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white mb-4">7-Day Revenue Trend</h2>
-          <div className="flex items-end justify-between h-32 gap-2">
-            {[
-              { day: 'Last Week', value: stats.lastWeek.revenue },
-              { day: 'Day -5', value: stats.lastWeek.revenue * 0.9 },
-              { day: 'Day -4', value: stats.lastWeek.revenue * 1.1 },
-              { day: 'Day -3', value: stats.lastWeek.revenue * 0.95 },
-              { day: 'Day -2', value: stats.lastWeek.revenue * 1.05 },
-              { day: 'Yesterday', value: stats.yesterday.revenue },
-              { day: 'Today', value: stats.today.revenue },
-            ].map((item, idx) => {
-              const maxValue = Math.max(stats.today.revenue, stats.yesterday.revenue, stats.lastWeek.revenue, 1);
-              const height = (item.value / maxValue) * 100;
-              const isToday = idx === 6;
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                  <div 
-                    className={`w-full rounded-t transition-all ${
-                      isToday 
-                        ? 'bg-brand-500 dark:bg-brand-400' 
-                        : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                    style={{ height: `${height}%`, minHeight: '4px' }}
-                    title={`${item.day}: ₹${item.value.toFixed(0)}`}
-                  />
-                  <span className={`text-xs ${isToday ? 'font-bold text-brand-600 dark:text-brand-400' : 'text-gray-500 dark:text-gray-400'}`}>
-                    {idx === 0 ? 'W-1' : idx === 5 ? 'Y' : idx === 6 ? 'T' : `D-${7-idx}`}
-                  </span>
-                </div>
-              );
-            })}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Sales Trend Chart */}
+          <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
+                <span className="text-2xl">📈</span>
+                7-Day Revenue Trend
+              </h2>
+            </div>
+            <div className="flex items-end justify-between h-48 gap-3">
+              {[
+                { day: 'Last Week', value: stats.lastWeek.revenue },
+                { day: 'Day -5', value: stats.lastWeek.revenue * 0.9 },
+                { day: 'Day -4', value: stats.lastWeek.revenue * 1.1 },
+                { day: 'Day -3', value: stats.lastWeek.revenue * 0.95 },
+                { day: 'Day -2', value: stats.lastWeek.revenue * 1.05 },
+                { day: 'Yesterday', value: stats.yesterday.revenue },
+                { day: 'Today', value: stats.today.revenue },
+              ].map((item, idx) => {
+                const maxValue = Math.max(stats.today.revenue, stats.yesterday.revenue, stats.lastWeek.revenue, 1);
+                const height = (item.value / maxValue) * 100;
+                const isToday = idx === 6;
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
+                    <div className="relative w-full">
+                      <div 
+                        className={`w-full rounded-t-lg transition-all duration-300 group-hover:scale-110 ${
+                          isToday 
+                            ? 'bg-gradient-to-t from-brand-500 to-brand-400 shadow-lg' 
+                            : 'bg-gradient-to-t from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-500'
+                        }`}
+                        style={{ height: `${Math.max(height, 5)}%` }}
+                      />
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                        ₹{item.value.toLocaleString()}
+                      </div>
+                    </div>
+                    <span className={`text-xs font-medium ${isToday ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {idx === 0 ? 'W-1' : idx === 5 ? 'Yest' : idx === 6 ? 'Today' : `D-${7-idx}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 grid grid-cols-3 gap-3 text-xs">
+              <div className="text-center p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <span className="text-gray-600 dark:text-gray-400 block mb-1">Last Week</span>
+                <span className="font-bold text-gray-900 dark:text-white">₹{stats.lastWeek.revenue.toLocaleString()}</span>
+              </div>
+              <div className="text-center p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <span className="text-gray-600 dark:text-gray-400 block mb-1">Yesterday</span>
+                <span className="font-bold text-gray-900 dark:text-white">₹{stats.yesterday.revenue.toLocaleString()}</span>
+              </div>
+              <div className="text-center p-2 bg-brand-100 dark:bg-brand-900/30 rounded-lg">
+                <span className="text-brand-600 dark:text-brand-400 block mb-1">Today</span>
+                <span className="font-bold text-brand-900 dark:text-brand-300">₹{stats.today.revenue.toLocaleString()}</span>
+              </div>
+            </div>
           </div>
-          <div className="mt-4 flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>Last Week: ₹{stats.lastWeek.revenue.toFixed(0)}</span>
-            <span>Yesterday: ₹{stats.yesterday.revenue.toFixed(0)}</span>
-            <span className="font-bold text-brand-600 dark:text-brand-400">Today: ₹{stats.today.revenue.toFixed(0)}</span>
+
+          {/* Payment Method Pie Chart */}
+          <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
+                <span className="text-2xl">🥧</span>
+                Payment Distribution
+              </h2>
+            </div>
+            <div className="flex items-center justify-center mb-6">
+              {/* Simple Pie Chart using conic gradient */}
+              <div className="relative w-48 h-48">
+                {stats.paymentBreakdown.total > 0 ? (
+                  <>
+                    <div 
+                      className="w-full h-full rounded-full shadow-lg"
+                      style={{
+                        background: `conic-gradient(
+                          from 0deg,
+                          #10b981 0deg ${(stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 360}deg,
+                          #3b82f6 ${(stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 360}deg ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi) / stats.paymentBreakdown.total) * 360}deg,
+                          #8b5cf6 ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi) / stats.paymentBreakdown.total) * 360}deg ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi + stats.paymentBreakdown.card) / stats.paymentBreakdown.total) * 360}deg,
+                          #f59e0b ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi + stats.paymentBreakdown.card) / stats.paymentBreakdown.total) * 360}deg 360deg
+                        )`
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-28 h-28 bg-white dark:bg-gray-800 rounded-full shadow-inner flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">₹{Math.round(stats.paymentBreakdown.total / 1000)}K</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                    <span className="text-gray-400">No data</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Cash</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">UPI</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.upi / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-purple-500"></div>
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Card</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.card / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-orange-500"></div>
+                <div className="flex-1">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Other</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.other / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Quick Stats Section */}
+      {/* Quick Stats Section - Enhanced Design */}
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4 sm:p-5 lg:p-6 mb-4 sm:mb-6">
-          <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white mb-4">Quick Insights</h2>
+        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-xl font-bold dark:text-white mb-6 flex items-center gap-2">
+            <span className="text-2xl">⚡</span>
+            Quick Insights
+          </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">Avg Transaction</p>
-              <p className="text-lg font-bold text-blue-900 dark:text-blue-300">
+            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+              <div className="absolute top-0 right-0 opacity-20 text-6xl">💵</div>
+              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Avg Transaction</p>
+              <p className="relative z-10 text-2xl font-bold text-white mb-1">
                 ₹{stats.today.avgBill.toFixed(0)}
               </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              <p className="relative z-10 text-xs text-white/80">
                 {stats.yesterday.count > 0 
                   ? `${((stats.today.avgBill / (stats.yesterday.revenue / stats.yesterday.count || 1) - 1) * 100).toFixed(0)}% vs yesterday`
-                  : 'N/A'}
+                  : 'First day'}
               </p>
             </div>
-            <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <p className="text-xs text-green-600 dark:text-green-400 mb-1">Hourly Rate</p>
-              <p className="text-lg font-bold text-green-900 dark:text-green-300">
+            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+              <div className="absolute top-0 right-0 opacity-20 text-6xl">⏱️</div>
+              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Hourly Rate</p>
+              <p className="relative z-10 text-2xl font-bold text-white mb-1">
                 ₹{(stats.today.revenue / Math.max(1, new Date().getHours() - 8)).toFixed(0)}/hr
               </p>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              <p className="relative z-10 text-xs text-white/80">
                 Since 8 AM
               </p>
             </div>
-            <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">Items/Sale</p>
-              <p className="text-lg font-bold text-purple-900 dark:text-purple-300">
+            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+              <div className="absolute top-0 right-0 opacity-20 text-6xl">📦</div>
+              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Items/Sale</p>
+              <p className="relative z-10 text-2xl font-bold text-white mb-1">
                 {stats.today.count > 0 
                   ? (stats.recentSales.reduce((sum, s) => sum + (s.itemCount || 0), 0) / Math.min(stats.today.count, stats.recentSales.length)).toFixed(1)
                   : '0'}
               </p>
-              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+              <p className="relative z-10 text-xs text-white/80">
                 Average
               </p>
             </div>
-            <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-              <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">Stock Turnover</p>
-              <p className="text-lg font-bold text-orange-900 dark:text-orange-300">
+            <div className="relative overflow-hidden text-center p-5 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+              <div className="absolute top-0 right-0 opacity-20 text-6xl">📊</div>
+              <p className="relative z-10 text-xs text-white/90 font-semibold uppercase tracking-wide mb-2">Stock Turnover</p>
+              <p className="relative z-10 text-2xl font-bold text-white mb-1">
                 {stats.todayStock.soldStock > 0 && stats.todayStock.currentStock > 0
                   ? `${((stats.todayStock.soldStock / stats.todayStock.currentStock) * 100).toFixed(0)}%`
                   : 'N/A'}
               </p>
-              <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+              <p className="relative z-10 text-xs text-white/80">
                 Today
               </p>
             </div>

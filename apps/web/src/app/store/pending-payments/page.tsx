@@ -54,6 +54,21 @@ export default function PendingPaymentsPage() {
   const [showNumPad, setShowNumPad] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [successData, setSuccessData] = useState<{ amount: number; customerName: string; orderNo?: string } | null>(null);
+  const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'amount' | 'orders' | 'name'>('amount');
+
+  const toggleCustomerExpanded = (customerId: string) => {
+    setExpandedCustomers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(customerId)) {
+        newSet.delete(customerId);
+      } else {
+        newSet.add(customerId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     if (user === undefined) return;
@@ -237,6 +252,34 @@ export default function PendingPaymentsPage() {
     );
   }
 
+  // Filter and sort customers
+  const filteredCustomers = customers.filter(customer => {
+    const query = searchQuery.toLowerCase();
+    return (
+      customer.name.toLowerCase().includes(query) ||
+      customer.phone.includes(query) ||
+      customer.email?.toLowerCase().includes(query) ||
+      customer.openOrders.some(order => order.saleNo.toLowerCase().includes(query))
+    );
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'amount':
+        return b.totalPending - a.totalPending;
+      case 'orders':
+        return b.orderCount - a.orderCount;
+      case 'name':
+        return a.name.localeCompare(b.name);
+      default:
+        return 0;
+    }
+  });
+
+  // Calculate summary stats
+  const totalPending = customers.reduce((sum, c) => sum + c.totalPending, 0);
+  const totalCustomers = customers.length;
+  const totalOrders = customers.reduce((sum, c) => sum + c.orderCount, 0);
+  const avgPendingPerCustomer = totalCustomers > 0 ? totalPending / totalCustomers : 0;
+
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       {/* Header */}
@@ -249,10 +292,127 @@ export default function PendingPaymentsPage() {
         </p>
       </div>
 
+      {/* Search and Filter Bar */}
+      {customers.length > 0 && (
+        <div className="mb-4 sm:mb-6 flex-shrink-0">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 p-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="flex-1 relative">
+                <svg 
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name, phone, email, or order number..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Sort Dropdown */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'amount' | 'orders' | 'name')}
+                className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium"
+              >
+                <option value="amount">Sort by Amount</option>
+                <option value="orders">Sort by Orders</option>
+                <option value="name">Sort by Name</option>
+              </select>
+            </div>
+
+            {/* Results count */}
+            {searchQuery && (
+              <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                Found {filteredCustomers.length} of {customers.length} customer{filteredCustomers.length !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Summary Cards */}
+      {customers.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6 flex-shrink-0">
+          {/* Total Pending */}
+          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-white/80 text-xs sm:text-sm font-medium mb-1">Total Pending</p>
+            <p className="text-white text-xl sm:text-2xl lg:text-3xl font-bold">
+              ₹{Math.round(totalPending).toLocaleString()}
+            </p>
+          </div>
+
+          {/* Total Customers */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-white/80 text-xs sm:text-sm font-medium mb-1">Customers</p>
+            <p className="text-white text-xl sm:text-2xl lg:text-3xl font-bold">{totalCustomers}</p>
+          </div>
+
+          {/* Total Orders */}
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-white/80 text-xs sm:text-sm font-medium mb-1">Pending Orders</p>
+            <p className="text-white text-xl sm:text-2xl lg:text-3xl font-bold">{totalOrders}</p>
+          </div>
+
+          {/* Average Per Customer */}
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-white/80 text-xs sm:text-sm font-medium mb-1">Avg. Per Customer</p>
+            <p className="text-white text-xl sm:text-2xl lg:text-3xl font-bold">
+              ₹{Math.round(avgPendingPerCustomer).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Customers List */}
       <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700">
         <div className="flex-1 overflow-y-auto min-h-0">
-          {customers.length === 0 ? (
+          {filteredCustomers.length === 0 && customers.length === 0 ? (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full mb-4 animate-scale-in">
                 <svg className="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,53 +422,125 @@ export default function PendingPaymentsPage() {
               <p className="text-gray-600 dark:text-gray-300 font-semibold text-lg mb-1">No pending payments</p>
               <p className="text-sm text-gray-400 dark:text-gray-500">All customers are up to date</p>
             </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full mb-4">
+                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 font-semibold text-lg mb-1">No customers found</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">Try adjusting your search criteria</p>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+              >
+                Clear Search
+              </button>
+            </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {customers.map((customer, index) => (
-                <div
-                  key={customer.id}
-                  className="p-5 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all duration-200 animate-fade-in-up"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-md">
-                            {customer.name.charAt(0).toUpperCase()}
-                          </div>
-                          <h3 className="font-bold text-lg sm:text-xl dark:text-white">
-                            {customer.name}
-                          </h3>
-                        </div>
-                        <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-semibold border border-red-200 dark:border-red-800">
-                          {customer.orderCount} {customer.orderCount === 1 ? 'order' : 'orders'}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1.5 mb-4">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                          <span>{customer.phone}</span>
-                        </div>
-                        {customer.email && (
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <span>{customer.email}</span>
-                          </div>
-                        )}
-                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                          <p className="text-lg font-bold text-red-600 dark:text-red-400">
-                            Total Pending: ₹{Math.round(customer.totalPending)}
-                          </p>
+              {filteredCustomers.map((customer, index) => {
+                const isExpanded = expandedCustomers.has(customer.id);
+                const daysSinceOldest = customer.openOrders.length > 0 
+                  ? Math.floor((Date.now() - new Date(customer.openOrders[0].createdAt).getTime()) / (1000 * 60 * 60 * 24))
+                  : 0;
+                const urgencyColor = daysSinceOldest > 30 ? 'red' : daysSinceOldest > 14 ? 'orange' : 'yellow';
+
+                return (
+                  <div
+                    key={customer.id}
+                    className="p-4 sm:p-6 transition-all duration-200 animate-fade-in-up"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    {/* Customer Header - Always Visible */}
+                    <div className="flex items-start gap-4 mb-4">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0">
+                        <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                          {customer.name.charAt(0).toUpperCase()}
                         </div>
                       </div>
 
-                      {/* Open Orders */}
-                      <div className="mt-4 space-y-3">
+                      {/* Customer Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <h3 className="font-bold text-xl dark:text-white">
+                            {customer.name}
+                          </h3>
+                          <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-semibold border border-red-200 dark:border-red-800">
+                            {customer.orderCount} {customer.orderCount === 1 ? 'order' : 'orders'}
+                          </span>
+                          {daysSinceOldest > 7 && (
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                              urgencyColor === 'red' 
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
+                                : urgencyColor === 'orange'
+                                ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800'
+                                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800'
+                            }`}>
+                              {daysSinceOldest}d old
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            <span>{customer.phone}</span>
+                          </div>
+                          {customer.email && (
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                              <span className="truncate">{customer.email}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pending Amount and Actions Row */}
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-xl font-bold text-red-600 dark:text-red-400">
+                              ₹{Math.round(customer.totalPending).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleCustomerExpanded(customer.id)}
+                              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-semibold text-sm flex items-center gap-2"
+                            >
+                              {isExpanded ? 'Hide' : 'Show'} Details
+                              <svg 
+                                className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handlePayPending(customer)}
+                              className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-bold text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
+                            >
+                              Pay All
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable Orders Section */}
+                    {isExpanded && (
+                      <div className="mt-4 space-y-3 animate-fade-in-up pl-0 sm:pl-18">
                         {customer.openOrders.map((order, orderIndex) => {
                           const isCreditOrder = order.hasCreditPayment || false;
                           // For credit orders, remaining balance is grandTotal - actual payments (credit doesn't count)
@@ -392,18 +624,10 @@ export default function PendingPaymentsPage() {
                           );
                         })}
                       </div>
-                    </div>
-                    <div className="flex flex-col gap-2 w-full lg:w-auto lg:min-w-[180px]">
-                      <button
-                        onClick={() => handlePayPending(customer)}
-                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 text-sm font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
-                      >
-                        💰 Pay All ₹{Math.round(customer.totalPending)}
-                      </button>
-                    </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

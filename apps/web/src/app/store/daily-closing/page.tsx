@@ -18,7 +18,17 @@ export default function StoreDailyClosingPage() {
     closingCash: 0,
     notes: '',
   });
-  const [summary, setSummary] = useState<any>(null);
+  const [summary, setSummary] = useState<any>({
+    totalSales: 0,
+    totalRevenue: 0,
+    totalDiscounts: 0,
+    totalTax: 0,
+    totalWeightSoldKg: 0,
+    totalWastageKg: 0,
+    cashSales: 0,
+    cardSales: 0,
+    upiSales: 0,
+  });
 
   useEffect(() => {
     if (!user) {
@@ -196,16 +206,6 @@ export default function StoreDailyClosingPage() {
   const cashExpected = (formData.openingCash || 0) + (formData.cashReceived || 0);
   const cashDifference = (formData.closingCash || 0) - cashExpected;
 
-  if (loading && !summary) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="mb-4 sm:mb-6">
@@ -225,7 +225,22 @@ export default function StoreDailyClosingPage() {
         </div>
       </Card>
 
-      {summary && (
+      {loading ? (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+          <p className="mt-4 text-gray-500 dark:text-gray-400">Loading data...</p>
+        </div>
+      ) : (
+        <>
+          {summary && summary.totalSales === 0 && !existingClosing && (
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                No sales data found for {closingDate}. You can still enter cash reconciliation details.
+              </p>
+            </div>
+          )}
+
+          {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Card>
             <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
@@ -333,56 +348,58 @@ export default function StoreDailyClosingPage() {
         </div>
       </Card>
 
-      {summary && (
-        <Card className="mb-4 sm:mb-6">
-          <div className="p-3 sm:p-4 lg:p-6">
-            <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 dark:text-white">Payment Method Breakdown</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Cash</p>
-                <p className="text-2xl font-bold dark:text-white">₹{summary.cashSales.toLocaleString()}</p>
+          {summary && (
+            <Card className="mb-4 sm:mb-6">
+              <div className="p-3 sm:p-4 lg:p-6">
+                <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 dark:text-white">Payment Method Breakdown</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Cash</p>
+                    <p className="text-2xl font-bold dark:text-white">₹{summary.cashSales.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Card</p>
+                    <p className="text-2xl font-bold dark:text-white">₹{summary.cardSales.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">UPI</p>
+                    <p className="text-2xl font-bold dark:text-white">₹{summary.upiSales.toLocaleString()}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Card</p>
-                <p className="text-2xl font-bold dark:text-white">₹{summary.cardSales.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">UPI</p>
-                <p className="text-2xl font-bold dark:text-white">₹{summary.upiSales.toLocaleString()}</p>
-              </div>
+            </Card>
+          )}
+
+          <Card className="mb-6">
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                rows={3}
+                placeholder="Add any notes or observations..."
+              />
             </div>
+          </Card>
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <Button variant="primary" onClick={handleSubmit} className="w-full sm:w-auto touch-target">
+              {existingClosing ? 'Update Closing' : 'Save Closing'}
+            </Button>
+            {existingClosing && !existingClosing.isFinalized && (
+              <Button variant="primary" onClick={handleFinalize} className="w-full sm:w-auto touch-target">
+                Finalize Closing
+              </Button>
+            )}
+            {existingClosing && existingClosing.isFinalized && (
+              <span className="px-4 py-2 bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded-md font-semibold text-center touch-target">
+                ✓ Finalized
+              </span>
+            )}
           </div>
-        </Card>
+        </>
       )}
-
-      <Card className="mb-6">
-        <div className="p-6">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
-          <textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-            rows={3}
-            placeholder="Add any notes or observations..."
-          />
-        </div>
-      </Card>
-
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <Button variant="primary" onClick={handleSubmit} className="w-full sm:w-auto touch-target">
-          {existingClosing ? 'Update Closing' : 'Save Closing'}
-        </Button>
-        {existingClosing && !existingClosing.isFinalized && (
-          <Button variant="primary" onClick={handleFinalize} className="w-full sm:w-auto touch-target">
-            Finalize Closing
-          </Button>
-        )}
-        {existingClosing && existingClosing.isFinalized && (
-          <span className="px-4 py-2 bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded-md font-semibold text-center touch-target">
-            ✓ Finalized
-          </span>
-        )}
-      </div>
     </div>
   );
 }
