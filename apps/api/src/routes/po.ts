@@ -107,16 +107,48 @@ export async function poRoutes(fastify: FastifyInstance) {
             });
             createdItems.push(createdItem);
           } catch (itemError: any) {
-            // If updatedAt doesn't exist, use raw SQL without it
-            if (itemError.message?.includes('updatedAt') || itemError.message?.includes('does not exist')) {
-              const itemResult = await prisma.$queryRawUnsafe(`
-                INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt", "updatedAt", "receivedQtyKg", "receivedQtyPcs", "sinkageQtyKg", "sinkageQtyPcs")
-                VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NULL, NULL, NULL, NULL)
-                RETURNING *
-              `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
-              
-              if (itemResult && itemResult.length > 0) {
-                createdItems.push(itemResult[0]);
+            // If columns don't exist, try with minimal columns first
+            if (itemError.message?.includes('does not exist') || itemError.message?.includes('column')) {
+              try {
+                // First, try to check which columns exist by attempting a minimal insert
+                // Try with all new columns first
+                const itemResult = await prisma.$queryRawUnsafe(`
+                  INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt", "updatedAt", "receivedQtyKg", "receivedQtyPcs", "sinkageQtyKg", "sinkageQtyPcs")
+                  VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NULL, NULL, NULL, NULL)
+                  RETURNING *
+                `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
+                
+                if (itemResult && itemResult.length > 0) {
+                  createdItems.push(itemResult[0]);
+                }
+              } catch (fallbackError: any) {
+                // If that fails, try without sinkage columns (they might not exist yet)
+                if (fallbackError.message?.includes('sinkageQtyKg') || fallbackError.message?.includes('sinkageQtyPcs')) {
+                  try {
+                    const itemResult = await prisma.$queryRawUnsafe(`
+                      INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt", "updatedAt", "receivedQtyKg", "receivedQtyPcs")
+                      VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NULL, NULL)
+                      RETURNING *
+                    `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
+                    
+                    if (itemResult && itemResult.length > 0) {
+                      createdItems.push(itemResult[0]);
+                    }
+                  } catch (minimalError: any) {
+                    // Last resort: minimal columns only
+                    const itemResult = await prisma.$queryRawUnsafe(`
+                      INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt")
+                      VALUES ($1, $2, $3, $4, $5, NOW())
+                      RETURNING *
+                    `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
+                    
+                    if (itemResult && itemResult.length > 0) {
+                      createdItems.push(itemResult[0]);
+                    }
+                  }
+                } else {
+                  throw fallbackError;
+                }
               }
             } else {
               throw itemError;
@@ -306,32 +338,69 @@ export async function poRoutes(fastify: FastifyInstance) {
               // Use Prisma's queryRawUnsafe with proper array formatting
               // Build placeholders for the array
               const placeholders = poIds.map((_, i) => `$${i + 1}`).join(', ');
-              const items = await prisma.$queryRawUnsafe(
-                `SELECT 
-                  poi.id,
-                  poi."poId",
-                  poi."productId",
-                  poi."qtyKg",
-                  poi."qtyPcs",
-                  poi."requestedRate",
-                  poi."receivedQtyKg",
-                  poi."receivedQtyPcs",
-                  poi."sinkageQtyKg",
-                  poi."sinkageQtyPcs",
-                  poi."createdAt",
-                  poi."updatedAt",
-                  p.id as "product_id",
-                  p.name as "product_name",
-                  p.sku as "product_sku",
-                  p.plu as "product_plu",
-                  p."unitType" as "product_unitType",
-                  p."imageUrl" as "product_imageUrl",
-                  p."isActive" as "product_isActive"
-                FROM "PurchaseOrderItem" poi
-                LEFT JOIN "Product" p ON p.id = poi."productId"
-                WHERE poi."poId" IN (${placeholders})`,
-                ...poIds
-              ) as any[];
+              // Try to fetch with all columns, fallback if columns don't exist
+              let items: any[] = [];
+              try {
+                items = await prisma.$queryRawUnsafe(
+                  `SELECT 
+                    poi.id,
+                    poi."poId",
+                    poi."productId",
+                    poi."qtyKg",
+                    poi."qtyPcs",
+                    poi."requestedRate",
+                    poi."receivedQtyKg",
+                    poi."receivedQtyPcs",
+                    poi."sinkageQtyKg",
+                    poi."sinkageQtyPcs",
+                    poi."createdAt",
+                    poi."updatedAt",
+                    p.id as "product_id",
+                    p.name as "product_name",
+                    p.sku as "product_sku",
+                    p.plu as "product_plu",
+                    p."unitType" as "product_unitType",
+                    p."imageUrl" as "product_imageUrl",
+                    p."isActive" as "product_isActive"
+                  FROM "PurchaseOrderItem" poi
+                  LEFT JOIN "Product" p ON p.id = poi."productId"
+                  WHERE poi."poId" IN (${placeholders})`,
+                  ...poIds
+                ) as any[];
+              } catch (selectError: any) {
+                // If sinkage columns don't exist, fetch without them
+                if (selectError.message?.includes('sinkageQtyKg') || selectError.message?.includes('sinkageQtyPcs')) {
+                  console.warn('[PO API] Sinkage columns not found, fetching without them');
+                  items = await prisma.$queryRawUnsafe(
+                    `SELECT 
+                      poi.id,
+                      poi."poId",
+                      poi."productId",
+                      poi."qtyKg",
+                      poi."qtyPcs",
+                      poi."requestedRate",
+                      poi."receivedQtyKg",
+                      poi."receivedQtyPcs",
+                      poi."createdAt",
+                      COALESCE(poi."updatedAt", poi."createdAt") as "updatedAt",
+                      NULL as "sinkageQtyKg",
+                      NULL as "sinkageQtyPcs",
+                      p.id as "product_id",
+                      p.name as "product_name",
+                      p.sku as "product_sku",
+                      p.plu as "product_plu",
+                      p."unitType" as "product_unitType",
+                      p."imageUrl" as "product_imageUrl",
+                      p."isActive" as "product_isActive"
+                    FROM "PurchaseOrderItem" poi
+                    LEFT JOIN "Product" p ON p.id = poi."productId"
+                    WHERE poi."poId" IN (${placeholders})`,
+                    ...poIds
+                  ) as any[];
+                } else {
+                  throw selectError;
+                }
+              }
               
               // Group items by poId
               const itemsByPoId = new Map<string, any[]>();
