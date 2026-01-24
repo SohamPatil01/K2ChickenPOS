@@ -110,8 +110,8 @@ export async function poRoutes(fastify: FastifyInstance) {
             // If updatedAt doesn't exist, use raw SQL without it
             if (itemError.message?.includes('updatedAt') || itemError.message?.includes('does not exist')) {
               const itemResult = await prisma.$queryRawUnsafe(`
-                INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt")
-                VALUES ($1, $2, $3, $4, $5, NOW())
+                INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt", "updatedAt", "receivedQtyKg", "receivedQtyPcs", "sinkageQtyKg", "sinkageQtyPcs")
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NULL, NULL, NULL, NULL)
                 RETURNING *
               `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
               
@@ -314,7 +314,12 @@ export async function poRoutes(fastify: FastifyInstance) {
                   poi."qtyKg",
                   poi."qtyPcs",
                   poi."requestedRate",
+                  poi."receivedQtyKg",
+                  poi."receivedQtyPcs",
+                  poi."sinkageQtyKg",
+                  poi."sinkageQtyPcs",
                   poi."createdAt",
+                  poi."updatedAt",
                   p.id as "product_id",
                   p.name as "product_name",
                   p.sku as "product_sku",
@@ -341,9 +346,12 @@ export async function poRoutes(fastify: FastifyInstance) {
                   qtyKg: item.qtyKg,
                   qtyPcs: item.qtyPcs,
                   requestedRate: item.requestedRate,
-                  receivedQtyKg: null, // Default to null for missing columns
-                  receivedQtyPcs: null,
+                  receivedQtyKg: item.receivedQtyKg,
+                  receivedQtyPcs: item.receivedQtyPcs,
+                  sinkageQtyKg: item.sinkageQtyKg,
+                  sinkageQtyPcs: item.sinkageQtyPcs,
                   createdAt: item.createdAt,
+                  updatedAt: item.updatedAt,
                   product: item.product_id ? {
                     id: item.product_id,
                     name: item.product_name,
