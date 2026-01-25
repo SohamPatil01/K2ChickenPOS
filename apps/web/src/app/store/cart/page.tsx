@@ -47,6 +47,8 @@ export default function StoreCartPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
+  const [showCustomerSection, setShowCustomerSection] = useState(false);
+  const [skipCustomer, setSkipCustomer] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -117,12 +119,9 @@ export default function StoreCartPage() {
     try {
       const response = await api.get(`/api/v1/customers?phone=${phone}`);
       if (response.data) {
-        const customerName = response.data.name || '';
-        const customerPhone = response.data.phone || '';
-        console.log('[Cart] Customer found by phone:', { id: response.data.id, phone: customerPhone, name: customerName });
-        setCustomer(response.data.id, customerPhone, customerName);
-        setTempCustomerPhone(customerPhone);
-        setTempCustomerName(customerName);
+        setCustomer(response.data.id, response.data.phone, response.data.name || null);
+        setTempCustomerPhone(response.data.phone);
+        setTempCustomerName(response.data.name || '');
         setCustomerSearchResults([]);
       } else {
         const allCustomers = await api.get('/api/v1/customers');
@@ -137,10 +136,8 @@ export default function StoreCartPage() {
   };
 
   const createOrUpdateCustomer = async (phone: string, name: string) => {
-    const trimmedPhone = phone ? String(phone).trim() : '';
-    const fullName = name ? String(name).trim() : '';
-    
-    console.log('[Cart] createOrUpdateCustomer called with:', { phone: trimmedPhone, name: fullName, nameLength: fullName.length });
+    const trimmedPhone = phone ? phone.trim() : '';
+    const fullName = name ? name.trim() : '';
     
     if (!trimmedPhone || trimmedPhone.length < 10) {
       showNotification('Phone number must be at least 10 characters', 'warning');
@@ -159,7 +156,6 @@ export default function StoreCartPage() {
             name: fullName,
           });
           if (response.data) {
-            console.log('[Cart] Customer updated:', response.data);
             setCustomer(response.data.id, response.data.phone, response.data.name);
             setTempCustomerPhone(response.data.phone);
             setTempCustomerName(response.data.name);
@@ -180,17 +176,14 @@ export default function StoreCartPage() {
           }
         }
       } else {
-        console.log('[Cart] Creating new customer:', { phone: trimmedPhone, name: fullName });
         const response = await api.post('/api/v1/customers', {
           phone: trimmedPhone,
           name: fullName,
         });
         if (response.data) {
-          console.log('[Cart] Customer created:', response.data);
           setCustomer(response.data.id, response.data.phone, response.data.name);
           setTempCustomerPhone(response.data.phone);
           setTempCustomerName(response.data.name);
-          showNotification('Customer saved successfully', 'success');
         }
       }
     } catch (error: any) {
@@ -199,26 +192,23 @@ export default function StoreCartPage() {
     }
   };
 
-  // Debounced auto-save for new customers (only when both phone and name are complete)
   useEffect(() => {
-    if (!customerId && tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
-      const timeoutId = setTimeout(() => {
-        // Get the latest values at the time of execution
-        const currentState = useCartStore.getState();
-        const latestName = (tempCustomerName || currentState.customerName || '').trim();
-        const latestPhone = (tempCustomerPhone || currentState.customerPhone || '').trim();
-        
-        // Only save if both are still valid
-        if (latestName.length > 0 && latestPhone.length >= 10) {
-          console.log('[Cart] Auto-saving customer:', { phone: latestPhone, name: latestName });
-          createOrUpdateCustomer(latestPhone, latestName);
-        }
-      }, 2000);
-      return () => clearTimeout(timeoutId);
+    if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
+      if (!customerId) {
+        const timeoutId = setTimeout(() => {
+          const currentState = useCartStore.getState();
+          const latestName = (currentState.customerName || tempCustomerName).trim();
+          const latestPhone = tempCustomerPhone.trim();
+          if (latestName.length > 0 && latestPhone.length >= 10) {
+            createOrUpdateCustomer(latestPhone, latestName);
+          }
+        }, 2000);
+        return () => clearTimeout(timeoutId);
+      }
     }
   }, [tempCustomerPhone, tempCustomerName, customerId]);
 
-  const handleCreateSale = async (paymentMethod: string, amountPaid: number) => {
+  const handleCreateSale = async (payments: Array<{ method: string; amount: number }>) => {
     if (isProcessingPayment) {
       console.log('[Cart] Payment already processing, ignoring duplicate call');
       return;
@@ -236,6 +226,7 @@ export default function StoreCartPage() {
         return;
       }
 
+      // Skip customer validation if user explicitly skipped customer section
       const saleData = {
         items: items.map((item) => ({
           productId: item.productId,
@@ -245,8 +236,8 @@ export default function StoreCartPage() {
           taxRate: item.taxRate,
           metaJson: item.metaJson || undefined,
         })),
-        customerId: customerId || undefined,
-        customerPhone: customerPhone || undefined,
+        customerId: (!skipCustomer && customerId) ? customerId : undefined,
+        customerPhone: (!skipCustomer && customerPhone) ? customerPhone : undefined,
         discountTotal: discountTotal || 0,
       };
 
@@ -272,44 +263,37 @@ export default function StoreCartPage() {
       }
 
       const roundedSaleGrandTotal = Math.round(sale.grandTotal);
+      
+      // Process payments (support split payments)
       const paymentData = {
-        payments: [
-          {
-            method: paymentMethod,
-            amount: roundedSaleGrandTotal,
-          },
-        ],
+        payments: payments.map(p => ({
+          method: p.method,
+          amount: Math.round(p.amount),
+        })),
       };
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       await clearCart();
       setShowPaymentModal(false);
       
-      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, paymentMethod } }));
+      setCompletedSale({
+        saleNo: sale.saleNo || 'N/A',
+        grandTotal: roundedSaleGrandTotal,
+      });
+      setShowSuccessAnimation(true);
       
-      if (paymentMethod === 'CREDIT') {
-        // For credit payments, show notification and immediately return to POS
-        showNotification(`Credit sale #${sale.saleNo} created successfully`, 'success');
-        setTimeout(() => {
-          router.push('/store/pos');
-        }, 500);
-      } else {
-        // For other payment methods, show success animation
-        setCompletedSale({
-          saleNo: sale.saleNo || 'N/A',
-          grandTotal: roundedSaleGrandTotal,
-        });
-        setShowSuccessAnimation(true);
-        
-        if (paymentMethod === 'CASH') {
-          window.dispatchEvent(new CustomEvent('cash-sale-completed', { 
-            detail: { 
-              saleId: sale.id, 
-              amount: amountPaid,
-              grandTotal: roundedSaleGrandTotal 
-            } 
-          }));
-        }
+      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments } }));
+      
+      // If there's any cash payment, dispatch cash event
+      const cashPayment = payments.find(p => p.method === 'CASH');
+      if (cashPayment) {
+        window.dispatchEvent(new CustomEvent('cash-sale-completed', { 
+          detail: { 
+            saleId: sale.id, 
+            amount: cashPayment.amount,
+            grandTotal: roundedSaleGrandTotal 
+          } 
+        }));
       }
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
@@ -335,7 +319,7 @@ export default function StoreCartPage() {
 
   const { subTotal, taxTotal, grandTotal } = getTotal();
 
-  // Payment Modal
+  // Enhanced Payment Modal with Split Payment & Quick Actions
   const PaymentModal = ({
     grandTotal,
     subTotal,
@@ -350,148 +334,278 @@ export default function StoreCartPage() {
     taxTotal: number;
     discountTotal: number;
     onClose: () => void;
-    onPay: (method: string, amount: number) => void;
+    onPay: (payments: Array<{ method: string; amount: number }>) => void;
     isProcessing?: boolean;
   }) => {
-    const [paymentMethod, setPaymentMethod] = useState('CASH');
+    const [selectedMethod, setSelectedMethod] = useState('CASH');
     const [amountPaid, setAmountPaid] = useState(grandTotal.toString());
-    const change = parseFloat(amountPaid) - grandTotal;
-    const roundedGrandTotal = Math.round(grandTotal);
+    const [isSplitPayment, setIsSplitPayment] = useState(false);
+    const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([]);
+    const amountInputRef = useRef<HTMLInputElement>(null);
 
-    // Quick amount buttons
-    const quickAmounts = [
-      { label: 'Exact', value: grandTotal },
-      { label: 'Round Up', value: Math.ceil(grandTotal) },
-      { label: '+100', value: grandTotal + 100 },
-      { label: '+500', value: grandTotal + 500 },
-    ];
+    const change = parseFloat(amountPaid) - grandTotal;
+    const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
+    const splitRemaining = Math.max(0, grandTotal - splitTotal);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+      const handleKeyPress = (e: KeyboardEvent) => {
+        // Don't trigger shortcuts if typing in input
+        if ((e.target as HTMLElement).tagName === 'INPUT') return;
+        
+        if (e.key === 'Escape') {
+          if (!isProcessing) onClose();
+        } else if (e.key === 'Enter') {
+          if (!isProcessing) handlePayment();
+        } else if (e.key >= '1' && e.key <= '5') {
+          const methods = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
+          setSelectedMethod(methods[parseInt(e.key) - 1]);
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyPress);
+      return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [isProcessing, selectedMethod, amountPaid, isSplitPayment, splitPayments]);
 
     const paymentMethods = [
-      { value: 'CASH', label: 'Cash', icon: '💵', color: 'green' },
-      { value: 'CARD', label: 'Card', icon: '💳', color: 'blue' },
-      { value: 'UPI', label: 'UPI', icon: '📱', color: 'purple' },
-      { value: 'CREDIT', label: 'Credit', icon: '📝', color: 'orange' },
-      { value: 'ONLINE', label: 'Online', icon: '🌐', color: 'indigo' },
+      { value: 'CASH', label: 'Cash', icon: '💵', key: '1' },
+      { value: 'CARD', label: 'Card', icon: '💳', key: '2' },
+      { value: 'UPI', label: 'UPI', icon: '📱', key: '3' },
+      { value: 'CREDIT', label: 'Credit', icon: '📝', key: '4' },
+      { value: 'ONLINE', label: 'Online', icon: '🌐', key: '5' },
     ];
 
+    const quickAmounts = [
+      { label: 'Exact', value: grandTotal },
+      { label: `₹${Math.ceil(grandTotal / 100) * 100}`, value: Math.ceil(grandTotal / 100) * 100 },
+      { label: '₹100', value: 100 },
+      { label: '₹500', value: 500 },
+      { label: '₹1000', value: 1000 },
+      { label: '₹2000', value: 2000 },
+    ];
+
+    const handleQuickAmount = (amount: number) => {
+      setAmountPaid(amount.toString());
+      amountInputRef.current?.focus();
+    };
+
+    const addSplitPayment = () => {
+      if (splitRemaining > 0 && selectedMethod) {
+        const amount = Math.min(parseFloat(amountPaid) || splitRemaining, splitRemaining);
+        setSplitPayments([...splitPayments, { method: selectedMethod, amount }]);
+        setAmountPaid(splitRemaining > amount ? (splitRemaining - amount).toString() : '');
+      }
+    };
+
+    const removeSplitPayment = (index: number) => {
+      setSplitPayments(splitPayments.filter((_, i) => i !== index));
+    };
+
+    const handlePayment = () => {
+      if (isSplitPayment) {
+        if (Math.abs(splitTotal - grandTotal) > 0.01) {
+          return; // Don't process if split total doesn't match
+        }
+        onPay(splitPayments);
+      } else {
+        onPay([{ method: selectedMethod, amount: selectedMethod === 'CREDIT' ? grandTotal : parseFloat(amountPaid) || grandTotal }]);
+      }
+    };
+
     return (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200">
           {/* Header */}
-          <div className="sticky top-0 bg-gradient-to-r from-brand-500 to-brand-600 dark:from-brand-700 dark:to-brand-800 text-white px-6 py-5 flex items-center justify-between z-10 rounded-t-3xl">
+          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
             <div>
-              <h2 className="text-2xl font-bold">Payment</h2>
-              <p className="text-sm text-brand-100 mt-1">Complete the transaction</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Payment</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Press 1-5 for quick method selection • Enter to confirm</p>
             </div>
             <button
               onClick={onClose}
               disabled={isProcessing}
-              className="p-2 rounded-xl hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
           
-          <div className="p-6 space-y-6">
-            {/* Order Summary Card */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-lg">
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Subtotal</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">₹{Math.round(subTotal)}</span>
+          <div className="p-4 sm:p-6 space-y-6">
+            {/* Total Summary */}
+            <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border-2 border-brand-200/50 dark:border-brand-800/30 rounded-xl p-5">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">Total Amount</span>
+                <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="text-center p-2 bg-white/50 dark:bg-gray-800/50 rounded">
+                  <div className="text-gray-500 dark:text-gray-400">Subtotal</div>
+                  <div className="font-semibold">₹{Math.round(subTotal)}</div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">Tax</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">₹{Math.round(taxTotal)}</span>
+                <div className="text-center p-2 bg-white/50 dark:bg-gray-800/50 rounded">
+                  <div className="text-gray-500 dark:text-gray-400">Tax</div>
+                  <div className="font-semibold">₹{Math.round(taxTotal)}</div>
                 </div>
-                {discountTotal > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">Discount</span>
-                    <span className="font-semibold text-red-600 dark:text-red-400">-₹{Math.round(discountTotal)}</span>
-                  </div>
-                )}
-                <div className="border-t-2 border-gray-300 dark:border-gray-600 pt-4 mt-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">Total Amount</span>
-                    <span className="text-3xl font-extrabold text-brand-600 dark:text-brand-400">₹{roundedGrandTotal}</span>
-                  </div>
+                <div className="text-center p-2 bg-white/50 dark:bg-gray-800/50 rounded">
+                  <div className="text-gray-500 dark:text-gray-400">Discount</div>
+                  <div className="font-semibold text-red-600">-₹{Math.round(discountTotal)}</div>
                 </div>
               </div>
             </div>
 
-            {/* Payment Method Selection */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">
-                Select Payment Method
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {paymentMethods.map((method) => {
-                  const isSelected = paymentMethod === method.value;
-                  const colorClasses = {
-                    green: isSelected ? 'bg-green-500 text-white border-green-600' : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
-                    blue: isSelected ? 'bg-blue-500 text-white border-blue-600' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-                    purple: isSelected ? 'bg-purple-500 text-white border-purple-600' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
-                    orange: isSelected ? 'bg-orange-500 text-white border-orange-600' : 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800',
-                    indigo: isSelected ? 'bg-indigo-500 text-white border-indigo-600' : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
-                  };
-                  
-                  return (
+            {/* Split Payment Toggle */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Split Payment</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">(Use multiple payment methods)</span>
+              </div>
+              <button
+                onClick={() => {
+                  setIsSplitPayment(!isSplitPayment);
+                  setSplitPayments([]);
+                }}
+                disabled={isProcessing}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isSplitPayment ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isSplitPayment ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+
+            {/* Payment Method Selection - Large Buttons */}
+            {!isSplitPayment && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  Select Payment Method
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {paymentMethods.map((method) => (
                     <button
                       key={method.value}
-                      type="button"
-                      onClick={() => {
-                        setPaymentMethod(method.value);
-                        if (method.value !== 'CREDIT') {
-                          setAmountPaid(grandTotal.toString());
-                        }
-                      }}
+                      onClick={() => setSelectedMethod(method.value)}
                       disabled={isProcessing}
-                      className={`p-4 rounded-xl border-2 font-semibold transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        colorClasses[method.color as keyof typeof colorClasses]
-                      } ${isSelected ? 'ring-4 ring-offset-2 ring-offset-white dark:ring-offset-gray-800' : 'hover:shadow-md'}`}
+                      className={`relative p-4 rounded-xl border-2 transition-all hover:scale-105 active:scale-95 min-h-[80px] sm:min-h-[90px] ${
+                        selectedMethod === method.value
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-lg'
+                          : 'border-gray-200 dark:border-gray-600 hover:border-brand-300 dark:hover:border-brand-700'
+                      }`}
                     >
-                      <div className="text-2xl mb-1">{method.icon}</div>
-                      <div className="text-xs font-medium">{method.label}</div>
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-3xl">{method.icon}</span>
+                        <span className="font-semibold text-sm text-gray-900 dark:text-white">{method.label}</span>
+                        <span className="absolute top-2 right-2 text-xs font-mono bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                          {method.key}
+                        </span>
+                      </div>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Amount Input Section */}
-            {paymentMethod !== 'CREDIT' && (
+            {/* Split Payment Section */}
+            {isSplitPayment && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">
-                    Amount Received
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    Add Payment Method
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">₹</span>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedMethod}
+                      onChange={(e) => setSelectedMethod(e.target.value)}
+                      className="flex-1 px-3 py-3 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                    >
+                      {paymentMethods.map((m) => (
+                        <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
+                      ))}
+                    </select>
                     <input
                       type="number"
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 text-2xl font-bold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-4 focus:ring-brand-500/50 focus:border-brand-500 transition-all"
-                      step="1"
-                      min="0"
-                      placeholder={grandTotal.toString()}
-                      autoFocus
+                      placeholder={`₹${splitRemaining}`}
+                      className="w-32 px-3 py-3 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right font-semibold"
                     />
+                    <button
+                      onClick={addSplitPayment}
+                      disabled={splitRemaining <= 0 || !amountPaid}
+                      className="px-4 py-3 bg-brand-500 text-white rounded-lg font-semibold hover:bg-brand-600 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
                   </div>
+                </div>
+
+                {/* Split Payments List */}
+                {splitPayments.length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-2">
+                    {splitPayments.map((payment, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{paymentMethods.find(m => m.value === payment.method)?.icon}</span>
+                          <div>
+                            <div className="font-semibold text-gray-900 dark:text-white">{payment.method}</div>
+                            <div className="text-sm text-gray-500">₹{payment.amount}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => removeSplitPayment(index)}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200 dark:border-gray-600">
+                      <span className="font-semibold">Remaining:</span>
+                      <span className={`text-xl font-bold ${splitRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                        ₹{splitRemaining}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Amount Input & Quick Buttons (Single Payment) */}
+            {!isSplitPayment && selectedMethod !== 'CREDIT' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Amount Paid
+                  </label>
+                  <input
+                    ref={amountInputRef}
+                    type="number"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(e.target.value)}
+                    className="w-full px-4 py-4 text-2xl font-bold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-right"
+                    step="0.01"
+                    min="0"
+                    placeholder={grandTotal.toString()}
+                    autoFocus
+                  />
                 </div>
 
                 {/* Quick Amount Buttons */}
                 <div>
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Quick Amount</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {quickAmounts.map((quick) => (
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                    Quick Amount
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {quickAmounts.map((quick, idx) => (
                       <button
-                        key={quick.label}
-                        type="button"
-                        onClick={() => setAmountPaid(quick.value.toString())}
-                        className="px-3 py-2 text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        key={idx}
+                        onClick={() => handleQuickAmount(quick.value)}
+                        className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg font-semibold text-sm transition-colors"
                       >
                         {quick.label}
                       </button>
@@ -499,74 +613,66 @@ export default function StoreCartPage() {
                   </div>
                 </div>
 
-                {/* Change Display */}
-                {change >= 0 ? (
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 border-2 border-green-300 dark:border-green-700 rounded-xl p-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="text-sm font-semibold text-green-800 dark:text-green-300 block">Change to Return</span>
-                        <span className="text-xs text-green-600 dark:text-green-400">Customer receives</span>
+                {/* Change/Balance Display */}
+                {selectedMethod !== 'CREDIT' && (
+                  <>
+                    {change >= 0 ? (
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl p-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-semibold text-green-800 dark:text-green-300">Change to Return</span>
+                          <span className="text-3xl font-bold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
+                        </div>
                       </div>
-                      <span className="text-3xl font-extrabold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 border-2 border-red-300 dark:border-red-700 rounded-xl p-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="text-sm font-semibold text-red-800 dark:text-red-300 block">Insufficient Amount</span>
-                        <span className="text-xs text-red-600 dark:text-red-400">Need more</span>
+                    ) : (
+                      <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-semibold text-red-800 dark:text-red-300">Amount Short</span>
+                          <span className="text-3xl font-bold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
+                        </div>
                       </div>
-                      <span className="text-3xl font-extrabold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
-                    </div>
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
 
             {/* Credit Payment Info */}
-            {paymentMethod === 'CREDIT' && (
-              <div className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 border-2 border-orange-300 dark:border-orange-700 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">📝</span>
-                    <span className="text-sm font-bold text-orange-800 dark:text-orange-300">Credit Sale</span>
-                  </div>
-                  <span className="text-2xl font-extrabold text-orange-600 dark:text-orange-400">₹{roundedGrandTotal}</span>
+            {!isSplitPayment && selectedMethod === 'CREDIT' && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-5">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-lg font-semibold text-blue-800 dark:text-blue-300">Credit Amount</span>
+                  <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">₹{Math.round(grandTotal)}</span>
                 </div>
-                <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">Customer will pay later. Order will remain OPEN.</p>
+                <p className="text-sm text-blue-600 dark:text-blue-400">Customer will pay later. This will be recorded as pending payment.</p>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={onClose}
                 disabled={isProcessing}
-                className="flex-1 px-6 py-4 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-6 py-4 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-colors disabled:opacity-50"
               >
-                Cancel
+                Cancel (Esc)
               </button>
               <button
-                onClick={() => onPay(paymentMethod, paymentMethod === 'CREDIT' ? grandTotal : parseFloat(amountPaid))}
-                disabled={(paymentMethod !== 'CREDIT' && change < 0) || isProcessing}
-                className="flex-1 px-6 py-4 text-base bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                onClick={handlePayment}
+                disabled={
+                  isProcessing ||
+                  (isSplitPayment && Math.abs(splitTotal - grandTotal) > 0.01) ||
+                  (!isSplitPayment && selectedMethod !== 'CREDIT' && change < 0)
+                }
+                className="flex-2 px-8 py-4 text-base bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
               >
                 {isProcessing ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing...
-                  </>
+                  <span>Processing...</span>
+                ) : isSplitPayment ? (
+                  <span>Pay ₹{Math.round(splitTotal)} (Enter)</span>
+                ) : selectedMethod === 'CREDIT' ? (
+                  <span>Credit ₹{grandTotal} (Enter)</span>
                 ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    {paymentMethod === 'CREDIT' ? `Credit ₹${roundedGrandTotal}` : `Pay ₹${Math.round(parseFloat(amountPaid) || 0)}`}
-                  </>
+                  <span>Pay ₹{Math.round(parseFloat(amountPaid) || grandTotal)} (Enter)</span>
                 )}
               </button>
             </div>
@@ -614,17 +720,69 @@ export default function StoreCartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Customer Section */}
+            {/* Customer Section - Collapsible & Optional */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10 rounded-t-2xl">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Customer Information
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Customer Information
+                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">(Optional)</span>
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    {!showCustomerSection && !customerName && (
+                      <button
+                        onClick={() => {
+                          setShowCustomerSection(true);
+                          setSkipCustomer(false);
+                        }}
+                        className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium transition-colors"
+                      >
+                        + Add Customer
+                      </button>
+                    )}
+                    {!showCustomerSection && !customerName && (
+                      <button
+                        onClick={() => {
+                          setSkipCustomer(true);
+                          setCustomer(null, null, null);
+                        }}
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Skip
+                      </button>
+                    )}
+                    {(showCustomerSection || customerName) && (
+                      <button
+                        onClick={() => {
+                          setShowCustomerSection(!showCustomerSection);
+                        }}
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <svg className={`w-5 h-5 transition-transform ${showCustomerSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {skipCustomer && !customerName && (
+                  <div className="mt-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400">
+                    Walk-in customer • No customer info will be saved
+                  </div>
+                )}
+                {customerName && customerPhone && !showCustomerSection && (
+                  <div className="mt-2 px-3 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
+                    <span className="font-medium text-brand-700 dark:text-brand-300">
+                      {customerName} • {customerPhone}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="p-6 space-y-4">
+              {(showCustomerSection || (!skipCustomer && !customerName)) && (
+                <div className="p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -664,11 +822,10 @@ export default function StoreCartPage() {
                       <input
                         type="text"
                         placeholder="Enter customer name"
-                        value={tempCustomerName || ''}
+                        value={tempCustomerName}
                         onChange={(e) => {
                           const newName = e.target.value;
                           setTempCustomerName(newName);
-                          // Update cart store with the full name (not trimmed) to preserve what user is typing
                           setCustomer(customerId, tempCustomerPhone || null, newName || null);
                           if (newName.length >= 1) {
                             const filtered = allCustomers.filter((c: any) => 
@@ -681,7 +838,7 @@ export default function StoreCartPage() {
                           }
                         }}
                         onFocus={() => {
-                          if (tempCustomerName && tempCustomerName.length >= 1) {
+                          if (tempCustomerName.length >= 1) {
                             const filtered = allCustomers.filter((c: any) => 
                               c.name.toLowerCase().startsWith(tempCustomerName.toLowerCase())
                             ).slice(0, 5);
@@ -691,15 +848,15 @@ export default function StoreCartPage() {
                         }}
                         onBlur={() => {
                           setTimeout(() => setShowNameDropdown(false), 200);
-                          // Save on blur only if we have complete data
                           setTimeout(() => {
-                            const currentName = (tempCustomerName || '').trim();
-                            const currentPhone = (tempCustomerPhone || '').trim();
+                            const currentName = tempCustomerName.trim();
+                            const currentPhone = tempCustomerPhone.trim();
                             if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
-                              console.log('[Cart] Saving customer on blur:', { phone: currentPhone, name: currentName });
-                              createOrUpdateCustomer(currentPhone, currentName);
+                              if (!customerId) {
+                                createOrUpdateCustomer(currentPhone, currentName);
+                              }
                             }
-                          }, 300);
+                          }, 100);
                         }}
                         className="w-full px-4 py-3 pr-24 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -763,18 +920,15 @@ export default function StoreCartPage() {
                             key={customer.id}
                             type="button"
                             onClick={() => {
-                              const customerName = customer.name || '';
-                              const customerPhone = customer.phone || '';
-                              console.log('[Cart] Customer selected from dropdown:', { id: customer.id, phone: customerPhone, name: customerName });
-                              setCustomer(customer.id, customerPhone, customerName);
-                              setTempCustomerPhone(customerPhone);
-                              setTempCustomerName(customerName);
+                              setCustomer(customer.id, customer.phone, customer.name);
+                              setTempCustomerPhone(customer.phone);
+                              setTempCustomerName(customer.name);
                               setShowNameDropdown(false);
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name || 'Unknown'}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone || 'No phone'}</div>
+                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
                           </button>
                         ))}
                       </div>
@@ -782,7 +936,7 @@ export default function StoreCartPage() {
                   </div>
                 </div>
 
-                {customerName && customerPhone && (
+                {customerName && customerPhone && showCustomerSection && (
                   <div className="mt-4 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                     <p className="text-sm text-brand-700 dark:text-brand-300">
                       <span className="font-medium">Billing to:</span> {customerName} ({customerPhone})
@@ -790,35 +944,18 @@ export default function StoreCartPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
 
             {/* Cart Items */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    Cart Items
-                  </h2>
-                  {items.length > 0 && (
-                    <button
-                      onClick={() => {
-                        if (confirm('Are you sure you want to empty the entire cart? This action cannot be undone.')) {
-                          clearCart();
-                          showNotification('Cart emptied', 'success');
-                        }
-                      }}
-                      className="px-4 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium shadow-sm hover:shadow-md transition-all flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Empty Cart
-                    </button>
-                  )}
-                </div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Cart Items
+                </h2>
               </div>
               
               <div className="p-6">
@@ -925,47 +1062,65 @@ export default function StoreCartPage() {
                     <span className="font-medium text-gray-900 dark:text-white">₹{Math.round(taxTotal)}</span>
                   </div>
                   
+                  {/* Quick Discount Buttons */}
                   <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                     <div className="mb-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Discount</label>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Quick Discount</label>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setDiscountType('amount')}
-                            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                               discountType === 'amount'
-                                ? 'bg-brand-500 text-white'
+                                ? 'bg-brand-500 text-white shadow-sm'
                                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                             }`}
                           >
-                            ₹
+                            ₹ Amount
                           </button>
                           <button
                             type="button"
                             onClick={() => setDiscountType('percentage')}
-                            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                               discountType === 'percentage'
-                                ? 'bg-brand-500 text-white'
+                                ? 'bg-brand-500 text-white shadow-sm'
                                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                             }`}
                           >
-                            %
+                            % Percent
                           </button>
                         </div>
                       </div>
+                      
+                      {/* Quick Discount Buttons */}
+                      <div className="grid grid-cols-4 gap-2 mb-3">
+                        {[5, 10, 15, 20].map((percent) => (
+                          <button
+                            key={percent}
+                            onClick={() => {
+                              setDiscountType('percentage');
+                              setDiscountPercentage(percent);
+                            }}
+                            className="px-2 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg text-xs font-semibold transition-colors"
+                          >
+                            {percent}%
+                          </button>
+                        ))}
+                      </div>
+                      
                       {discountType === 'amount' ? (
                         <input
                           type="number"
                           value={discountTotal || ''}
                           onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
                           step="0.01"
                           min="0"
                           placeholder="0.00"
                         />
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="space-y-2">
                           <input
                             type="number"
                             value={discountPercentage || ''}
@@ -973,17 +1128,16 @@ export default function StoreCartPage() {
                               const percentage = parseFloat(e.target.value) || 0;
                               setDiscountPercentage(Math.min(100, Math.max(0, percentage)));
                             }}
-                            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
                             step="0.01"
                             min="0"
                             max="100"
                             placeholder="0"
                           />
-                          <span className="text-sm text-gray-600 dark:text-gray-400">%</span>
                           {discountPercentage > 0 && (
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                              = ₹{Math.round((subTotal * discountPercentage) / 100)}
-                            </span>
+                            <div className="text-sm text-center text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 py-2 rounded-lg">
+                              Discount: <span className="font-semibold">₹{Math.round((subTotal * discountPercentage) / 100)}</span>
+                            </div>
                           )}
                         </div>
                       )}
@@ -998,16 +1152,51 @@ export default function StoreCartPage() {
                   </div>
                 </div>
                 
+                {/* Enhanced Checkout Button */}
                 <button
                   onClick={() => setShowPaymentModal(true)}
                   disabled={items.length === 0}
-                  className="w-full py-4 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-3xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.03] active:scale-[0.97] min-h-[72px] bg-[length:200%_100%] hover:bg-[position:100%_0] animation-shimmer"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
-                  <span>Proceed to Payment</span>
-                  <span className="text-brand-200">₹{grandTotal}</span>
+                  <div className="flex flex-col">
+                    <span>Checkout Now</span>
+                    <span className="text-brand-100 text-sm font-semibold">₹{grandTotal}</span>
+                  </div>
+                </button>
+
+                {/* Quick Actions */}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Clear all items from cart?')) {
+                        clearCart();
+                      }
+                    }}
+                    disabled={items.length === 0}
+                    className="flex-1 py-3 border-2 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-xl font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                  >
+                    Clear Cart
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Sticky Checkout Bar */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700 p-4 z-30 shadow-2xl">
+              <div className="max-w-7xl mx-auto flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Total Amount</div>
+                  <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</div>
+                </div>
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  disabled={items.length === 0}
+                  className="px-8 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50 min-h-[60px]"
+                >
+                  Pay Now
                 </button>
               </div>
             </div>
