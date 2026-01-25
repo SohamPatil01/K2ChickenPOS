@@ -417,91 +417,88 @@ export default function StoreCartPage() {
 
     return (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200">
           {/* Header */}
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between z-10">
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Payment</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Press 1-5 for quick method selection • Enter to confirm</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Payment</h2>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400">Press 1-5 for method • Enter to confirm</p>
             </div>
             <button
               onClick={onClose}
               disabled={isProcessing}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
           
-          <div className="p-4 sm:p-6 space-y-6">
-            {/* Total Summary */}
-            <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border-2 border-brand-200/50 dark:border-brand-800/30 rounded-xl p-5">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-lg font-semibold text-gray-900 dark:text-white">Total Amount</span>
-                <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
+          <div className="p-4 space-y-3">
+            {/* Total Summary - Compact */}
+            <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-lg p-3">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
+                <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center p-2 bg-white/50 dark:bg-gray-800/50 rounded">
-                  <div className="text-gray-500 dark:text-gray-400">Subtotal</div>
-                  <div className="font-semibold">₹{Math.round(subTotal)}</div>
+              <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                <div className="text-center p-1.5 bg-white/50 dark:bg-gray-800/50 rounded">
+                  <div className="text-gray-500 dark:text-gray-400">Sub</div>
+                  <div className="font-semibold text-xs">₹{Math.round(subTotal)}</div>
                 </div>
-                <div className="text-center p-2 bg-white/50 dark:bg-gray-800/50 rounded">
+                <div className="text-center p-1.5 bg-white/50 dark:bg-gray-800/50 rounded">
                   <div className="text-gray-500 dark:text-gray-400">Tax</div>
-                  <div className="font-semibold">₹{Math.round(taxTotal)}</div>
+                  <div className="font-semibold text-xs">₹{Math.round(taxTotal)}</div>
                 </div>
-                <div className="text-center p-2 bg-white/50 dark:bg-gray-800/50 rounded">
-                  <div className="text-gray-500 dark:text-gray-400">Discount</div>
-                  <div className="font-semibold text-red-600">-₹{Math.round(discountTotal)}</div>
+                <div className="text-center p-1.5 bg-white/50 dark:bg-gray-800/50 rounded">
+                  <div className="text-gray-500 dark:text-gray-400">Disc</div>
+                  <div className="font-semibold text-xs text-red-600">-₹{Math.round(discountTotal)}</div>
                 </div>
               </div>
             </div>
 
-            {/* Split Payment Toggle */}
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Split Payment</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">(Use multiple payment methods)</span>
-              </div>
+            {/* Split Payment Toggle - Compact */}
+            <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Split Payment</span>
               <button
                 onClick={() => {
                   setIsSplitPayment(!isSplitPayment);
                   setSplitPayments([]);
                 }}
                 disabled={isProcessing}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                   isSplitPayment ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
               >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  isSplitPayment ? 'translate-x-6' : 'translate-x-1'
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  isSplitPayment ? 'translate-x-5' : 'translate-x-0.5'
                 }`} />
               </button>
             </div>
 
-            {/* Payment Method Selection - Large Buttons */}
+            {/* Payment Method Selection - Compact Buttons */}
             {!isSplitPayment && (
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Select Payment Method
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Payment Method
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-5 gap-2">
                   {paymentMethods.map((method) => (
                     <button
                       key={method.value}
                       onClick={() => setSelectedMethod(method.value)}
                       disabled={isProcessing}
-                      className={`relative p-4 rounded-xl border-2 transition-all hover:scale-105 active:scale-95 min-h-[80px] sm:min-h-[90px] ${
+                      className={`relative p-2 rounded-lg border-2 transition-all hover:scale-105 active:scale-95 ${
                         selectedMethod === method.value
-                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-lg'
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-md'
                           : 'border-gray-200 dark:border-gray-600 hover:border-brand-300 dark:hover:border-brand-700'
                       }`}
                     >
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-3xl">{method.icon}</span>
-                        <span className="font-semibold text-sm text-gray-900 dark:text-white">{method.label}</span>
-                        <span className="absolute top-2 right-2 text-xs font-mono bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xl">{method.icon}</span>
+                        <span className="font-semibold text-[10px] text-gray-900 dark:text-white leading-tight">{method.label}</span>
+                        <span className="absolute top-0.5 right-0.5 text-[8px] font-mono bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded">
                           {method.key}
                         </span>
                       </div>
@@ -511,18 +508,18 @@ export default function StoreCartPage() {
               </div>
             )}
 
-            {/* Split Payment Section */}
+            {/* Split Payment Section - Compact */}
             {isSplitPayment && (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                    Add Payment Method
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                    Add Payment
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <select
                       value={selectedMethod}
                       onChange={(e) => setSelectedMethod(e.target.value)}
-                      className="flex-1 px-3 py-3 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                      className="flex-1 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
                     >
                       {paymentMethods.map((m) => (
                         <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
@@ -533,43 +530,43 @@ export default function StoreCartPage() {
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(e.target.value)}
                       placeholder={`₹${splitRemaining}`}
-                      className="w-32 px-3 py-3 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right font-semibold"
+                      className="w-24 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right font-semibold"
                     />
                     <button
                       onClick={addSplitPayment}
                       disabled={splitRemaining <= 0 || !amountPaid}
-                      className="px-4 py-3 bg-brand-500 text-white rounded-lg font-semibold hover:bg-brand-600 disabled:opacity-50"
+                      className="px-3 py-2 bg-brand-500 text-white rounded-lg text-sm font-semibold hover:bg-brand-600 disabled:opacity-50"
                     >
                       Add
                     </button>
                   </div>
                 </div>
 
-                {/* Split Payments List */}
+                {/* Split Payments List - Compact */}
                 {splitPayments.length > 0 && (
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-2">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 space-y-1.5 max-h-32 overflow-y-auto">
                     {splitPayments.map((payment, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{paymentMethods.find(m => m.value === payment.method)?.icon}</span>
+                      <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{paymentMethods.find(m => m.value === payment.method)?.icon}</span>
                           <div>
-                            <div className="font-semibold text-gray-900 dark:text-white">{payment.method}</div>
-                            <div className="text-sm text-gray-500">₹{payment.amount}</div>
+                            <div className="font-semibold text-xs text-gray-900 dark:text-white">{payment.method}</div>
+                            <div className="text-[10px] text-gray-500">₹{payment.amount}</div>
                           </div>
                         </div>
                         <button
                           onClick={() => removeSplitPayment(index)}
-                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       </div>
                     ))}
-                    <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200 dark:border-gray-600">
-                      <span className="font-semibold">Remaining:</span>
-                      <span className={`text-xl font-bold ${splitRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-gray-200 dark:border-gray-600">
+                      <span className="text-xs font-semibold">Remaining:</span>
+                      <span className={`text-base font-bold ${splitRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                         ₹{splitRemaining}
                       </span>
                     </div>
@@ -578,11 +575,11 @@ export default function StoreCartPage() {
               </div>
             )}
 
-            {/* Amount Input & Quick Buttons (Single Payment) */}
+            {/* Amount Input & Quick Buttons (Single Payment) - Compact */}
             {!isSplitPayment && selectedMethod !== 'CREDIT' && (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                     Amount Paid
                   </label>
                   <input
@@ -590,7 +587,7 @@ export default function StoreCartPage() {
                     type="number"
                     value={amountPaid}
                     onChange={(e) => setAmountPaid(e.target.value)}
-                    className="w-full px-4 py-4 text-2xl font-bold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-right"
+                    className="w-full px-3 py-2.5 text-xl font-bold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-right"
                     step="0.01"
                     min="0"
                     placeholder={grandTotal.toString()}
@@ -598,17 +595,14 @@ export default function StoreCartPage() {
                   />
                 </div>
 
-                {/* Quick Amount Buttons */}
+                {/* Quick Amount Buttons - Compact */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                    Quick Amount
-                  </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-6 gap-1.5">
                     {quickAmounts.map((quick, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleQuickAmount(quick.value)}
-                        className="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg font-semibold text-sm transition-colors"
+                        className="px-2 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded text-[10px] font-semibold transition-colors"
                       >
                         {quick.label}
                       </button>
@@ -616,21 +610,21 @@ export default function StoreCartPage() {
                   </div>
                 </div>
 
-                {/* Change/Balance Display */}
+                {/* Change/Balance Display - Compact */}
                 {selectedMethod !== 'CREDIT' && (
                   <>
                     {change >= 0 ? (
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl p-4">
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-lg font-semibold text-green-800 dark:text-green-300">Change to Return</span>
-                          <span className="text-3xl font-bold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
+                          <span className="text-xs font-semibold text-green-800 dark:text-green-300">Change</span>
+                          <span className="text-lg font-bold text-green-600 dark:text-green-400">₹{Math.round(change)}</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-lg font-semibold text-red-800 dark:text-red-300">Amount Short</span>
-                          <span className="text-3xl font-bold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
+                          <span className="text-xs font-semibold text-red-800 dark:text-red-300">Short</span>
+                          <span className="text-lg font-bold text-red-600 dark:text-red-400">₹{Math.round(Math.abs(change))}</span>
                         </div>
                       </div>
                     )}
@@ -639,25 +633,25 @@ export default function StoreCartPage() {
               </div>
             )}
 
-            {/* Credit Payment Info */}
+            {/* Credit Payment Info - Compact */}
             {!isSplitPayment && selectedMethod === 'CREDIT' && (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-5">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-lg font-semibold text-blue-800 dark:text-blue-300">Credit Amount</span>
-                  <span className="text-3xl font-bold text-blue-600 dark:text-blue-400">₹{Math.round(grandTotal)}</span>
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">Credit</span>
+                  <span className="text-xl font-bold text-blue-600 dark:text-blue-400">₹{Math.round(grandTotal)}</span>
                 </div>
-                <p className="text-sm text-blue-600 dark:text-blue-400">Customer will pay later. This will be recorded as pending payment.</p>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400">Customer will pay later</p>
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
+            {/* Action Buttons - Compact */}
+            <div className="flex gap-2 pt-2">
               <button
                 onClick={onClose}
                 disabled={isProcessing}
-                className="flex-1 px-6 py-4 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-colors disabled:opacity-50"
               >
-                Cancel (Esc)
+                Cancel
               </button>
               <button
                 onClick={handlePayment}
@@ -666,16 +660,16 @@ export default function StoreCartPage() {
                   (isSplitPayment && Math.abs(splitTotal - grandTotal) > 0.01) ||
                   (!isSplitPayment && selectedMethod !== 'CREDIT' && change < 0)
                 }
-                className="flex-2 px-8 py-4 text-base bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
+                className="flex-2 px-6 py-2.5 text-sm bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
                   <span>Processing...</span>
                 ) : isSplitPayment ? (
-                  <span>Pay ₹{Math.round(splitTotal)} (Enter)</span>
+                  <span>Pay ₹{Math.round(splitTotal)}</span>
                 ) : selectedMethod === 'CREDIT' ? (
-                  <span>Credit ₹{grandTotal} (Enter)</span>
+                  <span>Credit ₹{grandTotal}</span>
                 ) : (
-                  <span>Pay ₹{Math.round(parseFloat(amountPaid) || grandTotal)} (Enter)</span>
+                  <span>Pay ₹{Math.round(parseFloat(amountPaid) || grandTotal)}</span>
                 )}
               </button>
             </div>
