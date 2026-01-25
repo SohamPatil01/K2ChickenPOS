@@ -47,7 +47,7 @@ export default function StoreCartPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
-  const [showCustomerSection, setShowCustomerSection] = useState(false);
+  const [showCustomerSection, setShowCustomerSection] = useState(true); // Show by default
   const [skipCustomer, setSkipCustomer] = useState(false);
 
   useEffect(() => {
@@ -160,6 +160,7 @@ export default function StoreCartPage() {
             setTempCustomerPhone(response.data.phone);
             setTempCustomerName(response.data.name);
             showNotification('Customer updated successfully', 'success');
+            setShowCustomerSection(false); // Auto-collapse after success
           }
         } catch (updateError: any) {
           console.error('Failed to update customer:', updateError);
@@ -184,6 +185,8 @@ export default function StoreCartPage() {
           setCustomer(response.data.id, response.data.phone, response.data.name);
           setTempCustomerPhone(response.data.phone);
           setTempCustomerName(response.data.name);
+          showNotification('Customer added successfully', 'success');
+          setShowCustomerSection(false); // Auto-collapse after success
         }
       }
     } catch (error: any) {
@@ -774,14 +777,34 @@ export default function StoreCartPage() {
                   </div>
                 )}
                 {customerName && customerPhone && !showCustomerSection && (
-                  <div className="mt-2 px-3 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
+                  <div className="mt-2 flex items-center justify-between px-3 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
                     <span className="font-medium text-brand-700 dark:text-brand-300">
                       {customerName} • {customerPhone}
                     </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowCustomerSection(true)}
+                        className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCustomer(null, null, null);
+                          setTempCustomerPhone('');
+                          setTempCustomerName('');
+                          setShowCustomerSection(true);
+                          setSkipCustomer(false);
+                        }}
+                        className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium"
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-              {(showCustomerSection || (!skipCustomer && !customerName)) && (
+              {showCustomerSection && !skipCustomer && (
                 <div className="p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
