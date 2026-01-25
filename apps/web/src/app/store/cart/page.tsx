@@ -205,7 +205,7 @@ export default function StoreCartPage() {
           if (latestName.length > 0 && latestPhone.length >= 10) {
             createOrUpdateCustomer(latestPhone, latestName);
           }
-        }, 2000);
+        }, 10000); // Increased from 2000ms to 10000ms (10 seconds)
         return () => clearTimeout(timeoutId);
       }
     }
