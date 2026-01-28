@@ -41,6 +41,22 @@ export default function NumPad({
     }, 100);
   }, []);
 
+  // Handle Enter key to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (onSubmit) {
+          onSubmit();
+        }
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onSubmit, onClose]);
+
   const handleNumberClick = (num: string) => {
     if (displayValue.length < maxLength) {
       const newValue = displayValue + num;
@@ -139,7 +155,7 @@ export default function NumPad({
               autoFocus
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-              Type on keyboard or use pad below
+              Type on keyboard or use pad below • Press Enter to confirm
             </p>
           </div>
 
