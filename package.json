@@ -22,7 +22,9 @@
     "pnpm": ">=8.0.0"
   },
   "dependencies": {
+    "@azela-pos/db": "workspace:*",
     "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
     "tailwind-merge": "^3.4.0"
   }
 }

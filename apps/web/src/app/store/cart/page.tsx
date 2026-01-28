@@ -211,6 +211,27 @@ export default function StoreCartPage() {
     }
   }, [tempCustomerPhone, tempCustomerName, customerId]);
 
+  // Keyboard shortcuts for quick actions
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      // Ctrl+Enter or Cmd+Enter for Quick Pay
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (items.length > 0 && !isProcessingPayment && !showPaymentModal) {
+          const { grandTotal } = getTotal();
+          handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [items.length, isProcessingPayment, showPaymentModal]);
+
   const handleCreateSale = async (payments: Array<{ method: string; amount: number }>) => {
     if (isProcessingPayment) {
       console.log('[Cart] Payment already processing, ignoring duplicate call');
@@ -1184,6 +1205,22 @@ export default function StoreCartPage() {
                   </div>
                 </button>
 
+                {/* Quick Pay Button */}
+                <button
+                  onClick={() => {
+                    // Quick pay with Cash, exact amount
+                    handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
+                  }}
+                  disabled={items.length === 0 || isProcessingPayment}
+                  className="w-full py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <span className="text-2xl">⚡</span>
+                  <div className="flex flex-col items-start">
+                    <span>Quick Pay (Cash)</span>
+                    <span className="text-green-100 text-sm font-semibold">₹{grandTotal} exact</span>
+                  </div>
+                </button>
+
                 {/* Quick Actions */}
                 <div className="mt-4 flex gap-2">
                   <button
@@ -1203,17 +1240,29 @@ export default function StoreCartPage() {
 
             {/* Mobile Sticky Checkout Bar */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700 p-4 z-30 shadow-2xl">
-              <div className="max-w-7xl mx-auto flex items-center gap-3">
-                <div className="flex-1">
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Total Amount</div>
-                  <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</div>
+              <div className="max-w-7xl mx-auto">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Total Amount</div>
+                    <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</div>
+                  </div>
+                  <button
+                    onClick={() => setShowPaymentModal(true)}
+                    disabled={items.length === 0}
+                    className="px-6 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl font-bold text-base shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    Pay Now
+                  </button>
                 </div>
                 <button
-                  onClick={() => setShowPaymentModal(true)}
-                  disabled={items.length === 0}
-                  className="px-8 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-all disabled:opacity-50 min-h-[60px]"
+                  onClick={() => {
+                    handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
+                  }}
+                  disabled={items.length === 0 || isProcessingPayment}
+                  className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Pay Now
+                  <span>⚡</span>
+                  <span>Quick Pay (Cash ₹{grandTotal})</span>
                 </button>
               </div>
             </div>

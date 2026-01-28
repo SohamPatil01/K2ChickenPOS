@@ -1085,19 +1085,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Fetch full sale data with items
       const sale = await prisma.sale.findUnique({
         where: { id },
-        select: {
-          id: true,
-          saleNo: true,
-          status: true,
-          subTotal: true,
-          discountTotal: true,
-          taxTotal: true,
-          grandTotal: true,
-          storeId: true,
-          customerId: true,
-          createdByUserId: true,
-          createdAt: true,
-          updatedAt: true,
+        include: {
           items: true,
         },
       });
@@ -1145,7 +1133,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
               type: 'IN', // Restore inventory
               qtyKg: hasQtyKg ? ledger.qtyKg : null,
               qtyPcs: hasQtyPcs ? ledger.qtyPcs : null,
-              reason: 'ADJUSTMENT', // Use ADJUSTMENT reason for voided sales (restoring inventory)
+              reason: 'RETURN', // Use RETURN reason for voided sales
               refId: id,
             },
           });

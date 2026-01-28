@@ -10,9 +10,21 @@ interface NumPadProps {
   placeholder?: string;
   maxLength?: number;
   maskValue?: boolean; // For password/PIN masking
+  allowDecimal?: boolean; // For weight/decimal entry
+  quickPresets?: number[]; // Quick preset buttons (e.g., [0.5, 1, 2, 5] for kg)
 }
 
-export default function NumPad({ value, onChange, onClose, onSubmit, placeholder = 'Enter number', maxLength = 15, maskValue = false }: NumPadProps) {
+export default function NumPad({ 
+  value, 
+  onChange, 
+  onClose, 
+  onSubmit, 
+  placeholder = 'Enter number', 
+  maxLength = 15, 
+  maskValue = false,
+  allowDecimal = false,
+  quickPresets = []
+}: NumPadProps) {
   const [displayValue, setDisplayValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +49,22 @@ export default function NumPad({ value, onChange, onClose, onSubmit, placeholder
     }
   };
 
+  const handleDecimalClick = () => {
+    if (!allowDecimal) return;
+    // Only add decimal if there isn't one already
+    if (!displayValue.includes('.')) {
+      const newValue = displayValue ? displayValue + '.' : '0.';
+      setDisplayValue(newValue);
+      onChange(newValue);
+    }
+  };
+
+  const handlePresetClick = (preset: number) => {
+    const newValue = preset.toString();
+    setDisplayValue(newValue);
+    onChange(newValue);
+  };
+
   const handleBackspace = () => {
     const newValue = displayValue.slice(0, -1);
     setDisplayValue(newValue);
@@ -57,7 +85,21 @@ export default function NumPad({ value, onChange, onClose, onSubmit, placeholder
 
   // Handle keyboard input
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value.replace(/[^0-9]/g, ''); // Only allow numbers
+    let newValue = e.target.value;
+    
+    if (allowDecimal) {
+      // Allow numbers and one decimal point
+      newValue = newValue.replace(/[^0-9.]/g, '');
+      // Ensure only one decimal point
+      const parts = newValue.split('.');
+      if (parts.length > 2) {
+        newValue = parts[0] + '.' + parts.slice(1).join('');
+      }
+    } else {
+      // Only allow numbers
+      newValue = newValue.replace(/[^0-9]/g, '');
+    }
+    
     if (newValue.length <= maxLength) {
       setDisplayValue(newValue);
       onChange(newValue);
@@ -87,8 +129,8 @@ export default function NumPad({ value, onChange, onClose, onSubmit, placeholder
           <div>
             <input
               ref={inputRef}
-              type="tel"
-              inputMode="numeric"
+              type="text"
+              inputMode={allowDecimal ? "decimal" : "numeric"}
               value={displayValue}
               onChange={handleInputChange}
               placeholder={placeholder}
@@ -114,6 +156,26 @@ export default function NumPad({ value, onChange, onClose, onSubmit, placeholder
             </div>
           )}
 
+          {/* Quick Preset Buttons */}
+          {quickPresets.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 text-center">
+                Quick Select
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {quickPresets.map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => handlePresetClick(preset)}
+                    className="px-3 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg text-sm font-semibold text-brand-700 dark:text-brand-300 transition-colors active:scale-95"
+                  >
+                    {preset}{allowDecimal ? 'kg' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Compact Number Pad */}
           <div className="grid grid-cols-3 gap-2">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
@@ -125,26 +187,45 @@ export default function NumPad({ value, onChange, onClose, onSubmit, placeholder
                 {num}
               </button>
             ))}
-            <button
-              onClick={handleClear}
-              className="aspect-square bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
-            >
-              Clear
-            </button>
+            {allowDecimal ? (
+              <button
+                onClick={handleDecimalClick}
+                disabled={displayValue.includes('.')}
+                className="aspect-square bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-xl font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-brand-400 active:scale-95 transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                .
+              </button>
+            ) : (
+              <button
+                onClick={handleClear}
+                className="aspect-square bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
+              >
+                Clear
+              </button>
+            )}
             <button
               onClick={() => handleNumberClick('0')}
               className="aspect-square bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-xl font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-brand-400 active:scale-95 transition-all duration-200 touch-target"
             >
               0
             </button>
-            <button
-              onClick={handleBackspace}
-              className="aspect-square bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
-            >
-              <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
-              </svg>
-            </button>
+            {allowDecimal ? (
+              <button
+                onClick={handleClear}
+                className="aspect-square bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
+              >
+                Clear
+              </button>
+            ) : (
+              <button
+                onClick={handleBackspace}
+                className="aspect-square bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
+              >
+                <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Action Buttons */}

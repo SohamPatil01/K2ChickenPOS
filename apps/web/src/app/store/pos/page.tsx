@@ -9,6 +9,8 @@ import api from '@/lib/api';
 import { parseScaleBarcode } from '@/lib/barcode';
 import Link from 'next/link';
 import CartAnimation from '@/components/CartAnimation';
+import BillSuccessAnimation from '@/components/BillSuccessAnimation';
+import NumPad from '@/components/NumPad';
 
 interface Product {
   id: string;
@@ -75,6 +77,10 @@ export default function StorePOSPage() {
   const [loading, setLoading] = useState({ products: false, categories: false, config: false });
   const [error, setError] = useState<{ products?: string; categories?: string; config?: string }>({});
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [showQuickCheckout, setShowQuickCheckout] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -486,6 +492,81 @@ export default function StorePOSPage() {
     }
   };
 
+  const handleQuickCheckoutPay = async (method: string) => {
+    if (isProcessingPayment) return;
+    setIsProcessingPayment(true);
+
+    try {
+      const { items: cartItems, customerId, customerPhone, customerName, discountTotal, getTotal } = useCartStore.getState();
+      const { subTotal, taxTotal, grandTotal } = getTotal();
+
+      const saleData = {
+        customerId: customerId || undefined,
+        customerPhone: customerPhone || undefined,
+        customerName: customerName || undefined,
+        discountTotal: discountTotal || 0,
+        items: cartItems.map((item) => ({
+          productId: item.productId,
+          qtyKg: item.qtyKg || undefined,
+          qtyPcs: item.qtyPcs || undefined,
+          rate: item.rate,
+          taxRate: item.taxRate,
+        })),
+      };
+
+      const saleResponse = await api.post('/api/v1/sales', saleData);
+
+      if (saleResponse.data?.requiresApproval) {
+        setShowQuickCheckout(false);
+        showNotification(
+          `Sale created but discount requires manager approval. Sale #${saleResponse.data.sale.saleNo} is pending approval.`,
+          'info'
+        );
+        await useCartStore.getState().clearCart();
+        setTimeout(() => router.push('/store/discount-approvals'), 2000);
+        return;
+      }
+
+      const sale = saleResponse.data;
+      if (!sale || !sale.id) {
+        throw new Error('Invalid sale response');
+      }
+
+      const roundedSaleGrandTotal = Math.round(grandTotal);
+      const paymentData = {
+        payments: [{
+          method,
+          amount: roundedSaleGrandTotal,
+        }],
+      };
+
+      await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+      await useCartStore.getState().clearCart();
+      setShowQuickCheckout(false);
+
+      setCompletedSale({
+        saleNo: sale.saleNo || 'N/A',
+        grandTotal: roundedSaleGrandTotal,
+      });
+      setShowSuccessAnimation(true);
+
+      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments: paymentData.payments } }));
+
+      if (method === 'CASH') {
+        window.dispatchEvent(new CustomEvent('cash-sale-completed', {
+          detail: { amount: roundedSaleGrandTotal }
+        }));
+      }
+
+    } catch (error: any) {
+      console.error('[Quick Checkout] Payment error:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Payment failed';
+      showNotification(errorMessage, 'error', 5000);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   const filteredProducts = products.filter((p) => {
     if (selectedCategory && p.categoryId !== selectedCategory) return false;
     if (
@@ -533,6 +614,20 @@ export default function StorePOSPage() {
             <span className="text-base sm:text-lg">+</span>
             <span className="hidden sm:inline">Add Item</span>
             <span className="sm:hidden">Add</span>
+          </button>
+          <button
+            onClick={() => {
+              if (items.length === 0) {
+                showNotification('Cart is empty', 'warning');
+                return;
+              }
+              setShowQuickCheckout(true);
+            }}
+            className="flex-1 sm:flex-none px-3 sm:px-4 md:px-5 py-2 sm:py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md transition-all duration-200 relative touch-target text-xs sm:text-sm group"
+          >
+            <span className="text-base sm:text-lg group-hover:scale-105 transition-transform duration-200">⚡</span>
+            <span className="hidden sm:inline">Quick Pay</span>
+            <span className="sm:hidden">Pay</span>
           </button>
           <Link
             href="/store/cart"
@@ -914,6 +1009,109 @@ export default function StorePOSPage() {
           </div>
         </div>
       )}
+
+      {/* Quick Checkout Modal */}
+      {showQuickCheckout && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Quick Checkout</h2>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Select payment method</p>
+              </div>
+              <button
+                onClick={() => setShowQuickCheckout(false)}
+                disabled={isProcessingPayment}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              {/* Cart Items Summary */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Items ({items.length})</h3>
+                <div className="space-y-1.5">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center text-xs">
+                      <div className="flex-1">
+                        <span className="text-gray-900 dark:text-white font-medium">{item.productName}</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-2">
+                          {item.qtyKg ? `${item.qtyKg}kg` : `${item.qtyPcs}pcs`} × ₹{item.rate}
+                        </span>
+                      </div>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        ₹{((item.qtyKg || item.qtyPcs || 0) * item.rate).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total Summary */}
+              <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-lg p-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">Total Amount</span>
+                  <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
+                    ₹{useCartStore.getState().getTotal().grandTotal}
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment Method Buttons */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Select Payment Method
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'CASH', label: 'Cash', icon: '💵' },
+                    { value: 'CARD', label: 'Card', icon: '💳' },
+                    { value: 'UPI', label: 'UPI', icon: '📱' },
+                    { value: 'CREDIT', label: 'Credit', icon: '📝' },
+                    { value: 'ONLINE', label: 'Online', icon: '🌐' },
+                  ].map((method) => (
+                    <button
+                      key={method.value}
+                      onClick={() => handleQuickCheckoutPay(method.value)}
+                      disabled={isProcessingPayment}
+                      className="relative p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-2xl">{method.icon}</span>
+                        <span className="font-semibold text-xs text-gray-900 dark:text-white">{method.label}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isProcessingPayment && (
+                <div className="text-center py-2">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Processing payment...</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Animation */}
+      {showSuccessAnimation && completedSale && (
+        <BillSuccessAnimation
+          saleNo={completedSale.saleNo}
+          grandTotal={completedSale.grandTotal}
+          onComplete={() => {
+            setShowSuccessAnimation(false);
+            setCompletedSale(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -938,6 +1136,8 @@ function AddItemModal({
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const [showWeightPad, setShowWeightPad] = useState(false);
+
   const handleSkuChange = (sku: string) => {
     onChange('sku', sku);
     // Auto-fill product details if found
@@ -1039,16 +1239,17 @@ function AddItemModal({
               <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 {item.unitType === 'KG' ? 'Weight (kg)' : 'Quantity'} <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
-                value={item.weight}
-                onChange={(e) => onChange('weight', e.target.value)}
-                placeholder={item.unitType === 'KG' ? '0.00' : '1'}
-                step={item.unitType === 'KG' ? '0.01' : '1'}
-                min="0"
-                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
-                required
-              />
+              <button
+                type="button"
+                onClick={() => setShowWeightPad(true)}
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg hover:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40 text-left font-semibold"
+              >
+                {item.weight || (
+                  <span className="text-gray-400 dark:text-gray-500 font-normal">
+                    {item.unitType === 'KG' ? 'Tap to enter weight' : 'Tap to enter quantity'}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
@@ -1120,6 +1321,20 @@ function AddItemModal({
           </div>
         </div>
       </div>
+
+      {/* Weight/Quantity NumPad */}
+      {showWeightPad && (
+        <NumPad
+          value={item.weight}
+          onChange={(value) => onChange('weight', value)}
+          onClose={() => setShowWeightPad(false)}
+          onSubmit={() => setShowWeightPad(false)}
+          placeholder={item.unitType === 'KG' ? 'Enter weight (kg)' : 'Enter quantity'}
+          allowDecimal={item.unitType === 'KG'}
+          quickPresets={item.unitType === 'KG' ? [0.5, 1, 2, 5] : [1, 2, 5, 10]}
+          maxLength={10}
+        />
+      )}
     </div>
   );
 }

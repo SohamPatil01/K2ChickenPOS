@@ -342,9 +342,7 @@ export default function ThermalReceipt({
                 <span style={{ color: "#666" }}>
                   ₹{item.rate.toFixed(2)} × {qty}
                 </span>
-                <span style={{ textAlign: "right", color: "#666" }}>
-                  {qty}
-                </span>
+                <span style={{ textAlign: "right", color: "#666" }}>{qty}</span>
                 <span
                   style={{
                     textAlign: "right",
@@ -475,8 +473,10 @@ export default function ThermalReceipt({
                     style={{
                       fontSize: "9px",
                       color: "#666",
-                      marginBottom: index < sale.payments.length - 1 ? "6px" : "0",
-                      paddingBottom: index < sale.payments.length - 1 ? "4px" : "0",
+                      marginBottom:
+                        index < sale.payments.length - 1 ? "6px" : "0",
+                      paddingBottom:
+                        index < sale.payments.length - 1 ? "4px" : "0",
                       borderBottom:
                         index < sale.payments.length - 1
                           ? "1px dashed #ccc"
@@ -550,9 +550,7 @@ export default function ThermalReceipt({
         >
           K2 Chicken
         </div>
-        <div style={{ marginTop: "3px", fontSize: "9px" }}>
-          📞 8484978622
-        </div>
+        <div style={{ marginTop: "3px", fontSize: "9px" }}>📞 8484978622</div>
 
         <div
           style={{
