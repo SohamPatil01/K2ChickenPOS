@@ -1,7 +1,25 @@
 import { PrismaClient } from '@azela-pos/db';
-import { startOfDay, endOfDay, subDays, format } from 'date-fns';
 
 const prisma = new PrismaClient();
+
+// Date utility functions (replacing date-fns to avoid dependency)
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+}
+
+function subDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d;
+}
 
 /**
  * Alert Service
