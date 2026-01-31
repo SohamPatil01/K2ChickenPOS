@@ -14,7 +14,7 @@ const demandSchema = z.object({
 
 export async function analyticsRoutes(fastify: FastifyInstance) {
   // Sales Forecasting
-  fastify.get('/v1/analytics/forecast', {
+  fastify.get('/forecast', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
@@ -34,7 +34,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   // Demand Prediction
-  fastify.get('/v1/analytics/demand', {
+  fastify.get('/demand', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
@@ -54,7 +54,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   // Inventory Recommendations
-  fastify.get('/v1/analytics/inventory-recommendations', {
+  fastify.get('/inventory-recommendations', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
@@ -73,7 +73,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   // Average Cost Calculation
-  fastify.get('/v1/analytics/average-cost/:productId', {
+  fastify.get('/average-cost/:productId', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
@@ -95,7 +95,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
   });
 
   // Alerts
-  fastify.get('/v1/analytics/alerts', {
+  fastify.get('/alerts', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER', 'CASHIER')],
     handler: async (request: any, reply) => {
       try {
