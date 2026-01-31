@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
@@ -85,6 +85,17 @@ export default function OrdersPage() {
   const [cancelling, setCancelling] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
+  // Memoize the filter change handler to prevent infinite loops
+  const handleFilterChange = useCallback((filters: FilterCriteria) => {
+    setDateFilter({
+      startDate: filters.dateRange.start,
+      endDate: filters.dateRange.end,
+    });
+    if (filters.status) {
+      setStatusFilter(filters.status);
+    }
+  }, []);
+
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
     documentTitle: `Bill-${selectedSale?.saleNo || "Receipt"}`,
@@ -126,6 +137,7 @@ export default function OrdersPage() {
     `,
   });
 
+  // Separate useEffect for auth check (no dependencies that change)
   useEffect(() => {
     if (user === undefined) return;
 
@@ -138,9 +150,23 @@ export default function OrdersPage() {
       router.push('/store');
       return;
     }
+  }, [user, router]);
+
+  // Separate useEffect for loading data when filters change
+  useEffect(() => {
+    if (!user || (user.role !== 'OWNER' && user.role !== 'CASHIER')) {
+      return;
+    }
 
     loadSales();
     loadProducts();
+  }, [user, dateFilter.startDate, dateFilter.endDate, statusFilter]);
+
+  // Separate useEffect for event listeners (only set up once)
+  useEffect(() => {
+    if (!user || (user.role !== 'OWNER' && user.role !== 'CASHIER')) {
+      return;
+    }
     
     // Listen for sale events to auto-refresh
     const handleSaleCreated = () => {
@@ -173,8 +199,7 @@ export default function OrdersPage() {
       window.removeEventListener('sale-deleted', handleSaleDeleted);
       clearInterval(refreshInterval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, router, dateFilter, statusFilter]);
+  }, [user]);
 
   const loadSales = async () => {
     setLoading(true);
@@ -477,15 +502,7 @@ export default function OrdersPage() {
 
       {/* Advanced Filters */}
       <FilterSystem
-        onFilterChange={(filters) => {
-          setDateFilter({
-            startDate: filters.dateRange.start,
-            endDate: filters.dateRange.end,
-          });
-          if (filters.status) {
-            setStatusFilter(filters.status);
-          }
-        }}
+        onFilterChange={handleFilterChange}
         showPaymentMethodFilter={true}
         showStatusFilter={true}
         storageKey="orders_filters"
