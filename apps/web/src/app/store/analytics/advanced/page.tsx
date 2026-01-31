@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { SimpleLineChart, SimpleBarChart, SimplePieChart } from '@/components/charts';
 import Skeleton from '@/components/ui/Skeleton';
-import { exportCSV } from '@/lib/exportCSV';
+import { exportToCSV } from '@/lib/exportCSV';
 
 interface Forecast {
   historical: Array<{ date: string; actual: number; ma7: number; ma30: number }>;
@@ -117,11 +117,11 @@ export default function AdvancedAnalyticsPage() {
           <button
             onClick={() => {
               if (activeTab === 'forecast' && forecast) {
-                exportCSV(forecast.forecast, `sales_forecast_${new Date().toISOString().split('T')[0]}`);
+                exportToCSV({ data: forecast.forecast, filename: `sales_forecast_${new Date().toISOString().split('T')[0]}.csv` });
               } else if (activeTab === 'demand' && demand) {
-                exportCSV([...demand.fastMoving, ...demand.slowMoving], `demand_analysis_${new Date().toISOString().split('T')[0]}`);
+                exportToCSV({ data: [...demand.fastMoving, ...demand.slowMoving], filename: `demand_analysis_${new Date().toISOString().split('T')[0]}.csv` });
               } else if (activeTab === 'inventory' && inventory) {
-                exportCSV(inventory.recommendations, `inventory_recommendations_${new Date().toISOString().split('T')[0]}`);
+                exportToCSV({ data: inventory.recommendations, filename: `inventory_recommendations_${new Date().toISOString().split('T')[0]}.csv` });
               }
             }}
             className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"

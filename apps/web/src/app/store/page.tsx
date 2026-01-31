@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { SkeletonStatCard, Skeleton, SkeletonCard, SkeletonText } from '@/components/ui';
-import { exportCSV } from '@/lib/exportCSV';
+import { exportToCSV } from '@/lib/exportCSV';
 
 interface DashboardStats {
   today: {
