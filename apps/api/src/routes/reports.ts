@@ -441,13 +441,42 @@ export async function reportRoutes(fastify: FastifyInstance) {
     try {
       const user = getUser(request);
       const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-      const userStoreId = queryStoreId || user.storeId;
+      
+      if (!user.storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+
+      // Get user's store
+      const userStore = await prisma.store.findUnique({
+        where: { id: user.storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      // For OWNER stores, include sales from all franchise stores
+      let storeIds: string[] = [queryStoreId || user.storeId];
+      if (userStore.type === 'OWNER' && (!queryStoreId || queryStoreId === 'all')) {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: userStore.id,
+          },
+          select: { id: true },
+        });
+        storeIds = [userStore.id, ...franchises.map(f => f.id)];
+        console.log('[Sales Sub Register] Owner store - including franchises:', storeIds);
+      }
 
     const dateFilter = getDateRange(startDate, endDate);
 
     const sales = await prisma.sale.findMany({
       where: {
-        storeId: userStoreId,
+        storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
         status: 'PAID',
         createdAt: dateFilter,
       },
