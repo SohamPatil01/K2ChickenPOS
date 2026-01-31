@@ -150,14 +150,14 @@ export class AnalyticsService {
 
       // Generate forecast
       const forecast: Array<{ date: string; predicted: number; confidence: string }> = [];
-      const lastValue = values[values.length - 1];
-      const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
+      const lastValue = values.length > 0 ? values[values.length - 1] : 0;
+      const avgValue = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
       for (let i = 1; i <= days; i++) {
         const futureDate = format(subDays(new Date(), -i), 'yyyy-MM-dd');
         
         // Simple forecast: trend + moving average
-        const trendValue = slope * (values.length + i) + intercept;
+        const trendValue = values.length > 0 ? slope * (values.length + i) + intercept : 0;
         const predicted = Math.max(0, (trendValue + avgValue) / 2);
         
         // Confidence decreases with distance
@@ -173,21 +173,41 @@ export class AnalyticsService {
       // Calculate accuracy metrics (MAE - Mean Absolute Error)
       const predictions = ma7.slice(-7);
       const actuals = values.slice(-7);
-      const mae = predictions.reduce((sum, pred, i) => sum + Math.abs(pred - actuals[i]), 0) / predictions.length;
-      const accuracy = Math.max(0, Math.min(100, 100 - (mae / avgValue) * 100));
+      const mae = predictions.length > 0 && actuals.length > 0
+        ? predictions.reduce((sum, pred, i) => sum + Math.abs(pred - (actuals[i] || 0)), 0) / predictions.length 
+        : 0;
+      const accuracy = avgValue > 0 
+        ? Math.max(0, Math.min(100, 100 - (mae / avgValue) * 100))
+        : 0;
 
-      return {
+      const result = {
         historical: dates.map((date, i) => ({
           date,
-          actual: values[i],
-          ma7: ma7[i],
-          ma30: ma30[i],
+          actual: values[i] || 0,
+          ma7: ma7[i] || 0,
+          ma30: ma30[i] || 0,
         })),
-        forecast,
-        trend,
-        accuracy: Math.round(accuracy),
-        avgDailySales: Math.round(avgValue * 100) / 100,
+        forecast: forecast.length > 0 ? forecast : [],
+        trend: trend || 'stable',
+        accuracy: Math.round(accuracy) || 0,
+        avgDailySales: Math.round(avgValue * 100) / 100 || 0,
       };
+      
+      // #region agent log
+      console.log('[Analytics] Forecast result check:', {
+        hasHistorical: !!result.historical,
+        historicalCount: result.historical?.length,
+        hasForecast: !!result.forecast,
+        forecastCount: result.forecast?.length,
+        avgDailySales: result.avgDailySales,
+        accuracy: result.accuracy,
+        trend: result.trend,
+        avgDailySalesType: typeof result.avgDailySales,
+        avgDailySalesIsNaN: isNaN(result.avgDailySales),
+      });
+      // #endregion
+      
+      return result;
     } catch (error) {
       console.error('[Analytics] Forecasting error:', error);
       throw error;
@@ -271,10 +291,12 @@ export class AnalyticsService {
 
       // Calculate averages and classify
       const products = Object.values(productDemand).map(p => {
-        p.avgPerOrder = p.totalQty / p.frequency;
+        p.avgPerOrder = p.frequency > 0 ? p.totalQty / p.frequency : 0;
+        p.totalRevenue = p.totalRevenue || 0;
+        p.totalQty = p.totalQty || 0;
         
         // Classify as fast/slow moving
-        const avgFrequency = p.frequency / days;
+        const avgFrequency = days > 0 ? p.frequency / days : 0;
         if (avgFrequency > 2) {
           p.trend = 'fast-moving';
         } else if (avgFrequency < 0.5) {
@@ -385,7 +407,7 @@ export class AnalyticsService {
         });
 
         const totalSold = sales.reduce((sum, item) => sum + (item.qtyKg || item.qtyPcs || 0), 0);
-        const avgDailySales = totalSold / 30;
+        const avgDailySales = totalSold > 0 ? totalSold / 30 : 0;
 
         // Calculate reorder point (assuming 7-day lead time)
         const leadTimeDays = 7;

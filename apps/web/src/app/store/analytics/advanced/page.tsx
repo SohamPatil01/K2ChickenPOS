@@ -58,26 +58,50 @@ export default function AdvancedAnalyticsPage() {
     try {
       setLoading(true);
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:57',message:'loadAnalytics entry',data:{userId:user?.id,storeId:user?.storeId,role:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       const [forecastRes, demandRes, inventoryRes] = await Promise.all([
         api.get('/api/v1/analytics/forecast', { params: { days: 7 } }).catch(err => {
           console.error('Forecast API error:', err.response?.data || err.message);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:63',message:'Forecast API error',data:{error:err.message,status:err.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           return { data: null };
         }),
         api.get('/api/v1/analytics/demand', { params: { days: 30 } }).catch(err => {
           console.error('Demand API error:', err.response?.data || err.message);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:67',message:'Demand API error',data:{error:err.message,status:err.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           return { data: null };
         }),
         api.get('/api/v1/analytics/inventory-recommendations').catch(err => {
           console.error('Inventory API error:', err.response?.data || err.message);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:71',message:'Inventory API error',data:{error:err.message,status:err.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
           return { data: null };
         }),
       ]);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:76',message:'API responses received',data:{forecastHasData:!!forecastRes.data,forecastAvgDailySales:forecastRes.data?.avgDailySales,forecastAccuracy:forecastRes.data?.accuracy,demandHasData:!!demandRes.data,demandFastMovingCount:demandRes.data?.fastMoving?.length,inventoryHasData:!!inventoryRes.data,inventoryRecCount:inventoryRes.data?.recommendations?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       console.log('[Analytics] API responses:', {
         forecast: forecastRes.data ? 'loaded' : 'null',
         demand: demandRes.data ? 'loaded' : 'null',
         inventory: inventoryRes.data ? 'loaded' : 'null',
       });
+
+      // #region agent log
+      const forecastCheck = forecastRes.data ? {avgDailySales:forecastRes.data.avgDailySales,accuracy:forecastRes.data.accuracy,hasForecast:!!forecastRes.data.forecast,forecastCount:forecastRes.data.forecast?.length} : null;
+      const demandCheck = demandRes.data ? {fastMovingCount:demandRes.data.fastMoving?.length,slowMovingCount:demandRes.data.slowMoving?.length,hasPeakHour:!!demandRes.data.peakHour} : null;
+      const inventoryCheck = inventoryRes.data ? {recCount:inventoryRes.data.recommendations?.length,outOfStock:inventoryRes.data.outOfStock,lowStock:inventoryRes.data.lowStock} : null;
+      fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:82',message:'Before setting state - checking for undefined values',data:{forecast:forecastCheck,demand:demandCheck,inventory:inventoryCheck},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       setForecast(forecastRes.data);
       setDemand(demandRes.data);
@@ -185,13 +209,19 @@ export default function AdvancedAnalyticsPage() {
             <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-6 border border-green-200 dark:border-green-800">
               <h3 className="text-sm font-medium text-green-700 dark:text-green-300 mb-2">Accuracy</h3>
               <p className="text-3xl font-bold text-green-900 dark:text-green-100">
-                {forecast.accuracy}%
+                {forecast.accuracy !== undefined && forecast.accuracy !== null ? `${forecast.accuracy}%` : '0%'}
               </p>
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
               <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">Avg Daily Sales</h3>
               <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
-                ₹{forecast.avgDailySales.toLocaleString()}
+                {/* #region agent log */}
+                {(() => {
+                  const val = forecast.avgDailySales;
+                  fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:194',message:'avgDailySales value check',data:{value:val,isUndefined:val===undefined,isNull:val===null,type:typeof val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                  return val ? `₹${val.toLocaleString()}` : '₹0';
+                })()}
+                {/* #endregion */}
               </p>
             </div>
           </div>
@@ -199,11 +229,13 @@ export default function AdvancedAnalyticsPage() {
           {/* Historical Chart */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <SimpleLineChart
-              data={forecast.historical.slice(-30).map(h => ({
-                name: h.date.substring(5),
-                actual: h.actual,
-                ma7: h.ma7,
-              }))}
+              data={forecast.historical && forecast.historical.length > 0 
+                ? forecast.historical.slice(-30).map(h => ({
+                    name: h?.date ? h.date.substring(5) : '',
+                    actual: h?.actual ?? 0,
+                    ma7: h?.ma7 ?? 0,
+                  }))
+                : []}
               dataKey="actual"
               xAxisKey="name"
               title="Historical Sales with 7-Day Moving Average"
@@ -227,25 +259,39 @@ export default function AdvancedAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {forecast.forecast.map((f, index) => (
+                  {forecast.forecast && forecast.forecast.length > 0 ? forecast.forecast.map((f, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{f.date}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{f?.date || ''}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                        ₹{f.predicted.toLocaleString()}
+                        {/* #region agent log */}
+                        {(() => {
+                          const val = f.predicted;
+                          if (val === undefined || val === null) {
+                            fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:234',message:'predicted value is undefined/null',data:{index,date:f.date,value:val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                          }
+                          return val ? `₹${val.toLocaleString()}` : '₹0';
+                        })()}
+                        {/* #endregion */}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          f.confidence === 'high' 
+                          f?.confidence === 'high' 
                             ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
-                            : f.confidence === 'medium'
+                            : f?.confidence === 'medium'
                             ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
                             : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
                         }`}>
-                          {f.confidence}
+                          {f?.confidence || 'low'}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-sm text-center text-gray-500">
+                        No forecast data available
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -297,17 +343,31 @@ export default function AdvancedAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {demand.fastMoving.map((product, index) => (
+                  {demand.fastMoving && demand.fastMoving.length > 0 ? demand.fastMoving.map((product, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{product.productName}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                        ₹{product.totalRevenue.toLocaleString()}
+                        {/* #region agent log */}
+                        {(() => {
+                          const val = product.totalRevenue;
+                          if (val === undefined || val === null) {
+                            fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:342',message:'totalRevenue is undefined/null in fastMoving',data:{productName:product.productName,value:val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                          }
+                          return val ? `₹${val.toLocaleString()}` : '₹0';
+                        })()}
+                        {/* #endregion */}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                        {product.frequency}
+                        {product.frequency || 0}
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-sm text-center text-gray-500">
+                        No fast-moving products found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -328,17 +388,31 @@ export default function AdvancedAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {demand.slowMoving.map((product, index) => (
+                  {demand.slowMoving && demand.slowMoving.length > 0 ? demand.slowMoving.map((product, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{product.productName}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                        ₹{product.totalRevenue.toLocaleString()}
+                        {/* #region agent log */}
+                        {(() => {
+                          const val = product.totalRevenue;
+                          if (val === undefined || val === null) {
+                            fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:335',message:'totalRevenue is undefined/null in slowMoving',data:{productName:product.productName,value:val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                          }
+                          return val ? `₹${val.toLocaleString()}` : '₹0';
+                        })()}
+                        {/* #endregion */}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                        {product.frequency}
+                        {product.frequency || 0}
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-sm text-center text-gray-500">
+                        No slow-moving products found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -389,17 +463,41 @@ export default function AdvancedAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {inventory.recommendations.map((rec, index) => (
+                  {inventory.recommendations && inventory.recommendations.length > 0 ? inventory.recommendations.map((rec, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
                       <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{rec.productName}</td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                        {rec.currentStock.toFixed(2)}
+                        {/* #region agent log */}
+                        {(() => {
+                          const val = rec.currentStock;
+                          if (val === undefined || val === null) {
+                            fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:396',message:'currentStock is undefined/null',data:{productName:rec.productName,value:val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                          }
+                          return val !== undefined && val !== null ? val.toFixed(2) : '0.00';
+                        })()}
+                        {/* #endregion */}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                        {rec.reorderPoint.toFixed(2)}
+                        {/* #region agent log */}
+                        {(() => {
+                          const val = rec.reorderPoint;
+                          if (val === undefined || val === null) {
+                            fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:399',message:'reorderPoint is undefined/null',data:{productName:rec.productName,value:val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                          }
+                          return val !== undefined && val !== null ? val.toFixed(2) : '0.00';
+                        })()}
+                        {/* #endregion */}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                        {rec.suggestedOrderQty.toFixed(2)}
+                        {/* #region agent log */}
+                        {(() => {
+                          const val = rec.suggestedOrderQty;
+                          if (val === undefined || val === null) {
+                            fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:402',message:'suggestedOrderQty is undefined/null',data:{productName:rec.productName,value:val},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                          }
+                          return val !== undefined && val !== null ? val.toFixed(2) : '0.00';
+                        })()}
+                        {/* #endregion */}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -409,14 +507,20 @@ export default function AdvancedAnalyticsPage() {
                             ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
                             : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
                         }`}>
-                          {rec.status.replace('-', ' ')}
+                          {rec.status ? rec.status.replace('-', ' ') : 'adequate'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300 capitalize">
-                        {rec.action.replace('-', ' ')}
+                        {rec.action ? rec.action.replace('-', ' ') : 'none'}
                       </td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-3 text-sm text-center text-gray-500">
+                        No inventory recommendations available
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

@@ -20,8 +20,25 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       try {
         const storeId = request.user.storeId;
         const { days } = request.query as { days?: number };
+        
+        // #region agent log
+        console.log('[Analytics Route] Forecast request:', { storeId, days: days || 7, hasStoreId: !!storeId });
+        // #endregion
 
         const forecast = await analyticsService.forecastSales(storeId, days || 7);
+        
+        // #region agent log
+        console.log('[Analytics Route] Forecast response:', {
+          hasData: !!forecast,
+          hasHistorical: !!forecast?.historical,
+          historicalCount: forecast?.historical?.length,
+          hasForecast: !!forecast?.forecast,
+          forecastCount: forecast?.forecast?.length,
+          avgDailySales: forecast?.avgDailySales,
+          avgDailySalesType: typeof forecast?.avgDailySales,
+        });
+        // #endregion
+        
         return reply.send(forecast);
       } catch (error: any) {
         request.log.error(error, 'Failed to generate sales forecast');
