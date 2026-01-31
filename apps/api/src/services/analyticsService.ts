@@ -582,9 +582,39 @@ export class AnalyticsService {
     try {
       console.log('[Analytics] Get Top Items - Start');
       
+      if (!storeId) {
+        console.error('[Analytics] StoreId is required');
+        return [];
+      }
+
+      // Verify store exists
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        console.error('[Analytics] Store not found:', storeId);
+        return [];
+      }
+
+      // For OWNER stores, include sales from all franchise stores
+      let storeIds: string[] = [storeId];
+      if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+        console.log('[Analytics] Owner store - including franchises:', storeIds);
+      }
+      
       const sales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'PAID',
           createdAt: {
             gte: startDate,
@@ -634,10 +664,41 @@ export class AnalyticsService {
   async getSalesTrend(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
     try {
       console.log('[Analytics] Get Sales Trend - Start');
+      console.log('[Analytics] StoreId:', storeId, 'Date range:', startDate, 'to', endDate);
+      
+      if (!storeId) {
+        console.error('[Analytics] StoreId is required');
+        return [];
+      }
+
+      // Verify store exists
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        console.error('[Analytics] Store not found:', storeId);
+        return [];
+      }
+
+      // For OWNER stores, include sales from all franchise stores
+      let storeIds: string[] = [storeId];
+      if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+        console.log('[Analytics] Owner store - including franchises:', storeIds);
+      }
       
       const sales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'PAID',
           createdAt: {
             gte: startDate,
@@ -650,15 +711,37 @@ export class AnalyticsService {
         },
       });
 
-      const salesByDate: Record<string, number> = {};
+      console.log('[Analytics] Found sales for trend:', sales.length);
+
+      // Group by date with count and total
+      const salesByDate: Record<string, { total: number; count: number }> = {};
       sales.forEach(sale => {
         const date = format(new Date(sale.createdAt), 'yyyy-MM-dd');
-        salesByDate[date] = (salesByDate[date] || 0) + (sale.grandTotal || 0);
+        if (!salesByDate[date]) {
+          salesByDate[date] = { total: 0, count: 0 };
+        }
+        salesByDate[date].total += sale.grandTotal || 0;
+        salesByDate[date].count += 1;
       });
 
-      return Object.entries(salesByDate)
-        .map(([date, revenue]) => ({ date, revenue }))
-        .sort((a, b) => a.date.localeCompare(b.date));
+      // Fill in missing dates with zeros
+      const result: any[] = [];
+      const currentDate = new Date(startDate);
+      const end = new Date(endDate);
+      
+      while (currentDate <= end) {
+        const dateStr = format(currentDate, 'yyyy-MM-dd');
+        const data = salesByDate[dateStr] || { total: 0, count: 0 };
+        result.push({
+          date: dateStr,
+          total: data.total,
+          count: data.count,
+        });
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+
+      console.log('[Analytics] Sales trend result:', result.length, 'days');
+      return result;
     } catch (error) {
       console.error('[Analytics] Sales trend error:', error);
       return [];
@@ -672,9 +755,38 @@ export class AnalyticsService {
     try {
       console.log('[Analytics] Get Payment Mix - Start');
       
+      if (!storeId) {
+        console.error('[Analytics] StoreId is required');
+        return [];
+      }
+
+      // Verify store exists
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        console.error('[Analytics] Store not found:', storeId);
+        return [];
+      }
+
+      // For OWNER stores, include sales from all franchise stores
+      let storeIds: string[] = [storeId];
+      if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+      }
+      
       const sales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'PAID',
           createdAt: {
             gte: startDate,
@@ -694,7 +806,10 @@ export class AnalyticsService {
         });
       });
 
-      return Object.entries(paymentStats).map(([method, amount]) => ({ method, amount }));
+      return Object.entries(paymentStats).map(([method, amount]) => ({ 
+        name: method,
+        total: amount 
+      }));
     } catch (error) {
       console.error('[Analytics] Payment mix error:', error);
       return [];
@@ -708,9 +823,38 @@ export class AnalyticsService {
     try {
       console.log('[Analytics] Get Time Heatmap - Start');
       
+      if (!storeId) {
+        console.error('[Analytics] StoreId is required');
+        return [];
+      }
+
+      // Verify store exists
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        console.error('[Analytics] Store not found:', storeId);
+        return [];
+      }
+
+      // For OWNER stores, include sales from all franchise stores
+      let storeIds: string[] = [storeId];
+      if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+      }
+      
       const sales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'PAID',
           createdAt: {
             gte: startDate,
@@ -734,7 +878,17 @@ export class AnalyticsService {
         hourlyStats[hour].revenue += sale.grandTotal || 0;
       });
 
-      return Object.values(hourlyStats).sort((a, b) => a.hour - b.hour);
+      // Fill in all 24 hours with zeros if needed
+      const result: any[] = [];
+      for (let hour = 0; hour < 24; hour++) {
+        const stats = hourlyStats[hour] || { hour, count: 0, revenue: 0 };
+        result.push({
+          hour: `${hour}:00`,
+          count: stats.count,
+          total: stats.revenue,
+        });
+      }
+      return result;
     } catch (error) {
       console.error('[Analytics] Time heatmap error:', error);
       return [];

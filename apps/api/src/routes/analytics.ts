@@ -156,8 +156,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
 
         const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
@@ -179,8 +186,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
 
         const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
@@ -202,8 +216,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
 
         const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
@@ -225,8 +246,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
 
         const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
         const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
