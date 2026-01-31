@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useNotificationStore } from "@/store/notification";
 import { useReactToPrint } from "react-to-print";
 import ThermalReceipt from "@/components/ThermalReceipt";
+import { exportSalesCSV } from "@/lib/exportCSV";
 
 interface Sale {
   id: string;
@@ -456,12 +457,21 @@ export default function OrdersPage() {
             {statusFilter === 'OPEN' ? 'View and complete pending orders' : 'View and edit all orders'}
           </p>
         </div>
-        <button
-          onClick={() => loadSales()}
-          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
-        >
-          🔄 Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportSalesCSV(sales, `orders-${new Date().toISOString().split('T')[0]}.csv`)}
+            className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
+            disabled={sales.length === 0}
+          >
+            📊 Export CSV
+          </button>
+          <button
+            onClick={() => loadSales()}
+            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
+          >
+            🔄 Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

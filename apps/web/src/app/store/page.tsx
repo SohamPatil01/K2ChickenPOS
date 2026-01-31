@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import Link from 'next/link';
+import { SkeletonStatCard, Skeleton, SkeletonCard, SkeletonText } from '@/components/ui';
 
 interface DashboardStats {
   today: {
@@ -467,11 +468,38 @@ export default function StoreDashboardPage() {
 
   if (loading && !stats) {
     return (
-      <div className="w-full max-w-7xl mx-auto h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-brand-600 dark:border-brand-400 mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400 text-lg">Loading dashboard...</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Fetching latest data</p>
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <Skeleton variant="text" height={32} width={200} className="mb-2" />
+            <Skeleton variant="text" height={16} width={150} />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton variant="rectangular" height={40} width={120} />
+            <Skeleton variant="rectangular" height={40} width={120} />
+          </div>
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+          <SkeletonStatCard />
+        </div>
+
+        {/* Main Content Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonCard className="h-64" />
+          <SkeletonCard className="h-64" />
+        </div>
+
+        {/* Additional Content Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <SkeletonCard className="h-48" />
+          <SkeletonCard className="h-48" />
+          <SkeletonCard className="h-48" />
         </div>
       </div>
     );

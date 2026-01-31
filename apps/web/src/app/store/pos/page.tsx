@@ -11,6 +11,7 @@ import Link from "next/link";
 import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
+import { SkeletonProductCard } from "@/components/ui";
 
 interface Product {
   id: string;
@@ -115,7 +116,7 @@ export default function StorePOSPage() {
     try {
       const response = await api.get("/api/v1/products");
       const productsData = response.data || [];
-      
+
       // Load productMaster data for each product
       const productsWithMaster = await Promise.all(
         productsData.map(async (p: any) => {
@@ -132,11 +133,11 @@ export default function StorePOSPage() {
           }
         })
       );
-      
+
       setProducts(productsWithMaster);
     } catch (error: any) {
       console.error("Failed to load products:", error);
-      
+
       // Enhanced error handling for network errors
       let errorMessage = "Failed to load products. Please try again.";
       if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
@@ -156,7 +157,7 @@ export default function StorePOSPage() {
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       setError((prev) => ({ ...prev, products: errorMessage }));
       showNotification(errorMessage, "error", 5000);
     } finally {
@@ -239,7 +240,7 @@ export default function StorePOSPage() {
 
       if (parsed) {
         let product = products.find((p) => p.id === parsed.productId);
-        
+
         // If product not in local array, fetch it from API
         if (!product) {
           try {
@@ -247,7 +248,7 @@ export default function StorePOSPage() {
               `/api/v1/products/${parsed.productId}`
             );
             const fetchedProduct: Product | undefined = productResponse.data;
-            
+
             // Add to local products array for future use
             if (fetchedProduct) {
               product = fetchedProduct;
@@ -263,7 +264,7 @@ export default function StorePOSPage() {
             console.error("Failed to fetch product:", error);
           }
         }
-        
+
         if (product) {
           await handleAddProductToCart(
             product,
@@ -285,12 +286,12 @@ export default function StorePOSPage() {
                 `/api/v1/products/${parsed.productId}`
               );
               const fetchedProduct = productResponse.data;
-              
+
               if (fetchedProduct) {
                 await handleAddProductToCart(
-                  fetchedProduct, 
-                  parsed.weightKg, 
-                  parsed.qtyPcs, 
+                  fetchedProduct,
+                  parsed.weightKg,
+                  parsed.qtyPcs,
                   parsed.pricePerKg
                 );
                 setBarcodeInput("");
@@ -726,7 +727,7 @@ export default function StorePOSPage() {
             <span className="hidden md:inline">Cart</span>
             <span
               className={`rounded-full px-1 sm:px-1.5 md:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[10px] md:text-xs font-medium min-w-[18px] sm:min-w-[20px] md:min-w-[24px] text-center transition-all duration-200 ${
-              items.length > 0 
+                items.length > 0
                   ? "bg-white/90 text-brand-600 shadow-sm"
                   : "bg-white/20 text-white/70"
               }`}
@@ -807,7 +808,7 @@ export default function StorePOSPage() {
                 placeholder="Scan barcode or enter SKU..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 rounded-lg dark:bg-gray-700/40 dark:text-white focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 rounded-lg dark:text-white focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
               />
               <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
                 <svg
@@ -825,12 +826,14 @@ export default function StorePOSPage() {
                 </svg>
               </div>
             </form>
-              <div className="relative flex items-center w-full">
-                <div
-                  className={`relative transition-all duration-300 ease-out w-full ${
-                    isSearchExpanded || searchQuery ? "flex-1" : "w-12 sm:w-14 md:w-16"
-                  }`}
-                >
+            <div className="relative flex items-center w-full">
+              <div
+                className={`relative transition-all duration-300 ease-out w-full ${
+                  isSearchExpanded || searchQuery
+                    ? "flex-1"
+                    : "w-12 sm:w-14 md:w-16"
+                }`}
+              >
                 {!isSearchExpanded && !searchQuery ? (
                   <button
                     onClick={() => {
@@ -873,7 +876,7 @@ export default function StorePOSPage() {
                           }, 200);
                         }
                       }}
-                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 pl-9 sm:pl-10 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg dark:placeholder-gray-400 focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 pl-9 sm:pl-10 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg dark:placeholder-gray-400 focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
                     />
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                       <svg
@@ -891,14 +894,14 @@ export default function StorePOSPage() {
                       </svg>
                     </div>
                     {searchQuery && (
-                    <button
-                      onClick={() => {
+                      <button
+                        onClick={() => {
                           setSearchQuery("");
-                        setIsSearchExpanded(false);
-                      }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 p-2 rounded-xl hover:bg-gray-100/80 dark:hover:bg-gray-700/80 hover:scale-110"
-                      aria-label="Clear search"
-                    >
+                          setIsSearchExpanded(false);
+                        }}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 p-2 rounded-xl hover:bg-gray-100/80 dark:hover:bg-gray-700/80 hover:scale-110"
+                        aria-label="Clear search"
+                      >
                         <svg
                           className="w-5 h-5"
                           fill="none"
@@ -911,8 +914,8 @@ export default function StorePOSPage() {
                             strokeWidth={2.5}
                             d="M6 18L18 6M6 6l12 12"
                           />
-                      </svg>
-                    </button>
+                        </svg>
+                      </button>
                     )}
                   </div>
                 )}
@@ -938,14 +941,11 @@ export default function StorePOSPage() {
           {/* Products Grid */}
           <div className="flex-1 overflow-y-auto">
             {loading.products ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-brand-400/40 border-t-brand-500 mb-3"></div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Loading products...
-                  </p>
-                </div>
-              </div>
+              <>
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <SkeletonProductCard key={i} />
+                ))}
+              </>
             ) : error.products ? (
               <div className="text-center py-12">
                 <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-3">
@@ -1429,14 +1429,14 @@ function AddItemModal({
               value={item.sku}
               onChange={(e) => handleSkuChange(e.target.value)}
               placeholder="Enter SKU or scan barcode"
-              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               autoFocus
             />
             {products.length > 0 && (
               <select
                 value={item.sku}
                 onChange={(e) => handleSkuChange(e.target.value)}
-                className="w-full mt-2 px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+                className="w-full mt-2 px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               >
                 <option value="">Or select from products...</option>
                 {products.map((p) => (
@@ -1458,7 +1458,7 @@ function AddItemModal({
               value={item.description}
               onChange={(e) => onChange("description", e.target.value)}
               placeholder="Enter product description"
-              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+              className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               required
             />
           </div>
@@ -1472,7 +1472,7 @@ function AddItemModal({
               <select
                 value={item.unitType}
                 onChange={(e) => onChange("unitType", e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               >
                 <option value="KG">KG</option>
                 <option value="PCS">PCS</option>
@@ -1486,7 +1486,7 @@ function AddItemModal({
               <button
                 type="button"
                 onClick={() => setShowWeightPad(true)}
-                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg hover:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40 text-left font-semibold"
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg hover:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40 text-left font-semibold"
               >
                 {item.weight || (
                   <span className="text-gray-400 dark:text-gray-500 font-normal">
@@ -1512,7 +1512,7 @@ function AddItemModal({
                 placeholder="0.00"
                 step="0.01"
                 min="0"
-                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+                className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
               />
             </div>
             <div>
@@ -1529,7 +1529,7 @@ function AddItemModal({
                   }
                   step="0.01"
                   min="0"
-                  className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:bg-gray-700/40 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
+                  className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
                 />
                 {showAutoCalc && !item.total && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 dark:text-gray-500">

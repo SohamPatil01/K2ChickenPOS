@@ -10,6 +10,7 @@ import NumPad from '@/components/NumPad';
 import VirtualKeyboard from '@/components/VirtualKeyboard';
 import BillSuccessAnimation from '@/components/BillSuccessAnimation';
 import { offlineDB } from '@azela-pos/offline';
+import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -1288,15 +1289,41 @@ export default function StoreCartPage() {
       )}
 
       {showSuccessAnimation && completedSale && (
-        <BillSuccessAnimation
-          saleNo={completedSale.saleNo}
-          grandTotal={completedSale.grandTotal}
-          onComplete={() => {
-            setShowSuccessAnimation(false);
-            setCompletedSale(null);
-            router.push('/store/pos');
-          }}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <BillSuccessAnimation
+              saleNo={completedSale.saleNo}
+              grandTotal={completedSale.grandTotal}
+              onComplete={() => {
+                setShowSuccessAnimation(false);
+                setCompletedSale(null);
+                router.push('/store/pos');
+              }}
+            />
+            <div className="mt-4 flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  const receiptData = generateReceiptData(completedSale, user?.store);
+                  printReceipt(receiptData);
+                }}
+                className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <span>🖨️</span>
+                <span>Print Receipt</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuccessAnimation(false);
+                  setCompletedSale(null);
+                  router.push('/store/pos');
+                }}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showNumPad && (
