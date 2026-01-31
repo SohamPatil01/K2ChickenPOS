@@ -41,6 +41,37 @@ export default function HQPage() {
     endDate: new Date().toISOString().split('T')[0],
   });
 
+  const loadDashboard = useCallback(async () => {
+    if (!user?.storeId) {
+      console.log('[HQ Dashboard] Store ID missing:', user);
+      setError('Store ID is missing');
+      setLoading(false);
+      return;
+    }
+
+    if (user.role !== 'OWNER') {
+      console.log('[HQ Dashboard] User is not OWNER:', user.role);
+      return; // Don't load if not OWNER
+    }
+
+    console.log('[HQ Dashboard] Loading dashboard data...', { storeId: user.storeId, dateRange });
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get('/api/v1/hq/dashboard', {
+        params: dateRange,
+      });
+      console.log('[HQ Dashboard] Data loaded successfully:', response.data);
+      setDashboard(response.data);
+    } catch (error: any) {
+      console.error('[HQ Dashboard] Failed to load:', error);
+      console.error('[HQ Dashboard] Error response:', error.response?.data);
+      setError(error.response?.data?.error || 'Failed to load HQ dashboard');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, dateRange]);
+
   useEffect(() => {
     if (user === undefined) {
       console.log('[HQ Dashboard] User still loading...');
@@ -76,37 +107,6 @@ export default function HQPage() {
       loadDashboard();
     }
   }, [dateRange, user, dashboard, loadDashboard]);
-
-  const loadDashboard = useCallback(async () => {
-    if (!user?.storeId) {
-      console.log('[HQ Dashboard] Store ID missing:', user);
-      setError('Store ID is missing');
-      setLoading(false);
-      return;
-    }
-
-    if (user.role !== 'OWNER') {
-      console.log('[HQ Dashboard] User is not OWNER:', user.role);
-      return; // Don't load if not OWNER
-    }
-
-    console.log('[HQ Dashboard] Loading dashboard data...', { storeId: user.storeId, dateRange });
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.get('/api/v1/hq/dashboard', {
-        params: dateRange,
-      });
-      console.log('[HQ Dashboard] Data loaded successfully:', response.data);
-      setDashboard(response.data);
-    } catch (error: any) {
-      console.error('[HQ Dashboard] Failed to load:', error);
-      console.error('[HQ Dashboard] Error response:', error.response?.data);
-      setError(error.response?.data?.error || 'Failed to load HQ dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, [user, dateRange]);
 
   const StatCard = ({ title, value, subtitle, icon, gradient }: { 
     title: string; 
