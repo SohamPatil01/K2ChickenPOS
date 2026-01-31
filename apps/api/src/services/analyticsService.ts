@@ -328,6 +328,9 @@ export class AnalyticsService {
    */
   async getInventoryRecommendations(storeId: string): Promise<any> {
     try {
+      console.log('[Analytics] Inventory Recommendations - Start');
+      console.log('[Analytics] StoreId:', storeId);
+      
       // Get current inventory
       const products = await prisma.product.findMany({
         where: {
@@ -340,6 +343,8 @@ export class AnalyticsService {
           unitType: true,
         },
       });
+
+      console.log('[Analytics] Found products:', products.length);
 
       const recommendations = [];
 
