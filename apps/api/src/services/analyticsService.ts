@@ -224,17 +224,48 @@ export class AnalyticsService {
       console.log('[Analytics] StoreId:', storeId);
       console.log('[Analytics] Days:', days);
       
+      if (!storeId) {
+        console.error('[Analytics] StoreId is required');
+        throw new Error('Store ID is required');
+      }
+
+      // Verify store exists
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        console.error('[Analytics] Store not found:', storeId);
+        throw new Error(`Store with ID ${storeId} not found`);
+      }
+
+      // For OWNER stores, include sales from all franchise stores
+      let storeIds: string[] = [storeId];
+      if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+        console.log('[Analytics] Owner store - including franchises:', storeIds);
+      }
+      
       const startDate = startOfDay(subDays(new Date(), days));
       const endDate = endOfDay(new Date());
 
       console.log('[Analytics] Date range:', {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
+        storeIds,
       });
 
       const sales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'PAID',
           createdAt: {
             gte: startDate,
@@ -353,9 +384,41 @@ export class AnalyticsService {
       console.log('[Analytics] Inventory Recommendations - Start');
       console.log('[Analytics] StoreId:', storeId);
       
-      // Get current inventory
+      // Get the store to determine ownerStoreId
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        console.error('[Analytics] Store not found:', storeId);
+        return {
+          recommendations: [],
+          outOfStock: 0,
+          lowStock: 0,
+          overstock: 0,
+        };
+      }
+
+      // Determine ownerStoreId - if it's a franchise, use parentOwnerStoreId, otherwise use storeId
+      const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+      
+      if (!ownerStoreId) {
+        console.error('[Analytics] Owner store ID not found for store:', storeId);
+        return {
+          recommendations: [],
+          outOfStock: 0,
+          lowStock: 0,
+          overstock: 0,
+        };
+      }
+
+      console.log('[Analytics] OwnerStoreId:', ownerStoreId);
+      
+      // Get products for this owner store
       const products = await prisma.product.findMany({
         where: {
+          ownerStoreId,
           isActive: true,
         },
         select: {

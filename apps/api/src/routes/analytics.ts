@@ -18,12 +18,17 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
         const { days } = request.query as { days?: number };
         
-        // #region agent log
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
+        
         console.log('[Analytics Route] Forecast request:', { storeId, days: days || 7, hasStoreId: !!storeId });
-        // #endregion
 
         const forecast = await analyticsService.forecastSales(storeId, days || 7);
         
@@ -55,8 +60,15 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
         const { days } = request.query as { days?: number };
+
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
 
         const demand = await analyticsService.predictDemand(storeId, days || 30);
         return reply.send(demand);
@@ -75,7 +87,14 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user.storeId;
+        const storeId = request.user?.storeId;
+
+        if (!storeId) {
+          return reply.status(400).send({ 
+            error: 'Store ID is required',
+            message: 'User must be associated with a store'
+          });
+        }
 
         const recommendations = await analyticsService.getInventoryRecommendations(storeId);
         return reply.send(recommendations);

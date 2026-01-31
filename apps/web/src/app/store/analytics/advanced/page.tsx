@@ -58,50 +58,45 @@ export default function AdvancedAnalyticsPage() {
     try {
       setLoading(true);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:57',message:'loadAnalytics entry',data:{userId:user?.id,storeId:user?.storeId,role:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
+      if (!user?.storeId) {
+        console.error('[Analytics] User storeId is missing');
+        return;
+      }
+
+      console.log('[Analytics] Loading analytics for store:', user.storeId);
       
       const [forecastRes, demandRes, inventoryRes] = await Promise.all([
         api.get('/api/v1/analytics/forecast', { params: { days: 7 } }).catch(err => {
           console.error('Forecast API error:', err.response?.data || err.message);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:63',message:'Forecast API error',data:{error:err.message,status:err.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
+          if (err.response?.status === 400) {
+            console.error('Forecast error details:', err.response.data);
+          }
           return { data: null };
         }),
         api.get('/api/v1/analytics/demand', { params: { days: 30 } }).catch(err => {
           console.error('Demand API error:', err.response?.data || err.message);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:67',message:'Demand API error',data:{error:err.message,status:err.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
+          if (err.response?.status === 400) {
+            console.error('Demand error details:', err.response.data);
+          }
           return { data: null };
         }),
         api.get('/api/v1/analytics/inventory-recommendations').catch(err => {
           console.error('Inventory API error:', err.response?.data || err.message);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:71',message:'Inventory API error',data:{error:err.message,status:err.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
+          if (err.response?.status === 400) {
+            console.error('Inventory error details:', err.response.data);
+          }
           return { data: null };
         }),
       ]);
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:76',message:'API responses received',data:{forecastHasData:!!forecastRes.data,forecastAvgDailySales:forecastRes.data?.avgDailySales,forecastAccuracy:forecastRes.data?.accuracy,demandHasData:!!demandRes.data,demandFastMovingCount:demandRes.data?.fastMoving?.length,inventoryHasData:!!inventoryRes.data,inventoryRecCount:inventoryRes.data?.recommendations?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       console.log('[Analytics] API responses:', {
         forecast: forecastRes.data ? 'loaded' : 'null',
         demand: demandRes.data ? 'loaded' : 'null',
         inventory: inventoryRes.data ? 'loaded' : 'null',
+        forecastSales: forecastRes.data?.avgDailySales,
+        demandFastMoving: demandRes.data?.fastMoving?.length,
+        inventoryRecs: inventoryRes.data?.recommendations?.length,
       });
-
-      // #region agent log
-      const forecastCheck = forecastRes.data ? {avgDailySales:forecastRes.data.avgDailySales,accuracy:forecastRes.data.accuracy,hasForecast:!!forecastRes.data.forecast,forecastCount:forecastRes.data.forecast?.length} : null;
-      const demandCheck = demandRes.data ? {fastMovingCount:demandRes.data.fastMoving?.length,slowMovingCount:demandRes.data.slowMoving?.length,hasPeakHour:!!demandRes.data.peakHour} : null;
-      const inventoryCheck = inventoryRes.data ? {recCount:inventoryRes.data.recommendations?.length,outOfStock:inventoryRes.data.outOfStock,lowStock:inventoryRes.data.lowStock} : null;
-      fetch('http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'advanced/page.tsx:82',message:'Before setting state - checking for undefined values',data:{forecast:forecastCheck,demand:demandCheck,inventory:inventoryCheck},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       setForecast(forecastRes.data);
       setDemand(demandRes.data);
