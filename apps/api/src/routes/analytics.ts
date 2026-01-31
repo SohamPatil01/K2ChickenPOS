@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { authenticate } from '../utils/auth.js';
+import { requireRole } from '../utils/auth.js';
 import { analyticsService } from '../services/analyticsService.js';
 import { alertService } from '../services/alertService.js';
 import { z } from 'zod';
@@ -15,7 +15,7 @@ const demandSchema = z.object({
 export async function analyticsRoutes(fastify: FastifyInstance) {
   // Sales Forecasting
   fastify.get('/v1/analytics/forecast', {
-    preHandler: authenticate(['MANAGER', 'OWNER']),
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
         const storeId = request.user.storeId;
@@ -35,7 +35,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
   // Demand Prediction
   fastify.get('/v1/analytics/demand', {
-    preHandler: authenticate(['MANAGER', 'OWNER']),
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
         const storeId = request.user.storeId;
@@ -55,7 +55,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
   // Inventory Recommendations
   fastify.get('/v1/analytics/inventory-recommendations', {
-    preHandler: authenticate(['MANAGER', 'OWNER']),
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
         const storeId = request.user.storeId;
@@ -74,7 +74,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
   // Average Cost Calculation
   fastify.get('/v1/analytics/average-cost/:productId', {
-    preHandler: authenticate(['MANAGER', 'OWNER']),
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
         const { productId } = request.params;
@@ -96,7 +96,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
   // Alerts
   fastify.get('/v1/analytics/alerts', {
-    preHandler: authenticate(['MANAGER', 'OWNER', 'CASHIER']),
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER', 'CASHIER')],
     handler: async (request: any, reply) => {
       try {
         const storeId = request.user.storeId;
