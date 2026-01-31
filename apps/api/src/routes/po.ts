@@ -136,14 +136,14 @@ export async function poRoutes(fastify: FastifyInstance) {
                     }
                   } catch (minimalError: any) {
                     // Last resort: minimal columns only
-                    const itemResult = await prisma.$queryRawUnsafe(`
-                      INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt")
-                      VALUES ($1, $2, $3, $4, $5, NOW())
-                      RETURNING *
-                    `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
-                    
-                    if (itemResult && itemResult.length > 0) {
-                      createdItems.push(itemResult[0]);
+              const itemResult = await prisma.$queryRawUnsafe(`
+                INSERT INTO "PurchaseOrderItem" ("poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt")
+                VALUES ($1, $2, $3, $4, $5, NOW())
+                RETURNING *
+              `, createdPO.id, item.productId, qtyKg, qtyPcs, item.requestedRate || 0) as any[];
+              
+              if (itemResult && itemResult.length > 0) {
+                createdItems.push(itemResult[0]);
                     }
                   }
                 } else {
@@ -342,31 +342,31 @@ export async function poRoutes(fastify: FastifyInstance) {
               let items: any[] = [];
               try {
                 items = await prisma.$queryRawUnsafe(
-                  `SELECT 
-                    poi.id,
-                    poi."poId",
-                    poi."productId",
-                    poi."qtyKg",
-                    poi."qtyPcs",
-                    poi."requestedRate",
+                `SELECT 
+                  poi.id,
+                  poi."poId",
+                  poi."productId",
+                  poi."qtyKg",
+                  poi."qtyPcs",
+                  poi."requestedRate",
                     poi."receivedQtyKg",
                     poi."receivedQtyPcs",
                     poi."sinkageQtyKg",
                     poi."sinkageQtyPcs",
-                    poi."createdAt",
+                  poi."createdAt",
                     poi."updatedAt",
-                    p.id as "product_id",
-                    p.name as "product_name",
-                    p.sku as "product_sku",
-                    p.plu as "product_plu",
-                    p."unitType" as "product_unitType",
-                    p."imageUrl" as "product_imageUrl",
-                    p."isActive" as "product_isActive"
-                  FROM "PurchaseOrderItem" poi
-                  LEFT JOIN "Product" p ON p.id = poi."productId"
-                  WHERE poi."poId" IN (${placeholders})`,
-                  ...poIds
-                ) as any[];
+                  p.id as "product_id",
+                  p.name as "product_name",
+                  p.sku as "product_sku",
+                  p.plu as "product_plu",
+                  p."unitType" as "product_unitType",
+                  p."imageUrl" as "product_imageUrl",
+                  p."isActive" as "product_isActive"
+                FROM "PurchaseOrderItem" poi
+                LEFT JOIN "Product" p ON p.id = poi."productId"
+                WHERE poi."poId" IN (${placeholders})`,
+                ...poIds
+              ) as any[];
               } catch (selectError: any) {
                 // If sinkage columns don't exist, fetch without them
                 if (selectError.message?.includes('sinkageQtyKg') || selectError.message?.includes('sinkageQtyPcs')) {

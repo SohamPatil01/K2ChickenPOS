@@ -50,20 +50,33 @@ export default function HQPage() {
       router.push('/login');
       return;
     }
-
+    
     if (user.role !== 'OWNER') {
       router.push('/store');
       return;
     }
 
-    loadDashboard();
-  }, [user, router, dateRange]);
+    // Only load dashboard if user is OWNER and authenticated
+    // Don't include dateRange in dependencies to avoid re-running auth checks
+  }, [user, router]);
+
+  // Separate effect for loading dashboard when dateRange changes
+  useEffect(() => {
+    if (user?.role === 'OWNER' && user?.storeId && !loading) {
+      loadDashboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange]);
 
   const loadDashboard = async () => {
     if (!user?.storeId) {
       setError('Store ID is missing');
       setLoading(false);
       return;
+    }
+
+    if (user.role !== 'OWNER') {
+      return; // Don't load if not OWNER
     }
 
     setLoading(true);
@@ -307,7 +320,7 @@ export default function HQPage() {
             <h3 className="font-semibold dark:text-white">Advanced Analytics</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Predictive insights</p>
           </Link>
-        </div>
+          </div>
       </div>
     </Layout>
   );

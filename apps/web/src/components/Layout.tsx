@@ -83,12 +83,16 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 ))}
                 {user?.role === 'OWNER' && (
-                  <a
-                    href="http://localhost:3002/dashboard"
-                    className="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600"
+                  <Link
+                    href="/hq"
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                      pathname === '/hq' || pathname?.startsWith('/hq/')
+                        ? 'border-primary-500 text-gray-900 dark:text-white'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
                   >
                     HQ
-                  </a>
+                  </Link>
                 )}
               </div>
             </div>
@@ -164,6 +168,19 @@ export default function Layout({ children }: LayoutProps) {
                   {item.label}
                 </Link>
               ))}
+              {user?.role === 'OWNER' && (
+                <Link
+                  href="/hq"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === '/hq' || pathname?.startsWith('/hq/')
+                      ? 'bg-primary-50 text-primary-700 dark:bg-brand-900/30 dark:text-brand-400'
+                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  HQ
+                </Link>
+              )}
             </div>
           </div>
         )}

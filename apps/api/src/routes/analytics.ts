@@ -63,7 +63,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const storeId = request.user?.storeId;
         const { days } = request.query as { days?: number };
 
-        if (!storeId) {
+      if (!storeId) {
           return reply.status(400).send({ 
             error: 'Store ID is required',
             message: 'User must be associated with a store'
@@ -79,8 +79,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           message: error.message 
         });
       }
-    },
-  });
+      },
+    });
 
   // Inventory Recommendations
   fastify.get('/inventory-recommendations', {
@@ -127,8 +127,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           message: error.message 
         });
       }
-    },
-  });
+      },
+    });
 
   // Alerts
   fastify.get('/alerts', {
@@ -178,8 +178,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           message: error.message 
         });
       }
-    },
-  });
+      },
+    });
 
   // Sales Trend
   fastify.get('/sales-trend', {
@@ -238,8 +238,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           message: error.message 
         });
       }
-    },
-  });
+      },
+    });
 
   // Time Heatmap
   fastify.get('/time-heatmap', {
@@ -268,8 +268,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           message: error.message 
         });
       }
-    },
-  });
+      },
+    });
 
   // Delivery KPIs (placeholder - returns empty for now)
   fastify.get('/delivery-kpis', {
