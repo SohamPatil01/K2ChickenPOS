@@ -14,6 +14,60 @@ const dailyClosingSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Enhanced validation function
+function validateDailyClosing(data: {
+  openingCash: number;
+  cashReceived: number;
+  closingCash: number;
+  cashSales: number;
+  totalRevenue: number;
+  totalWastageKg: number;
+  totalWeightSoldKg: number;
+}) {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  // Critical validations (will block save)
+  if (data.cashReceived < 0 || data.closingCash < 0 || data.openingCash < 0) {
+    errors.push('Cash amounts cannot be negative');
+  }
+
+  // Calculate cash difference
+  const expectedClosing = data.openingCash + data.cashReceived;
+  const cashDifference = Math.abs(data.closingCash - expectedClosing);
+  const cashVariancePercent = expectedClosing > 0 ? (cashDifference / expectedClosing) * 100 : 0;
+
+  // Warning validations
+  if (cashVariancePercent > 5) {
+    warnings.push(`High cash variance: ${cashVariancePercent.toFixed(1)}% (₹${cashDifference.toFixed(2)})`);
+  }
+
+  if (data.cashSales > data.totalRevenue * 0.9) {
+    warnings.push('High cash sales percentage (>90% of total revenue)');
+  }
+
+  if (data.totalWastageKg > data.totalWeightSoldKg * 0.1 && data.totalWeightSoldKg > 0) {
+    const wastagePercent = ((data.totalWastageKg / data.totalWeightSoldKg) * 100).toFixed(1);
+    warnings.push(`High wastage detected: ${wastagePercent}% of sales`);
+  }
+
+  if (data.totalRevenue === 0) {
+    warnings.push('No revenue recorded for this day');
+  }
+
+  // Minimum opening cash requirement
+  if (data.openingCash < 1000 && data.cashSales > 0) {
+    warnings.push('Low opening cash (recommended: ₹1000+)');
+  }
+
+  // Check cash reconciliation
+  if (Math.abs(data.cashReceived - data.cashSales) > 100) {
+    warnings.push('Cash received differs from cash sales by more than ₹100');
+  }
+
+  return { errors, warnings, isValid: errors.length === 0 };
+}
+
 export async function dailyClosingRoutes(fastify: FastifyInstance) {
   // Create daily closing
   fastify.post(
@@ -120,6 +174,25 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           (sum, ledger) => Math.round((sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0)) * 100) / 100,
           0
         ) * 100) / 100;
+
+        // Enhanced validation before saving
+        const validation = validateDailyClosing({
+          openingCash,
+          cashReceived: finalCashReceived,
+          closingCash,
+          cashSales,
+          totalRevenue,
+          totalWastageKg,
+          totalWeightSoldKg,
+        });
+
+        if (!validation.isValid) {
+          reply.code(400).send({ 
+            error: 'Validation failed', 
+            errors: validation.errors 
+          });
+          return;
+        }
 
         // Get closing stock for all products
         // First get the owner store ID

@@ -1,382 +1,115 @@
-// @ts-nocheck
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { prisma } from '@azela-pos/db';
-import { requireRole, getUser } from '../utils/auth.js';
+import { FastifyInstance } from 'fastify';
+import { authenticate } from '../utils/auth';
+import { analyticsService } from '../services/analyticsService';
+import { alertService } from '../services/alertService';
+import { z } from 'zod';
 
-interface QueryParams {
-  startDate?: string;
-  endDate?: string;
-  storeId?: string;
-  categoryId?: string;
-}
+const forecastSchema = z.object({
+  days: z.number().min(1).max(30).optional().default(7),
+});
 
-function getDateRange(startDate?: string, endDate?: string) {
-  if (startDate && endDate) {
-    // Parse dates as UTC to avoid timezone issues
-    // Date strings like "2025-12-26" are interpreted as UTC midnight
-    const start = new Date(startDate + 'T00:00:00.000Z');
-    const end = new Date(endDate + 'T23:59:59.999Z');
-    return {
-      gte: start,
-      lte: end,
-    };
-  } else {
-    // Default to last 30 days
-    const end = new Date();
-    end.setUTCHours(23, 59, 59, 999);
-    const start = new Date();
-    start.setUTCDate(start.getUTCDate() - 30);
-    start.setUTCHours(0, 0, 0, 0);
-    return {
-      gte: start,
-      lte: end,
-    };
-  }
-}
+const demandSchema = z.object({
+  days: z.number().min(7).max(90).optional().default(30),
+});
 
 export async function analyticsRoutes(fastify: FastifyInstance) {
-
-  fastify.get('/sales-trend', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const userStoreId = queryStoreId || store?.id || '';
-    const userRole = 'OWNER'; // Default to owner
-
-    const where: any = {};
-
-    if (userRole === 'OWNER' && queryStoreId) {
-      where.storeId = queryStoreId;
-    } else {
-      where.storeId = userStoreId;
-    }
-
-    where.createdAt = getDateRange(startDate, endDate);
-    where.status = 'PAID';
-
-    const sales = await prisma.sale.findMany({
-      where,
-      select: {
-        grandTotal: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Group by date
-    const grouped = sales.reduce((acc: Record<string, { date: string; total: number; count: number }>, sale: any): Record<string, { date: string; total: number; count: number }> => {
-      const date = sale.createdAt.toISOString().split('T')[0];
-      if (!acc[date]) {
-        acc[date] = { date, total: 0, count: 0 };
-      }
-      acc[date].total += sale.grandTotal;
-      acc[date].count += 1;
-      return acc;
-    }, {});
-
-    return Object.values(grouped);
-  });
-
-  fastify.get('/top-items', async (request: any, reply: FastifyReply): Promise<any> => {
-    try {
-      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-      
-      // Try to get storeId from authenticated user, fallback to default store
-      let storeId = '';
-      let userRole = '';
-      let storeIds: string[] = [];
-
+  // Sales Forecasting
+  fastify.get('/v1/analytics/forecast', {
+    preHandler: authenticate(['MANAGER', 'OWNER']),
+    handler: async (request: any, reply) => {
       try {
-        const user = getUser(request);
-        storeId = (user as any).storeId;
-        userRole = (user as any).role;
-      } catch (error) {
-        // Not authenticated, use oldest OWNER store as fallback
-        console.log('[Analytics] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({ 
-          where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+        const storeId = request.user.storeId;
+        const { days } = request.query as { days?: number };
+
+        const forecast = await analyticsService.forecastSales(storeId, days || 7);
+        return reply.send(forecast);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to generate sales forecast');
+        return reply.status(500).send({ 
+          error: 'Failed to generate forecast', 
+          message: error.message 
         });
-        storeId = defaultStore?.id || '';
-        userRole = 'OWNER';
       }
+    },
+  });
 
-      if (!storeId) {
-        reply.code(400).send({ error: 'Store ID is required' });
-        return;
-      }
+  // Demand Prediction
+  fastify.get('/v1/analytics/demand', {
+    preHandler: authenticate(['MANAGER', 'OWNER']),
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
+        const { days } = request.query as { days?: number };
 
-      // Get user's store to check if owner
-      const userStore = await prisma.store.findUnique({
-        where: { id: storeId },
-        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-      });
-
-      if (!userStore) {
-        reply.code(404).send({ error: 'Store not found' });
-        return;
-      }
-
-      // For OWNER role, get sales from all franchise stores + owner store
-      storeIds = [storeId];
-      if (userRole === 'OWNER' && userStore.type === 'OWNER') {
-        // Get all franchise stores under this owner
-        const franchises = await prisma.store.findMany({
-          where: {
-            type: 'FRANCHISE',
-            parentOwnerStoreId: storeId,
-          },
-          select: { id: true },
+        const demand = await analyticsService.predictDemand(storeId, days || 30);
+        return reply.send(demand);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to predict demand');
+        return reply.status(500).send({ 
+          error: 'Failed to predict demand', 
+          message: error.message 
         });
-        storeIds = [storeId, ...franchises.map(f => f.id)];
       }
-
-      // Use queryStoreId if provided and user is OWNER, otherwise use user's store
-      const finalStoreId = (userRole === 'OWNER' && queryStoreId) ? queryStoreId : storeId;
-      const finalStoreIds = (userRole === 'OWNER' && userStore.type === 'OWNER' && !queryStoreId) 
-        ? storeIds 
-        : [finalStoreId];
-
-      const where: any = {
-        storeId: finalStoreIds.length > 1 ? { in: finalStoreIds } : finalStoreId,
-        createdAt: getDateRange(startDate, endDate),
-        status: 'PAID',
-      };
-
-    const sales = await prisma.sale.findMany({
-      where,
-      include: {
-        items: {
-          include: { product: true },
-        },
-      },
-    });
-
-    const itemStats: Record<string, { name: string; imageUrl: string | null; qtyKg: number; qtyPcs: number; revenue: number; count: number }> = {};
-
-    for (const sale of sales) {
-      for (const item of sale.items) {
-        // Skip items where product is null (deleted products)
-        if (!item.product) {
-          continue;
-        }
-        
-        if (!itemStats[item.productId]) {
-          itemStats[item.productId] = {
-            name: item.product.name,
-            imageUrl: item.product.imageUrl,
-            qtyKg: 0,
-            qtyPcs: 0,
-            revenue: 0,
-            count: 0,
-          };
-        }
-        itemStats[item.productId].qtyKg += item.qtyKg || 0;
-        itemStats[item.productId].qtyPcs += item.qtyPcs || 0;
-        itemStats[item.productId].revenue += item.lineTotal;
-        itemStats[item.productId].count += 1;
-      }
-    }
-
-      return Object.entries(itemStats)
-        .map(([productId, stats]: [string, any]) => ({ productId, ...stats }))
-        .sort((a: any, b: any) => b.revenue - a.revenue)
-        .slice(0, 20);
-    } catch (error: any) {
-      console.error('Top items analytics error:', error);
-      reply.code(500).send({ error: 'Failed to get top items', details: error.message });
-    }
+    },
   });
 
-  fastify.get('/time-heatmap', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const userStoreId = queryStoreId || store?.id || '';
-    const userRole = 'OWNER'; // Default to owner
+  // Inventory Recommendations
+  fastify.get('/v1/analytics/inventory-recommendations', {
+    preHandler: authenticate(['MANAGER', 'OWNER']),
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
 
-    const where: any = {};
-
-    if (userRole === 'OWNER' && queryStoreId) {
-      where.storeId = queryStoreId;
-    } else {
-      where.storeId = userStoreId;
-    }
-
-    where.createdAt = getDateRange(startDate, endDate);
-    where.status = 'PAID';
-
-    const sales = await prisma.sale.findMany({
-      where,
-      select: {
-        grandTotal: true,
-        createdAt: true,
-      },
-    });
-
-    // Group by hour
-    const hourly: Record<number, { hour: number; total: number; count: number }> = {};
-
-    for (const sale of sales) {
-      const hour = sale.createdAt.getHours();
-      if (!hourly[hour]) {
-        hourly[hour] = { hour, total: 0, count: 0 };
-      }
-      hourly[hour].total += sale.grandTotal;
-      hourly[hour].count += 1;
-    }
-
-    return Object.values(hourly).sort((a: any, b: any) => a.hour - b.hour);
-  });
-
-  fastify.get('/payment-mix', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const userStoreId = queryStoreId || store?.id || '';
-    const userRole = 'OWNER'; // Default to owner
-
-    const where: any = {};
-
-    if (userRole === 'OWNER' && queryStoreId) {
-      where.storeId = queryStoreId;
-    } else {
-      where.storeId = userStoreId;
-    }
-
-    where.createdAt = getDateRange(startDate, endDate);
-    where.status = 'PAID';
-
-    const sales = await prisma.sale.findMany({
-      where,
-      include: {
-        payments: true,
-      },
-    });
-
-    const paymentStats: Record<string, { method: string; total: number; count: number }> = {};
-
-    for (const sale of sales) {
-      for (const payment of sale.payments) {
-        if (!paymentStats[payment.method]) {
-          paymentStats[payment.method] = {
-            method: payment.method,
-            total: 0,
-            count: 0,
-          };
-        }
-        paymentStats[payment.method].total += payment.amount;
-        paymentStats[payment.method].count += 1;
-      }
-    }
-
-    return Object.values(paymentStats);
-  });
-
-  fastify.get('/delivery-kpis', async (request: any, reply: FastifyReply): Promise<any> => {
-    const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-    // Get default store (since auth is disabled)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const userStoreId = queryStoreId || store?.id || '';
-    const userRole = 'OWNER'; // Default to owner
-
-    const where: any = {};
-
-    if (userRole === 'OWNER' && queryStoreId) {
-      where.storeId = queryStoreId;
-    } else {
-      where.storeId = userStoreId;
-    }
-
-    where.createdAt = getDateRange(startDate, endDate);
-
-    const deliveries = await prisma.deliveryOrder.findMany({
-      where,
-      select: {
-        status: true,
-        outForDeliveryAt: true,
-        deliveredAt: true,
-        createdAt: true,
-      },
-    });
-
-    const total = deliveries.length;
-    const delivered = deliveries.filter((d: any): boolean => d.status === 'DELIVERED').length;
-    const failed = deliveries.filter((d: any): boolean => d.status === 'FAILED').length;
-    const inProgress = deliveries.filter((d: any): boolean => ['ASSIGNED', 'OUT_FOR_DELIVERY'].includes(d.status)).length;
-
-    const deliveredDeliveries = deliveries.filter((d: any): boolean => d.status === 'DELIVERED' && d.outForDeliveryAt && d.deliveredAt);
-    const avgDeliveryTime = deliveredDeliveries.length > 0
-      ? deliveredDeliveries.reduce((sum: number, d: any): number => {
-          const time = d.deliveredAt!.getTime() - d.outForDeliveryAt!.getTime();
-          return sum + time;
-        }, 0) / deliveredDeliveries.length / (1000 * 60) // minutes
-      : 0;
-
-    return {
-      total,
-      delivered,
-      failed,
-      inProgress,
-      successRate: total > 0 ? (delivered / total) * 100 : 0,
-      avgDeliveryTimeMinutes: Math.round(avgDeliveryTime),
-    };
-  });
-
-  fastify.get('/store-compare', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
-    const query = request.query as any;
-    const { startDate, endDate } = query;
-    const ownerStoreId = (getUser(request) as any).storeId;
-
-    const ownerStore = await prisma.store.findUnique({
-      where: { id: ownerStoreId },
-      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-    });
-
-    if (!ownerStore || ownerStore.type !== 'OWNER') {
-      reply.code(400).send({ error: 'Not an owner store' });
-      return;
-    }
-
-    const dateFilter: any = {
-      createdAt: getDateRange(startDate, endDate),
-      };
-
-    const stores = await prisma.store.findMany({
-      where: {
-        OR: [
-          { id: ownerStoreId },
-          { parentOwnerStoreId: ownerStoreId },
-        ],
-      },
-    });
-
-    const storeStats = await Promise.all(
-      stores.map(async (store: any) => {
-        const sales = await prisma.sale.findMany({
-          where: {
-            storeId: store.id,
-            status: 'PAID',
-            ...dateFilter,
-          },
+        const recommendations = await analyticsService.getInventoryRecommendations(storeId);
+        return reply.send(recommendations);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to generate inventory recommendations');
+        return reply.status(500).send({ 
+          error: 'Failed to generate recommendations', 
+          message: error.message 
         });
+      }
+    },
+  });
 
-        const totalRevenue = sales.reduce((sum: number, s: any) => sum + s.grandTotal, 0);
-        const avgBillValue = sales.length > 0 ? totalRevenue / sales.length : 0;
+  // Average Cost Calculation
+  fastify.get('/v1/analytics/average-cost/:productId', {
+    preHandler: authenticate(['MANAGER', 'OWNER']),
+    handler: async (request: any, reply) => {
+      try {
+        const { productId } = request.params;
 
-        return {
-          storeId: store.id,
-          storeName: store.name,
-          storeType: store.type,
-          totalSales: sales.length,
-          totalRevenue,
-          avgBillValue,
-        };
-      })
-    );
+        const avgCost = await analyticsService.calculateAverageCost(productId);
+        return reply.send({ 
+          productId, 
+          averageCost: Math.round(avgCost * 100) / 100 
+        });
+      } catch (error: any) {
+        request.log.error(error, 'Failed to calculate average cost');
+        return reply.status(500).send({ 
+          error: 'Failed to calculate average cost', 
+          message: error.message 
+        });
+      }
+    },
+  });
 
-    return storeStats.sort((a: any, b: any) => b.totalRevenue - a.totalRevenue);
+  // Alerts
+  fastify.get('/v1/analytics/alerts', {
+    preHandler: authenticate(['MANAGER', 'OWNER', 'CASHIER']),
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
+
+        const alerts = await alertService.generateAlerts(storeId);
+        return reply.send({ alerts, count: alerts.length });
+      } catch (error: any) {
+        request.log.error(error, 'Failed to generate alerts');
+        return reply.status(500).send({ 
+          error: 'Failed to generate alerts', 
+          message: error.message 
+        });
+      }
+    },
   });
 }
-
