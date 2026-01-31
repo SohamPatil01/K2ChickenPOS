@@ -489,7 +489,6 @@ export class AnalyticsService {
       return 0;
     }
   }
-}
 
   /**
    * Get Top Selling Items
