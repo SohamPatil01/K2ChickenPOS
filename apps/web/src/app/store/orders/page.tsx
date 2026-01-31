@@ -8,6 +8,7 @@ import { useNotificationStore } from "@/store/notification";
 import { useReactToPrint } from "react-to-print";
 import ThermalReceipt from "@/components/ThermalReceipt";
 import { exportSalesCSV } from "@/lib/exportCSV";
+import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
 
 interface Sale {
   id: string;
@@ -474,7 +475,23 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Advanced Filters */}
+      <FilterSystem
+        onFilterChange={(filters) => {
+          setDateFilter({
+            startDate: filters.dateRange.start,
+            endDate: filters.dateRange.end,
+          });
+          if (filters.status) {
+            setStatusFilter(filters.status);
+          }
+        }}
+        showPaymentMethodFilter={true}
+        showStatusFilter={true}
+        storageKey="orders_filters"
+      />
+
+      {/* Legacy Filters (keeping for compatibility) */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div>
