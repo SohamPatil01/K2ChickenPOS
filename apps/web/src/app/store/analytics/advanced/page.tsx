@@ -59,10 +59,25 @@ export default function AdvancedAnalyticsPage() {
       setLoading(true);
       
       const [forecastRes, demandRes, inventoryRes] = await Promise.all([
-        api.get('/api/v1/analytics/forecast', { params: { days: 7 } }),
-        api.get('/api/v1/analytics/demand', { params: { days: 30 } }),
-        api.get('/api/v1/analytics/inventory-recommendations'),
+        api.get('/api/v1/analytics/forecast', { params: { days: 7 } }).catch(err => {
+          console.error('Forecast API error:', err.response?.data || err.message);
+          return { data: null };
+        }),
+        api.get('/api/v1/analytics/demand', { params: { days: 30 } }).catch(err => {
+          console.error('Demand API error:', err.response?.data || err.message);
+          return { data: null };
+        }),
+        api.get('/api/v1/analytics/inventory-recommendations').catch(err => {
+          console.error('Inventory API error:', err.response?.data || err.message);
+          return { data: null };
+        }),
       ]);
+
+      console.log('[Analytics] API responses:', {
+        forecast: forecastRes.data ? 'loaded' : 'null',
+        demand: demandRes.data ? 'loaded' : 'null',
+        inventory: inventoryRes.data ? 'loaded' : 'null',
+      });
 
       setForecast(forecastRes.data);
       setDemand(demandRes.data);
