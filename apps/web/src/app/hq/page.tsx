@@ -101,12 +101,14 @@ export default function HQPage() {
 
   // Separate effect for reloading dashboard when dateRange changes (but not on initial mount)
   useEffect(() => {
+    // Only reload if dashboard data already exists (not initial load)
+    // This prevents reloading on initial mount when dashboard is null
     if (user?.role === 'OWNER' && user?.storeId && dashboard !== null) {
-      // Only reload if dashboard data already exists (not initial load)
       console.log('[HQ Dashboard] Date range changed, reloading...');
       loadDashboard();
     }
-  }, [dateRange, user, dashboard, loadDashboard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange.startDate, dateRange.endDate]); // Only depend on dateRange values, not the object or dashboard
 
   const StatCard = ({ title, value, subtitle, icon, gradient }: { 
     title: string; 
