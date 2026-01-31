@@ -85,10 +85,20 @@ export class AnalyticsService {
    */
   async forecastSales(storeId: string, days: number = 7): Promise<any> {
     try {
+      console.log('[Analytics] Forecast Sales - Start');
+      console.log('[Analytics] StoreId:', storeId);
+      console.log('[Analytics] Days:', days);
+      
       // Get historical sales data (last 30-90 days)
       const historicalDays = Math.max(30, days * 3);
       const startDate = startOfDay(subDays(new Date(), historicalDays));
       const endDate = endOfDay(new Date());
+
+      console.log('[Analytics] Date range:', {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        historicalDays,
+      });
 
       const sales = await prisma.sale.findMany({
         where: {
@@ -105,6 +115,8 @@ export class AnalyticsService {
         },
       });
 
+      console.log('[Analytics] Found sales:', sales.length);
+
       // Group by date
       const salesByDate: Record<string, number> = {};
       sales.forEach(sale => {
@@ -120,6 +132,13 @@ export class AnalyticsService {
         dates.push(date);
         values.push(salesByDate[date] || 0);
       }
+
+      console.log('[Analytics] Time series created:', {
+        datesCount: dates.length,
+        valuesCount: values.length,
+        totalRevenue: values.reduce((a, b) => a + b, 0),
+        avgDaily: values.reduce((a, b) => a + b, 0) / values.length,
+      });
 
       // Calculate moving averages
       const ma7 = this.calculateMovingAverage(values, 7);
@@ -181,8 +200,17 @@ export class AnalyticsService {
    */
   async predictDemand(storeId: string, days: number = 30): Promise<any> {
     try {
+      console.log('[Analytics] Predict Demand - Start');
+      console.log('[Analytics] StoreId:', storeId);
+      console.log('[Analytics] Days:', days);
+      
       const startDate = startOfDay(subDays(new Date(), days));
       const endDate = endOfDay(new Date());
+
+      console.log('[Analytics] Date range:', {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
 
       const sales = await prisma.sale.findMany({
         where: {
@@ -205,6 +233,8 @@ export class AnalyticsService {
           },
         },
       });
+
+      console.log('[Analytics] Found sales for demand:', sales.length);
 
       // Analyze product demand
       const productDemand: Record<string, {
