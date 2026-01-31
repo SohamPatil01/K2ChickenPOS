@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { SimpleLineChart, SimpleBarChart, SimplePieChart } from '@/components/charts';
 import Skeleton from '@/components/ui/Skeleton';
+import { exportCSV } from '@/lib/exportCSV';
 
 interface Forecast {
   historical: Array<{ date: string; actual: number; ma7: number; ma30: number }>;
@@ -97,12 +98,28 @@ export default function AdvancedAnalyticsPage() {
             Predictive insights and recommendations
           </p>
         </div>
-        <button
-          onClick={loadAnalytics}
-          className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
-        >
-          🔄 Refresh
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (activeTab === 'forecast' && forecast) {
+                exportCSV(forecast.forecast, `sales_forecast_${new Date().toISOString().split('T')[0]}`);
+              } else if (activeTab === 'demand' && demand) {
+                exportCSV([...demand.fastMoving, ...demand.slowMoving], `demand_analysis_${new Date().toISOString().split('T')[0]}`);
+              } else if (activeTab === 'inventory' && inventory) {
+                exportCSV(inventory.recommendations, `inventory_recommendations_${new Date().toISOString().split('T')[0]}`);
+              }
+            }}
+            className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
+          >
+            📥 Export CSV
+          </button>
+          <button
+            onClick={loadAnalytics}
+            className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
+          >
+            🔄 Refresh
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
