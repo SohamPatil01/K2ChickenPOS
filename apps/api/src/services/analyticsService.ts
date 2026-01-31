@@ -491,5 +491,172 @@ export class AnalyticsService {
   }
 }
 
+  /**
+   * Get Top Selling Items
+   */
+  async getTopItems(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      console.log('[Analytics] Get Top Items - Start');
+      
+      const sales = await prisma.sale.findMany({
+        where: {
+          storeId,
+          status: 'PAID',
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      const itemStats: Record<string, { name: string; revenue: number; quantity: number; count: number }> = {};
+
+      sales.forEach(sale => {
+        sale.items.forEach(item => {
+          const key = item.productId;
+          if (!itemStats[key]) {
+            itemStats[key] = {
+              name: item.product?.name || 'Unknown',
+              revenue: 0,
+              quantity: 0,
+              count: 0,
+            };
+          }
+          itemStats[key].revenue += item.lineTotal || 0;
+          itemStats[key].quantity += (item.qtyKg || item.qtyPcs || 0);
+          itemStats[key].count += 1;
+        });
+      });
+
+      return Object.values(itemStats)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+    } catch (error) {
+      console.error('[Analytics] Top items error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get Sales Trend (daily breakdown)
+   */
+  async getSalesTrend(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      console.log('[Analytics] Get Sales Trend - Start');
+      
+      const sales = await prisma.sale.findMany({
+        where: {
+          storeId,
+          status: 'PAID',
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          grandTotal: true,
+          createdAt: true,
+        },
+      });
+
+      const salesByDate: Record<string, number> = {};
+      sales.forEach(sale => {
+        const date = format(new Date(sale.createdAt), 'yyyy-MM-dd');
+        salesByDate[date] = (salesByDate[date] || 0) + (sale.grandTotal || 0);
+      });
+
+      return Object.entries(salesByDate)
+        .map(([date, revenue]) => ({ date, revenue }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+      console.error('[Analytics] Sales trend error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get Payment Mix
+   */
+  async getPaymentMix(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      console.log('[Analytics] Get Payment Mix - Start');
+      
+      const sales = await prisma.sale.findMany({
+        where: {
+          storeId,
+          status: 'PAID',
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        include: {
+          payments: true,
+        },
+      });
+
+      const paymentStats: Record<string, number> = {};
+      sales.forEach(sale => {
+        sale.payments.forEach(payment => {
+          const method = payment.method || 'Unknown';
+          paymentStats[method] = (paymentStats[method] || 0) + (payment.amount || 0);
+        });
+      });
+
+      return Object.entries(paymentStats).map(([method, amount]) => ({ method, amount }));
+    } catch (error) {
+      console.error('[Analytics] Payment mix error:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get Time Heatmap (hourly and daily patterns)
+   */
+  async getTimeHeatmap(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      console.log('[Analytics] Get Time Heatmap - Start');
+      
+      const sales = await prisma.sale.findMany({
+        where: {
+          storeId,
+          status: 'PAID',
+          createdAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          grandTotal: true,
+          createdAt: true,
+        },
+      });
+
+      const hourlyStats: Record<number, { hour: number; count: number; revenue: number }> = {};
+      
+      sales.forEach(sale => {
+        const hour = new Date(sale.createdAt).getUTCHours();
+        if (!hourlyStats[hour]) {
+          hourlyStats[hour] = { hour, count: 0, revenue: 0 };
+        }
+        hourlyStats[hour].count += 1;
+        hourlyStats[hour].revenue += sale.grandTotal || 0;
+      });
+
+      return Object.values(hourlyStats).sort((a, b) => a.hour - b.hour);
+    } catch (error) {
+      console.error('[Analytics] Time heatmap error:', error);
+      return [];
+    }
+  }
+}
+
 export const analyticsService = new AnalyticsService();
 

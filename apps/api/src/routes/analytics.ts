@@ -112,4 +112,119 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       }
     },
   });
+
+  // Additional analytics endpoints for /analytics page
+  
+  // Top Items
+  fastify.get('/top-items', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
+        const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+
+        const topItems = await analyticsService.getTopItems(storeId, start, end);
+        return reply.send(topItems);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to get top items');
+        return reply.status(500).send({ 
+          error: 'Failed to get top items', 
+          message: error.message 
+        });
+      }
+    },
+  });
+
+  // Sales Trend
+  fastify.get('/sales-trend', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
+        const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+
+        const trend = await analyticsService.getSalesTrend(storeId, start, end);
+        return reply.send(trend);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to get sales trend');
+        return reply.status(500).send({ 
+          error: 'Failed to get sales trend', 
+          message: error.message 
+        });
+      }
+    },
+  });
+
+  // Payment Mix
+  fastify.get('/payment-mix', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
+        const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+
+        const paymentMix = await analyticsService.getPaymentMix(storeId, start, end);
+        return reply.send(paymentMix);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to get payment mix');
+        return reply.status(500).send({ 
+          error: 'Failed to get payment mix', 
+          message: error.message 
+        });
+      }
+    },
+  });
+
+  // Time Heatmap
+  fastify.get('/time-heatmap', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = request.user.storeId;
+        const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
+
+        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+
+        const heatmap = await analyticsService.getTimeHeatmap(storeId, start, end);
+        return reply.send(heatmap);
+      } catch (error: any) {
+        request.log.error(error, 'Failed to get time heatmap');
+        return reply.status(500).send({ 
+          error: 'Failed to get time heatmap', 
+          message: error.message 
+        });
+      }
+    },
+  });
+
+  // Delivery KPIs (placeholder - returns empty for now)
+  fastify.get('/delivery-kpis', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        // Placeholder for delivery KPIs
+        return reply.send({ 
+          totalDeliveries: 0,
+          avgDeliveryTime: 0,
+          onTimeRate: 0,
+        });
+      } catch (error: any) {
+        request.log.error(error, 'Failed to get delivery KPIs');
+        return reply.status(500).send({ 
+          error: 'Failed to get delivery KPIs', 
+          message: error.message 
+        });
+      }
+    },
+  });
 }
