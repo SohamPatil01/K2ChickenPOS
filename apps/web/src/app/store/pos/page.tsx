@@ -673,30 +673,32 @@ export default function StorePOSPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 sm:mb-3 md:mb-4 pb-2 sm:pb-3 md:pb-4 border-b border-gray-200/40 dark:border-gray-700/40 gap-2 sm:gap-3 flex-shrink-0 px-2 sm:px-0">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-semibold text-gray-800 dark:text-gray-100 mb-0.5 sm:mb-1 leading-tight tracking-tight truncate">
-            Point of Sale
-          </h1>
-          <p className="text-[10px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
-            Browse products and build your order
-          </p>
-        </div>
-        <div className="grid grid-cols-2 sm:flex sm:gap-1.5 md:gap-2.5 flex-shrink-0 w-full sm:w-auto gap-1.5">
+      <div className="relative mb-4 sm:mb-6 pb-4 sm:pb-6 flex-shrink-0 px-2 sm:px-0">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-800 rounded-2xl sm:rounded-3xl opacity-50 dark:opacity-30"></div>
+        <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent mb-1 sm:mb-2 leading-tight tracking-tight">
+              Point of Sale
+            </h1>
+            <p className="text-xs sm:text-sm md:text-base text-gray-600 dark:text-gray-300 font-medium">
+              Browse products and build your order
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:flex sm:gap-2 md:gap-3 flex-shrink-0 w-full sm:w-auto gap-2">
           <button
             onClick={() => setIsCategoriesVisible(!isCategoriesVisible)}
-            className="px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-[0.98] font-medium flex items-center justify-center gap-1 sm:gap-1.5 md:gap-2 shadow-sm hover:shadow transition-all duration-200 touch-target text-[10px] sm:text-xs md:text-sm backdrop-blur-sm border border-gray-200/50 dark:border-gray-600/50 min-h-[44px]"
+            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 rounded-xl sm:rounded-2xl hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-600 dark:hover:to-gray-700 active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 touch-target text-xs sm:text-sm border border-gray-200/50 dark:border-gray-600/50 min-h-[48px] backdrop-blur-sm"
             aria-label="Toggle categories"
           >
-            <span className="text-sm sm:text-base md:text-lg">📁</span>
+            <span className="text-base sm:text-lg md:text-xl">📁</span>
             <span className="hidden sm:inline md:hidden">Cat</span>
             <span className="hidden md:inline">Categories</span>
           </button>
           <button
             onClick={() => setShowAddItemModal(true)}
-            className="px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1 sm:gap-1.5 md:gap-2 shadow-sm hover:shadow-md transition-all duration-200 touch-target text-[10px] sm:text-xs md:text-sm min-h-[44px]"
+            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 touch-target text-xs sm:text-sm min-h-[48px] transform hover:scale-105"
           >
-            <span className="text-sm sm:text-base md:text-lg">+</span>
+            <span className="text-lg sm:text-xl md:text-2xl font-bold">+</span>
             <span className="hidden sm:inline md:hidden">Add</span>
             <span className="hidden md:inline">Add Item</span>
           </button>
@@ -708,9 +710,9 @@ export default function StorePOSPage() {
               }
               setShowQuickCheckout(true);
             }}
-            className="px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1 sm:gap-1.5 md:gap-2 shadow-sm hover:shadow-md transition-all duration-200 relative touch-target text-[10px] sm:text-xs md:text-sm group min-h-[44px]"
+            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl sm:rounded-2xl active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 relative touch-target text-xs sm:text-sm group min-h-[48px] transform hover:scale-105"
           >
-            <span className="text-sm sm:text-base md:text-lg group-hover:scale-105 transition-transform duration-200">
+            <span className="text-base sm:text-lg md:text-xl group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300">
               ⚡
             </span>
             <span className="hidden sm:inline md:hidden">Pay</span>
@@ -718,32 +720,34 @@ export default function StorePOSPage() {
           </button>
           <Link
             href="/store/cart"
-            className="px-2 sm:px-3 md:px-4 lg:px-5 py-2 sm:py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg sm:rounded-xl active:scale-[0.98] font-medium flex items-center justify-center gap-1 sm:gap-1.5 md:gap-2 shadow-sm hover:shadow-md transition-all duration-200 relative touch-target text-[10px] sm:text-xs md:text-sm group min-h-[44px]"
+            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl sm:rounded-2xl active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 relative touch-target text-xs sm:text-sm group min-h-[48px] transform hover:scale-105"
           >
-            <span className="text-sm sm:text-base md:text-lg group-hover:scale-105 transition-transform duration-200">
+            <span className="text-base sm:text-lg md:text-xl group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300">
               🛒
             </span>
             <span className="hidden sm:inline md:hidden">Cart</span>
             <span className="hidden md:inline">Cart</span>
             <span
-              className={`rounded-full px-1 sm:px-1.5 md:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[10px] md:text-xs font-medium min-w-[18px] sm:min-w-[20px] md:min-w-[24px] text-center transition-all duration-200 ${
+              className={`absolute -top-1 -right-1 rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-bold min-w-[22px] text-center transition-all duration-300 shadow-md ${
                 items.length > 0
-                  ? "bg-white/90 text-brand-600 shadow-sm"
-                  : "bg-white/20 text-white/70"
+                  ? "bg-white text-purple-600 scale-100 animate-pulse"
+                  : "bg-white/20 text-white/70 scale-0"
               }`}
             >
               {items.length}
             </span>
           </Link>
+          </div>
         </div>
       </div>
 
       {/* Categories Bar - Top (Hidden by default, shown when clicked) */}
       {isCategoriesVisible && (
-        <div className="mb-2 sm:mb-3 md:mb-4 flex-shrink-0 px-2 sm:px-0">
-          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl shadow-sm dark:shadow-md p-2 sm:p-3 md:p-4 border border-gray-200/40 dark:border-gray-700/40">
-            <div className="flex items-center justify-between mb-1.5 sm:mb-2 md:mb-3">
-              <h2 className="font-medium text-gray-700 dark:text-gray-300 text-xs sm:text-sm md:text-base tracking-tight">
+        <div className="mb-3 sm:mb-4 md:mb-6 flex-shrink-0 px-2 sm:px-0">
+          <div className="relative bg-gradient-to-br from-white/90 to-gray-50/90 dark:from-gray-800/90 dark:to-gray-900/90 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl p-4 sm:p-5 md:p-6 border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5"></div>
+            <div className="relative flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="font-bold text-gray-800 dark:text-gray-100 text-sm sm:text-base md:text-lg tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
                 Categories
               </h2>
               <button
@@ -766,13 +770,13 @@ export default function StorePOSPage() {
                 </svg>
               </button>
             </div>
-            <div className="flex flex-wrap gap-1 sm:gap-1.5 md:gap-2">
+            <div className="flex flex-wrap gap-2 sm:gap-2.5 md:gap-3">
               <button
                 onClick={() => setSelectedCategory(null)}
-                className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md transition-all duration-200 font-medium text-[10px] sm:text-xs md:text-sm min-h-[36px] sm:min-h-[40px] ${
+                className={`px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition-all duration-300 font-semibold text-xs sm:text-sm md:text-base min-h-[44px] sm:min-h-[48px] transform hover:scale-105 active:scale-95 ${
                   !selectedCategory
-                    ? "bg-brand-500/90 text-white shadow-sm"
-                    : "bg-gray-100/80 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/60 border border-gray-200/50 dark:border-gray-600/50"
+                    ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg scale-105"
+                    : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 border border-gray-300/50 dark:border-gray-600/50 shadow-md hover:shadow-lg"
                 }`}
               >
                 All Products
@@ -781,10 +785,10 @@ export default function StorePOSPage() {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-md transition-all duration-200 font-medium text-[10px] sm:text-xs md:text-sm min-h-[36px] sm:min-h-[40px] ${
+                  className={`px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition-all duration-300 font-semibold text-xs sm:text-sm md:text-base min-h-[44px] sm:min-h-[48px] transform hover:scale-105 active:scale-95 ${
                     selectedCategory === cat.id
-                      ? "bg-brand-500/90 text-white shadow-sm"
-                      : "bg-gray-100/80 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700/60 border border-gray-200/50 dark:border-gray-600/50"
+                      ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg scale-105"
+                      : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 border border-gray-300/50 dark:border-gray-600/50 shadow-md hover:shadow-lg"
                   }`}
                 >
                   {cat.name}
@@ -798,9 +802,11 @@ export default function StorePOSPage() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-2 sm:gap-3 md:gap-4 min-h-0 overflow-hidden px-2 sm:px-0">
         {/* Center: Products Area */}
-        <div className="flex-1 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl shadow-sm dark:shadow-md p-2 sm:p-3 md:p-4 lg:p-5 overflow-hidden flex flex-col min-h-0 h-full border border-gray-200/30 dark:border-gray-700/30">
+        <div className="flex-1 relative bg-gradient-to-br from-white/80 via-gray-50/80 to-white/80 dark:from-gray-800/80 dark:via-gray-900/80 dark:to-gray-800/80 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl p-4 sm:p-5 md:p-6 lg:p-8 overflow-hidden flex flex-col min-h-0 h-full border border-gray-200/50 dark:border-gray-700/50">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none"></div>
+          <div className="relative flex flex-col min-h-0 h-full">
           {/* Search and Barcode Inputs */}
-          <div className="mb-2 sm:mb-3 md:mb-4 lg:mb-6 space-y-1.5 sm:space-y-2 md:space-y-3 flex-shrink-0">
+          <div className="mb-4 sm:mb-5 md:mb-6 lg:mb-8 space-y-3 sm:space-y-4 flex-shrink-0">
             <form onSubmit={handleBarcodeSubmit} className="relative">
               <input
                 ref={barcodeInputRef}
@@ -808,7 +814,7 @@ export default function StorePOSPage() {
                 placeholder="Scan barcode or enter SKU..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 rounded-lg dark:text-white focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base border-2 border-gray-300/60 dark:border-gray-600/60 rounded-xl sm:rounded-2xl dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 touch-target transition-all duration-300 shadow-lg hover:shadow-xl bg-white/90 dark:bg-gray-800/60 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 font-medium"
               />
               <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
                 <svg
@@ -876,7 +882,7 @@ export default function StorePOSPage() {
                           }, 200);
                         }
                       }}
-                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 pl-9 sm:pl-10 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg dark:placeholder-gray-400 focus:ring-1 focus:ring-brand-400/40 focus:border-brand-400/60 touch-target transition-all duration-200 shadow-sm hover:shadow bg-white/80 dark:bg-gray-800/40 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pl-11 sm:pl-12 text-sm sm:text-base border-2 border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-xl sm:rounded-2xl dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/80 touch-target transition-all duration-300 shadow-lg hover:shadow-xl bg-white/90 dark:bg-gray-800/60 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 font-medium"
                     />
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                       <svg
@@ -894,14 +900,14 @@ export default function StorePOSPage() {
                       </svg>
                     </div>
                     {searchQuery && (
-                      <button
-                        onClick={() => {
-                          setSearchQuery("");
-                          setIsSearchExpanded(false);
-                        }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 p-2 rounded-xl hover:bg-gray-100/80 dark:hover:bg-gray-700/80 hover:scale-110"
-                        aria-label="Clear search"
-                      >
+                    <button
+                      onClick={() => {
+                        setSearchQuery("");
+                        setIsSearchExpanded(false);
+                      }}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-all duration-300 p-2 rounded-xl hover:bg-red-50/80 dark:hover:bg-red-900/20 hover:scale-110 transform"
+                      aria-label="Clear search"
+                    >
                         <svg
                           className="w-5 h-5"
                           fill="none"
@@ -939,7 +945,7 @@ export default function StorePOSPage() {
           )}
 
           {/* Products Grid */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto -mx-2 px-2">
             {loading.products ? (
               <>
                 {Array.from({ length: 12 }).map((_, i) => (
@@ -974,7 +980,7 @@ export default function StorePOSPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-1.5 sm:gap-2 md:gap-2.5 lg:gap-3 overflow-y-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 lg:gap-6 overflow-y-auto">
                 {filteredProducts.map((product, index) => {
                   const isLocked = product.productMaster?.isHQLocked;
                   const displayPrice =
@@ -984,15 +990,17 @@ export default function StorePOSPage() {
                     <button
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
-                      className="group flex flex-col h-full p-1.5 sm:p-2 md:p-2.5 lg:p-3 border border-gray-200/40 dark:border-gray-700/40 rounded-md sm:rounded-lg md:rounded-xl hover:border-brand-300/60 dark:hover:border-brand-500/40 hover:bg-brand-50/30 dark:hover:bg-brand-900/10 hover:shadow-md transition-all duration-200 bg-white/70 dark:bg-gray-800/50 active:scale-[0.98] touch-target backdrop-blur-sm overflow-hidden min-h-[100px] sm:min-h-[120px] md:min-h-[140px]"
+                      className="group relative flex flex-col h-full p-3 sm:p-4 md:p-5 border-2 border-gray-200/60 dark:border-gray-700/60 rounded-2xl sm:rounded-3xl hover:border-blue-400/80 dark:hover:border-blue-500/60 hover:bg-gradient-to-br hover:from-blue-50/50 hover:via-purple-50/30 hover:to-pink-50/50 dark:hover:from-blue-900/20 dark:hover:via-purple-900/10 dark:hover:to-pink-900/20 hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white/90 to-gray-50/90 dark:from-gray-800/80 dark:to-gray-900/80 active:scale-[0.97] touch-target backdrop-blur-sm overflow-hidden min-h-[120px] sm:min-h-[140px] md:min-h-[160px] transform hover:scale-105 hover:-translate-y-1"
                     >
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-300 rounded-2xl"></div>
+                      <div className="relative z-10 flex flex-col h-full">
                       {/* Product Image */}
-                      <div className="mb-1 sm:mb-2 md:mb-3 flex justify-center items-center transform group-hover:scale-105 transition-all duration-200 flex-shrink-0">
+                      <div className="mb-2 sm:mb-3 md:mb-4 flex justify-center items-center transform group-hover:scale-110 group-hover:rotate-2 transition-all duration-300 flex-shrink-0">
                         {product.imageUrl ? (
                           <img
                             src={product.imageUrl}
                             alt={product.name}
-                            className="w-full max-w-[50px] sm:max-w-[60px] md:max-w-[70px] lg:max-w-[80px] h-[50px] sm:h-[60px] md:h-[70px] lg:h-[80px] object-cover rounded-md sm:rounded-lg shadow-sm group-hover:shadow-md transition-all duration-200"
+                            className="w-full max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] h-[60px] sm:h-[70px] md:h-[80px] lg:h-[90px] object-cover rounded-xl sm:rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-300 ring-2 ring-gray-200/50 group-hover:ring-blue-400/50"
                             onError={(e) => {
                               // Show placeholder instead of hiding
                               const target = e.target as HTMLImageElement;
@@ -1006,34 +1014,34 @@ export default function StorePOSPage() {
                           />
                         ) : null}
                         <div
-                          className={`w-full max-w-[50px] sm:max-w-[60px] md:max-w-[70px] lg:max-w-[80px] h-[50px] sm:h-[60px] md:h-[70px] lg:h-[80px] bg-gray-100 dark:bg-gray-700/50 rounded-md sm:rounded-lg flex items-center justify-center shadow-sm ${
+                          className={`w-full max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] h-[60px] sm:h-[70px] md:h-[80px] lg:h-[90px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg ring-2 ring-gray-200/50 group-hover:ring-blue-400/50 transition-all duration-300 ${
                             product.imageUrl ? "hidden" : ""
                           }`}
                         >
-                          <span className="text-gray-400 dark:text-gray-500 text-xl sm:text-2xl md:text-3xl">
+                          <span className="text-gray-500 dark:text-gray-400 text-2xl sm:text-3xl md:text-4xl group-hover:scale-110 transition-transform duration-300">
                             📦
                           </span>
                         </div>
                       </div>
 
                       {/* Product Details */}
-                      <div className="flex-1 flex flex-col justify-between min-h-0 space-y-0.5 sm:space-y-1 md:space-y-2">
+                      <div className="flex-1 flex flex-col justify-between min-h-0 space-y-2 sm:space-y-2.5 md:space-y-3">
                         {/* Product Name */}
-                        <div className="font-medium text-[10px] sm:text-xs md:text-sm mb-1 sm:mb-1.5 line-clamp-2 dark:text-gray-100 text-left transition-colors duration-200 text-gray-800 leading-tight min-h-[2rem] sm:min-h-[2.5rem]">
+                        <div className="font-bold text-xs sm:text-sm md:text-base mb-2 sm:mb-2.5 line-clamp-2 dark:text-gray-100 text-left transition-colors duration-300 text-gray-900 leading-tight min-h-[2.5rem] sm:min-h-[3rem] group-hover:text-blue-600 dark:group-hover:text-blue-400">
                           {product.name}
                         </div>
 
                         {/* Price Section */}
-                        <div className="flex items-baseline gap-0.5 sm:gap-1 mb-1 sm:mb-1.5 flex-wrap">
-                          <span className="text-xs sm:text-sm md:text-base lg:text-lg font-semibold text-brand-600 dark:text-brand-400 whitespace-nowrap">
+                        <div className="flex items-baseline gap-1 sm:gap-1.5 mb-2 sm:mb-2.5 flex-wrap bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg sm:rounded-xl p-2 sm:p-2.5">
+                          <span className="text-sm sm:text-base md:text-lg lg:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent whitespace-nowrap">
                             ₹{displayPrice.toFixed(2)}
                           </span>
-                          <span className="text-[9px] sm:text-[10px] md:text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                          <span className="text-[10px] sm:text-xs md:text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap font-semibold">
                             /{product.unitType}
                           </span>
                           {isLocked && (
                             <span
-                              className="ml-auto text-[10px] sm:text-xs flex-shrink-0 opacity-60"
+                              className="ml-auto text-xs sm:text-sm flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"
                               title="Price Locked"
                             >
                               🔒
@@ -1042,32 +1050,34 @@ export default function StorePOSPage() {
                         </div>
 
                         {/* SKU and Category */}
-                        <div className="space-y-0.5 sm:space-y-1 pt-1 sm:pt-1.5 border-t border-gray-200/40 dark:border-gray-700/40 mt-auto">
-                          <div className="flex items-center justify-between bg-gray-50/40 dark:bg-gray-700/20 rounded px-1 sm:px-1.5 py-0.5 sm:py-1 min-w-0">
-                            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-shrink-0">
+                        <div className="space-y-1.5 sm:space-y-2 pt-2 sm:pt-2.5 border-t-2 border-gray-200/60 dark:border-gray-700/60 mt-auto">
+                          <div className="flex items-center justify-between bg-gradient-to-r from-gray-100/80 to-gray-200/80 dark:from-gray-700/40 dark:to-gray-800/40 rounded-lg sm:rounded-xl px-2 sm:px-2.5 py-1.5 sm:py-2 min-w-0 shadow-sm">
+                            <span className="text-[9px] sm:text-[10px] md:text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider flex-shrink-0">
                               SKU
                             </span>
-                            <span className="text-[9px] sm:text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate ml-1.5 min-w-0">
+                            <span className="text-[10px] sm:text-xs font-semibold text-gray-800 dark:text-gray-200 truncate ml-2 min-w-0">
                               {product.sku}
                             </span>
                           </div>
                           {product.categoryName && (
-                            <div className="flex items-center justify-between bg-gray-50/40 dark:bg-gray-700/20 rounded px-1.5 py-1 min-w-0">
-                              <span className="text-[9px] sm:text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex-shrink-0">
+                            <div className="flex items-center justify-between bg-gradient-to-r from-purple-100/80 to-pink-100/80 dark:from-purple-900/30 dark:to-pink-900/30 rounded-lg sm:rounded-xl px-2 sm:px-2.5 py-1.5 sm:py-2 min-w-0 shadow-sm">
+                              <span className="text-[10px] sm:text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider flex-shrink-0">
                                 Cat
                               </span>
-                              <span className="text-[9px] sm:text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate ml-1.5 min-w-0">
+                              <span className="text-[10px] sm:text-xs font-semibold text-purple-800 dark:text-purple-300 truncate ml-2 min-w-0">
                                 {product.categoryName}
                               </span>
                             </div>
                           )}
                         </div>
                       </div>
+                      </div>
                     </button>
                   );
                 })}
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
