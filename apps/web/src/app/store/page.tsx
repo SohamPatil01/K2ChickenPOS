@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { SkeletonStatCard, Skeleton, SkeletonCard, SkeletonText } from '@/components/ui';
+import { exportCSV } from '@/lib/exportCSV';
 
 interface DashboardStats {
   today: {
@@ -537,7 +538,7 @@ export default function StoreDashboardPage() {
       {/* Background Pattern */}
       <div className="absolute top-0 right-0 opacity-10">
         <div className="text-7xl">{icon}</div>
-      </div>
+        </div>
       
       {/* Content */}
       <div className="relative z-10">
@@ -621,11 +622,11 @@ export default function StoreDashboardPage() {
             <span className="hidden sm:inline">{autoRefresh ? 'Auto ✓' : 'Auto ✗'}</span>
             <span className="sm:hidden">{autoRefresh ? '⟳' : '⊗'}</span>
           </button>
-          {userRole && (
+        {userRole && (
             <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-lg font-medium text-xs sm:text-sm lg:text-base touch-target">
-              {userRole}
-            </div>
-          )}
+            {userRole}
+          </div>
+        )}
         </div>
       </div>
 
@@ -837,8 +838,8 @@ export default function StoreDashboardPage() {
             <div className="flex items-center gap-2 text-white/80 text-xs">
               <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
               <span>of total</span>
-            </div>
           </div>
+            </div>
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">UPI</span>
@@ -850,8 +851,8 @@ export default function StoreDashboardPage() {
             <div className="flex items-center gap-2 text-white/80 text-xs">
               <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.upi / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
               <span>of total</span>
-            </div>
           </div>
+            </div>
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Card</span>
@@ -863,8 +864,8 @@ export default function StoreDashboardPage() {
             <div className="flex items-center gap-2 text-white/80 text-xs">
               <span>{stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.card / stats.paymentBreakdown.total) * 100).toFixed(1) : 0}%</span>
               <span>of total</span>
-            </div>
           </div>
+            </div>
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Other</span>
