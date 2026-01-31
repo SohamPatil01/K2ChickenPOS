@@ -173,6 +173,12 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           roles: ["OWNER"],
         },
         {
+          label: "Advanced Analytics",
+          href: "/store/analytics/advanced",
+          icon: "🔬",
+          roles: ["OWNER"],
+        },
+        {
           label: "HQ Dashboard",
           href: "/hq",
           icon: "🏢",
