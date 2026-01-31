@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import { useAuthStore } from '@/store/auth';
@@ -43,56 +43,70 @@ export default function HQPage() {
 
   useEffect(() => {
     if (user === undefined) {
+      console.log('[HQ Dashboard] User still loading...');
       return; // Still loading
     }
 
     if (!user) {
+      console.log('[HQ Dashboard] No user, redirecting to login');
       router.push('/login');
       return;
     }
     
     if (user.role !== 'OWNER') {
+      console.log('[HQ Dashboard] User is not OWNER, redirecting to store:', user.role);
       router.push('/store');
       return;
     }
 
-    // Only load dashboard if user is OWNER and authenticated
-    // Don't include dateRange in dependencies to avoid re-running auth checks
-  }, [user, router]);
+    // Load dashboard when user is authenticated and OWNER
+    if (user.role === 'OWNER' && user.storeId) {
+      console.log('[HQ Dashboard] User is OWNER, loading dashboard...', { storeId: user.storeId });
+      loadDashboard();
+    } else {
+      console.log('[HQ Dashboard] Missing storeId:', { role: user.role, storeId: user.storeId });
+    }
+  }, [user, router, loadDashboard]);
 
-  // Separate effect for loading dashboard when dateRange changes
+  // Separate effect for reloading dashboard when dateRange changes (but not on initial mount)
   useEffect(() => {
-    if (user?.role === 'OWNER' && user?.storeId && !loading) {
+    if (user?.role === 'OWNER' && user?.storeId && dashboard !== null) {
+      // Only reload if dashboard data already exists (not initial load)
+      console.log('[HQ Dashboard] Date range changed, reloading...');
       loadDashboard();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange]);
+  }, [dateRange, user, dashboard, loadDashboard]);
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     if (!user?.storeId) {
+      console.log('[HQ Dashboard] Store ID missing:', user);
       setError('Store ID is missing');
       setLoading(false);
       return;
     }
 
     if (user.role !== 'OWNER') {
+      console.log('[HQ Dashboard] User is not OWNER:', user.role);
       return; // Don't load if not OWNER
     }
 
+    console.log('[HQ Dashboard] Loading dashboard data...', { storeId: user.storeId, dateRange });
     setLoading(true);
     setError(null);
     try {
       const response = await api.get('/api/v1/hq/dashboard', {
         params: dateRange,
       });
+      console.log('[HQ Dashboard] Data loaded successfully:', response.data);
       setDashboard(response.data);
     } catch (error: any) {
-      console.error('Failed to load HQ dashboard:', error);
+      console.error('[HQ Dashboard] Failed to load:', error);
+      console.error('[HQ Dashboard] Error response:', error.response?.data);
       setError(error.response?.data?.error || 'Failed to load HQ dashboard');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, dateRange]);
 
   const StatCard = ({ title, value, subtitle, icon, gradient }: { 
     title: string; 
