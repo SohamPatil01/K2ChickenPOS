@@ -209,7 +209,7 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
               <YAxis />
-                <Tooltip formatter={(value: any) => `₹${value.toFixed(2)}`} />
+                <Tooltip formatter={(value: any) => `₹${value ? value.toFixed(2) : '0.00'}`} />
                 <Bar dataKey="revenue" fill="#f97316" name="Revenue (₹)" />
             </BarChart>
           </ResponsiveContainer>
@@ -232,7 +232,7 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="hour" label={{ value: 'Hour', position: 'insideBottom', offset: -5 }} />
               <YAxis />
-                <Tooltip formatter={(value: any) => `₹${value.toFixed(2)}`} />
+                <Tooltip formatter={(value: any) => `₹${value ? value.toFixed(2) : '0.00'}`} />
                 <Bar dataKey="total" fill="#facc15" name="Revenue (₹)" />
             </BarChart>
           </ResponsiveContainer>
@@ -257,7 +257,7 @@ export default function AnalyticsPage() {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => `${name} ${percent ? (percent * 100).toFixed(0) : '0'}%`}
                 outerRadius={80}
                 fill="#f97316"
                 dataKey="total"
@@ -266,7 +266,7 @@ export default function AnalyticsPage() {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-                <Tooltip formatter={(value: any) => `₹${value.toFixed(2)}`} />
+                <Tooltip formatter={(value: any) => `₹${value ? value.toFixed(2) : '0.00'}`} />
             </PieChart>
           </ResponsiveContainer>
           )}
@@ -279,19 +279,19 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-4 gap-4">
             <div>
               <div className="text-sm text-gray-600">Total Deliveries</div>
-              <div className="text-2xl font-bold">{deliveryKPIs.total}</div>
+              <div className="text-2xl font-bold">{deliveryKPIs.total || 0}</div>
             </div>
             <div>
               <div className="text-sm text-gray-600">Delivered</div>
-              <div className="text-2xl font-bold text-accent-600">{deliveryKPIs.delivered}</div>
+              <div className="text-2xl font-bold text-accent-600">{deliveryKPIs.delivered || 0}</div>
             </div>
             <div>
               <div className="text-sm text-gray-600">Success Rate</div>
-              <div className="text-2xl font-bold">{deliveryKPIs.successRate.toFixed(1)}%</div>
+              <div className="text-2xl font-bold">{deliveryKPIs.successRate ? deliveryKPIs.successRate.toFixed(1) : '0.0'}%</div>
             </div>
             <div>
               <div className="text-sm text-gray-600">Avg Delivery Time</div>
-              <div className="text-2xl font-bold">{deliveryKPIs.avgDeliveryTimeMinutes} min</div>
+              <div className="text-2xl font-bold">{deliveryKPIs.avgDeliveryTimeMinutes || 0} min</div>
             </div>
           </div>
         </div>
