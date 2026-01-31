@@ -338,7 +338,12 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
       try {
         const storeId = (getUser(request) as any).storeId;
         const userId = (getUser(request) as any).userId;
-        const { startDate, endDate } = (request.query as any);
+        const { id } = request.params as { id: string };
+
+        if (!id) {
+          reply.code(400).send({ error: 'Daily closing ID is required' });
+          return;
+        }
 
         const closing = await prisma.dailyClosing.findUnique({
           where: { id },
