@@ -4,7 +4,7 @@ import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface SimpleLineChartProps {
-  data: Array<{ name: string; value: number; [key: string]: any }>;
+  data: Array<{ [key: string]: any }>;
   dataKey?: string;
   xAxisKey?: string;
   title?: string;

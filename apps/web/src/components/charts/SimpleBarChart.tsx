@@ -4,7 +4,7 @@ import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface SimpleBarChartProps {
-  data: Array<{ name: string; value: number; [key: string]: any }>;
+  data: Array<{ [key: string]: any }>;
   dataKey?: string;
   xAxisKey?: string;
   title?: string;

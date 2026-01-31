@@ -4,10 +4,12 @@ import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface SimplePieChartProps {
-  data: Array<{ name: string; value: number }>;
+  data: Array<{ [key: string]: any }>;
   title?: string;
   height?: number;
   colors?: string[];
+  dataKey?: string;
+  nameKey?: string;
 }
 
 // Professional, muted color palette - no flashy colors
@@ -27,6 +29,8 @@ export const SimplePieChart: React.FC<SimplePieChartProps> = ({
   title,
   height = 300,
   colors = DEFAULT_COLORS,
+  dataKey = 'value',
+  nameKey = 'name',
 }) => {
   return (
     <div className="w-full">
@@ -42,10 +46,11 @@ export const SimplePieChart: React.FC<SimplePieChartProps> = ({
             cx="50%"
             cy="50%"
             labelLine={false}
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+            label={(entry) => `${entry[nameKey]} ${(entry.percent * 100).toFixed(0)}%`}
             outerRadius={80}
             fill="#8884d8"
-            dataKey="value"
+            dataKey={dataKey}
+            nameKey={nameKey}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
