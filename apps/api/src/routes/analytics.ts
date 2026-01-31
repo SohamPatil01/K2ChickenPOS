@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
-import { authenticate } from '../utils/auth';
-import { analyticsService } from '../services/analyticsService';
-import { alertService } from '../services/alertService';
+import { authenticate } from '../utils/auth.js';
+import { analyticsService } from '../services/analyticsService.js';
+import { alertService } from '../services/alertService.js';
 import { z } from 'zod';
 
 const forecastSchema = z.object({
