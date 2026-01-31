@@ -18,7 +18,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
+} from "recharts";
 import Skeleton from "@/components/ui/Skeleton";
 import { exportToCSV } from "@/lib/exportCSV";
 
@@ -318,47 +318,55 @@ export default function AdvancedAnalyticsPage() {
             {forecast.historical && forecast.historical.length > 0 ? (
               <div className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={forecast.historical.slice(-30).map((h) => ({
-                    date: h?.date ? h.date.substring(5) : "",
-                    actual: h?.actual ?? 0,
-                    ma7: h?.ma7 ?? 0,
-                    ma30: h?.ma30 ?? 0,
-                  }))}>
+                  <LineChart
+                    data={forecast.historical.slice(-30).map((h) => ({
+                      date: h?.date ? h.date.substring(5) : "",
+                      actual: h?.actual ?? 0,
+                      ma7: h?.ma7 ?? 0,
+                      ma30: h?.ma30 ?? 0,
+                    }))}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       stroke="#6b7280"
                       tick={{ fontSize: 12 }}
                     />
                     <YAxis stroke="#6b7280" />
-                    <Tooltip 
-                      formatter={(value: any) => `₹${value ? value.toLocaleString('en-IN') : '0'}`}
-                      contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                    <Tooltip
+                      formatter={(value: any) =>
+                        `₹${value ? value.toLocaleString("en-IN") : "0"}`
+                      }
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                      }}
                     />
                     <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="actual" 
-                      stroke="#3b82f6" 
+                    <Line
+                      type="monotone"
+                      dataKey="actual"
+                      stroke="#3b82f6"
                       strokeWidth={2}
-                      name="Actual Sales" 
+                      name="Actual Sales"
                       dot={{ r: 3 }}
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="ma7" 
-                      stroke="#10b981" 
+                    <Line
+                      type="monotone"
+                      dataKey="ma7"
+                      stroke="#10b981"
                       strokeWidth={2}
                       strokeDasharray="5 5"
-                      name="7-Day Average" 
+                      name="7-Day Average"
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="ma30" 
-                      stroke="#f59e0b" 
+                    <Line
+                      type="monotone"
+                      dataKey="ma30"
+                      stroke="#f59e0b"
                       strokeWidth={2}
                       strokeDasharray="3 3"
-                      name="30-Day Average" 
+                      name="30-Day Average"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -378,10 +386,23 @@ export default function AdvancedAnalyticsPage() {
                   Last 7 Days
                 </h3>
                 <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                  ₹{forecast.historical.slice(-7).reduce((sum: number, h: any) => sum + (h.actual || 0), 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  ₹
+                  {forecast.historical
+                    .slice(-7)
+                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0)
+                    .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                  Average: ₹{Math.round(forecast.historical.slice(-7).reduce((sum: number, h: any) => sum + (h.actual || 0), 0) / 7).toLocaleString('en-IN')} per day
+                  Average: ₹
+                  {Math.round(
+                    forecast.historical
+                      .slice(-7)
+                      .reduce(
+                        (sum: number, h: any) => sum + (h.actual || 0),
+                        0
+                      ) / 7
+                  ).toLocaleString("en-IN")}{" "}
+                  per day
                 </p>
               </div>
               <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 rounded-lg p-6 border border-cyan-200 dark:border-cyan-800">
@@ -389,10 +410,23 @@ export default function AdvancedAnalyticsPage() {
                   Previous 7 Days
                 </h3>
                 <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
-                  ₹{forecast.historical.slice(-14, -7).reduce((sum: number, h: any) => sum + (h.actual || 0), 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  ₹
+                  {forecast.historical
+                    .slice(-14, -7)
+                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0)
+                    .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                 </p>
                 <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
-                  Average: ₹{Math.round(forecast.historical.slice(-14, -7).reduce((sum: number, h: any) => sum + (h.actual || 0), 0) / 7).toLocaleString('en-IN')} per day
+                  Average: ₹
+                  {Math.round(
+                    forecast.historical
+                      .slice(-14, -7)
+                      .reduce(
+                        (sum: number, h: any) => sum + (h.actual || 0),
+                        0
+                      ) / 7
+                  ).toLocaleString("en-IN")}{" "}
+                  per day
                 </p>
               </div>
               <div className="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-900/20 dark:to-violet-800/20 rounded-lg p-6 border border-violet-200 dark:border-violet-800">
@@ -400,16 +434,28 @@ export default function AdvancedAnalyticsPage() {
                   Week-over-Week Change
                 </h3>
                 {(() => {
-                  const lastWeek = forecast.historical.slice(-7).reduce((sum: number, h: any) => sum + (h.actual || 0), 0);
-                  const prevWeek = forecast.historical.slice(-14, -7).reduce((sum: number, h: any) => sum + (h.actual || 0), 0);
-                  const change = prevWeek > 0 ? ((lastWeek - prevWeek) / prevWeek) * 100 : 0;
+                  const lastWeek = forecast.historical
+                    .slice(-7)
+                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0);
+                  const prevWeek = forecast.historical
+                    .slice(-14, -7)
+                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0);
+                  const change =
+                    prevWeek > 0 ? ((lastWeek - prevWeek) / prevWeek) * 100 : 0;
                   return (
                     <>
-                      <p className={`text-2xl font-bold ${change >= 0 ? 'text-violet-900 dark:text-violet-100' : 'text-red-600 dark:text-red-400'}`}>
-                        {change >= 0 ? '+' : ''}{change.toFixed(1)}%
+                      <p
+                        className={`text-2xl font-bold ${
+                          change >= 0
+                            ? "text-violet-900 dark:text-violet-100"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {change >= 0 ? "+" : ""}
+                        {change.toFixed(1)}%
                       </p>
                       <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-                        {change >= 0 ? 'Growth' : 'Decline'} vs previous week
+                        {change >= 0 ? "Growth" : "Decline"} vs previous week
                       </p>
                     </>
                   );

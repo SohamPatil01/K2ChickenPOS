@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { SkeletonStatCard, Skeleton, SkeletonCard, SkeletonText } from '@/components/ui';
 import { exportToCSV } from '@/lib/exportCSV';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface DashboardStats {
   today: {
@@ -602,6 +603,22 @@ export default function StoreDashboardPage() {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
+            onClick={() => {
+              const data = {
+                today: stats?.today,
+                month: stats?.month,
+                paymentBreakdown: stats?.paymentBreakdown,
+                topProducts: stats?.topProducts,
+              };
+              exportToCSV({ data: [data], filename: `dashboard_export_${new Date().toISOString().split('T')[0]}.csv` });
+            }}
+            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors touch-target flex items-center gap-1"
+            title="Export dashboard data"
+          >
+            <span>📥</span>
+            <span className="hidden sm:inline">Export</span>
+          </button>
+          <button
             onClick={handleManualRefresh}
             disabled={loading}
             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors touch-target flex items-center gap-1"
@@ -632,6 +649,61 @@ export default function StoreDashboardPage() {
 
       {/* Key Metrics - Modern Console Style */}
       <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* Quick Insights Bar */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Performance</p>
+              <p className="text-lg font-bold text-blue-900 dark:text-blue-100 mt-1">
+                {stats.yesterday.revenue > 0 
+                  ? `${((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue * 100).toFixed(1)}%`
+                  : 'N/A'}
+              </p>
+            </div>
+            <span className="text-3xl">
+              {stats.yesterday.revenue > 0 && stats.today.revenue > stats.yesterday.revenue ? '📈' : 
+               stats.yesterday.revenue > 0 && stats.today.revenue < stats.yesterday.revenue ? '📉' : '➡️'}
+            </span>
+          </div>
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+            {stats.yesterday.revenue > 0 && stats.today.revenue > stats.yesterday.revenue ? 'Up from yesterday' :
+             stats.yesterday.revenue > 0 && stats.today.revenue < stats.yesterday.revenue ? 'Down from yesterday' :
+             'No comparison data'}
+          </p>
+        </div>
+        
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-green-700 dark:text-green-300 uppercase tracking-wide">Avg Order Value</p>
+              <p className="text-lg font-bold text-green-900 dark:text-green-100 mt-1">
+                ₹{stats.today.avgBill.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <span className="text-3xl">💎</span>
+          </div>
+          <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+            {stats.today.count > 0 ? `${stats.today.count} orders today` : 'No orders yet'}
+          </p>
+        </div>
+        
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Monthly Progress</p>
+              <p className="text-lg font-bold text-purple-900 dark:text-purple-100 mt-1">
+                {stats.month.count} sales
+              </p>
+            </div>
+            <span className="text-3xl">🎯</span>
+          </div>
+          <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+            ₹{stats.month.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} this month
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 mb-6">
         <StatCard
           title="Today's Revenue"
@@ -885,49 +957,71 @@ export default function StoreDashboardPage() {
       {/* Charts Section */}
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Sales Trend Chart */}
+          {/* Sales Trend Chart - Using Recharts */}
           <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">📈</span>
                 7-Day Revenue Trend
               </h2>
+              <button
+                onClick={() => {
+                  const chartData = [
+                    { day: 'Last Week', revenue: stats.lastWeek.revenue },
+                    { day: 'Day -5', revenue: stats.lastWeek.revenue * 0.9 },
+                    { day: 'Day -4', revenue: stats.lastWeek.revenue * 1.1 },
+                    { day: 'Day -3', revenue: stats.lastWeek.revenue * 0.95 },
+                    { day: 'Day -2', revenue: stats.lastWeek.revenue * 1.05 },
+                    { day: 'Yesterday', revenue: stats.yesterday.revenue },
+                    { day: 'Today', revenue: stats.today.revenue },
+                  ];
+                  exportToCSV({ data: chartData, filename: `revenue_trend_${new Date().toISOString().split('T')[0]}.csv` });
+                }}
+                className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              >
+                📥 Export
+              </button>
             </div>
-            <div className="flex items-end justify-between h-64 gap-3">
-              {[
-                { day: 'Last Week', value: stats.lastWeek.revenue },
-                { day: 'Day -5', value: stats.lastWeek.revenue * 0.9 },
-                { day: 'Day -4', value: stats.lastWeek.revenue * 1.1 },
-                { day: 'Day -3', value: stats.lastWeek.revenue * 0.95 },
-                { day: 'Day -2', value: stats.lastWeek.revenue * 1.05 },
-                { day: 'Yesterday', value: stats.yesterday.revenue },
-                { day: 'Today', value: stats.today.revenue },
-              ].map((item, idx) => {
-                const maxValue = Math.max(stats.today.revenue, stats.yesterday.revenue, stats.lastWeek.revenue, 1);
-                const heightPx = Math.max((item.value / maxValue) * 240, 8); // 240px = h-64 minus space for labels
-                const isToday = idx === 6;
-                return (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
-                    <div className="relative w-full flex items-end justify-center" style={{ height: '240px' }}>
-                      <div 
-                        className={`w-full rounded-t-lg transition-all duration-300 group-hover:scale-105 ${
-                          isToday 
-                            ? 'bg-gradient-to-t from-brand-500 to-brand-400 shadow-lg' 
-                            : 'bg-gradient-to-t from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-500'
-                        }`}
-                        style={{ height: `${heightPx}px` }}
-                      />
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-xs py-1 px-2 rounded whitespace-nowrap z-10">
-                        ₹{item.value.toLocaleString()}
-                      </div>
-                    </div>
-                    <span className={`text-xs font-medium ${isToday ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
-                      {idx === 0 ? 'W-1' : idx === 5 ? 'Yest' : idx === 6 ? 'Today' : `D-${7-idx}`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={[
+                { day: 'Last Week', revenue: stats.lastWeek.revenue },
+                { day: 'Day -5', revenue: stats.lastWeek.revenue * 0.9 },
+                { day: 'Day -4', revenue: stats.lastWeek.revenue * 1.1 },
+                { day: 'Day -3', revenue: stats.lastWeek.revenue * 0.95 },
+                { day: 'Day -2', revenue: stats.lastWeek.revenue * 1.05 },
+                { day: 'Yesterday', revenue: stats.yesterday.revenue },
+                { day: 'Today', revenue: stats.today.revenue },
+              ]}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="day" 
+                  stroke="#6b7280"
+                  tick={{ fontSize: 12 }}
+                />
+                <YAxis 
+                  stroke="#6b7280"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip 
+                  formatter={(value: any) => `₹${value.toLocaleString('en-IN')}`}
+                  contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="revenue" 
+                  stroke="#3b82f6" 
+                  fillOpacity={1} 
+                  fill="url(#colorRevenue)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
             <div className="mt-6 grid grid-cols-3 gap-3 text-xs">
               <div className="text-center p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <span className="text-gray-600 dark:text-gray-400 block mb-1">Last Week</span>
@@ -944,81 +1038,91 @@ export default function StoreDashboardPage() {
             </div>
           </div>
 
-          {/* Payment Method Pie Chart */}
+          {/* Payment Method Pie Chart - Using Recharts */}
           <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">🥧</span>
                 Payment Distribution
               </h2>
+              <button
+                onClick={() => {
+                  const paymentData = [
+                    { method: 'Cash', amount: stats.paymentBreakdown.cash },
+                    { method: 'UPI', amount: stats.paymentBreakdown.upi },
+                    { method: 'Card', amount: stats.paymentBreakdown.card },
+                    { method: 'Other', amount: stats.paymentBreakdown.other },
+                  ];
+                  exportToCSV({ data: paymentData, filename: `payment_distribution_${new Date().toISOString().split('T')[0]}.csv` });
+                }}
+                className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              >
+                📥 Export
+              </button>
             </div>
-            <div className="flex items-center justify-center mb-6">
-              {/* Simple Pie Chart using conic gradient */}
-              <div className="relative w-48 h-48">
-                {stats.paymentBreakdown.total > 0 ? (
-                  <>
-                    <div 
-                      className="w-full h-full rounded-full shadow-lg"
-                      style={{
-                        background: `conic-gradient(
-                          from 0deg,
-                          #10b981 0deg ${(stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 360}deg,
-                          #3b82f6 ${(stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 360}deg ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi) / stats.paymentBreakdown.total) * 360}deg,
-                          #8b5cf6 ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi) / stats.paymentBreakdown.total) * 360}deg ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi + stats.paymentBreakdown.card) / stats.paymentBreakdown.total) * 360}deg,
-                          #f59e0b ${((stats.paymentBreakdown.cash + stats.paymentBreakdown.upi + stats.paymentBreakdown.card) / stats.paymentBreakdown.total) * 360}deg 360deg
-                        )`
-                      }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-28 h-28 bg-white dark:bg-gray-800 rounded-full shadow-inner flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
-                          <div className="text-lg font-bold text-gray-900 dark:text-white">₹{Math.round(stats.paymentBreakdown.total / 1000)}K</div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                    <span className="text-gray-400">No data</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-2">
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Cash', value: stats.paymentBreakdown.cash },
+                    { name: 'UPI', value: stats.paymentBreakdown.upi },
+                    { name: 'Card', value: stats.paymentBreakdown.card },
+                    { name: 'Other', value: stats.paymentBreakdown.other },
+                  ]}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  <Cell fill="#10b981" />
+                  <Cell fill="#3b82f6" />
+                  <Cell fill="#8b5cf6" />
+                  <Cell fill="#f59e0b" />
+                </Pie>
+                <Tooltip 
+                  formatter={(value: any) => `₹${value.toLocaleString('en-IN')}`}
+                  contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <div className="w-4 h-4 rounded-full bg-green-500"></div>
                 <div className="flex-1">
                   <div className="text-xs text-gray-600 dark:text-gray-400">Cash</div>
                   <div className="text-sm font-bold text-gray-900 dark:text-white">
-                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.cash / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                    ₹{Math.round(stats.paymentBreakdown.cash).toLocaleString()}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="w-4 h-4 rounded-full bg-blue-500"></div>
                 <div className="flex-1">
                   <div className="text-xs text-gray-600 dark:text-gray-400">UPI</div>
                   <div className="text-sm font-bold text-gray-900 dark:text-white">
-                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.upi / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                    ₹{Math.round(stats.paymentBreakdown.upi).toLocaleString()}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                 <div className="w-4 h-4 rounded-full bg-purple-500"></div>
                 <div className="flex-1">
                   <div className="text-xs text-gray-600 dark:text-gray-400">Card</div>
                   <div className="text-sm font-bold text-gray-900 dark:text-white">
-                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.card / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                    ₹{Math.round(stats.paymentBreakdown.card).toLocaleString()}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
                 <div className="w-4 h-4 rounded-full bg-orange-500"></div>
                 <div className="flex-1">
                   <div className="text-xs text-gray-600 dark:text-gray-400">Other</div>
                   <div className="text-sm font-bold text-gray-900 dark:text-white">
-                    {stats.paymentBreakdown.total > 0 ? ((stats.paymentBreakdown.other / stats.paymentBreakdown.total) * 100).toFixed(0) : 0}%
+                    ₹{Math.round(stats.paymentBreakdown.other).toLocaleString()}
                   </div>
                 </div>
               </div>
