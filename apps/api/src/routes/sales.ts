@@ -14,7 +14,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const status = (request.query as any).status;
       const startDate = (request.query as any).startDate;
       const endDate = (request.query as any).endDate;
-      
+
       // Try to get storeId from authenticated user, fallback to default store
       let storeId = '';
       let userId = '';
@@ -29,7 +29,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       } catch (error) {
         // Not authenticated, use oldest OWNER store as fallback
         console.log('[Sales API] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({ 
+        const defaultStore = await prisma.store.findFirst({
           where: { type: 'OWNER' },
           orderBy: { createdAt: 'asc' },
           select: { id: true, name: true, type: true, parentOwnerStoreId: true }
@@ -69,12 +69,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.log('[Sales API] Owner accessing sales from stores:', storeIds);
       }
 
-      const where: any = { 
-        storeId: userRole === 'OWNER' && userStore.type === 'OWNER' 
-          ? { in: storeIds } 
-          : storeId 
+      const where: any = {
+        storeId: userRole === 'OWNER' && userStore.type === 'OWNER'
+          ? { in: storeIds }
+          : storeId
       };
-      
+
       if (status) {
         where.status = status;
       }
@@ -119,10 +119,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
           storeId: true,
           customerId: true,
           createdByUserId: true,
-          items: { 
-            include: { 
-              product: true 
-            } 
+          items: {
+            include: {
+              product: true
+            }
           },
           customer: true,
           payments: true,
@@ -149,9 +149,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
       return sales;
     } catch (error: any) {
       console.error('Failed to get sales:', error);
-      reply.code(500).send({ 
+      reply.code(500).send({
         error: 'Failed to get sales',
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -162,7 +162,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Try to get user's store from authentication, fallback to default store
       let storeId = '';
       let userRole = '';
-      
+
       try {
         const user = getUser(request as any);
         storeId = user?.storeId || '';
@@ -170,7 +170,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       } catch (error) {
         // Not authenticated, use oldest OWNER store as fallback
         console.log('[Sales Dashboard] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({ 
+        const defaultStore = await prisma.store.findFirst({
           where: { type: 'OWNER' },
           orderBy: { createdAt: 'asc' },
           select: { id: true, name: true, type: true, parentOwnerStoreId: true }
@@ -178,14 +178,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
         storeId = defaultStore?.id || '';
         userRole = 'OWNER';
       }
-      
+
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
         return;
       }
-      
+
       // Verify store exists
-      const store = await prisma.store.findUnique({ 
+      const store = await prisma.store.findUnique({
         where: { id: storeId },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
@@ -208,75 +208,75 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.log('[Sales Dashboard] Owner accessing sales from stores:', storeIds);
       }
 
-    // Use UTC to avoid timezone issues - consistent with frontend
-    const todayStr = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD in UTC
-    const today = new Date(todayStr + 'T00:00:00.000Z');
-    const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
+      // Use UTC to avoid timezone issues - consistent with frontend
+      const todayStr = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD in UTC
+      const today = new Date(todayStr + 'T00:00:00.000Z');
+      const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
 
-    // Today's sales
-    const todaySales = await prisma.sale.findMany({
-      where: {
-        storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
-        status: 'PAID',
-        createdAt: { gte: today, lte: todayEnd },
-      },
-    });
+      // Today's sales
+      const todaySales = await prisma.sale.findMany({
+        where: {
+          storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
+          status: 'PAID',
+          createdAt: { gte: today, lte: todayEnd },
+        },
+      });
 
-    const todayRevenue = Math.round(todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
-    const todayCount = todaySales.length;
-    const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 1000) / 1000 : 0;
+      const todayRevenue = Math.round(todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
+      const todayCount = todaySales.length;
+      const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 1000) / 1000 : 0;
 
-    // This month - use UTC for consistency
-    const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-    const monthSales = await prisma.sale.findMany({
-      where: {
-        storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
-        status: 'PAID',
-        createdAt: { gte: monthStart },
-      },
-    });
+      // This month - use UTC for consistency
+      const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const monthSales = await prisma.sale.findMany({
+        where: {
+          storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
+          status: 'PAID',
+          createdAt: { gte: monthStart },
+        },
+      });
 
-    const monthRevenue = Math.round(monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
-    const monthCount = monthSales.length;
+      const monthRevenue = Math.round(monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
+      const monthCount = monthSales.length;
 
-    // Recent sales
-    const recentSales = await prisma.sale.findMany({
-      where: { 
-        storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId 
-      },
-      include: {
-        items: { include: { product: true } },
-        customer: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
+      // Recent sales
+      const recentSales = await prisma.sale.findMany({
+        where: {
+          storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId
+        },
+        include: {
+          items: { include: { product: true } },
+          customer: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
 
-    return {
-      today: {
-        revenue: todayRevenue,
-        count: todayCount,
-        avgBill: todayAvgBill,
-      },
-      month: {
-        revenue: monthRevenue,
-        count: monthCount,
-      },
-      recentSales: recentSales.map((s) => ({
-        id: s.id,
-        saleNo: s.saleNo,
-        grandTotal: s.grandTotal,
-        status: s.status,
-        createdAt: s.createdAt,
-        customerName: s.customer?.name || 'Walk-in',
-        itemCount: s.items.length,
-      })),
-    };
+      return {
+        today: {
+          revenue: todayRevenue,
+          count: todayCount,
+          avgBill: todayAvgBill,
+        },
+        month: {
+          revenue: monthRevenue,
+          count: monthCount,
+        },
+        recentSales: recentSales.map((s) => ({
+          id: s.id,
+          saleNo: s.saleNo,
+          grandTotal: s.grandTotal,
+          status: s.status,
+          createdAt: s.createdAt,
+          customerName: s.customer?.name || 'Walk-in',
+          itemCount: s.items.length,
+        })),
+      };
     } catch (error: any) {
       console.error('Dashboard error:', error);
-      reply.code(500).send({ 
+      reply.code(500).send({
         error: 'Failed to load dashboard',
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -348,7 +348,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       let saleNo: string;
       let attempts = 0;
       const maxAttempts = 5;
-      
+
       do {
         const count = await prisma.sale.count({
           where: {
@@ -360,7 +360,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         });
         saleNo = `SALE-${dateStr}-${String(count + 1 + attempts).padStart(4, '0')}`;
         attempts++;
-        
+
         // Check if this sale number already exists
         const existing = await prisma.sale.findUnique({
           where: {
@@ -370,11 +370,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
             },
           },
         });
-        
+
         if (!existing) {
           break; // Sale number is unique, proceed
         }
-        
+
         if (attempts >= maxAttempts) {
           // Fallback to timestamp-based number if we can't find a unique sequential one
           saleNo = `SALE-${dateStr}-${Date.now().toString().slice(-8)}`;
@@ -398,7 +398,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Check discount limit and lock status
       if (config?.isDiscountLocked) {
-        reply.code(403).send({ 
+        reply.code(403).send({
           error: 'Discount limits are locked by HQ. Discount overrides are not allowed.',
           locked: true,
         });
@@ -451,7 +451,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           // Only create ledger entry if there's actual quantity to deduct
           const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
           const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-          
+
           if (hasQtyKg || hasQtyPcs) {
             await prisma.inventoryLedger.create({
               data: {
@@ -578,7 +578,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         // Only create ledger entry if there's actual quantity to deduct
         const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
         const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-        
+
         if (hasQtyKg || hasQtyPcs) {
           await prisma.inventoryLedger.create({
             data: {
@@ -612,27 +612,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
       console.error('Error stack:', error.stack);
       console.error('Request body:', request.body);
       console.error('User:', getUser(request));
-      
+
       // Check for specific error types
       if (error.code === 'P2002') {
-        reply.code(400).send({ 
+        reply.code(400).send({
           error: 'Duplicate sale number. Please try again.',
-          details: error.message 
+          details: error.message
         });
         return;
       }
-      
+
       if (error.name === 'ZodError') {
-        reply.code(400).send({ 
+        reply.code(400).send({
           error: 'Invalid request data',
-          details: error.errors 
+          details: error.errors
         });
         return;
       }
-      
-      reply.code(500).send({ 
+
+      reply.code(500).send({
         error: 'Failed to create sale',
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -667,7 +667,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get user's role and store to check access
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { 
+        include: {
           store: {
             select: {
               id: true,
@@ -686,7 +686,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Check if user has access to this sale's store
       let hasAccess = false;
-      
+
       if (saleExists.storeId === storeId) {
         // Direct match - user's store matches sale's store
         hasAccess = true;
@@ -696,7 +696,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           where: { id: saleExists.storeId },
           select: { id: true, type: true, parentOwnerStoreId: true },
         });
-        
+
         if (saleStore && saleStore.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === storeId) {
           // Sale belongs to a franchise store owned by this user
           hasAccess = true;
@@ -705,7 +705,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       if (!hasAccess) {
         console.error('[Payment API] User does not have access to sale. Sale storeId:', saleExists.storeId, 'User storeId:', storeId, 'User role:', user.role);
-        reply.code(403).send({ 
+        reply.code(403).send({
           error: 'You do not have permission to process this sale',
           saleId: id,
           saleStoreId: saleExists.storeId,
@@ -718,10 +718,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Fetch sale with items and payments using the sale's storeId (not user's storeId)
       // This allows OWNER users to pay for sales from franchise stores
       const sale = await prisma.sale.findUnique({
-        where: { 
+        where: {
           id,
         },
-        include: { 
+        include: {
           items: { include: { product: true } },
           payments: true,
         },
@@ -767,7 +767,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
         // Check if discount override is pending
         if (discountOverride && discountOverride.status === 'PENDING') {
-          reply.code(400).send({ 
+          reply.code(400).send({
             error: 'Discount override is pending approval. Please wait for manager approval before processing payment.',
             requiresApproval: true,
           });
@@ -780,27 +780,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // Use existing payments already fetched (or fetch if not included)
-      const allExistingPayments = existingPayments.length > 0 
-        ? existingPayments 
+      const allExistingPayments = existingPayments.length > 0
+        ? existingPayments
         : await prisma.payment.findMany({ where: { saleId: id } });
       const currentTotalPaid = allExistingPayments.reduce((sum, p) => sum + p.amount, 0);
-      
+
       const newPaymentsTotal = payments.reduce((sum: any, p) => sum + p.amount, 0);
       const totalPaidAfter = currentTotalPaid + newPaymentsTotal;
-      
+
       // Round amounts for comparison
       const roundedTotalPaidAfter = Math.round(totalPaidAfter);
       const roundedGrandTotal = Math.round(sale.grandTotal);
-      
+
       // Check if any NEW payment is credit
       const hasNewCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
-      
+
       // For OPEN orders or credit orders (existing or new), allow partial payments
       // For credit orders, allow payments to pay off credit balance
       if (sale.status === 'OPEN' || hasCreditPayment || hasNewCreditPayment) {
         // Allow partial payments for OPEN orders or credit orders
         if (roundedTotalPaidAfter > roundedGrandTotal + 0.5) {
-          reply.code(400).send({ 
+          reply.code(400).send({
             error: 'Payment amount exceeds remaining balance',
             details: `Total paid: ₹${roundedTotalPaidAfter}, Grand total: ₹${roundedGrandTotal}`
           });
@@ -820,14 +820,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const paymentData = payments.map((p: any) => {
         // Normalize the method to uppercase and trim
         const methodStr = String(p.method || '').toUpperCase().trim();
-        
+
         if (!validPaymentMethods.includes(methodStr as PaymentMethod)) {
           throw new Error(`Invalid payment method: "${p.method}". Must be one of: ${validPaymentMethods.join(', ')}`);
         }
-        
+
         // Cast to PaymentMethod enum type
         const method = methodStr as PaymentMethod;
-        
+
         return {
           saleId: id,
           method: method,
@@ -837,7 +837,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
 
       console.log('[Payment] Creating payments:', JSON.stringify(paymentData, null, 2));
-      
+
       await prisma.payment.createMany({
         data: paymentData,
       });
@@ -846,10 +846,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Credit orders should always remain OPEN, even when fully paid
       // This allows tracking of credit sales separately
       let saleStatus = sale.status; // Keep current status initially
-      
+
       // Check if order has any CREDIT payment (existing or new)
       const hasAnyCreditPayment = hasCreditPayment || hasNewCreditPayment;
-      
+
       if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
         // Fully paid
         if (hasAnyCreditPayment) {
@@ -865,7 +865,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           saleStatus = 'OPEN'; // Keep as OPEN if credit order or was already OPEN
         }
       }
-      
+
       const updatedSale = await prisma.sale.update({
         where: { id },
         data: { status: saleStatus },
@@ -896,7 +896,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             // Only create ledger entry if there's actual quantity to deduct
             const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
             const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-            
+
             if (hasQtyKg || hasQtyPcs) {
               await prisma.inventoryLedger.create({
                 data: {
@@ -996,7 +996,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         code: error.code,
         stack: error.stack?.split('\n').slice(0, 5).join('\n'),
       });
-      reply.code(500).send({ 
+      reply.code(500).send({
         error: 'Failed to process payment',
         details: error.message || 'Unknown error',
         code: error.code,
@@ -1034,7 +1034,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get user's role and store to check access
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { 
+        include: {
           store: {
             select: {
               id: true,
@@ -1053,7 +1053,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Check if user has access to this sale's store
       let hasAccess = false;
-      
+
       if (saleExists.storeId === storeId) {
         // Direct match - user's store matches sale's store
         hasAccess = true;
@@ -1063,7 +1063,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           where: { id: saleExists.storeId },
           select: { id: true, type: true, parentOwnerStoreId: true },
         });
-        
+
         if (saleStore && saleStore.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === storeId) {
           // Sale belongs to a franchise store owned by this user
           hasAccess = true;
@@ -1072,7 +1072,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       if (!hasAccess) {
         console.error('[Void API] User does not have access to sale. Sale storeId:', saleExists.storeId, 'User storeId:', storeId, 'User role:', user.role);
-        reply.code(403).send({ 
+        reply.code(403).send({
           error: 'You do not have permission to void this sale',
           saleId: id,
           saleStoreId: saleExists.storeId,
@@ -1119,6 +1119,26 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       console.log(`[Void API] Found ${existingLedgers.length} inventory ledger entries to reverse for sale ${id}`);
 
+      // Check which reason values are available in the database enum
+      // Use ADJUSTMENT as it's guaranteed to exist and is semantically appropriate
+      const dbEnumCheck = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
+        SELECT enumlabel 
+        FROM pg_enum 
+        WHERE enumtypid = (
+          SELECT oid 
+          FROM pg_type 
+          WHERE typname = 'InventoryReason'
+        ) AND enumlabel IN ('ADJUSTMENT', 'CORRECTION', 'RETURN');
+      `;
+      
+      const availableReasons = dbEnumCheck.map(r => r.enumlabel);
+      // Prefer CORRECTION or RETURN if available, otherwise use ADJUSTMENT
+      const voidReason = availableReasons.includes('CORRECTION') 
+        ? 'CORRECTION' 
+        : availableReasons.includes('RETURN')
+        ? 'RETURN'
+        : 'ADJUSTMENT';
+
       // Restore inventory by creating IN entries for each OUT entry
       for (const ledger of existingLedgers) {
         // Only restore if there's actual quantity
@@ -1133,11 +1153,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
               type: 'IN', // Restore inventory
               qtyKg: hasQtyKg ? ledger.qtyKg : null,
               qtyPcs: hasQtyPcs ? ledger.qtyPcs : null,
-              reason: 'CORRECTION', // Use CORRECTION reason for voided sales (reversing inventory deduction)
+              reason: voidReason, // Use appropriate reason based on database enum availability
               refId: id,
             },
           });
-          console.log(`[Void API] Restored inventory for product ${ledger.productId}: ${ledger.qtyKg || 0} kg, ${ledger.qtyPcs || 0} pcs`);
+          console.log(`[Void API] Restored inventory for product ${ledger.productId}: ${ledger.qtyKg || 0} kg, ${ledger.qtyPcs || 0} pcs with reason ${voidReason}`);
         }
       }
 
@@ -1154,8 +1174,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
           action: 'SALE_VOIDED',
           entityType: 'Sale',
           entityId: id,
-          metaJson: { 
-            reason: reason || 'No reason provided', 
+          metaJson: {
+            reason: reason || 'No reason provided',
             userStoreId: storeId,
             inventoryRestored: existingLedgers.length,
           }, // Include user's storeId in metadata
@@ -1347,7 +1367,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         // Only create ledger entry if there's actual quantity to deduct
         const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
         const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-        
+
         if (hasQtyKg || hasQtyPcs) {
           await prisma.inventoryLedger.create({
             data: {
