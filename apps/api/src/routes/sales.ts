@@ -1119,26 +1119,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       console.log(`[Void API] Found ${existingLedgers.length} inventory ledger entries to reverse for sale ${id}`);
 
-      // Check which reason values are available in the database enum
-      // Use ADJUSTMENT as it's guaranteed to exist and is semantically appropriate
-      const dbEnumCheck = await prisma.$queryRaw<Array<{ enumlabel: string }>>`
-        SELECT enumlabel 
-        FROM pg_enum 
-        WHERE enumtypid = (
-          SELECT oid 
-          FROM pg_type 
-          WHERE typname = 'InventoryReason'
-        ) AND enumlabel IN ('ADJUSTMENT', 'CORRECTION', 'RETURN');
-      `;
-      
-      const availableReasons = dbEnumCheck.map(r => r.enumlabel);
-      // Prefer CORRECTION or RETURN if available, otherwise use ADJUSTMENT
-      const voidReason = availableReasons.includes('CORRECTION') 
-        ? 'CORRECTION' 
-        : availableReasons.includes('RETURN')
-        ? 'RETURN'
-        : 'ADJUSTMENT';
-
       // Restore inventory by creating IN entries for each OUT entry
       for (const ledger of existingLedgers) {
         // Only restore if there's actual quantity
@@ -1153,11 +1133,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
               type: 'IN', // Restore inventory
               qtyKg: hasQtyKg ? ledger.qtyKg : null,
               qtyPcs: hasQtyPcs ? ledger.qtyPcs : null,
-              reason: voidReason, // Use appropriate reason based on database enum availability
+              reason: 'ADJUSTMENT', // Use ADJUSTMENT reason for voided sales (adjusting inventory back)
               refId: id,
             },
           });
-          console.log(`[Void API] Restored inventory for product ${ledger.productId}: ${ledger.qtyKg || 0} kg, ${ledger.qtyPcs || 0} pcs with reason ${voidReason}`);
+          console.log(`[Void API] Restored inventory for product ${ledger.productId}: ${ledger.qtyKg || 0} kg, ${ledger.qtyPcs || 0} pcs`);
         }
       }
 
