@@ -49,6 +49,26 @@ BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
 if [ "$HTTP_STATUS" = "200" ]; then
     echo -e "${GREEN}✓ Backup triggered successfully!${NC}\n"
     echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+
+    # Print details section (size, timestamp, table counts)
+    if command -v jq >/dev/null 2>&1; then
+        BACKUP_SIZE=$(echo "$BODY" | jq -r '.backupSize // empty')
+        TS=$(echo "$BODY" | jq -r '.timestamp // empty')
+        echo ""
+        echo -e "${GREEN}=== Backup details ===${NC}"
+        echo -e "${BLUE}Timestamp:${NC} ${TS}"
+        if [ -n "$BACKUP_SIZE" ]; then
+            SIZE_KB=$((BACKUP_SIZE / 1024))
+            SIZE_MB=$(echo "scale=2; $BACKUP_SIZE / 1024 / 1024" | bc 2>/dev/null || echo "—")
+            echo -e "${BLUE}Size:${NC} ${BACKUP_SIZE} bytes (${SIZE_KB} KB)"
+            [ -n "$SIZE_MB" ] && [ "$SIZE_MB" != "—" ] && echo -e "        ${SIZE_MB} MB"
+        fi
+        TABLES=$(echo "$BODY" | jq -r '.tables // {} | to_entries[] | "  \(.key): \(.value)"' 2>/dev/null)
+        if [ -n "$TABLES" ]; then
+            echo -e "${BLUE}Table counts:${NC}"
+            echo "$TABLES"
+        fi
+    fi
 else
     echo -e "${RED}✗ Backup failed (HTTP $HTTP_STATUS)${NC}\n"
     echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
@@ -56,7 +76,7 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}=== Backup Complete ===${NC}"
+echo -e "${GREEN}=== Backup complete ===${NC}"
 echo -e "${BLUE}Check Vercel Blob Storage or your configured storage for the backup file.${NC}"
 
 
