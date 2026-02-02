@@ -661,6 +661,22 @@ export default function StorePOSPage() {
     return true;
   });
 
+  // Masale products: category Spices/Masale or name contains Masala/Masale (resolve category from list if needed)
+  const masaleProducts = products.filter((p) => {
+    const cat = (p.categoryName || categories.find((c) => c.id === p.categoryId)?.name || '').toLowerCase();
+    const name = (p.name || '').toLowerCase();
+    return (
+      cat.includes('spice') ||
+      cat.includes('masale') ||
+      name.includes('masala') ||
+      name.includes('masale')
+    );
+  });
+
+  const masaleIds = new Set(masaleProducts.map((p) => p.id));
+  // Main grid: same filters as filteredProducts but exclude Masale (they stay in top shelf only)
+  const productsForGrid = filteredProducts.filter((p) => !masaleIds.has(p.id));
+
   return (
     <div className="flex flex-col h-full min-h-0 w-full max-w-full overflow-hidden">
       {/* Cart Animation */}
@@ -673,34 +689,25 @@ export default function StorePOSPage() {
       )}
 
       {/* Header */}
-      <div className="relative mb-4 sm:mb-6 pb-4 sm:pb-6 flex-shrink-0 px-2 sm:px-0">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-800 rounded-2xl sm:rounded-3xl opacity-50 dark:opacity-30"></div>
-        <div className="relative flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6">
+      <div className="mb-3 flex-shrink-0 px-2">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent mb-1 sm:mb-2 leading-tight tracking-tight">
-              Point of Sale
-            </h1>
-            <p className="text-xs sm:text-sm md:text-base text-gray-600 dark:text-gray-300 font-medium">
-              Browse products and build your order
-            </p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Point of Sale</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Scan or tap products to add</p>
           </div>
-          <div className="grid grid-cols-2 sm:flex sm:gap-2 md:gap-3 flex-shrink-0 w-full sm:w-auto gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
           <button
             onClick={() => setIsCategoriesVisible(!isCategoriesVisible)}
-            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 rounded-xl sm:rounded-2xl hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-600 dark:hover:to-gray-700 active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-300 touch-target text-xs sm:text-sm border border-gray-200/50 dark:border-gray-600/50 min-h-[48px] backdrop-blur-sm"
+            className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center gap-2"
             aria-label="Toggle categories"
           >
-            <span className="text-base sm:text-lg md:text-xl">📁</span>
-            <span className="hidden sm:inline md:hidden">Cat</span>
-            <span className="hidden md:inline">Categories</span>
+            <span>📁</span> Categories
           </button>
           <button
             onClick={() => setShowAddItemModal(true)}
-            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 touch-target text-xs sm:text-sm min-h-[48px] transform hover:scale-105"
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
           >
-            <span className="text-lg sm:text-xl md:text-2xl font-bold">+</span>
-            <span className="hidden sm:inline md:hidden">Add</span>
-            <span className="hidden md:inline">Add Item</span>
+            <span>+</span> Add Item
           </button>
           <button
             onClick={() => {
@@ -710,28 +717,18 @@ export default function StorePOSPage() {
               }
               setShowQuickCheckout(true);
             }}
-            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl sm:rounded-2xl active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 relative touch-target text-xs sm:text-sm group min-h-[48px] transform hover:scale-105"
+            className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
           >
-            <span className="text-base sm:text-lg md:text-xl group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300">
-              ⚡
-            </span>
-            <span className="hidden sm:inline md:hidden">Pay</span>
-            <span className="hidden md:inline">Quick Pay</span>
+            ⚡ Quick Pay
           </button>
           <Link
             href="/store/cart"
-            className="px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl sm:rounded-2xl active:scale-[0.97] font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 relative touch-target text-xs sm:text-sm group min-h-[48px] transform hover:scale-105"
+            className="px-4 py-2.5 bg-gray-800 hover:bg-gray-900 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 relative"
           >
-            <span className="text-base sm:text-lg md:text-xl group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300">
-              🛒
-            </span>
-            <span className="hidden sm:inline md:hidden">Cart</span>
-            <span className="hidden md:inline">Cart</span>
+            🛒 Cart
             <span
-              className={`absolute -top-1 -right-1 rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-bold min-w-[22px] text-center transition-all duration-300 shadow-md ${
-                items.length > 0
-                  ? "bg-white text-purple-600 scale-100 animate-pulse"
-                  : "bg-white/20 text-white/70 scale-0"
+              className={`ml-1 rounded-full px-2 py-0.5 text-xs font-bold min-w-[20px] text-center ${
+                items.length > 0 ? "bg-white text-gray-800" : "hidden"
               }`}
             >
               {items.length}
@@ -741,42 +738,28 @@ export default function StorePOSPage() {
         </div>
       </div>
 
-      {/* Categories Bar - Top (Hidden by default, shown when clicked) */}
       {isCategoriesVisible && (
-        <div className="mb-3 sm:mb-4 md:mb-6 flex-shrink-0 px-2 sm:px-0">
-          <div className="relative bg-gradient-to-br from-white/90 to-gray-50/90 dark:from-gray-800/90 dark:to-gray-900/90 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl p-4 sm:p-5 md:p-6 border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5"></div>
-            <div className="relative flex items-center justify-between mb-3 sm:mb-4">
-              <h2 className="font-bold text-gray-800 dark:text-gray-100 text-sm sm:text-base md:text-lg tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                Categories
-              </h2>
+        <div className="mb-3 flex-shrink-0 px-2">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Categories</h2>
               <button
                 onClick={() => setIsCategoriesVisible(false)}
-                className="p-1 sm:p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 min-h-[32px] min-w-[32px] flex items-center justify-center"
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                 aria-label="Hide categories"
               >
-                <svg
-                  className="w-3.5 h-3.5 sm:w-4 sm:h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="flex flex-wrap gap-2 sm:gap-2.5 md:gap-3">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setSelectedCategory(null)}
-                className={`px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition-all duration-300 font-semibold text-xs sm:text-sm md:text-base min-h-[44px] sm:min-h-[48px] transform hover:scale-105 active:scale-95 ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium ${
                   !selectedCategory
-                    ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg scale-105"
-                    : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 border border-gray-300/50 dark:border-gray-600/50 shadow-md hover:shadow-lg"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >
                 All Products
@@ -785,10 +768,10 @@ export default function StorePOSPage() {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl transition-all duration-300 font-semibold text-xs sm:text-sm md:text-base min-h-[44px] sm:min-h-[48px] transform hover:scale-105 active:scale-95 ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium ${
                     selectedCategory === cat.id
-                      ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg scale-105"
-                      : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-200 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700 border border-gray-300/50 dark:border-gray-600/50 shadow-md hover:shadow-lg"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
                   {cat.name}
@@ -800,23 +783,22 @@ export default function StorePOSPage() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col gap-2 sm:gap-3 md:gap-4 min-h-0 overflow-hidden px-2 sm:px-0">
-        {/* Center: Products Area */}
-        <div className="flex-1 relative bg-gradient-to-br from-white/80 via-gray-50/80 to-white/80 dark:from-gray-800/80 dark:via-gray-900/80 dark:to-gray-800/80 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-xl dark:shadow-2xl p-4 sm:p-5 md:p-6 lg:p-8 overflow-hidden flex flex-col min-h-0 h-full border border-gray-200/50 dark:border-gray-700/50">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none"></div>
+      <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-hidden px-2">
+        <div className="flex-1 relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-5 overflow-hidden flex flex-col min-h-0">
           <div className="relative flex flex-col min-h-0 h-full">
           {/* Search and Barcode Inputs */}
-          <div className="mb-4 sm:mb-5 md:mb-6 lg:mb-8 space-y-3 sm:space-y-4 flex-shrink-0">
+          <div className="mb-4 space-y-3 flex-shrink-0">
             <form onSubmit={handleBarcodeSubmit} className="relative">
               <input
                 ref={barcodeInputRef}
                 type="text"
-                placeholder="Scan barcode or enter SKU..."
+                placeholder="Scan barcode or enter SKU... (Enter to add)"
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                className="w-full px-4 sm:px-5 py-3 sm:py-3.5 text-sm sm:text-base border-2 border-gray-300/60 dark:border-gray-600/60 rounded-xl sm:rounded-2xl dark:text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 touch-target transition-all duration-300 shadow-lg hover:shadow-xl bg-white/90 dark:bg-gray-800/60 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 font-medium"
+                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 placeholder:text-gray-400"
               />
-              <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+              <button type="submit" className="sr-only" tabIndex={-1}>Add barcode</button>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
                 <svg
                   className="w-4 h-4 sm:w-5"
                   fill="none"
@@ -834,11 +816,7 @@ export default function StorePOSPage() {
             </form>
             <div className="relative flex items-center w-full">
               <div
-                className={`relative transition-all duration-300 ease-out w-full ${
-                  isSearchExpanded || searchQuery
-                    ? "flex-1"
-                    : "w-12 sm:w-14 md:w-16"
-                }`}
+                className={`relative w-full ${isSearchExpanded || searchQuery ? "flex-1" : "w-10"}`}
               >
                 {!isSearchExpanded && !searchQuery ? (
                   <button
@@ -846,21 +824,11 @@ export default function StorePOSPage() {
                       setIsSearchExpanded(true);
                       setTimeout(() => searchInputRef.current?.focus(), 100);
                     }}
-                    className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-white/60 dark:bg-gray-800/40 border border-gray-300/60 dark:border-gray-600/60 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50/80 dark:hover:bg-gray-700/40 transition-all duration-200 shadow-sm hover:shadow touch-target"
+                    className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
                     aria-label="Search products"
                   >
-                    <svg
-                      className="w-5 h-5 text-gray-600 dark:text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </button>
                 ) : (
@@ -868,12 +836,11 @@ export default function StorePOSPage() {
                     <input
                       ref={searchInputRef}
                       type="text"
-                      placeholder="Search products..."
+                      placeholder="Search... (Enter to search)"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onFocus={() => setIsSearchExpanded(true)}
                       onBlur={() => {
-                        // Keep expanded if there's text, otherwise collapse after a delay
                         if (!searchQuery) {
                           setTimeout(() => {
                             if (!searchInputRef.current?.matches(":focus")) {
@@ -882,46 +849,23 @@ export default function StorePOSPage() {
                           }, 200);
                         }
                       }}
-                      className="w-full px-4 sm:px-5 py-3 sm:py-3.5 pl-11 sm:pl-12 text-sm sm:text-base border-2 border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-xl sm:rounded-2xl dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/80 touch-target transition-all duration-300 shadow-lg hover:shadow-xl bg-white/90 dark:bg-gray-800/60 backdrop-blur-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 font-medium"
+                      className="w-full px-4 py-3 pl-10 text-base border-2 border-gray-300 dark:border-gray-600 dark:text-white rounded-xl bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </div>
                     {searchQuery && (
                     <button
-                      onClick={() => {
-                        setSearchQuery("");
-                        setIsSearchExpanded(false);
-                      }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-all duration-300 p-2 rounded-xl hover:bg-red-50/80 dark:hover:bg-red-900/20 hover:scale-110 transform"
+                      onClick={() => { setSearchQuery(""); setIsSearchExpanded(false); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-1 rounded"
                       aria-label="Clear search"
                     >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2.5}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                     )}
                   </div>
                 )}
@@ -929,23 +873,49 @@ export default function StorePOSPage() {
             </div>
           </div>
 
-          {/* Price Lock Indicator */}
-          {franchiseConfig?.isPricingLocked && (
-            <div className="bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200/40 dark:border-amber-800/30 rounded-md p-2 mb-3 flex-shrink-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-amber-600 dark:text-amber-500 text-sm">
-                  🔒
-                </span>
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Pricing is locked by HQ. Manager PIN required for price
-                  overrides.
-                </p>
+          {/* Top shelf: Masale only — grid layout, tap to add 1 to cart */}
+          {masaleProducts.length > 0 && (
+            <div className="mb-4 flex-shrink-0 border-b-2 border-amber-200 dark:border-amber-800 pb-4">
+              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+                <span>🌶</span> Top shelf — Masale
+                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">(tap to add 1)</span>
+              </h3>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                {masaleProducts.map((product) => {
+                  const displayPrice =
+                    product.productMaster?.hqLockedPrice ?? product.pricePerUnit;
+                  const qtyKg = product.unitType === "KG" ? 1 : undefined;
+                  const qtyPcs = product.unitType === "PCS" ? 1 : undefined;
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => handleAddProductToCart(product, qtyKg, qtyPcs)}
+                      className="flex flex-col items-center justify-center p-3 border-2 border-amber-300 dark:border-amber-600 rounded-xl bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 active:scale-[0.97] cursor-pointer touch-manipulation"
+                    >
+                      <span className="text-lg mb-1" aria-hidden>🌶</span>
+                      <span className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 text-center w-full leading-tight">
+                        {product.name}
+                      </span>
+                      <span className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">
+                        ₹{displayPrice.toFixed(2)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
+          {franchiseConfig?.isPricingLocked && (
+            <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-3 flex-shrink-0 flex items-center gap-2">
+              <span className="text-amber-600">🔒</span>
+              <p className="text-xs text-amber-700 dark:text-amber-400">HQ locked price. Manager PIN to override.</p>
+            </div>
+          )}
+
           {/* Products Grid */}
-          <div className="flex-1 overflow-y-auto -mx-2 px-2">
+          <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
             {loading.products ? (
               <>
                 {Array.from({ length: 12 }).map((_, i) => (
@@ -973,15 +943,15 @@ export default function StorePOSPage() {
                   Products need to be added to the system
                 </p>
               </div>
-            ) : filteredProducts.length === 0 ? (
+            ) : productsForGrid.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 dark:text-gray-400">
                   No products match your search/filter
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 lg:gap-6 overflow-y-auto">
-                {filteredProducts.map((product, index) => {
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 overflow-y-auto">
+                {productsForGrid.map((product) => {
                   const isLocked = product.productMaster?.isHQLocked;
                   const displayPrice =
                     product.productMaster?.hqLockedPrice ||
@@ -990,87 +960,37 @@ export default function StorePOSPage() {
                     <button
                       key={product.id}
                       onClick={() => handleAddProduct(product)}
-                      className="group relative flex flex-col h-full p-3 sm:p-4 md:p-5 border-2 border-gray-200/60 dark:border-gray-700/60 rounded-2xl sm:rounded-3xl hover:border-blue-400/80 dark:hover:border-blue-500/60 hover:bg-gradient-to-br hover:from-blue-50/50 hover:via-purple-50/30 hover:to-pink-50/50 dark:hover:from-blue-900/20 dark:hover:via-purple-900/10 dark:hover:to-pink-900/20 hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-white/90 to-gray-50/90 dark:from-gray-800/80 dark:to-gray-900/80 active:scale-[0.97] touch-target backdrop-blur-sm overflow-hidden min-h-[120px] sm:min-h-[140px] md:min-h-[160px] transform hover:scale-105 hover:-translate-y-1"
+                      className="flex flex-col p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 active:scale-[0.98] text-left shadow-sm hover:shadow-md transition-all"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-blue-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-300 rounded-2xl"></div>
-                      <div className="relative z-10 flex flex-col h-full">
-                      {/* Product Image */}
-                      <div className="mb-2 sm:mb-3 md:mb-4 flex justify-center items-center transform group-hover:scale-110 group-hover:rotate-2 transition-all duration-300 flex-shrink-0">
+                      <div className="flex justify-center items-center mb-3 flex-shrink-0">
                         {product.imageUrl ? (
                           <img
                             src={product.imageUrl}
                             alt={product.name}
-                            className="w-full max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] h-[60px] sm:h-[70px] md:h-[80px] lg:h-[90px] object-cover rounded-xl sm:rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-300 ring-2 ring-gray-200/50 group-hover:ring-blue-400/50"
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
                             onError={(e) => {
-                              // Show placeholder instead of hiding
                               const target = e.target as HTMLImageElement;
                               target.style.display = "none";
-                              const placeholder =
-                                target.nextElementSibling as HTMLElement;
-                              if (placeholder) {
-                                placeholder.style.display = "flex";
-                              }
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) placeholder.style.display = "flex";
                             }}
                           />
                         ) : null}
                         <div
-                          className={`w-full max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] h-[60px] sm:h-[70px] md:h-[80px] lg:h-[90px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg ring-2 ring-gray-200/50 group-hover:ring-blue-400/50 transition-all duration-300 ${
-                            product.imageUrl ? "hidden" : ""
-                          }`}
+                          className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl sm:text-3xl ${product.imageUrl ? "hidden" : ""}`}
                         >
-                          <span className="text-gray-500 dark:text-gray-400 text-2xl sm:text-3xl md:text-4xl group-hover:scale-110 transition-transform duration-300">
-                            📦
-                          </span>
+                          📦
                         </div>
                       </div>
-
-                      {/* Product Details */}
-                      <div className="flex-1 flex flex-col justify-between min-h-0 space-y-2 sm:space-y-2.5 md:space-y-3">
-                        {/* Product Name */}
-                        <div className="font-bold text-xs sm:text-sm md:text-base mb-2 sm:mb-2.5 line-clamp-2 dark:text-gray-100 text-left transition-colors duration-300 text-gray-900 leading-tight min-h-[2.5rem] sm:min-h-[3rem] group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                          {product.name}
-                        </div>
-
-                        {/* Price Section */}
-                        <div className="flex items-baseline gap-1 sm:gap-1.5 mb-2 sm:mb-2.5 flex-wrap bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg sm:rounded-xl p-2 sm:p-2.5">
-                          <span className="text-sm sm:text-base md:text-lg lg:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent whitespace-nowrap">
-                            ₹{displayPrice.toFixed(2)}
-                          </span>
-                          <span className="text-[10px] sm:text-xs md:text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap font-semibold">
-                            /{product.unitType}
-                          </span>
-                          {isLocked && (
-                            <span
-                              className="ml-auto text-xs sm:text-sm flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"
-                              title="Price Locked"
-                            >
-                              🔒
-                            </span>
-                          )}
-                        </div>
-
-                        {/* SKU and Category */}
-                        <div className="space-y-1.5 sm:space-y-2 pt-2 sm:pt-2.5 border-t-2 border-gray-200/60 dark:border-gray-700/60 mt-auto">
-                          <div className="flex items-center justify-between bg-gradient-to-r from-gray-100/80 to-gray-200/80 dark:from-gray-700/40 dark:to-gray-800/40 rounded-lg sm:rounded-xl px-2 sm:px-2.5 py-1.5 sm:py-2 min-w-0 shadow-sm">
-                            <span className="text-[9px] sm:text-[10px] md:text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider flex-shrink-0">
-                              SKU
-                            </span>
-                            <span className="text-[10px] sm:text-xs font-semibold text-gray-800 dark:text-gray-200 truncate ml-2 min-w-0">
-                              {product.sku}
-                            </span>
-                          </div>
-                          {product.categoryName && (
-                            <div className="flex items-center justify-between bg-gradient-to-r from-purple-100/80 to-pink-100/80 dark:from-purple-900/30 dark:to-pink-900/30 rounded-lg sm:rounded-xl px-2 sm:px-2.5 py-1.5 sm:py-2 min-w-0 shadow-sm">
-                              <span className="text-[10px] sm:text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider flex-shrink-0">
-                                Cat
-                              </span>
-                              <span className="text-[10px] sm:text-xs font-semibold text-purple-800 dark:text-purple-300 truncate ml-2 min-w-0">
-                                {product.categoryName}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                      <div className="font-semibold text-sm sm:text-base line-clamp-2 text-gray-800 dark:text-gray-100 leading-snug min-h-[2.5rem]">
+                        {product.name}
                       </div>
+                      <div className="flex items-baseline gap-1 mt-2 flex-wrap">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                          ₹{displayPrice.toFixed(2)}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">/{product.unitType}</span>
+                        {isLocked && <span className="text-xs ml-1" title="Price locked">🔒</span>}
                       </div>
                     </button>
                   );

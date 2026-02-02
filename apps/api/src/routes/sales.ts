@@ -1124,7 +1124,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         // Only restore if there's actual quantity
         const hasQtyKg = ledger.qtyKg !== null && ledger.qtyKg !== undefined && ledger.qtyKg > 0;
         const hasQtyPcs = ledger.qtyPcs !== null && ledger.qtyPcs !== undefined && ledger.qtyPcs > 0;
-        
+
         if (hasQtyKg || hasQtyPcs) {
           await prisma.inventoryLedger.create({
             data: {

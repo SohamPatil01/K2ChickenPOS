@@ -37,6 +37,24 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
     };
   }, []);
 
+  // Enter key: ensure form submit works across entire POS/store (keyboard-friendly)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        const form = (target as HTMLInputElement).form;
+        if (form && typeof form.requestSubmit === "function") {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, []);
+
   const handleLogout = async () => {
     try {
       await api.post("/api/v1/auth/logout", {}, {
