@@ -22,6 +22,16 @@ import {
 import Skeleton from "@/components/ui/Skeleton";
 import { exportToCSV } from "@/lib/exportCSV";
 
+function formatForecastDate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return dateStr;
+  try {
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  } catch {
+    return dateStr;
+  }
+}
+
 interface Forecast {
   historical: Array<{
     date: string;
@@ -252,8 +262,22 @@ export default function AdvancedAnalyticsPage() {
       </div>
 
       {/* Sales Forecast Tab */}
-      {activeTab === "forecast" && forecast && (
+      {activeTab === "forecast" && (
         <div className="space-y-6">
+          {!forecast ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Could not load sales forecast. Please try again.
+              </p>
+              <button
+                onClick={loadAnalytics}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
@@ -470,7 +494,7 @@ export default function AdvancedAnalyticsPage() {
                         className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
                       >
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                          {f?.date || ""}
+                          {formatForecastDate(f?.date ?? "")}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
                           {typeof f.predicted === "number" && !Number.isNaN(f.predicted)
@@ -506,6 +530,49 @@ export default function AdvancedAnalyticsPage() {
               </table>
             </div>
           </div>
+
+          {/* Forecast preview: last 7 days actual + next 7 days predicted */}
+          {forecast.forecast?.length > 0 && forecast.historical?.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Forecast (next 7 days)
+              </h3>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={[
+                      ...forecast.historical.slice(-7).map((h) => ({
+                        date: formatForecastDate(h.date),
+                        actual: h.actual,
+                        predicted: undefined as number | undefined,
+                      })),
+                      ...forecast.forecast.map((f) => ({
+                        date: formatForecastDate(f.date),
+                        actual: undefined as number | undefined,
+                        predicted: f.predicted,
+                      })),
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 11 }} />
+                    <YAxis stroke="#6b7280" tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))} />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        value != null && !Number.isNaN(value) ? `₹${Number(value).toLocaleString("en-IN")}` : "",
+                        name || "",
+                      ]}
+                      contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px" }}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} name="Actual" dot={{ r: 3 }} connectNulls />
+                    <Line type="monotone" dataKey="predicted" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" name="Forecast" dot={{ r: 3 }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+            </>
+          )}
         </div>
       )}
 
