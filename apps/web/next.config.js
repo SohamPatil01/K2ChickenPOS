@@ -1,3 +1,7 @@
+const path = require('path');
+// Load root .env so NEXT_PUBLIC_* (e.g. NEXT_PUBLIC_HQ_CONSOLE_URL) work when defined at repo root
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,

@@ -60,6 +60,7 @@ export default function EnhancedDashboardPage() {
   const { user } = useAuthStore();
   const [dashboard, setDashboard] = useState<EnhancedDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [healthScores, setHealthScores] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -71,11 +72,16 @@ export default function EnhancedDashboardPage() {
       router.push('/login');
       return;
     }
+    if (typeof window !== 'undefined' && !localStorage.getItem('accessToken')) {
+      router.push('/login');
+      return;
+    }
     loadDashboard();
   }, [user, router, dateRange]);
 
   const loadDashboard = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [dashboardRes, healthScoresRes] = await Promise.all([
         api.get('/api/v1/hq/dashboard/enhanced', {
@@ -90,9 +96,17 @@ export default function EnhancedDashboardPage() {
       ]);
       setDashboard(dashboardRes.data);
       setHealthScores(healthScoresRes.data || []);
-    } catch (error: any) {
-      console.error('Failed to load enhanced dashboard:', error);
-      alert(error.response?.data?.error || 'Failed to load dashboard');
+    } catch (err: any) {
+      console.error('Failed to load enhanced dashboard:', err);
+      if (err?.response?.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (err?.isNetworkError || err?.code === 'ERR_NETWORK') {
+        setError('Cannot connect to the API. Make sure the server is running (e.g. port 3003).');
+      } else {
+        setError(err?.response?.data?.error || 'Failed to load dashboard');
+      }
     } finally {
       setLoading(false);
     }
@@ -128,6 +142,23 @@ export default function EnhancedDashboardPage() {
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
     }
   };
+
+  if (error) {
+    return (
+      <HQLayout>
+        <div className="text-center py-12 max-w-md mx-auto">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            type="button"
+            onClick={() => { setError(null); loadDashboard(); }}
+            className="px-4 py-2 bg-brand-600 text-white rounded-md hover:bg-brand-700"
+          >
+            Retry
+          </button>
+        </div>
+      </HQLayout>
+    );
+  }
 
   if (loading) {
     return (

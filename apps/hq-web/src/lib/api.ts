@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// HQ app runs on 3002; call the API server (3003) directly so CORS is handled by the API
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -18,11 +19,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle token refresh
+// Handle token refresh and network errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const isNetworkError = !error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error');
+
+    if (isNetworkError) {
+      (error as any).isNetworkError = true;
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
@@ -38,7 +45,11 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
         }
-      } catch (refreshError) {
+      } catch (refreshError: any) {
+        if (refreshError?.code === 'ERR_NETWORK' || refreshError?.message === 'Network Error') {
+          (refreshError as any).isNetworkError = true;
+          return Promise.reject(refreshError);
+        }
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';

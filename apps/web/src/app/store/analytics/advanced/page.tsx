@@ -279,33 +279,9 @@ export default function AdvancedAnalyticsPage() {
                 Avg Daily Sales
               </h3>
               <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
-                {/* #region agent log */}
-                {(() => {
-                  const val = forecast.avgDailySales;
-                  fetch(
-                    "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        location: "advanced/page.tsx:194",
-                        message: "avgDailySales value check",
-                        data: {
-                          value: val,
-                          isUndefined: val === undefined,
-                          isNull: val === null,
-                          type: typeof val,
-                        },
-                        timestamp: Date.now(),
-                        sessionId: "debug-session",
-                        runId: "run1",
-                        hypothesisId: "A",
-                      }),
-                    }
-                  ).catch(() => {});
-                  return val ? `₹${val.toLocaleString()}` : "₹0";
-                })()}
-                {/* #endregion */}
+                {typeof forecast.avgDailySales === "number" && !Number.isNaN(forecast.avgDailySales)
+                  ? `₹${forecast.avgDailySales.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                  : "₹0"}
               </p>
             </div>
           </div>
@@ -497,33 +473,9 @@ export default function AdvancedAnalyticsPage() {
                           {f?.date || ""}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                          {/* #region agent log */}
-                          {(() => {
-                            const val = f.predicted;
-                            if (val === undefined || val === null) {
-                              fetch(
-                                "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    location: "advanced/page.tsx:234",
-                                    message:
-                                      "predicted value is undefined/null",
-                                    data: { index, date: f.date, value: val },
-                                    timestamp: Date.now(),
-                                    sessionId: "debug-session",
-                                    runId: "run1",
-                                    hypothesisId: "A",
-                                  }),
-                                }
-                              ).catch(() => {});
-                            }
-                            return val ? `₹${val.toLocaleString()}` : "₹0";
-                          })()}
-                          {/* #endregion */}
+                          {typeof f.predicted === "number" && !Number.isNaN(f.predicted)
+                            ? `₹${f.predicted.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                            : "₹0"}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span
@@ -623,36 +575,9 @@ export default function AdvancedAnalyticsPage() {
                           {product.productName}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                          {/* #region agent log */}
-                          {(() => {
-                            const val = product.totalRevenue;
-                            if (val === undefined || val === null) {
-                              fetch(
-                                "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    location: "advanced/page.tsx:342",
-                                    message:
-                                      "totalRevenue is undefined/null in fastMoving",
-                                    data: {
-                                      productName: product.productName,
-                                      value: val,
-                                    },
-                                    timestamp: Date.now(),
-                                    sessionId: "debug-session",
-                                    runId: "run1",
-                                    hypothesisId: "A",
-                                  }),
-                                }
-                              ).catch(() => {});
-                            }
-                            return val ? `₹${val.toLocaleString()}` : "₹0";
-                          })()}
-                          {/* #endregion */}
+                          {typeof product.totalRevenue === "number" && !Number.isNaN(product.totalRevenue)
+                            ? `₹${product.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                            : "₹0"}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
                           {product.frequency || 0}
@@ -707,36 +632,9 @@ export default function AdvancedAnalyticsPage() {
                           {product.productName}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                          {/* #region agent log */}
-                          {(() => {
-                            const val = product.totalRevenue;
-                            if (val === undefined || val === null) {
-                              fetch(
-                                "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    location: "advanced/page.tsx:335",
-                                    message:
-                                      "totalRevenue is undefined/null in slowMoving",
-                                    data: {
-                                      productName: product.productName,
-                                      value: val,
-                                    },
-                                    timestamp: Date.now(),
-                                    sessionId: "debug-session",
-                                    runId: "run1",
-                                    hypothesisId: "A",
-                                  }),
-                                }
-                              ).catch(() => {});
-                            }
-                            return val ? `₹${val.toLocaleString()}` : "₹0";
-                          })()}
-                          {/* #endregion */}
+                          {typeof product.totalRevenue === "number" && !Number.isNaN(product.totalRevenue)
+                            ? `₹${product.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                            : "₹0"}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
                           {product.frequency || 0}
@@ -834,104 +732,19 @@ export default function AdvancedAnalyticsPage() {
                           {rec.productName}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                          {/* #region agent log */}
-                          {(() => {
-                            const val = rec.currentStock;
-                            if (val === undefined || val === null) {
-                              fetch(
-                                "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    location: "advanced/page.tsx:396",
-                                    message: "currentStock is undefined/null",
-                                    data: {
-                                      productName: rec.productName,
-                                      value: val,
-                                    },
-                                    timestamp: Date.now(),
-                                    sessionId: "debug-session",
-                                    runId: "run1",
-                                    hypothesisId: "A",
-                                  }),
-                                }
-                              ).catch(() => {});
-                            }
-                            return val !== undefined && val !== null
-                              ? val.toFixed(2)
-                              : "0.00";
-                          })()}
-                          {/* #endregion */}
+                          {typeof rec.currentStock === "number" && !Number.isNaN(rec.currentStock)
+                            ? rec.currentStock.toFixed(2)
+                            : "0.00"}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                          {/* #region agent log */}
-                          {(() => {
-                            const val = rec.reorderPoint;
-                            if (val === undefined || val === null) {
-                              fetch(
-                                "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    location: "advanced/page.tsx:399",
-                                    message: "reorderPoint is undefined/null",
-                                    data: {
-                                      productName: rec.productName,
-                                      value: val,
-                                    },
-                                    timestamp: Date.now(),
-                                    sessionId: "debug-session",
-                                    runId: "run1",
-                                    hypothesisId: "A",
-                                  }),
-                                }
-                              ).catch(() => {});
-                            }
-                            return val !== undefined && val !== null
-                              ? val.toFixed(2)
-                              : "0.00";
-                          })()}
-                          {/* #endregion */}
+                          {typeof rec.reorderPoint === "number" && !Number.isNaN(rec.reorderPoint)
+                            ? rec.reorderPoint.toFixed(2)
+                            : "0.00"}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
-                          {/* #region agent log */}
-                          {(() => {
-                            const val = rec.suggestedOrderQty;
-                            if (val === undefined || val === null) {
-                              fetch(
-                                "http://127.0.0.1:7242/ingest/1fb1209b-1b69-4e4d-9ecc-fb4e76f49e13",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  body: JSON.stringify({
-                                    location: "advanced/page.tsx:402",
-                                    message:
-                                      "suggestedOrderQty is undefined/null",
-                                    data: {
-                                      productName: rec.productName,
-                                      value: val,
-                                    },
-                                    timestamp: Date.now(),
-                                    sessionId: "debug-session",
-                                    runId: "run1",
-                                    hypothesisId: "A",
-                                  }),
-                                }
-                              ).catch(() => {});
-                            }
-                            return val !== undefined && val !== null
-                              ? val.toFixed(2)
-                              : "0.00";
-                          })()}
-                          {/* #endregion */}
+                          {typeof rec.suggestedOrderQty === "number" && !Number.isNaN(rec.suggestedOrderQty)
+                            ? rec.suggestedOrderQty.toFixed(2)
+                            : "0.00"}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span

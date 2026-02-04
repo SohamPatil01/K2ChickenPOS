@@ -50,9 +50,14 @@ export default function PricingPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [franchises, setFranchises] = useState<any[]>([]);
   const [franchiseConfigs, setFranchiseConfigs] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || user.role !== 'OWNER') {
+      router.push('/login');
+      return;
+    }
+    if (typeof window !== 'undefined' && !localStorage.getItem('accessToken')) {
       router.push('/login');
       return;
     }
@@ -61,6 +66,7 @@ export default function PricingPage() {
 
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       if (activeTab === 'plans') {
         const res = await api.get('/api/v1/hq/pricing-plans');
@@ -102,6 +108,14 @@ export default function PricingPage() {
       setFranchiseConfigs(configsRes.data);
     } catch (error: any) {
       console.error('Failed to load data:', error);
+      if (error?.isNetworkError || error?.code === 'ERR_NETWORK') {
+        setLoadError('Cannot connect to the API. Make sure the server is running (e.g. port 3003).');
+      } else if (error?.response?.status === 401) {
+        setLoadError('Session expired or not logged in. Redirecting to login...');
+        setTimeout(() => { window.location.href = '/login'; }, 1500);
+      } else {
+        setLoadError(error?.response?.data?.error || 'Failed to load data.');
+      }
     } finally {
       setLoading(false);
     }
@@ -179,7 +193,22 @@ export default function PricingPage() {
     }
   };
 
-  if (loading && pricingPlans.length === 0) {
+  if (loadError) {
+    return (
+      <HQLayout>
+        <div className="text-center py-12 max-w-md mx-auto">
+          <p className="text-red-600 dark:text-red-400 mb-4">{loadError}</p>
+          {!loadError.includes('Redirecting') && (
+            <Button variant="primary" onClick={() => { setLoadError(null); loadData(); }}>
+              Retry
+            </Button>
+          )}
+        </div>
+      </HQLayout>
+    );
+  }
+
+  if (loading && pricingPlans.length === 0 && products.length === 0) {
     return (
       <HQLayout>
         <div className="text-center py-12">

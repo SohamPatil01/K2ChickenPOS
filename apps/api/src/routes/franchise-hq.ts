@@ -37,17 +37,17 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
     try {
       const { startDate, endDate } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
-      
+
       // Try to get ownerStoreId from authenticated user, fallback to default store
       let ownerStoreId = '';
-      
+
       try {
         const user = getUser(request);
         ownerStoreId = (user as any).storeId || '';
       } catch (error) {
         // Not authenticated, use oldest OWNER store as fallback
         console.log('[HQ Dashboard] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({ 
+        const defaultStore = await prisma.store.findFirst({
           where: { type: 'OWNER' },
           orderBy: { createdAt: 'asc' },
           select: { id: true, name: true, type: true, parentOwnerStoreId: true }
@@ -60,7 +60,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const ownerStore = await prisma.store.findUnique({ 
+      const ownerStore = await prisma.store.findUnique({
         where: { id: ownerStoreId },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
@@ -78,7 +78,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       });
 
       const franchiseIds = franchises.map(f => f.id);
-      
+
       // Include owner store in the store IDs for aggregate data
       const allStoreIds = [ownerStoreId, ...franchiseIds];
 
@@ -199,7 +199,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         code: error.code,
         meta: error.meta,
       });
-      reply.code(500).send({ 
+      reply.code(500).send({
         error: 'Failed to load HQ dashboard',
         details: error.message || 'Unknown error',
       });
@@ -285,7 +285,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       const { franchiseId } = (request.query as any) || {};
       const ownerStoreId = (getUser(request) as any).storeId;
 
-      const ownerStore = await prisma.store.findUnique({ 
+      const ownerStore = await prisma.store.findUnique({
         where: { id: ownerStoreId },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
@@ -321,7 +321,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       // Get inventory for each franchise
       const inventoryData = await Promise.all(
         storeIds.map(async (storeId) => {
-          const store = await prisma.store.findUnique({ 
+          const store = await prisma.store.findUnique({
             where: { id: storeId },
             select: { id: true, name: true, type: true, parentOwnerStoreId: true }
           });
@@ -337,7 +337,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
               // Calculate kg and pcs separately (don't combine different units!)
               let totalQtyKg = 0;
               let totalQtyPcs = 0;
-              
+
               for (const ledger of ledgers) {
                 if (ledger.type === 'IN') {
                   totalQtyKg = Math.round((totalQtyKg + (ledger.qtyKg || 0)) * 100) / 100;
@@ -448,7 +448,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get payments and commissions
   fastify.get('/payments-commissions', async (request: any, reply: FastifyReply) => {
     try {
-      const { startDate, endDate } = (request.query as any) || {};
+      const { startDate, endDate, franchiseId } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
 
       const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
@@ -475,7 +475,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
 
       const franchisePayments = await Promise.all(
         storeIds.map(async (storeId) => {
-          const store = await prisma.store.findUnique({ 
+          const store = await prisma.store.findUnique({
             where: { id: storeId },
             select: { id: true, name: true, type: true, parentOwnerStoreId: true }
           });
@@ -495,14 +495,16 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             },
           });
 
-          const totalRevenue = sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0);
+          const totalRevenue = sales.reduce((sum: any, s: any) => sum + Number(s.grandTotal ?? 0), 0);
           const commission = totalRevenue * COMMISSION_RATE;
           const netPayment = totalRevenue - commission;
 
           // Payment method breakdown
           const paymentBreakdown = sales.reduce((acc: any, sale: any) => {
             sale.payments?.forEach((payment: any) => {
-              acc[payment.method] = (acc[payment.method] || 0) + payment.amount;
+              const method = payment.method ?? 'UNKNOWN';
+              const amount = Number(payment.amount ?? 0);
+              acc[method] = (acc[method] || 0) + amount;
             });
             return acc;
           }, {} as Record<string, number>);

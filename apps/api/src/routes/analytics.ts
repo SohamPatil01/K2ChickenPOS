@@ -19,37 +19,25 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     handler: async (request: any, reply) => {
       try {
         const storeId = request.user?.storeId;
-        const { days } = request.query as { days?: number };
-        
+        const rawDays = (request.query as { days?: string | number })?.days;
+        const days = rawDays != null
+          ? Math.min(30, Math.max(1, parseInt(String(rawDays), 10) || 7))
+          : 7;
+
         if (!storeId) {
-          return reply.status(400).send({ 
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
         }
-        
-        console.log('[Analytics Route] Forecast request:', { storeId, days: days || 7, hasStoreId: !!storeId });
 
-        const forecast = await analyticsService.forecastSales(storeId, days || 7);
-        
-        // #region agent log
-        console.log('[Analytics Route] Forecast response:', {
-          hasData: !!forecast,
-          hasHistorical: !!forecast?.historical,
-          historicalCount: forecast?.historical?.length,
-          hasForecast: !!forecast?.forecast,
-          forecastCount: forecast?.forecast?.length,
-          avgDailySales: forecast?.avgDailySales,
-          avgDailySalesType: typeof forecast?.avgDailySales,
-        });
-        // #endregion
-        
+        const forecast = await analyticsService.forecastSales(storeId, days);
         return reply.send(forecast);
       } catch (error: any) {
         request.log.error(error, 'Failed to generate sales forecast');
-        return reply.status(500).send({ 
-          error: 'Failed to generate forecast', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to generate forecast',
+          message: error.message,
         });
       }
     },
@@ -63,8 +51,8 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const storeId = request.user?.storeId;
         const { days } = request.query as { days?: number };
 
-      if (!storeId) {
-          return reply.status(400).send({ 
+        if (!storeId) {
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
@@ -74,13 +62,13 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send(demand);
       } catch (error: any) {
         request.log.error(error, 'Failed to predict demand');
-        return reply.status(500).send({ 
-          error: 'Failed to predict demand', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to predict demand',
+          message: error.message
         });
       }
-      },
-    });
+    },
+  });
 
   // Inventory Recommendations
   fastify.get('/inventory-recommendations', {
@@ -90,7 +78,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const storeId = request.user?.storeId;
 
         if (!storeId) {
-          return reply.status(400).send({ 
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
@@ -100,9 +88,9 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send(recommendations);
       } catch (error: any) {
         request.log.error(error, 'Failed to generate inventory recommendations');
-        return reply.status(500).send({ 
-          error: 'Failed to generate recommendations', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to generate recommendations',
+          message: error.message
         });
       }
     },
@@ -116,19 +104,19 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const { productId } = request.params;
 
         const avgCost = await analyticsService.calculateAverageCost(productId);
-        return reply.send({ 
-          productId, 
-          averageCost: Math.round(avgCost * 100) / 100 
+        return reply.send({
+          productId,
+          averageCost: Math.round(avgCost * 100) / 100
         });
       } catch (error: any) {
         request.log.error(error, 'Failed to calculate average cost');
-        return reply.status(500).send({ 
-          error: 'Failed to calculate average cost', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to calculate average cost',
+          message: error.message
         });
       }
-      },
-    });
+    },
+  });
 
   // Alerts
   fastify.get('/alerts', {
@@ -141,16 +129,16 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send({ alerts, count: alerts.length });
       } catch (error: any) {
         request.log.error(error, 'Failed to generate alerts');
-        return reply.status(500).send({ 
-          error: 'Failed to generate alerts', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to generate alerts',
+          message: error.message
         });
       }
     },
   });
 
   // Additional analytics endpoints for /analytics page
-  
+
   // Top Items
   fastify.get('/top-items', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
@@ -160,7 +148,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
 
         if (!storeId) {
-          return reply.status(400).send({ 
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
@@ -173,13 +161,13 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send(topItems);
       } catch (error: any) {
         request.log.error(error, 'Failed to get top items');
-        return reply.status(500).send({ 
-          error: 'Failed to get top items', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to get top items',
+          message: error.message
         });
       }
-      },
-    });
+    },
+  });
 
   // Sales Trend
   fastify.get('/sales-trend', {
@@ -190,7 +178,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
 
         if (!storeId) {
-          return reply.status(400).send({ 
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
@@ -203,9 +191,9 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send(trend);
       } catch (error: any) {
         request.log.error(error, 'Failed to get sales trend');
-        return reply.status(500).send({ 
-          error: 'Failed to get sales trend', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to get sales trend',
+          message: error.message
         });
       }
     },
@@ -220,7 +208,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
 
         if (!storeId) {
-          return reply.status(400).send({ 
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
@@ -233,13 +221,13 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send(paymentMix);
       } catch (error: any) {
         request.log.error(error, 'Failed to get payment mix');
-        return reply.status(500).send({ 
-          error: 'Failed to get payment mix', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to get payment mix',
+          message: error.message
         });
       }
-      },
-    });
+    },
+  });
 
   // Time Heatmap
   fastify.get('/time-heatmap', {
@@ -250,7 +238,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         const { startDate, endDate } = request.query as { startDate?: string; endDate?: string };
 
         if (!storeId) {
-          return reply.status(400).send({ 
+          return reply.status(400).send({
             error: 'Store ID is required',
             message: 'User must be associated with a store'
           });
@@ -263,13 +251,13 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         return reply.send(heatmap);
       } catch (error: any) {
         request.log.error(error, 'Failed to get time heatmap');
-        return reply.status(500).send({ 
-          error: 'Failed to get time heatmap', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to get time heatmap',
+          message: error.message
         });
       }
-      },
-    });
+    },
+  });
 
   // Delivery KPIs (placeholder - returns empty for now)
   fastify.get('/delivery-kpis', {
@@ -277,16 +265,16 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     handler: async (request: any, reply) => {
       try {
         // Placeholder for delivery KPIs
-        return reply.send({ 
+        return reply.send({
           totalDeliveries: 0,
           avgDeliveryTime: 0,
           onTimeRate: 0,
         });
       } catch (error: any) {
         request.log.error(error, 'Failed to get delivery KPIs');
-        return reply.status(500).send({ 
-          error: 'Failed to get delivery KPIs', 
-          message: error.message 
+        return reply.status(500).send({
+          error: 'Failed to get delivery KPIs',
+          message: error.message
         });
       }
     },

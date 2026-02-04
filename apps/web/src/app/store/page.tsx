@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
+import { getHQConsoleUrl } from '@/lib/hq';
 import Link from 'next/link';
 import { SkeletonStatCard, Skeleton, SkeletonCard, SkeletonText } from '@/components/ui';
 import { exportToCSV } from '@/lib/exportCSV';
@@ -1291,13 +1292,43 @@ export default function StoreDashboardPage() {
           <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
             <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Owner Tools</h3>
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              <Link
-                href="/hq"
-                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target"
-              >
-                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🏢</span>
-                <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">HQ Dashboard</span>
-              </Link>
+              {(() => {
+                const hqHref = getHQConsoleUrl();
+                const isExternal = hqHref.startsWith('http');
+                const className = 'flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target';
+                const content = (
+                  <>
+                    <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🏢</span>
+                    <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">HQ Console</span>
+                  </>
+                );
+                if (isExternal) {
+                  return (
+                    <a
+                      href={hqHref}
+                      className={className}
+                      onClick={(e) => {
+                        if (typeof window !== 'undefined') {
+                          const accessToken = localStorage.getItem('accessToken');
+                          const refreshToken = localStorage.getItem('refreshToken');
+                          if (accessToken) {
+                            e.preventDefault();
+                            const params = new URLSearchParams({ accessToken, refreshToken: refreshToken || '' });
+                            window.location.href = `${hqHref}#${params.toString()}`;
+                          }
+                        }
+                      }}
+                    >
+                      {content}
+                    </a>
+                  );
+                }
+                return (
+                  <Link href={hqHref} className={className}>
+                    {content}
+                  </Link>
+                );
+              })()}
             </div>
           </div>
         )}

@@ -8,11 +8,11 @@ export async function storeRoutes(fastify: FastifyInstance) {
   // Get all franchises for owner
   fastify.get('/franchises', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const ownerStore = await prisma.store.findFirst({ 
+      const ownerStore = await prisma.store.findFirst({
         where: { type: 'OWNER' },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
-      
+
       if (!ownerStore) {
         reply.code(404).send({ error: 'Owner store not found' });
         return;
@@ -43,11 +43,77 @@ export async function storeRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get all franchises with summary stats (must be before /franchises/:id so "summary" is not treated as id)
+  fastify.get('/franchises/summary', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const ownerStore = await prisma.store.findFirst({
+        where: { type: 'OWNER' },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      });
+
+      if (!ownerStore) {
+        reply.code(404).send({ error: 'Owner store not found' });
+        return;
+      }
+
+      const franchises = await prisma.store.findMany({
+        where: {
+          type: 'FRANCHISE',
+          parentOwnerStoreId: ownerStore.id,
+        },
+        include: {
+          _count: {
+            select: {
+              users: true,
+              sales: true,
+              customers: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const end = new Date();
+      end.setUTCHours(23, 59, 59, 999);
+      const start = new Date();
+      start.setUTCDate(start.getUTCDate() - 30);
+      start.setUTCHours(0, 0, 0, 0);
+
+      const franchisesWithStats = await Promise.all(
+        franchises.map(async (franchise: any) => {
+          const revenue = await prisma.sale.aggregate({
+            where: {
+              storeId: franchise.id,
+              status: 'PAID',
+              createdAt: {
+                gte: start,
+                lte: end,
+              },
+            },
+            _sum: {
+              grandTotal: true,
+            },
+          });
+
+          return {
+            ...franchise,
+            recentRevenue: revenue._sum.grandTotal || 0,
+          };
+        })
+      );
+
+      return franchisesWithStats;
+    } catch (error: any) {
+      console.error('Failed to fetch franchises summary:', error);
+      reply.code(500).send({ error: 'Failed to fetch franchises summary' });
+    }
+  });
+
   // Get single franchise/store details (supports both OWNER and FRANCHISE)
   fastify.get('/franchises/:id', async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      
+
       const store = await prisma.store.findUnique({
         where: { id },
         select: {
@@ -103,11 +169,11 @@ export async function storeRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const ownerStore = await prisma.store.findFirst({ 
+      const ownerStore = await prisma.store.findFirst({
         where: { type: 'OWNER' },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
-      
+
       if (!ownerStore) {
         reply.code(404).send({ error: 'Owner store not found' });
         return;
@@ -160,11 +226,11 @@ export async function storeRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const franchise = await prisma.store.findUnique({ 
+      const franchise = await prisma.store.findUnique({
         where: { id },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
-      
+
       if (!franchise || franchise.type !== 'FRANCHISE') {
         reply.code(404).send({ error: 'Franchise not found' });
         return;
@@ -210,11 +276,11 @@ export async function storeRoutes(fastify: FastifyInstance) {
     try {
       const { id } = (request.params as any);
 
-      const franchise = await prisma.store.findUnique({ 
+      const franchise = await prisma.store.findUnique({
         where: { id },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
-      
+
       if (!franchise || franchise.type !== 'FRANCHISE') {
         reply.code(404).send({ error: 'Franchise not found' });
         return;
@@ -252,11 +318,11 @@ export async function storeRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const store = await prisma.store.findUnique({ 
+      const store = await prisma.store.findUnique({
         where: { id },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
       });
-      
+
       if (!store || (store.type !== 'FRANCHISE' && store.type !== 'OWNER')) {
         reply.code(404).send({ error: 'Store not found' });
         return;
@@ -322,73 +388,6 @@ export async function storeRoutes(fastify: FastifyInstance) {
     } catch (error: any) {
       console.error('Failed to fetch franchise stats:', error);
       reply.code(500).send({ error: 'Failed to fetch franchise statistics' });
-    }
-  });
-
-  // Get all franchises with summary stats
-  fastify.get('/franchises/summary', async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const ownerStore = await prisma.store.findFirst({ 
-        where: { type: 'OWNER' },
-        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-      });
-      
-      if (!ownerStore) {
-        reply.code(404).send({ error: 'Owner store not found' });
-        return;
-      }
-
-      const franchises = await prisma.store.findMany({
-        where: {
-          type: 'FRANCHISE',
-          parentOwnerStoreId: ownerStore.id,
-        },
-        include: {
-          _count: {
-            select: {
-              users: true,
-              sales: true,
-              customers: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      // Get stats for each franchise (last 30 days)
-      const end = new Date();
-      end.setUTCHours(23, 59, 59, 999);
-      const start = new Date();
-      start.setUTCDate(start.getUTCDate() - 30);
-      start.setUTCHours(0, 0, 0, 0);
-
-      const franchisesWithStats = await Promise.all(
-        franchises.map(async (franchise: any) => {
-          const revenue = await prisma.sale.aggregate({
-            where: {
-              storeId: franchise.id,
-              status: 'PAID',
-              createdAt: {
-                gte: start,
-                lte: end,
-              },
-            },
-            _sum: {
-              grandTotal: true,
-            },
-          });
-
-          return {
-            ...franchise,
-            recentRevenue: revenue._sum.grandTotal || 0,
-          };
-        })
-      );
-
-      return franchisesWithStats;
-    } catch (error: any) {
-      console.error('Failed to fetch franchises summary:', error);
-      reply.code(500).send({ error: 'Failed to fetch franchises summary' });
     }
   });
 

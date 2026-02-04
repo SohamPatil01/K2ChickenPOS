@@ -21,11 +21,17 @@ function subDays(date: Date, days: number): Date {
   return d;
 }
 
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
 function format(date: Date, formatStr: string): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');
-  
+
   if (formatStr === 'yyyy-MM-dd') {
     return `${year}-${month}-${day}`;
   }
@@ -85,20 +91,12 @@ export class AnalyticsService {
    */
   async forecastSales(storeId: string, days: number = 7): Promise<any> {
     try {
-      console.log('[Analytics] Forecast Sales - Start');
-      console.log('[Analytics] StoreId:', storeId);
-      console.log('[Analytics] Days:', days);
-      
-      // Get historical sales data (last 30-90 days)
-      const historicalDays = Math.max(30, days * 3);
+      const forecastDays = Math.min(30, Math.max(1, Number(days) || 7));
+
+      // Get historical sales data (last 30+ days)
+      const historicalDays = Math.max(30, forecastDays * 3);
       const startDate = startOfDay(subDays(new Date(), historicalDays));
       const endDate = endOfDay(new Date());
-
-      console.log('[Analytics] Date range:', {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        historicalDays,
-      });
 
       const sales = await prisma.sale.findMany({
         where: {
@@ -114,8 +112,6 @@ export class AnalyticsService {
           createdAt: true,
         },
       });
-
-      console.log('[Analytics] Found sales:', sales.length);
 
       // Group by date
       const salesByDate: Record<string, number> = {};
@@ -133,13 +129,6 @@ export class AnalyticsService {
         values.push(salesByDate[date] || 0);
       }
 
-      console.log('[Analytics] Time series created:', {
-        datesCount: dates.length,
-        valuesCount: values.length,
-        totalRevenue: values.reduce((a, b) => a + b, 0),
-        avgDaily: values.reduce((a, b) => a + b, 0) / values.length,
-      });
-
       // Calculate moving averages
       const ma7 = this.calculateMovingAverage(values, 7);
       const ma30 = this.calculateMovingAverage(values, 30);
@@ -148,20 +137,18 @@ export class AnalyticsService {
       const { slope, intercept } = this.linearRegression(values);
       const trend = slope > 0.1 ? 'upward' : slope < -0.1 ? 'downward' : 'stable';
 
-      // Generate forecast
+      // Generate forecast: start from tomorrow, one row per day
       const forecast: Array<{ date: string; predicted: number; confidence: string }> = [];
-      const lastValue = values.length > 0 ? values[values.length - 1] : 0;
       const avgValue = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      const lastMa7 = ma7.length > 0 ? ma7[ma7.length - 1] : avgValue;
+      const baseline = Number.isFinite(lastMa7) ? lastMa7 : avgValue;
 
-      for (let i = 1; i <= days; i++) {
-        const futureDate = format(subDays(new Date(), -i), 'yyyy-MM-dd');
-        
-        // Simple forecast: trend + moving average
-        const trendValue = values.length > 0 ? slope * (values.length + i) + intercept : 0;
-        const predicted = Math.max(0, (trendValue + avgValue) / 2);
-        
-        // Confidence decreases with distance
-        const confidence = i <= 3 ? 'high' : i <= 7 ? 'medium' : 'low';
+      for (let i = 1; i <= forecastDays; i++) {
+        const futureDate = format(addDays(startOfDay(new Date()), i), 'yyyy-MM-dd');
+        const trendAdjust = Number.isFinite(slope) ? slope * i : 0;
+        const rawPredicted = baseline + trendAdjust;
+        const predicted = Math.max(0, Number.isFinite(rawPredicted) ? rawPredicted : baseline);
+        const confidence = i <= 2 ? 'high' : i <= 5 ? 'medium' : 'low';
 
         forecast.push({
           date: futureDate,
@@ -174,39 +161,25 @@ export class AnalyticsService {
       const predictions = ma7.slice(-7);
       const actuals = values.slice(-7);
       const mae = predictions.length > 0 && actuals.length > 0
-        ? predictions.reduce((sum, pred, i) => sum + Math.abs(pred - (actuals[i] || 0)), 0) / predictions.length 
+        ? predictions.reduce((sum, pred, i) => sum + Math.abs(pred - (actuals[i] || 0)), 0) / predictions.length
         : 0;
-      const accuracy = avgValue > 0 
+      const accuracy = avgValue > 0
         ? Math.max(0, Math.min(100, 100 - (mae / avgValue) * 100))
         : 0;
 
       const result = {
         historical: dates.map((date, i) => ({
           date,
-          actual: values[i] || 0,
-          ma7: ma7[i] || 0,
-          ma30: ma30[i] || 0,
+          actual: values[i] ?? 0,
+          ma7: ma7[i] ?? 0,
+          ma30: ma30[i] ?? 0,
         })),
-        forecast: forecast.length > 0 ? forecast : [],
+        forecast,
         trend: trend || 'stable',
         accuracy: Math.round(accuracy) || 0,
         avgDailySales: Math.round(avgValue * 100) / 100 || 0,
       };
-      
-      // #region agent log
-      console.log('[Analytics] Forecast result check:', {
-        hasHistorical: !!result.historical,
-        historicalCount: result.historical?.length,
-        hasForecast: !!result.forecast,
-        forecastCount: result.forecast?.length,
-        avgDailySales: result.avgDailySales,
-        accuracy: result.accuracy,
-        trend: result.trend,
-        avgDailySalesType: typeof result.avgDailySales,
-        avgDailySalesIsNaN: isNaN(result.avgDailySales),
-      });
-      // #endregion
-      
+
       return result;
     } catch (error) {
       console.error('[Analytics] Forecasting error:', error);
@@ -223,7 +196,7 @@ export class AnalyticsService {
       console.log('[Analytics] Predict Demand - Start');
       console.log('[Analytics] StoreId:', storeId);
       console.log('[Analytics] Days:', days);
-      
+
       if (!storeId) {
         console.error('[Analytics] StoreId is required');
         throw new Error('Store ID is required');
@@ -253,7 +226,7 @@ export class AnalyticsService {
         storeIds = [storeId, ...franchises.map(f => f.id)];
         console.log('[Analytics] Owner store - including franchises:', storeIds);
       }
-      
+
       const startDate = startOfDay(subDays(new Date(), days));
       const endDate = endOfDay(new Date());
 
@@ -325,7 +298,7 @@ export class AnalyticsService {
         p.avgPerOrder = p.frequency > 0 ? p.totalQty / p.frequency : 0;
         p.totalRevenue = p.totalRevenue || 0;
         p.totalQty = p.totalQty || 0;
-        
+
         // Classify as fast/slow moving
         const avgFrequency = days > 0 ? p.frequency / days : 0;
         if (avgFrequency > 2) {
@@ -383,7 +356,7 @@ export class AnalyticsService {
     try {
       console.log('[Analytics] Inventory Recommendations - Start');
       console.log('[Analytics] StoreId:', storeId);
-      
+
       // Get the store to determine ownerStoreId
       const store = await prisma.store.findUnique({
         where: { id: storeId },
@@ -402,7 +375,7 @@ export class AnalyticsService {
 
       // Determine ownerStoreId - if it's a franchise, use parentOwnerStoreId, otherwise use storeId
       const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
-      
+
       if (!ownerStoreId) {
         console.error('[Analytics] Owner store ID not found for store:', storeId);
         return {
@@ -414,7 +387,7 @@ export class AnalyticsService {
       }
 
       console.log('[Analytics] OwnerStoreId:', ownerStoreId);
-      
+
       // Get products for this owner store
       const products = await prisma.product.findMany({
         where: {
@@ -581,7 +554,7 @@ export class AnalyticsService {
   async getTopItems(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
     try {
       console.log('[Analytics] Get Top Items - Start');
-      
+
       if (!storeId) {
         console.error('[Analytics] StoreId is required');
         return [];
@@ -611,7 +584,7 @@ export class AnalyticsService {
         storeIds = [storeId, ...franchises.map(f => f.id)];
         console.log('[Analytics] Owner store - including franchises:', storeIds);
       }
-      
+
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
@@ -665,7 +638,7 @@ export class AnalyticsService {
     try {
       console.log('[Analytics] Get Sales Trend - Start');
       console.log('[Analytics] StoreId:', storeId, 'Date range:', startDate, 'to', endDate);
-      
+
       if (!storeId) {
         console.error('[Analytics] StoreId is required');
         return [];
@@ -695,7 +668,7 @@ export class AnalyticsService {
         storeIds = [storeId, ...franchises.map(f => f.id)];
         console.log('[Analytics] Owner store - including franchises:', storeIds);
       }
-      
+
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
@@ -728,7 +701,7 @@ export class AnalyticsService {
       const result: any[] = [];
       const currentDate = new Date(startDate);
       const end = new Date(endDate);
-      
+
       while (currentDate <= end) {
         const dateStr = format(currentDate, 'yyyy-MM-dd');
         const data = salesByDate[dateStr] || { total: 0, count: 0 };
@@ -754,7 +727,7 @@ export class AnalyticsService {
   async getPaymentMix(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
     try {
       console.log('[Analytics] Get Payment Mix - Start');
-      
+
       if (!storeId) {
         console.error('[Analytics] StoreId is required');
         return [];
@@ -783,7 +756,7 @@ export class AnalyticsService {
         });
         storeIds = [storeId, ...franchises.map(f => f.id)];
       }
-      
+
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
@@ -806,9 +779,9 @@ export class AnalyticsService {
         });
       });
 
-      return Object.entries(paymentStats).map(([method, amount]) => ({ 
+      return Object.entries(paymentStats).map(([method, amount]) => ({
         name: method,
-        total: amount 
+        total: amount
       }));
     } catch (error) {
       console.error('[Analytics] Payment mix error:', error);
@@ -822,7 +795,7 @@ export class AnalyticsService {
   async getTimeHeatmap(storeId: string, startDate: Date, endDate: Date): Promise<any[]> {
     try {
       console.log('[Analytics] Get Time Heatmap - Start');
-      
+
       if (!storeId) {
         console.error('[Analytics] StoreId is required');
         return [];
@@ -851,7 +824,7 @@ export class AnalyticsService {
         });
         storeIds = [storeId, ...franchises.map(f => f.id)];
       }
-      
+
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
@@ -868,7 +841,7 @@ export class AnalyticsService {
       });
 
       const hourlyStats: Record<number, { hour: number; count: number; revenue: number }> = {};
-      
+
       sales.forEach(sale => {
         const hour = new Date(sale.createdAt).getUTCHours();
         if (!hourlyStats[hour]) {

@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useNotificationStore } from "@/store/notification";
 import api from "@/lib/api";
+import { getHQConsoleUrl } from "@/lib/hq";
 import GlobalBarcodeScanner from "./GlobalBarcodeScanner";
 import Notification from "./Notification";
 
@@ -198,7 +199,7 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
         },
         {
           label: "HQ Dashboard",
-          href: "/hq",
+          href: getHQConsoleUrl(),
           icon: "🏢",
           roles: ["OWNER"],
         },
@@ -361,24 +362,19 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
                   )}
                   <div className="flex flex-col space-y-0.5">
                     {section.items.map((item) => {
-                      // Check if this item is the active one
                       const isActive = activeItem?.href === item.href;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setIsMenuOpen(false)}
-                          className={`flex items-center ${
-                            isSidebarCollapsed
-                              ? "justify-center px-2"
-                              : "gap-3 px-3"
-                          } py-1.5 rounded-md text-sm font-medium transition-colors touch-target w-full group relative ${
-                            isActive
-                              ? "bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500"
-                              : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600"
-                          }`}
-                          title={isSidebarCollapsed ? item.label : undefined}
-                        >
+                      const isExternalHQ = item.href.startsWith("http");
+                      const className = `flex items-center ${
+                        isSidebarCollapsed
+                          ? "justify-center px-2"
+                          : "gap-3 px-3"
+                      } py-1.5 rounded-md text-sm font-medium transition-colors touch-target w-full group relative ${
+                        isActive
+                          ? "bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 border-l-4 border-brand-500"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600"
+                      }`;
+                      const content = (
+                        <>
                           <span className="text-base flex-shrink-0 text-center">
                             {item.icon}
                           </span>
@@ -387,12 +383,45 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
                               {item.label}
                             </span>
                           )}
-                          {/* Tooltip for collapsed state */}
                           {isSidebarCollapsed && (
                             <span className="absolute left-full ml-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
                               {item.label}
                             </span>
                           )}
+                        </>
+                      );
+                      const handleClick = (e: React.MouseEvent) => {
+                        if (isExternalHQ && typeof window !== "undefined") {
+                          const accessToken = localStorage.getItem("accessToken");
+                          const refreshToken = localStorage.getItem("refreshToken");
+                          if (accessToken) {
+                            e.preventDefault();
+                            const params = new URLSearchParams({ accessToken, refreshToken: refreshToken || "" });
+                            window.location.href = `${item.href}#${params.toString()}`;
+                            return;
+                          }
+                        }
+                        setIsMenuOpen(false);
+                      };
+                      return isExternalHQ ? (
+                        <a
+                          key={item.href}
+                          href={item.href}
+                          onClick={handleClick}
+                          className={className}
+                          title={isSidebarCollapsed ? item.label : undefined}
+                        >
+                          {content}
+                        </a>
+                      ) : (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsMenuOpen(false)}
+                          className={className}
+                          title={isSidebarCollapsed ? item.label : undefined}
+                        >
+                          {content}
                         </Link>
                       );
                     })}

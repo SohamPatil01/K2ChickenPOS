@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import AuthHandoff from '@/components/AuthHandoff';
 
 export const metadata: Metadata = {
   title: 'AzelaPOS HQ - Franchise Management',
@@ -33,7 +34,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <AuthHandoff />
+      </body>
     </html>
   );
 }
