@@ -180,6 +180,8 @@ export async function productRoutes(fastify: FastifyInstance) {
       orderBy: { sortOrder: 'asc' },
     });
 
+    // Short cache so product/category updates (e.g. Egg) appear quickly; still reduces origin hits
+    reply.header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
     return categories;
   });
 

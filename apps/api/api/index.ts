@@ -216,6 +216,8 @@ async function build() {
       reply.code(503);
     }
 
+    // Allow CDN to cache health response to reduce Fast Origin Transfer (monitoring polls often)
+    reply.header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=240');
     return health;
   });
 

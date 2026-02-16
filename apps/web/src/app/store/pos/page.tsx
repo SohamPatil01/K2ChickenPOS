@@ -114,7 +114,10 @@ export default function StorePOSPage() {
     setLoading((prev) => ({ ...prev, products: true }));
     setError((prev) => ({ ...prev, products: undefined }));
     try {
-      const response = await api.get("/api/v1/products");
+      const response = await api.get("/api/v1/products", {
+        params: { _t: Date.now() },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
       const productsData = response.data || [];
 
       // Load productMaster data for each product
@@ -169,7 +172,10 @@ export default function StorePOSPage() {
     setLoading((prev) => ({ ...prev, categories: true }));
     setError((prev) => ({ ...prev, categories: undefined }));
     try {
-      const response = await api.get("/api/v1/products/categories");
+      const response = await api.get("/api/v1/products/categories", {
+        params: { _t: Date.now() },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
       setCategories(response.data || []);
     } catch (error: any) {
       console.error("Failed to load categories:", error);
@@ -663,13 +669,17 @@ export default function StorePOSPage() {
 
   // Masale products: category Spices/Masale or name contains Masala/Masale (resolve category from list if needed)
   const masaleProducts = products.filter((p) => {
-    const cat = (p.categoryName || categories.find((c) => c.id === p.categoryId)?.name || '').toLowerCase();
-    const name = (p.name || '').toLowerCase();
+    const cat = (
+      p.categoryName ||
+      categories.find((c) => c.id === p.categoryId)?.name ||
+      ""
+    ).toLowerCase();
+    const name = (p.name || "").toLowerCase();
     return (
-      cat.includes('spice') ||
-      cat.includes('masale') ||
-      name.includes('masala') ||
-      name.includes('masale')
+      cat.includes("spice") ||
+      cat.includes("masale") ||
+      name.includes("masala") ||
+      name.includes("masale")
     );
   });
 
@@ -692,48 +702,52 @@ export default function StorePOSPage() {
       <div className="mb-3 flex-shrink-0 px-2">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Point of Sale</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Scan or tap products to add</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+              Point of Sale
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Scan or tap products to add
+            </p>
           </div>
           <div className="grid grid-cols-2 sm:flex sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
-          <button
-            onClick={() => setIsCategoriesVisible(!isCategoriesVisible)}
-            className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center gap-2"
-            aria-label="Toggle categories"
-          >
-            <span>📁</span> Categories
-          </button>
-          <button
-            onClick={() => setShowAddItemModal(true)}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-          >
-            <span>+</span> Add Item
-          </button>
-          <button
-            onClick={() => {
-              if (items.length === 0) {
-                showNotification("Cart is empty", "warning");
-                return;
-              }
-              setShowQuickCheckout(true);
-            }}
-            className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-          >
-            ⚡ Quick Pay
-          </button>
-          <Link
-            href="/store/cart"
-            className="px-4 py-2.5 bg-gray-800 hover:bg-gray-900 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 relative"
-          >
-            🛒 Cart
-            <span
-              className={`ml-1 rounded-full px-2 py-0.5 text-xs font-bold min-w-[20px] text-center ${
-                items.length > 0 ? "bg-white text-gray-800" : "hidden"
-              }`}
+            <button
+              onClick={() => setIsCategoriesVisible(!isCategoriesVisible)}
+              className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center gap-2"
+              aria-label="Toggle categories"
             >
-              {items.length}
-            </span>
-          </Link>
+              <span>📁</span> Categories
+            </button>
+            <button
+              onClick={() => setShowAddItemModal(true)}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <span>+</span> Add Item
+            </button>
+            <button
+              onClick={() => {
+                if (items.length === 0) {
+                  showNotification("Cart is empty", "warning");
+                  return;
+                }
+                setShowQuickCheckout(true);
+              }}
+              className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+            >
+              ⚡ Quick Pay
+            </button>
+            <Link
+              href="/store/cart"
+              className="px-4 py-2.5 bg-gray-800 hover:bg-gray-900 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 relative"
+            >
+              🛒 Cart
+              <span
+                className={`ml-1 rounded-full px-2 py-0.5 text-xs font-bold min-w-[20px] text-center ${
+                  items.length > 0 ? "bg-white text-gray-800" : "hidden"
+                }`}
+              >
+                {items.length}
+              </span>
+            </Link>
           </div>
         </div>
       </div>
@@ -742,14 +756,26 @@ export default function StorePOSPage() {
         <div className="mb-3 flex-shrink-0 px-2">
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Categories</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Categories
+              </h2>
               <button
                 onClick={() => setIsCategoriesVisible(false)}
                 className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                 aria-label="Hide categories"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -786,218 +812,274 @@ export default function StorePOSPage() {
       <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-hidden px-2">
         <div className="flex-1 relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-5 overflow-hidden flex flex-col min-h-0">
           <div className="relative flex flex-col min-h-0 h-full">
-          {/* Search and Barcode Inputs */}
-          <div className="mb-4 space-y-3 flex-shrink-0">
-            <form onSubmit={handleBarcodeSubmit} className="relative">
-              <input
-                ref={barcodeInputRef}
-                type="text"
-                placeholder="Scan barcode or enter SKU... (Enter to add)"
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 placeholder:text-gray-400"
-              />
-              <button type="submit" className="sr-only" tabIndex={-1}>Add barcode</button>
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
-                <svg
-                  className="w-4 h-4 sm:w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                  />
-                </svg>
-              </div>
-            </form>
-            <div className="relative flex items-center w-full">
-              <div
-                className={`relative w-full ${isSearchExpanded || searchQuery ? "flex-1" : "w-10"}`}
-              >
-                {!isSearchExpanded && !searchQuery ? (
-                  <button
-                    onClick={() => {
-                      setIsSearchExpanded(true);
-                      setTimeout(() => searchInputRef.current?.focus(), 100);
-                    }}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    aria-label="Search products"
-                  >
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </button>
-                ) : (
-                  <div className="relative w-full">
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      placeholder="Search... (Enter to search)"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onFocus={() => setIsSearchExpanded(true)}
-                      onBlur={() => {
-                        if (!searchQuery) {
-                          setTimeout(() => {
-                            if (!searchInputRef.current?.matches(":focus")) {
-                              setIsSearchExpanded(false);
-                            }
-                          }, 200);
-                        }
-                      }}
-                      className="w-full px-4 py-3 pl-10 text-base border-2 border-gray-300 dark:border-gray-600 dark:text-white rounded-xl bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </div>
-                    {searchQuery && (
-                    <button
-                      onClick={() => { setSearchQuery(""); setIsSearchExpanded(false); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-1 rounded"
-                      aria-label="Clear search"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Top shelf: Masale only — grid layout, tap to add 1 to cart */}
-          {masaleProducts.length > 0 && (
-            <div className="mb-4 flex-shrink-0 border-b-2 border-amber-200 dark:border-amber-800 pb-4">
-              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
-                <span>🌶</span> Top shelf — Masale
-                <span className="text-xs font-normal text-gray-500 dark:text-gray-400">(tap to add 1)</span>
-              </h3>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                {masaleProducts.map((product) => {
-                  const displayPrice =
-                    product.productMaster?.hqLockedPrice ?? product.pricePerUnit;
-                  const qtyKg = product.unitType === "KG" ? 1 : undefined;
-                  const qtyPcs = product.unitType === "PCS" ? 1 : undefined;
-                  return (
-                    <button
-                      key={product.id}
-                      type="button"
-                      onClick={() => handleAddProductToCart(product, qtyKg, qtyPcs)}
-                      className="flex flex-col items-center justify-center p-3 border-2 border-amber-300 dark:border-amber-600 rounded-xl bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 active:scale-[0.97] cursor-pointer touch-manipulation"
-                    >
-                      <span className="text-lg mb-1" aria-hidden>🌶</span>
-                      <span className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 text-center w-full leading-tight">
-                        {product.name}
-                      </span>
-                      <span className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">
-                        ₹{displayPrice.toFixed(2)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {franchiseConfig?.isPricingLocked && (
-            <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-3 flex-shrink-0 flex items-center gap-2">
-              <span className="text-amber-600">🔒</span>
-              <p className="text-xs text-amber-700 dark:text-amber-400">HQ locked price. Manager PIN to override.</p>
-            </div>
-          )}
-
-          {/* Products Grid */}
-          <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
-            {loading.products ? (
-              <>
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <SkeletonProductCard key={i} />
-                ))}
-              </>
-            ) : error.products ? (
-              <div className="text-center py-12">
-                <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-3">
-                  {error.products}
-                </p>
-                <button
-                  onClick={loadProducts}
-                  className="px-3 py-1.5 text-sm bg-brand-500/90 text-white rounded-md hover:bg-brand-500 transition-colors"
-                >
-                  Retry
+            {/* Search and Barcode Inputs */}
+            <div className="mb-4 space-y-3 flex-shrink-0">
+              <form onSubmit={handleBarcodeSubmit} className="relative">
+                <input
+                  ref={barcodeInputRef}
+                  type="text"
+                  placeholder="Scan barcode or enter SKU... (Enter to add)"
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 placeholder:text-gray-400"
+                />
+                <button type="submit" className="sr-only" tabIndex={-1}>
+                  Add barcode
                 </button>
-              </div>
-            ) : products.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  No products found
-                </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
-                  Products need to be added to the system
-                </p>
-              </div>
-            ) : productsForGrid.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500 dark:text-gray-400">
-                  No products match your search/filter
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 overflow-y-auto">
-                {productsForGrid.map((product) => {
-                  const isLocked = product.productMaster?.isHQLocked;
-                  const displayPrice =
-                    product.productMaster?.hqLockedPrice ||
-                    product.pricePerUnit;
-                  return (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                  <svg
+                    className="w-4 h-4 sm:w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                    />
+                  </svg>
+                </div>
+              </form>
+              <div className="relative flex items-center w-full">
+                <div
+                  className={`relative w-full ${
+                    isSearchExpanded || searchQuery ? "flex-1" : "w-10"
+                  }`}
+                >
+                  {!isSearchExpanded && !searchQuery ? (
                     <button
-                      key={product.id}
-                      onClick={() => handleAddProduct(product)}
-                      className="flex flex-col p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 active:scale-[0.98] text-left shadow-sm hover:shadow-md transition-all"
+                      onClick={() => {
+                        setIsSearchExpanded(true);
+                        setTimeout(() => searchInputRef.current?.focus(), 100);
+                      }}
+                      className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      aria-label="Search products"
                     >
-                      <div className="flex justify-center items-center mb-3 flex-shrink-0">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = "none";
-                              const placeholder = target.nextElementSibling as HTMLElement;
-                              if (placeholder) placeholder.style.display = "flex";
-                            }}
-                          />
-                        ) : null}
-                        <div
-                          className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl sm:text-3xl ${product.imageUrl ? "hidden" : ""}`}
+                      <svg
+                        className="w-4 h-4 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="relative w-full">
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search... (Enter to search)"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => setIsSearchExpanded(true)}
+                        onBlur={() => {
+                          if (!searchQuery) {
+                            setTimeout(() => {
+                              if (!searchInputRef.current?.matches(":focus")) {
+                                setIsSearchExpanded(false);
+                              }
+                            }, 200);
+                          }
+                        }}
+                        className="w-full px-4 py-3 pl-10 text-base border-2 border-gray-300 dark:border-gray-600 dark:text-white rounded-xl bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
-                          📦
-                        </div>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          />
+                        </svg>
                       </div>
-                      <div className="font-semibold text-sm sm:text-base line-clamp-2 text-gray-800 dark:text-gray-100 leading-snug min-h-[2.5rem]">
-                        {product.name}
-                      </div>
-                      <div className="flex items-baseline gap-1 mt-2 flex-wrap">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                      {searchQuery && (
+                        <button
+                          onClick={() => {
+                            setSearchQuery("");
+                            setIsSearchExpanded(false);
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-1 rounded"
+                          aria-label="Clear search"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Top shelf: Masale only — grid layout, tap to add 1 to cart */}
+            {masaleProducts.length > 0 && (
+              <div className="mb-4 flex-shrink-0 border-b-2 border-amber-200 dark:border-amber-800 pb-4">
+                <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+                  <span>🌶</span> Top shelf — Masale
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                    (tap to add 1)
+                  </span>
+                </h3>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {masaleProducts.map((product) => {
+                    const displayPrice =
+                      product.productMaster?.hqLockedPrice ??
+                      product.pricePerUnit;
+                    const qtyKg = product.unitType === "KG" ? 1 : undefined;
+                    const qtyPcs = product.unitType === "PCS" ? 1 : undefined;
+                    return (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() =>
+                          handleAddProductToCart(product, qtyKg, qtyPcs)
+                        }
+                        className="flex flex-col items-center justify-center p-3 border-2 border-amber-300 dark:border-amber-600 rounded-xl bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 active:scale-[0.97] cursor-pointer touch-manipulation"
+                      >
+                        <span className="text-lg mb-1" aria-hidden>
+                          🌶
+                        </span>
+                        <span className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 text-center w-full leading-tight">
+                          {product.name}
+                        </span>
+                        <span className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">
                           ₹{displayPrice.toFixed(2)}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">/{product.unitType}</span>
-                        {isLocked && <span className="text-xs ml-1" title="Price locked">🔒</span>}
-                      </div>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
-          </div>
+
+            {franchiseConfig?.isPricingLocked && (
+              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-3 flex-shrink-0 flex items-center gap-2">
+                <span className="text-amber-600">🔒</span>
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  HQ locked price. Manager PIN to override.
+                </p>
+              </div>
+            )}
+
+            {/* Products Grid */}
+            <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
+              {loading.products ? (
+                <>
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <SkeletonProductCard key={i} />
+                  ))}
+                </>
+              ) : error.products ? (
+                <div className="text-center py-12">
+                  <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-3">
+                    {error.products}
+                  </p>
+                  <button
+                    onClick={loadProducts}
+                    className="px-3 py-1.5 text-sm bg-brand-500/90 text-white rounded-md hover:bg-brand-500 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : products.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    No products found
+                  </p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
+                    Products need to be added to the system
+                  </p>
+                </div>
+              ) : productsForGrid.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 dark:text-gray-400">
+                    No products match your search/filter
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 overflow-y-auto">
+                  {productsForGrid.map((product) => {
+                    const isLocked = product.productMaster?.isHQLocked;
+                    const displayPrice =
+                      product.productMaster?.hqLockedPrice ||
+                      product.pricePerUnit;
+                    return (
+                      <button
+                        key={product.id}
+                        onClick={() => handleAddProduct(product)}
+                        className="flex flex-col p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 active:scale-[0.98] text-left shadow-sm hover:shadow-md transition-all"
+                      >
+                        <div className="flex justify-center items-center mb-3 flex-shrink-0">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                const placeholder =
+                                  target.nextElementSibling as HTMLElement;
+                                if (placeholder)
+                                  placeholder.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl sm:text-3xl ${
+                              product.imageUrl ? "hidden" : ""
+                            }`}
+                          >
+                            📦
+                          </div>
+                        </div>
+                        <div className="font-semibold text-sm sm:text-base line-clamp-2 text-gray-800 dark:text-gray-100 leading-snug min-h-[2.5rem]">
+                          {product.name}
+                        </div>
+                        <div className="flex items-baseline gap-1 mt-2 flex-wrap">
+                          <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                            ₹{displayPrice.toFixed(2)}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            /{product.unitType}
+                          </span>
+                          {isLocked && (
+                            <span className="text-xs ml-1" title="Price locked">
+                              🔒
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

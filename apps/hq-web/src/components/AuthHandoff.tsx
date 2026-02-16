@@ -41,7 +41,8 @@ export default function AuthHandoff() {
         }
         setAuth(user, accessToken, refreshToken || '');
         window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        router.replace('/dashboard');
+        const path = window.location.pathname?.trim() || '';
+        router.replace(path === '' || path === '/' ? '/dashboard' : path);
       })
       .catch(() => {
         localStorage.removeItem('accessToken');

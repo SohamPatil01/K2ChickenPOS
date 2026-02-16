@@ -3,26 +3,16 @@
   "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile --ignore-scripts=false",
   "buildCommand": "cd ../.. && pnpm install --no-frozen-lockfile && pnpm --filter @azela-pos/db generate && pnpm --filter @azela-pos/shared build && pnpm --filter @azela-pos/db build && cd apps/api && node scripts/prepare-vercel.js",
   "outputDirectory": "",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index"
-    }
-  ],
-  "functions": {
-    "api/index.ts": {
-      "maxDuration": 60
-    }
-  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "functions": { "api/index.ts": { "maxDuration": 60 } },
   "crons": [
-    {
-      "path": "/api/v1/backup/create",
-      "schedule": "0 15 * * *"
-    },
-    {
-      "path": "/api/v1/cron/daily-closing",
-      "schedule": "0 20 * * *"
-    }
+    { "path": "/api/v1/backup/create", "schedule": "0 15 * * *" },
+    { "path": "/api/v1/cron/daily-closing", "schedule": "0 20 * * *" }
+  ],
+  "headers": [
+    { "source": "/health", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=120, stale-while-revalidate=240" }] },
+    { "source": "/api/v1/products/categories", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=60, stale-while-revalidate=120" }] },
+    { "source": "/api/v1/auth/profiles", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=120, stale-while-revalidate=300" }] },
+    { "source": "/api/v1/backup/health", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=120, stale-while-revalidate=240" }] }
   ]
 }
-

@@ -62,15 +62,15 @@ export default function FranchiseDetailPage() {
       return;
     }
 
-    if (params.id) {
+    if (params?.id) {
       loadFranchise();
       loadStats();
     }
-  }, [user, router, params.id, dateRange]);
+  }, [user, router, params?.id, dateRange]);
 
   const loadFranchise = async () => {
     try {
-      const response = await api.get(`/api/v1/stores/franchises/${params.id}`);
+      const response = await api.get(`/api/v1/stores/franchises/${params?.id}`);
       setFranchise(response.data);
     } catch (error: any) {
       console.error('Failed to load franchise:', error);
@@ -82,7 +82,7 @@ export default function FranchiseDetailPage() {
 
   const loadStats = async () => {
     try {
-      const response = await api.get(`/api/v1/stores/franchises/${params.id}/stats`, {
+      const response = await api.get(`/api/v1/stores/franchises/${params?.id}/stats`, {
         params: dateRange,
       });
       setStats(response.data);

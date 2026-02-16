@@ -72,7 +72,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
     try {
       // Test database connection
       await prisma.$queryRaw`SELECT 1`;
-      
+      reply.header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=240');
       return {
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -81,6 +81,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
       };
     } catch (error: any) {
       reply.status(500);
+      reply.header('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30');
       return {
         status: 'error',
         timestamp: new Date().toISOString(),

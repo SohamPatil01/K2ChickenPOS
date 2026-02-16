@@ -68,17 +68,32 @@ export default function PricingPage() {
     setLoading(true);
     setLoadError(null);
     try {
+      // Load common data first so the page can render even if tab-specific API fails
+      const [productsRes, categoriesRes, franchisesRes, configsRes] = await Promise.all([
+        api.get('/api/v1/products').catch(() => ({ data: [] })),
+        api.get('/api/v1/categories').catch(() => ({ data: [] })),
+        api.get('/api/v1/stores/franchises').catch(() => ({ data: [] })),
+        api.get('/api/v1/hq/franchises/config').catch(() => ({ data: [] })),
+      ]);
+      setProducts(productsRes?.data ?? []);
+      setCategories(categoriesRes?.data ?? []);
+      setFranchises(franchisesRes?.data ?? []);
+      setFranchiseConfigs(configsRes?.data ?? []);
+    } catch (e) {
+      console.error('Failed to load common data:', e);
+    }
+
+    try {
       if (activeTab === 'plans') {
         const res = await api.get('/api/v1/hq/pricing-plans');
-        setPricingPlans(res.data);
+        setPricingPlans(Array.isArray(res.data) ? res.data : []);
       } else if (activeTab === 'rules' && selectedPlanId) {
         const [rulesRes, mastersRes] = await Promise.all([
           api.get(`/api/v1/hq/pricing-plans/${selectedPlanId}/rules`),
-          api.get('/api/v1/hq/product-masters'),
+          api.get('/api/v1/hq/product-masters').catch(() => ({ data: [] })),
         ]);
-        const rules = rulesRes.data;
-        const masters = mastersRes.data;
-        // Merge lock status from ProductMaster
+        const rules = Array.isArray(rulesRes.data) ? rulesRes.data : [];
+        const masters = Array.isArray(mastersRes?.data) ? mastersRes.data : [];
         const rulesWithLocks = rules.map((rule: any) => {
           if (rule.productId) {
             const master = masters.find((m: any) => m.productId === rule.productId);
@@ -92,29 +107,16 @@ export default function PricingPage() {
         setPricingRules(rulesWithLocks);
       } else if (activeTab === 'overrides' && selectedFranchiseId) {
         const res = await api.get(`/api/v1/hq/franchises/${selectedFranchiseId}/pricing-overrides`);
-        setOverrides(res.data);
+        setOverrides(Array.isArray(res.data) ? res.data : []);
       }
-
-      // Load common data
-      const [productsRes, categoriesRes, franchisesRes, configsRes] = await Promise.all([
-        api.get('/api/v1/products'),
-        api.get('/api/v1/categories'),
-        api.get('/api/v1/stores/franchises'),
-        api.get('/api/v1/hq/franchises/config'),
-      ]);
-      setProducts(productsRes.data);
-      setCategories(categoriesRes.data);
-      setFranchises(franchisesRes.data);
-      setFranchiseConfigs(configsRes.data);
     } catch (error: any) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load pricing data:', error);
       if (error?.isNetworkError || error?.code === 'ERR_NETWORK') {
         setLoadError('Cannot connect to the API. Make sure the server is running (e.g. port 3003).');
       } else if (error?.response?.status === 401) {
-        setLoadError('Session expired or not logged in. Redirecting to login...');
-        setTimeout(() => { window.location.href = '/login'; }, 1500);
+        setLoadError('Session expired or not logged in. Use Retry after logging in, or open the Log in link below.');
       } else {
-        setLoadError(error?.response?.data?.error || 'Failed to load data.');
+        setLoadError(error?.response?.data?.error || 'Failed to load pricing data.');
       }
     } finally {
       setLoading(false);
@@ -198,11 +200,19 @@ export default function PricingPage() {
       <HQLayout>
         <div className="text-center py-12 max-w-md mx-auto">
           <p className="text-red-600 dark:text-red-400 mb-4">{loadError}</p>
-          {!loadError.includes('Redirecting') && (
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
             <Button variant="primary" onClick={() => { setLoadError(null); loadData(); }}>
               Retry
             </Button>
-          )}
+            {loadError.includes('Session expired') && (
+              <a
+                href="/login"
+                className="text-sm text-brand-600 dark:text-brand-400 hover:underline"
+              >
+                Log in
+              </a>
+            )}
+          </div>
         </div>
       </HQLayout>
     );

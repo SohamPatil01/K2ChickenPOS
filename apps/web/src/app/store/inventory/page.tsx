@@ -126,7 +126,9 @@ export default function StoreInventoryPage() {
   // Refs to prevent multiple simultaneous loads
   const loadingRef = useRef(false);
   const lastLoadTimeRef = useRef(0);
-  const loadInventoryRef = useRef<((force?: boolean) => Promise<void>) | null>(null);
+  const loadInventoryRef = useRef<((force?: boolean) => Promise<void>) | null>(
+    null
+  );
 
   const loadInventory = useCallback(
     async (force = false) => {
@@ -159,7 +161,7 @@ export default function StoreInventoryPage() {
         if (user?.storeId) {
           params.storeId = user.storeId;
         }
-        
+
         const response = await api.get("/api/v1/inventory/summary", {
           params,
           headers: {
@@ -301,25 +303,29 @@ export default function StoreInventoryPage() {
         loadStockProducts();
       }
     }
-    
+
     // Listen for PO finalization events to refresh inventory
     const handlePOFinalized = () => {
-      console.log('[Inventory] PO finalized event received, refreshing inventory...');
+      console.log(
+        "[Inventory] PO finalized event received, refreshing inventory..."
+      );
       loadInventoryRef.current?.(true);
     };
-    
-    window.addEventListener('po-finalized', handlePOFinalized);
-    
+
+    window.addEventListener("po-finalized", handlePOFinalized);
+
     return () => {
-      window.removeEventListener('po-finalized', handlePOFinalized);
+      window.removeEventListener("po-finalized", handlePOFinalized);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router, activeTab]);
 
-
   const loadCategories = async () => {
     try {
-      const response = await api.get("/api/v1/products/categories");
+      const response = await api.get("/api/v1/products/categories", {
+        params: { _t: Date.now() },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
       if (Array.isArray(response.data)) {
         setCategories(response.data);
       } else {
@@ -333,7 +339,10 @@ export default function StoreInventoryPage() {
 
   const loadStockProducts = async () => {
     try {
-      const response = await api.get("/api/v1/products");
+      const response = await api.get("/api/v1/products", {
+        params: { _t: Date.now() },
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
       setStockProducts(response.data || []);
     } catch (error) {
       console.error("Failed to load products", error);
@@ -413,9 +422,11 @@ export default function StoreInventoryPage() {
       setSelectedStockProduct(null);
       setStockItemForm({ qtyKg: "", qtyPcs: "", reason: "RECEIVE" });
       console.log("[Frontend] Stock added, waiting for DB commit...");
-      // Wait longer for database to commit, then refresh with retry
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      await loadInventory(true); // Force refresh after adding stock
+      // Wait for DB commit then refresh inventory and product lists so Egg/others show updated counts
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await loadInventory(true);
+      await loadStockProducts();
+      await loadCategories();
       setActiveTab("inventory"); // Switch back to inventory tab
     } catch (error: any) {
       console.error("Failed to add stock:", error);
@@ -507,9 +518,10 @@ export default function StoreInventoryPage() {
       if (response.data) {
         showNotification("Inventory adjusted successfully!", "success");
         console.log("[Frontend] Inventory adjusted, waiting for DB commit...");
-        // Wait longer for database to commit, then refresh with retry
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        await loadInventory(true); // Force refresh after adjustment
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await loadInventory(true);
+        await loadStockProducts();
+        await loadCategories();
         setShowAdjustModal(false);
         setSelectedProduct(null);
         setAdjustForm({ qtyKg: "", qtyPcs: "", reason: "ADJUSTMENT" });
@@ -594,9 +606,10 @@ export default function StoreInventoryPage() {
       if (response.data) {
         showNotification("Stock updated successfully!", "success");
         console.log("[Frontend] Stock updated, waiting for DB commit...");
-        // Wait longer for database to commit, then refresh with retry
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        await loadInventory(true); // Force refresh after edit
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await loadInventory(true);
+        await loadStockProducts();
+        await loadCategories();
         setShowEditStockModal(false);
         setEditStockProduct(null);
         setEditStockForm({
@@ -878,8 +891,9 @@ export default function StoreInventoryPage() {
         });
       }
 
-      // Force refresh to ensure updated product data is loaded
       await loadInventory(true);
+      await loadStockProducts();
+      await loadCategories();
 
       setShowEditModal(false);
       setEditingProduct(null);

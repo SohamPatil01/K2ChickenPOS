@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Script to create a local backup of the localhost PostgreSQL database
+# Script to create a local backup of the localhost PostgreSQL database.
+# READ-ONLY: pg_dump only reads from the database; it does not alter or lock tables for writes.
+# Your current data is never modified by this backup.
 
 set -e  # Exit on error
 
@@ -130,7 +132,7 @@ echo ""
 echo -e "${YELLOW}Step 3: Creating backup...${NC}"
 echo -e "${BLUE}Backup file: $BACKUP_FILE${NC}"
 
-# Create backup using pg_dump
+# Create backup using pg_dump (read-only; does not alter or delete any data)
 # Options:
 #   --no-owner: Don't output commands to set ownership
 #   --no-acl: Don't output ACL (access control list) commands
