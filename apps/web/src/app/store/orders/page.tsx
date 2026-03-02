@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { useNotificationStore } from "@/store/notification";
 import { useReactToPrint } from "react-to-print";
 import ThermalReceipt from "@/components/ThermalReceipt";
+import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import { exportSalesCSV } from "@/lib/exportCSV";
 import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
 
@@ -85,6 +86,11 @@ export default function OrdersPage() {
   const [cancellingSale, setCancellingSale] = useState<Sale | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [showCompleteAnimation, setShowCompleteAnimation] = useState(false);
+  const [completedSaleForAnimation, setCompletedSaleForAnimation] = useState<{
+    saleNo: string;
+    grandTotal: number;
+  } | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   // Memoize the filter change handler to prevent infinite loops
@@ -440,11 +446,9 @@ export default function OrdersPage() {
       const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
       const remainingAmount = Math.round(sale.grandTotal - totalPaid);
 
-      // Complete the order by adding a CASH payment
-      // If already fully paid via credit, add a CASH payment for the grand total to mark as PAID
-      // If partially paid, add payment for remaining amount
-      const paymentAmount =
-        remainingAmount <= 0 ? Math.round(sale.grandTotal) : remainingAmount;
+      // Complete the order by adding a CASH payment.
+      // If already fully paid (e.g. credit), send amount 0 to avoid "exceeds remaining balance" and just trigger status update.
+      const paymentAmount = remainingAmount <= 0 ? 0 : remainingAmount;
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, {
         payments: [
@@ -455,6 +459,11 @@ export default function OrdersPage() {
         ],
       });
 
+      setCompletedSaleForAnimation({
+        saleNo: sale.saleNo || "N/A",
+        grandTotal: Math.round(sale.grandTotal),
+      });
+      setShowCompleteAnimation(true);
       showNotification("Order completed successfully", "success");
       loadSales();
 
@@ -485,6 +494,18 @@ export default function OrdersPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
+      {/* Order complete success animation */}
+      {showCompleteAnimation && completedSaleForAnimation && (
+        <BillSuccessAnimation
+          saleNo={completedSaleForAnimation.saleNo}
+          grandTotal={completedSaleForAnimation.grandTotal}
+          subtitle="Order completed."
+          onComplete={() => {
+            setShowCompleteAnimation(false);
+            setCompletedSaleForAnimation(null);
+          }}
+        />
+      )}
       {/* Header */}
       <div className="mb-3 sm:mb-4 flex-shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>

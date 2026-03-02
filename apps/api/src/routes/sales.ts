@@ -852,11 +852,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
         // Fully paid
-        if (hasAnyCreditPayment) {
-          // Credit orders always stay OPEN, even when fully paid
+        const isCompletionOnly = newPaymentsTotal === 0 && currentTotalPaid >= roundedGrandTotal - 0.5;
+        if (hasAnyCreditPayment && !isCompletionOnly) {
+          // Credit orders stay OPEN when fully paid, unless this is an explicit "complete" (0 amount)
           saleStatus = 'OPEN';
         } else {
-          // Regular order - mark as PAID
+          // Regular order or completion of already-paid open order - mark as PAID
           saleStatus = 'PAID';
         }
       } else {

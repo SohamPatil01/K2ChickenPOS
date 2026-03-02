@@ -6,8 +6,10 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { getHQConsoleUrl } from '@/lib/hq';
 import Link from 'next/link';
+import StatCard from '@/components/StatCard';
 import { SkeletonStatCard, Skeleton, SkeletonCard, SkeletonText } from '@/components/ui';
 import { exportToCSV } from '@/lib/exportCSV';
+import { formatInrShort } from '@/lib/utils';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface DashboardStats {
@@ -83,6 +85,7 @@ export default function StoreDashboardPage() {
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [historicalData, setHistoricalData] = useState<any>(null);
+  const [salesTrendLast7, setSalesTrendLast7] = useState<Array<{ date: string; total: number }>>([]);
 
   useEffect(() => {
     if (!user) {
@@ -370,6 +373,26 @@ export default function StoreDashboardPage() {
       
       setStats(newStats);
       setLastRefresh(new Date());
+
+      // Load last 7 days revenue trend for chart (Manager/Owner only)
+      if (userRole === "MANAGER" || userRole === "OWNER") {
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
+        api
+          .get("/api/v1/analytics/sales-trend", {
+            params: {
+              startDate: sevenDaysAgo.toISOString().split("T")[0],
+              endDate: todayStr,
+            },
+          })
+          .then((res: any) => {
+            const trend = Array.isArray(res?.data) ? res.data : [];
+            setSalesTrendLast7(trend);
+          })
+          .catch(() => setSalesTrendLast7([]));
+      } else {
+        setSalesTrendLast7([]);
+      }
       
       // Load pending payments
       loadPendingPayments();
@@ -526,74 +549,12 @@ export default function StoreDashboardPage() {
     );
   }
 
-  const StatCard = ({ title, value, subtitle, icon, comparison, gradient }: { 
-    title: string; 
-    value: string | number; 
-    subtitle?: string; 
-    icon: string;
-    comparison?: { label: string; value: number; change: number };
-    gradient?: string;
-  }) => (
-    <div className={`relative overflow-hidden rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 p-6 ${
-      gradient || 'bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900'
-    }`}>
-      {/* Background Pattern */}
-      <div className="absolute top-0 right-0 opacity-10">
-        <div className="text-7xl">{icon}</div>
-        </div>
-      
-      {/* Content */}
-      <div className="relative z-10">
-        <div className="flex items-start justify-between mb-4">
-          <div className={`p-3 rounded-lg ${gradient ? 'bg-white/20 backdrop-blur-sm' : 'bg-gray-100 dark:bg-gray-700'}`}>
-            <span className="text-3xl">{icon}</span>
-          </div>
-          {comparison && (
-            <div className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
-              comparison.change > 0 
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
-                : comparison.change < 0 
-                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' 
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400'
-            }`}>
-              {comparison.change > 0 ? '↑' : comparison.change < 0 ? '↓' : '→'} {Math.abs(comparison.change).toFixed(1)}%
-            </div>
-          )}
-        </div>
-        
-        <p className={`text-sm font-semibold uppercase tracking-wide mb-2 ${gradient ? 'text-white/90' : 'text-gray-600 dark:text-gray-400'}`}>
-          {title}
-        </p>
-        <p className={`text-3xl font-bold mb-1 truncate ${gradient ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-          {value}
-        </p>
-        {subtitle && (
-          <p className={`text-sm truncate ${gradient ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
-            {subtitle}
-          </p>
-        )}
-        {comparison && (
-          <p className={`text-xs mt-2 ${gradient ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
-            {comparison.label}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-
   const userRole = user?.role as string;
 
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col relative">
-      {/* Loading Overlay */}
-      {loading && stats && (
-        <div className="absolute top-0 right-0 z-10 bg-blue-500 text-white px-3 py-1 rounded-bl-lg text-xs font-medium flex items-center gap-2">
-          <span className="animate-spin">↻</span>
-          <span>Updating...</span>
-        </div>
-      )}
-      
-      <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 flex-shrink-0">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0 flex-shrink-0 bg-white dark:bg-gray-900 py-2 -mx-2 px-2 rounded-lg border-b border-gray-200 dark:border-gray-700">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">
             {userRole === 'OWNER' ? 'Admin Console' : userRole === 'MANAGER' ? 'Manager Console' : 'Store Dashboard'}
@@ -626,7 +587,7 @@ export default function StoreDashboardPage() {
             title="Refresh dashboard"
           >
             <span className={loading ? 'animate-spin' : ''}>↻</span>
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">{loading && stats ? 'Updating...' : 'Refresh'}</span>
           </button>
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
@@ -652,7 +613,7 @@ export default function StoreDashboardPage() {
       <div className="flex-1 min-h-0 overflow-y-auto">
       {/* Quick Insights Bar */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl shadow-lg p-4 border border-blue-200 dark:border-blue-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Performance</p>
@@ -674,7 +635,7 @@ export default function StoreDashboardPage() {
           </p>
         </div>
         
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl shadow-lg p-4 border border-green-200 dark:border-green-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-green-700 dark:text-green-300 uppercase tracking-wide">Avg Order Value</p>
@@ -689,7 +650,7 @@ export default function StoreDashboardPage() {
           </p>
         </div>
         
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl shadow-lg p-4 border border-purple-200 dark:border-purple-800">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Monthly Progress</p>
@@ -706,48 +667,169 @@ export default function StoreDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 mb-6">
-        <StatCard
-          title="Today's Revenue"
-          value={`₹${stats.today.revenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          subtitle={`${stats.today.count} sales today`}
-          icon="💰"
-          gradient="bg-gradient-to-br from-green-500 to-green-600"
-          comparison={{
-            label: 'vs yesterday',
-            value: stats.yesterday.revenue,
-            change: stats.yesterday.revenue > 0 
-              ? ((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue) * 100 
-              : 0
-          }}
-        />
-        <StatCard
-          title="Today's Sales Count"
-          value={stats.today.count}
-          subtitle={`Avg: ₹${Math.round(stats.today.avgBill).toLocaleString()}`}
-          icon="📊"
-          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
-          comparison={{
-            label: 'vs yesterday',
-            value: stats.yesterday.count,
-            change: stats.yesterday.count > 0 
-              ? ((stats.today.count - stats.yesterday.count) / stats.yesterday.count) * 100 
-              : 0
-          }}
-        />
-        <StatCard
-          title="Pending Payments"
-          value={`₹${Math.round(pendingPaymentsTotal).toLocaleString()}`}
-          subtitle={`${pendingPaymentsCount} pending orders`}
-          icon="⏳"
-          gradient="bg-gradient-to-br from-orange-500 to-orange-600"
-        />
-        <StatCard
-          title="Monthly Revenue"
-          value={`₹${stats.month.revenue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-          subtitle={`${stats.month.count} total sales`}
-          icon="📈"
-          gradient="bg-gradient-to-br from-purple-500 to-purple-600"
-        />
+        {loading && stats ? (
+          <>
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Today's Revenue"
+              value={formatInrShort(stats.today.revenue)}
+              subtitle={`${stats.today.count} sales today`}
+              icon="💰"
+              gradient="bg-gradient-to-br from-green-500 to-green-600"
+              comparison={{
+                label: 'vs yesterday',
+                value: stats.yesterday.revenue,
+                change: stats.yesterday.revenue > 0
+                  ? ((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue) * 100
+                  : 0
+              }}
+            />
+            <StatCard
+              title="Today's Sales Count"
+              value={stats.today.count}
+              subtitle={`Avg: ${formatInrShort(stats.today.avgBill)}`}
+              icon="📊"
+              gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+              comparison={{
+                label: 'vs yesterday',
+                value: stats.yesterday.count,
+                change: stats.yesterday.count > 0
+                  ? ((stats.today.count - stats.yesterday.count) / stats.yesterday.count) * 100
+                  : 0
+              }}
+            />
+            <StatCard
+              title="Pending Payments"
+              value={formatInrShort(pendingPaymentsTotal)}
+              subtitle={`${pendingPaymentsCount} pending orders`}
+              icon="⏳"
+              gradient="bg-gradient-to-br from-orange-500 to-orange-600"
+            />
+            <StatCard
+              title="Monthly Revenue"
+              value={formatInrShort(stats.month.revenue)}
+              subtitle={`${stats.month.count} total sales`}
+              icon="📈"
+              gradient="bg-gradient-to-br from-purple-500 to-purple-600"
+            />
+          </>
+        )}
+      </div>
+
+      {/* Quick Actions - above the fold */}
+      <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-3 sm:p-4 lg:p-6 border border-gray-100 dark:border-gray-700">
+        <h2 className="text-base sm:text-lg lg:text-xl font-bold dark:text-white mb-3 sm:mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {pendingPaymentsCount > 0 && (
+            <Link
+              href="/store/pending-payments"
+              className="flex flex-col items-center justify-center p-3 sm:p-4 bg-orange-100 dark:bg-orange-900/30 rounded-xl hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors touch-target border-2 border-orange-300 dark:border-orange-700"
+            >
+              <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">⏳</span>
+              <span className="font-medium text-xs sm:text-sm text-orange-700 dark:text-orange-300 text-center">Pending Payments</span>
+              <span className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">{pendingPaymentsCount} order(s)</span>
+            </Link>
+          )}
+          <Link
+            href="/store/pos"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-brand-50 dark:bg-brand-900/20 rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors touch-target"
+          >
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🛒</span>
+            <span className="font-medium text-xs sm:text-sm text-brand-600 dark:text-brand-400 text-center">New Sale</span>
+          </Link>
+          <Link
+            href="/store/inventory"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target"
+          >
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📦</span>
+            <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">Inventory</span>
+          </Link>
+          <Link
+            href="/store/stock-ledger"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors touch-target"
+          >
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📋</span>
+            <span className="font-medium text-xs sm:text-sm text-green-600 dark:text-green-400 text-center">Stock Ledger</span>
+          </Link>
+          <Link
+            href="/store/reports"
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors touch-target"
+          >
+            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📈</span>
+            <span className="font-medium text-xs sm:text-sm text-purple-600 dark:text-purple-400 text-center">Reports</span>
+          </Link>
+        </div>
+        {(user?.role === 'MANAGER' || user?.role === 'OWNER') && (
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Manager Tools</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              <Link
+                href="/store/wastage"
+                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors touch-target"
+              >
+                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🗑️</span>
+                <span className="font-medium text-xs sm:text-sm text-red-600 dark:text-red-400 text-center">Wastage Management</span>
+              </Link>
+              <Link
+                href="/store/yield"
+                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors touch-target"
+              >
+                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📊</span>
+                <span className="font-medium text-xs sm:text-sm text-orange-600 dark:text-orange-400 text-center">Yield Tracking</span>
+              </Link>
+            </div>
+          </div>
+        )}
+        {user?.role === 'OWNER' && (
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Owner Tools</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              {(() => {
+                const hqHref = getHQConsoleUrl();
+                const isExternal = hqHref.startsWith('http');
+                const className = 'flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target';
+                const content = (
+                  <>
+                    <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🏢</span>
+                    <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">HQ Console</span>
+                  </>
+                );
+                if (isExternal) {
+                  return (
+                    <a
+                      href={hqHref}
+                      className={className}
+                      onClick={(e) => {
+                        if (typeof window !== 'undefined') {
+                          const accessToken = localStorage.getItem('accessToken');
+                          const refreshToken = localStorage.getItem('refreshToken');
+                          if (accessToken) {
+                            e.preventDefault();
+                            const params = new URLSearchParams({ accessToken, refreshToken: refreshToken || '' });
+                            window.location.href = `${hqHref}#${params.toString()}`;
+                          }
+                        }
+                      }}
+                    >
+                      {content}
+                    </a>
+                  );
+                }
+                return (
+                  <Link href={hqHref} className={className}>
+                    {content}
+                  </Link>
+                );
+              })()}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Historical Data Viewer */}
@@ -900,7 +982,7 @@ export default function StoreDashboardPage() {
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Cash</span>
               <span className="text-2xl">💵</span>
@@ -913,7 +995,7 @@ export default function StoreDashboardPage() {
               <span>of total</span>
           </div>
             </div>
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">UPI</span>
               <span className="text-2xl">📱</span>
@@ -926,7 +1008,7 @@ export default function StoreDashboardPage() {
               <span>of total</span>
           </div>
             </div>
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Card</span>
               <span className="text-2xl">💳</span>
@@ -939,7 +1021,7 @@ export default function StoreDashboardPage() {
               <span>of total</span>
           </div>
             </div>
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-5 shadow-lg hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-white/90 uppercase tracking-wide">Other</span>
               <span className="text-2xl">🔄</span>
@@ -958,74 +1040,76 @@ export default function StoreDashboardPage() {
       {/* Charts Section */}
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Sales Trend Chart - Using Recharts */}
+          {/* Revenue trend: real last 7 days from API, or 3-point comparison fallback */}
           <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">📈</span>
-                7-Day Revenue Trend
+                {salesTrendLast7.length > 0 ? "Last 7 Days Revenue" : "Revenue Comparison"}
               </h2>
               <button
                 onClick={() => {
-                  const chartData = [
-                    { day: 'Last Week', revenue: stats.lastWeek.revenue },
-                    { day: 'Day -5', revenue: stats.lastWeek.revenue * 0.9 },
-                    { day: 'Day -4', revenue: stats.lastWeek.revenue * 1.1 },
-                    { day: 'Day -3', revenue: stats.lastWeek.revenue * 0.95 },
-                    { day: 'Day -2', revenue: stats.lastWeek.revenue * 1.05 },
-                    { day: 'Yesterday', revenue: stats.yesterday.revenue },
-                    { day: 'Today', revenue: stats.today.revenue },
-                  ];
-                  exportToCSV({ data: chartData, filename: `revenue_trend_${new Date().toISOString().split('T')[0]}.csv` });
+                  const chartData = salesTrendLast7.length > 0
+                    ? salesTrendLast7.map((d) => ({ day: d.date, revenue: d.total }))
+                    : [
+                        { day: "Last week (same day)", revenue: stats.lastWeek.revenue },
+                        { day: "Yesterday", revenue: stats.yesterday.revenue },
+                        { day: "Today", revenue: stats.today.revenue },
+                      ];
+                  exportToCSV({ data: chartData, filename: `revenue_${new Date().toISOString().split("T")[0]}.csv` });
                 }}
                 className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
               >
                 📥 Export
               </button>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={[
-                { day: 'Last Week', revenue: stats.lastWeek.revenue },
-                { day: 'Day -5', revenue: stats.lastWeek.revenue * 0.9 },
-                { day: 'Day -4', revenue: stats.lastWeek.revenue * 1.1 },
-                { day: 'Day -3', revenue: stats.lastWeek.revenue * 0.95 },
-                { day: 'Day -2', revenue: stats.lastWeek.revenue * 1.05 },
-                { day: 'Yesterday', revenue: stats.yesterday.revenue },
-                { day: 'Today', revenue: stats.today.revenue },
-              ]}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="day" 
-                  stroke="#6b7280"
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis 
-                  stroke="#6b7280"
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`}
-                />
-                <Tooltip 
-                  formatter={(value: any) => `₹${value.toLocaleString('en-IN')}`}
-                  contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#3b82f6" 
-                  fillOpacity={1} 
-                  fill="url(#colorRevenue)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {(() => {
+              const barData =
+                salesTrendLast7.length > 0
+                  ? salesTrendLast7.map((d) => {
+                      const [, m, day] = d.date.split("-").map(Number);
+                      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                      return { day: `${day} ${months[m - 1]}`, revenue: d.total };
+                    })
+                  : [
+                      { day: "Last week", revenue: stats.lastWeek.revenue },
+                      { day: "Yesterday", revenue: stats.yesterday.revenue },
+                      { day: "Today", revenue: stats.today.revenue },
+                    ];
+              const hasRevenueData = barData.some((d) => d.revenue > 0);
+              if (!hasRevenueData) {
+                return (
+                  <div className="flex flex-col items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-600 min-h-[300px]" aria-label="No revenue data">
+                    <p className="text-gray-500 dark:text-gray-400 font-medium mb-2">No revenue data for this period</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">Record sales to see trends here</p>
+                    <Link href="/store/pos" className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium transition-colors">
+                      Go to POS
+                    </Link>
+                  </div>
+                );
+              }
+              return (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} aria-label="Revenue trend chart">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="day" stroke="#6b7280" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      stroke="#6b7280"
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`}
+                    />
+                    <Tooltip
+                      formatter={(value: any) => [`₹${Number(value).toLocaleString("en-IN")}`, "Revenue"]}
+                      contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px" }}
+                    />
+                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            })()}
             <div className="mt-6 grid grid-cols-3 gap-3 text-xs">
               <div className="text-center p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <span className="text-gray-600 dark:text-gray-400 block mb-1">Last Week</span>
+                <span className="text-gray-600 dark:text-gray-400 block mb-1">Last week</span>
                 <span className="font-bold text-gray-900 dark:text-white">₹{stats.lastWeek.revenue.toLocaleString()}</span>
               </div>
               <div className="text-center p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -1061,35 +1145,45 @@ export default function StoreDashboardPage() {
                 📥 Export
               </button>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: 'Cash', value: stats.paymentBreakdown.cash },
-                    { name: 'UPI', value: stats.paymentBreakdown.upi },
-                    { name: 'Card', value: stats.paymentBreakdown.card },
-                    { name: 'Other', value: stats.paymentBreakdown.other },
-                  ]}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  <Cell fill="#10b981" />
-                  <Cell fill="#3b82f6" />
-                  <Cell fill="#8b5cf6" />
-                  <Cell fill="#f59e0b" />
-                </Pie>
-                <Tooltip 
-                  formatter={(value: any) => `₹${value.toLocaleString('en-IN')}`}
-                  contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            {stats.paymentBreakdown.total <= 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-600 min-h-[300px]" aria-label="No payment data">
+                <p className="text-gray-500 dark:text-gray-400 font-medium mb-2">No payments today</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">Payment distribution will appear after sales</p>
+                <Link href="/store/pos" className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium transition-colors">
+                  Go to POS
+                </Link>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart aria-label="Payment distribution chart">
+                  <Pie
+                    data={[
+                      { name: 'Cash', value: stats.paymentBreakdown.cash },
+                      { name: 'UPI', value: stats.paymentBreakdown.upi },
+                      { name: 'Card', value: stats.paymentBreakdown.card },
+                      { name: 'Other', value: stats.paymentBreakdown.other },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    <Cell fill="#10b981" />
+                    <Cell fill="#3b82f6" />
+                    <Cell fill="#8b5cf6" />
+                    <Cell fill="#f59e0b" />
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: any) => `₹${value.toLocaleString('en-IN')}`}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <div className="w-4 h-4 rounded-full bg-green-500"></div>
@@ -1227,108 +1321,6 @@ export default function StoreDashboardPage() {
               ) : (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-4">No sales today</p>
               )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="mt-4 sm:mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-        <h2 className="text-base sm:text-lg lg:text-xl font-bold dark:text-white mb-3 sm:mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <Link
-            href="/store/pos"
-            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-brand-50 dark:bg-brand-900/20 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-colors touch-target"
-          >
-            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🛒</span>
-            <span className="font-medium text-xs sm:text-sm text-brand-600 dark:text-brand-400 text-center">New Sale</span>
-          </Link>
-          <Link
-            href="/store/inventory"
-            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target"
-          >
-            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📦</span>
-            <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">Inventory</span>
-          </Link>
-          <Link
-            href="/store/stock-ledger"
-            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors touch-target"
-          >
-            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📋</span>
-            <span className="font-medium text-xs sm:text-sm text-green-600 dark:text-green-400 text-center">Stock Ledger</span>
-          </Link>
-          <Link
-            href="/store/reports"
-            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors touch-target"
-          >
-            <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📈</span>
-            <span className="font-medium text-xs sm:text-sm text-purple-600 dark:text-purple-400 text-center">Reports</span>
-          </Link>
-        </div>
-        {/* Manager-Only Actions */}
-        {(user?.role === 'MANAGER' || user?.role === 'OWNER') && (
-          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Manager Tools</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              <Link
-                href="/store/wastage"
-                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors touch-target"
-              >
-                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🗑️</span>
-                <span className="font-medium text-xs sm:text-sm text-red-600 dark:text-red-400 text-center">Wastage Management</span>
-              </Link>
-              <Link
-                href="/store/yield"
-                className="flex flex-col items-center justify-center p-3 sm:p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors touch-target"
-              >
-                <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📊</span>
-                <span className="font-medium text-xs sm:text-sm text-orange-600 dark:text-orange-400 text-center">Yield Tracking</span>
-              </Link>
-            </div>
-          </div>
-        )}
-        {/* Owner-Only Actions */}
-        {user?.role === 'OWNER' && (
-          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">Owner Tools</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              {(() => {
-                const hqHref = getHQConsoleUrl();
-                const isExternal = hqHref.startsWith('http');
-                const className = 'flex flex-col items-center justify-center p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors touch-target';
-                const content = (
-                  <>
-                    <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🏢</span>
-                    <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">HQ Console</span>
-                  </>
-                );
-                if (isExternal) {
-                  return (
-                    <a
-                      href={hqHref}
-                      className={className}
-                      onClick={(e) => {
-                        if (typeof window !== 'undefined') {
-                          const accessToken = localStorage.getItem('accessToken');
-                          const refreshToken = localStorage.getItem('refreshToken');
-                          if (accessToken) {
-                            e.preventDefault();
-                            const params = new URLSearchParams({ accessToken, refreshToken: refreshToken || '' });
-                            window.location.href = `${hqHref}#${params.toString()}`;
-                          }
-                        }
-                      }}
-                    >
-                      {content}
-                    </a>
-                  );
-                }
-                return (
-                  <Link href={hqHref} className={className}>
-                    {content}
-                  </Link>
-                );
-              })()}
             </div>
           </div>
         )}

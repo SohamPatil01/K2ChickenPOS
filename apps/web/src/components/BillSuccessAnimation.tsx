@@ -6,9 +6,11 @@ interface BillSuccessAnimationProps {
   saleNo?: string;
   grandTotal: number;
   onComplete: () => void;
+  /** Optional subtitle (e.g. "Order completed." on Orders page). Default: "Redirecting to POS..." */
+  subtitle?: string;
 }
 
-export default function BillSuccessAnimation({ saleNo, grandTotal, onComplete }: BillSuccessAnimationProps) {
+export default function BillSuccessAnimation({ saleNo, grandTotal, onComplete, subtitle = 'Redirecting to POS...' }: BillSuccessAnimationProps) {
   const [isAnimating, setIsAnimating] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -77,7 +79,7 @@ export default function BillSuccessAnimation({ saleNo, grandTotal, onComplete }:
                 </p>
               </div>
               <p className="text-xl text-gray-200 animate-pulse">
-                Redirecting to POS...
+                {subtitle}
               </p>
             </div>
           )}
