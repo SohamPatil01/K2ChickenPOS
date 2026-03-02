@@ -93,9 +93,9 @@ export default function OrdersPage() {
       startDate: filters.dateRange.start,
       endDate: filters.dateRange.end,
     });
-    if (filters.status) {
-      setStatusFilter(filters.status);
-    }
+    setStatusFilter(
+      filters.status && filters.status.trim() !== "" ? filters.status : "ALL"
+    );
   }, []);
 
   const handlePrint = useReactToPrint({

@@ -1,7 +1,14 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
+import React, { useState, useEffect } from "react";
+import {
+  format,
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+} from "date-fns";
 
 export interface FilterCriteria {
   dateRange: {
@@ -48,17 +55,17 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
   showPaymentMethodFilter = true,
   showStatusFilter = false,
   showAmountFilter = false,
-  storageKey = 'report_filters',
+  storageKey = "report_filters",
 }) => {
   const [filters, setFilters] = useState<FilterCriteria>({
     dateRange: {
-      start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-      end: format(new Date(), 'yyyy-MM-dd'),
+      start: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+      end: format(new Date(), "yyyy-MM-dd"),
     },
   });
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [showSavePreset, setShowSavePreset] = useState(false);
-  const [presetName, setPresetName] = useState('');
+  const [presetName, setPresetName] = useState("");
   const [showPresets, setShowPresets] = useState(false);
 
   // Load presets from localStorage
@@ -68,7 +75,7 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
       try {
         setPresets(JSON.parse(saved));
       } catch (e) {
-        console.error('Failed to load presets:', e);
+        console.error("Failed to load presets:", e);
       }
     }
   }, [storageKey]);
@@ -89,29 +96,29 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
     let end: Date = today;
 
     switch (preset) {
-      case 'today':
+      case "today":
         start = today;
         break;
-      case 'yesterday':
+      case "yesterday":
         start = subDays(today, 1);
         end = subDays(today, 1);
         break;
-      case 'last7days':
+      case "last7days":
         start = subDays(today, 7);
         break;
-      case 'last30days':
+      case "last30days":
         start = subDays(today, 30);
         break;
-      case 'thisMonth':
+      case "thisMonth":
         start = startOfMonth(today);
         end = endOfMonth(today);
         break;
-      case 'lastMonth':
+      case "lastMonth":
         const lastMonth = subDays(startOfMonth(today), 1);
         start = startOfMonth(lastMonth);
         end = endOfMonth(lastMonth);
         break;
-      case 'thisWeek':
+      case "thisWeek":
         start = startOfWeek(today, { weekStartsOn: 1 });
         end = endOfWeek(today, { weekStartsOn: 1 });
         break;
@@ -119,11 +126,11 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
         return;
     }
 
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       dateRange: {
-        start: format(start, 'yyyy-MM-dd'),
-        end: format(end, 'yyyy-MM-dd'),
+        start: format(start, "yyyy-MM-dd"),
+        end: format(end, "yyyy-MM-dd"),
       },
     }));
   };
@@ -138,7 +145,7 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
     };
 
     savePresets([...presets, newPreset]);
-    setPresetName('');
+    setPresetName("");
     setShowSavePreset(false);
   };
 
@@ -148,21 +155,24 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
   };
 
   const handleDeletePreset = (presetId: string) => {
-    savePresets(presets.filter(p => p.id !== presetId));
+    savePresets(presets.filter((p) => p.id !== presetId));
   };
 
   const handleClearFilters = () => {
     setFilters({
       dateRange: {
-        start: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
-        end: format(new Date(), 'yyyy-MM-dd'),
+        start: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+        end: format(new Date(), "yyyy-MM-dd"),
       },
     });
   };
 
-  const activeFilterCount = Object.keys(filters).filter(key => {
-    if (key === 'dateRange') return false;
-    return filters[key as keyof FilterCriteria] !== undefined && filters[key as keyof FilterCriteria] !== '';
+  const activeFilterCount = Object.keys(filters).filter((key) => {
+    if (key === "dateRange") return false;
+    return (
+      filters[key as keyof FilterCriteria] !== undefined &&
+      filters[key as keyof FilterCriteria] !== ""
+    );
   }).length;
 
   return (
@@ -170,7 +180,9 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filters</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Filters
+          </h3>
           {activeFilterCount > 0 && (
             <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full">
               {activeFilterCount} active
@@ -211,7 +223,7 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               onChange={(e) => setPresetName(e.target.value)}
               placeholder="Preset name..."
               className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
-              onKeyPress={(e) => e.key === 'Enter' && handleSavePreset()}
+              onKeyPress={(e) => e.key === "Enter" && handleSavePreset()}
             />
             <button
               onClick={handleSavePreset}
@@ -234,8 +246,11 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
       {showPresets && presets.length > 0 && (
         <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="space-y-2">
-            {presets.map(preset => (
-              <div key={preset.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded">
+            {presets.map((preset) => (
+              <div
+                key={preset.id}
+                className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded"
+              >
                 <button
                   onClick={() => handleLoadPreset(preset)}
                   className="flex-1 text-left text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
@@ -261,14 +276,14 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
         </label>
         <div className="flex flex-wrap gap-2">
           {[
-            { label: 'Today', value: 'today' },
-            { label: 'Yesterday', value: 'yesterday' },
-            { label: 'Last 7 Days', value: 'last7days' },
-            { label: 'Last 30 Days', value: 'last30days' },
-            { label: 'This Week', value: 'thisWeek' },
-            { label: 'This Month', value: 'thisMonth' },
-            { label: 'Last Month', value: 'lastMonth' },
-          ].map(preset => (
+            { label: "Today", value: "today" },
+            { label: "Yesterday", value: "yesterday" },
+            { label: "Last 7 Days", value: "last7days" },
+            { label: "Last 30 Days", value: "last30days" },
+            { label: "This Week", value: "thisWeek" },
+            { label: "This Month", value: "thisMonth" },
+            { label: "Last Month", value: "lastMonth" },
+          ].map((preset) => (
             <button
               key={preset.value}
               onClick={() => handleDatePreset(preset.value)}
@@ -289,10 +304,12 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
           <input
             type="date"
             value={filters.dateRange.start}
-            onChange={(e) => setFilters(prev => ({
-              ...prev,
-              dateRange: { ...prev.dateRange, start: e.target.value }
-            }))}
+            onChange={(e) =>
+              setFilters((prev) => ({
+                ...prev,
+                dateRange: { ...prev.dateRange, start: e.target.value },
+              }))
+            }
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
           />
         </div>
@@ -303,10 +320,12 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
           <input
             type="date"
             value={filters.dateRange.end}
-            onChange={(e) => setFilters(prev => ({
-              ...prev,
-              dateRange: { ...prev.dateRange, end: e.target.value }
-            }))}
+            onChange={(e) =>
+              setFilters((prev) => ({
+                ...prev,
+                dateRange: { ...prev.dateRange, end: e.target.value },
+              }))
+            }
             className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
           />
         </div>
@@ -320,11 +339,13 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               Payment Method
             </label>
             <select
-              value={filters.paymentMethod || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                paymentMethod: e.target.value || undefined
-              }))}
+              value={filters.paymentMethod || ""}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  paymentMethod: e.target.value || undefined,
+                }))
+              }
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
             >
               <option value="">All</option>
@@ -343,17 +364,19 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               Status
             </label>
             <select
-              value={filters.status || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                status: e.target.value || undefined
-              }))}
+              value={filters.status || ""}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  status: e.target.value || undefined,
+                }))
+              }
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
             >
               <option value="">All</option>
               <option value="PAID">Paid</option>
               <option value="OPEN">Open</option>
-              <option value="CANCELLED">Cancelled</option>
+              <option value="VOID">Cancelled</option>
             </select>
           </div>
         )}
@@ -364,15 +387,17 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               Product
             </label>
             <select
-              value={filters.product || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                product: e.target.value || undefined
-              }))}
+              value={filters.product || ""}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  product: e.target.value || undefined,
+                }))
+              }
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
             >
               <option value="">All Products</option>
-              {availableProducts.map(product => (
+              {availableProducts.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.name}
                 </option>
@@ -387,15 +412,17 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               Category
             </label>
             <select
-              value={filters.category || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                category: e.target.value || undefined
-              }))}
+              value={filters.category || ""}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  category: e.target.value || undefined,
+                }))
+              }
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
             >
               <option value="">All Categories</option>
-              {availableCategories.map(category => (
+              {availableCategories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                 </option>
@@ -410,15 +437,17 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               Customer
             </label>
             <select
-              value={filters.customer || ''}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                customer: e.target.value || undefined
-              }))}
+              value={filters.customer || ""}
+              onChange={(e) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  customer: e.target.value || undefined,
+                }))
+              }
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
             >
               <option value="">All Customers</option>
-              {availableCustomers.map(customer => (
+              {availableCustomers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.name}
                 </option>
@@ -435,11 +464,15 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               </label>
               <input
                 type="number"
-                value={filters.minAmount || ''}
-                onChange={(e) => setFilters(prev => ({
-                  ...prev,
-                  minAmount: e.target.value ? parseFloat(e.target.value) : undefined
-                }))}
+                value={filters.minAmount || ""}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    minAmount: e.target.value
+                      ? parseFloat(e.target.value)
+                      : undefined,
+                  }))
+                }
                 placeholder="0"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
               />
@@ -450,11 +483,15 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
               </label>
               <input
                 type="number"
-                value={filters.maxAmount || ''}
-                onChange={(e) => setFilters(prev => ({
-                  ...prev,
-                  maxAmount: e.target.value ? parseFloat(e.target.value) : undefined
-                }))}
+                value={filters.maxAmount || ""}
+                onChange={(e) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    maxAmount: e.target.value
+                      ? parseFloat(e.target.value)
+                      : undefined,
+                  }))
+                }
                 placeholder="∞"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 dark:text-white"
               />
@@ -466,12 +503,16 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
       {/* Active Filter Chips */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Active filters:</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Active filters:
+          </span>
           {filters.paymentMethod && (
             <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full flex items-center gap-1">
               Payment: {filters.paymentMethod}
               <button
-                onClick={() => setFilters(prev => ({ ...prev, paymentMethod: undefined }))}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, paymentMethod: undefined }))
+                }
                 className="hover:text-blue-900 dark:hover:text-blue-100"
               >
                 ×
@@ -482,7 +523,9 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
             <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full flex items-center gap-1">
               Status: {filters.status}
               <button
-                onClick={() => setFilters(prev => ({ ...prev, status: undefined }))}
+                onClick={() =>
+                  setFilters((prev) => ({ ...prev, status: undefined }))
+                }
                 className="hover:text-green-900 dark:hover:text-green-100"
               >
                 ×
@@ -496,4 +539,3 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
 };
 
 export default FilterSystem;
-
