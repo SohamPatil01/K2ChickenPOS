@@ -1239,9 +1239,11 @@ export default function StoreDashboardPage() {
               stats.recentSales.map((sale) => (
                 <div key={sale.id} className="flex justify-between items-center p-2.5 sm:p-3 bg-gray-50 dark:bg-gray-700 rounded gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-xs sm:text-sm dark:text-white truncate">{sale.saleNo}</p>
+                    <p className="font-medium text-xs sm:text-sm dark:text-white truncate">
+                      {sale.customerName ?? 'Walk-in'}
+                    </p>
                     <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                      {sale.customerName} • {sale.itemCount} items
+                      {sale.saleNo} • {sale.itemCount} items
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">

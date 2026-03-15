@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+// Use same-origin so requests go through Next.js rewrite proxy (no cross-origin, no CORS preflight)
+const API_BASE = '';
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -30,11 +31,10 @@ api.interceptors.response.use(
   async (error) => {
     // Enhanced error logging
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      console.error('Network Error - API may be down or URL incorrect:', {
+      console.error('Network Error - API may be down or proxy incorrect:', {
         url: error.config?.url,
         baseURL: error.config?.baseURL,
-        apiUrl: process.env.NEXT_PUBLIC_API_URL,
-        message: 'Check if API server is running and NEXT_PUBLIC_API_URL is set correctly',
+        message: 'Check if API server is running and Next.js rewrite proxy (next.config.js) can reach it',
       });
     } else {
       // Don't log 404 errors for daily-closing endpoints as they're expected when no closing exists
@@ -54,7 +54,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
+          const response = await api.post('/api/v1/auth/refresh', {
             refreshToken,
           });
           const { accessToken } = response.data;

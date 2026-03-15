@@ -193,10 +193,9 @@ export default function StorePOSPage() {
       // Enhanced error handling for network errors
       let errorMessage = "Failed to load products. Please try again.";
       if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "Not configured";
-        errorMessage = `Cannot connect to API server. Please check if the API is running and NEXT_PUBLIC_API_URL is set correctly. (Current: ${apiUrl})`;
+        errorMessage =
+          "Cannot connect to API server. Please check if the API is running (requests are proxied from this app).";
         console.error("Network Error Details:", {
-          apiUrl,
           errorCode: error.code,
           errorMessage: error.message,
           url: error.config?.url,

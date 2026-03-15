@@ -1,10 +1,10 @@
 import axios from 'axios';
 
-// HQ app runs on 3002; call the API server (3003) directly so CORS is handled by the API
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+// Use same-origin so requests go through Next.js rewrite proxy (no cross-origin, no CORS preflight)
+const API_BASE = '';
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,7 +37,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
+          const response = await api.post('/api/v1/auth/refresh', {
             refreshToken,
           });
           const { accessToken } = response.data;
