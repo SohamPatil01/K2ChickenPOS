@@ -281,24 +281,23 @@ export default function StoreDashboardPage() {
       const products = productsRes.data || [];
       const currentStock = products.reduce((sum: number, p: any) => sum + (p.currentStock || 0), 0);
 
-      // Top products (today)
+      // Top products (today) – include items even when product is null (e.g. deleted) so eggs/PCS and revenue are not dropped
       const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
       paidSales.forEach((sale: any) => {
         (sale.items || []).forEach((item: any) => {
-          // Skip items where product is null (deleted products)
-          if (!item.product) {
-            return;
+          const productId = item.productId;
+          if (!productId) return;
+
+          const name = item.product?.name ?? 'Unknown';
+          const qty = (item.qtyKg ?? 0) || (item.qtyPcs ?? 0);
+          const revenue = item.lineTotal ?? 0;
+
+          if (!productSales[productId]) {
+            productSales[productId] = { name, qty: 0, revenue: 0 };
           }
-          
-          if (!productSales[item.productId]) {
-            productSales[item.productId] = {
-              name: item.product?.name || 'Unknown',
-              qty: 0,
-              revenue: 0,
-            };
-          }
-          productSales[item.productId].qty += item.qtyKg || item.qtyPcs || 0;
-          productSales[item.productId].revenue += item.lineTotal || 0;
+          productSales[productId].name = name; // keep latest name in case product was later deleted
+          productSales[productId].qty += qty;
+          productSales[productId].revenue += revenue;
         });
       });
 

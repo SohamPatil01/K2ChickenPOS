@@ -814,8 +814,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Create payments - ensure method is valid enum value
-      // The Zod schema should have validated this, but ensure it's properly formatted
+      // Completion-only: credit order already fully paid, client sends amount 0 just to update status to PAID. Skip creating a 0-amount payment to avoid DB/validation issues.
+      const isCompletionOnly = newPaymentsTotal === 0 && currentTotalPaid >= roundedGrandTotal - 0.5;
+
+      // Create payments - ensure method is valid enum value (skip when completion-only with no positive amounts)
       const validPaymentMethods: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
       const paymentData = payments.map((p: any) => {
         // Normalize the method to uppercase and trim
@@ -836,11 +838,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
         };
       });
 
-      console.log('[Payment] Creating payments:', JSON.stringify(paymentData, null, 2));
-
-      await prisma.payment.createMany({
-        data: paymentData,
-      });
+      const paymentsToCreate = paymentData.filter((p: { amount: number }) => p.amount > 0);
+      if (paymentsToCreate.length > 0) {
+        console.log('[Payment] Creating payments:', JSON.stringify(paymentsToCreate, null, 2));
+        await prisma.payment.createMany({
+          data: paymentsToCreate,
+        });
+      } else if (isCompletionOnly) {
+        console.log('[Payment] Completion-only (credit order already fully paid); skipping payment createMany, will update status to PAID');
+      }
 
       // Update sale status
       // Credit orders should always remain OPEN, even when fully paid
@@ -852,7 +858,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
         // Fully paid
-        const isCompletionOnly = newPaymentsTotal === 0 && currentTotalPaid >= roundedGrandTotal - 0.5;
         if (hasAnyCreditPayment && !isCompletionOnly) {
           // Credit orders stay OPEN when fully paid, unless this is an explicit "complete" (0 amount)
           saleStatus = 'OPEN';
@@ -990,17 +995,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       return updatedSale;
     } catch (error: any) {
+      const message = error?.message || 'Unknown error';
       console.error('Failed to process payment:', error);
       console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        stack: error.stack?.split('\n').slice(0, 5).join('\n'),
+        name: error?.name,
+        message,
+        code: error?.code,
+        stack: error?.stack?.split('\n').slice(0, 5).join('\n'),
       });
       reply.code(500).send({
-        error: 'Failed to process payment',
-        details: error.message || 'Unknown error',
-        code: error.code,
+        error: message,
+        details: message,
+        code: error?.code,
       });
     }
   });

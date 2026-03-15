@@ -35,6 +35,53 @@ interface Category {
   name: string;
 }
 
+// Fixed display order for POS layout (categories then products)
+const POS_CATEGORY_DISPLAY_ORDER = [
+  "Chicken Cuts",
+  "Raw Chicken",
+  "Cuts",
+  "Add-ons",
+  "Spices",
+  "Masale",
+];
+const POS_PRODUCT_DISPLAY_ORDER = [
+  "Hot Tandoor",
+  "Breast Boneless",
+  "Leg",
+  "Leg Boneless",
+  "Drumstick",
+  "Liver",
+  "Carcus",
+  "Egg",
+  "Eggs",
+  "Gizzard",
+  "Wings",
+];
+
+function sortCategoriesByDisplayOrder(cats: Category[]): Category[] {
+  const order = POS_CATEGORY_DISPLAY_ORDER.map((n) => n.toLowerCase());
+  return [...cats].sort((a, b) => {
+    const i = order.indexOf(a.name.toLowerCase());
+    const j = order.indexOf(b.name.toLowerCase());
+    if (i === -1 && j === -1) return a.name.localeCompare(b.name);
+    if (i === -1) return 1;
+    if (j === -1) return -1;
+    return i - j;
+  });
+}
+
+function sortProductsByDisplayOrder<T extends { name: string }>(items: T[]): T[] {
+  const order = POS_PRODUCT_DISPLAY_ORDER.map((n) => n.toLowerCase());
+  return [...items].sort((a, b) => {
+    const i = order.indexOf(a.name.toLowerCase());
+    const j = order.indexOf(b.name.toLowerCase());
+    if (i === -1 && j === -1) return a.name.localeCompare(b.name);
+    if (i === -1) return 1;
+    if (j === -1) return -1;
+    return i - j;
+  });
+}
+
 interface FranchiseConfig {
   isPricingLocked: boolean;
   isDiscountLocked: boolean;
@@ -54,6 +101,8 @@ export default function StorePOSPage() {
   const [barcodeInput, setBarcodeInput] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [addItemModalFocusWeightFirst, setAddItemModalFocusWeightFirst] =
+    useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [showPriceOverrideModal, setShowPriceOverrideModal] = useState(false);
   const [priceOverrideData, setPriceOverrideData] = useState<{
@@ -337,6 +386,7 @@ export default function StorePOSPage() {
         "info",
         3000
       );
+      setAddItemModalFocusWeightFirst(false);
       setManualItem({
         sku: barcodeInput,
         description: "",
@@ -355,6 +405,7 @@ export default function StorePOSPage() {
         "Failed to process barcode. Please try again.";
       showNotification(errorMessage, "error", 5000);
       // On error, open manual entry modal
+      setAddItemModalFocusWeightFirst(false);
       setManualItem({
         sku: barcodeInput,
         description: "",
@@ -369,7 +420,8 @@ export default function StorePOSPage() {
   };
 
   const handleAddProduct = (product: Product) => {
-    // Open manual entry modal with product pre-filled
+    // Open manual entry modal with product pre-filled; focus weight first for faster entry
+    setAddItemModalFocusWeightFirst(true);
     setManualItem({
       sku: product.sku,
       description: product.name,
@@ -684,8 +736,11 @@ export default function StorePOSPage() {
   });
 
   const masaleIds = new Set(masaleProducts.map((p) => p.id));
-  // Main grid: same filters as filteredProducts but exclude Masale (they stay in top shelf only)
-  const productsForGrid = filteredProducts.filter((p) => !masaleIds.has(p.id));
+  // Main grid: same filters as filteredProducts but exclude Masale (they stay in top shelf only), sorted by display order
+  const productsForGrid = sortProductsByDisplayOrder(
+    filteredProducts.filter((p) => !masaleIds.has(p.id))
+  );
+  const categoriesSorted = sortCategoriesByDisplayOrder(categories);
 
   return (
     <div className="flex flex-col h-full min-h-0 w-full max-w-full overflow-hidden">
@@ -718,7 +773,10 @@ export default function StorePOSPage() {
               <span>📁</span> Categories
             </button>
             <button
-              onClick={() => setShowAddItemModal(true)}
+              onClick={() => {
+                setAddItemModalFocusWeightFirst(false);
+                setShowAddItemModal(true);
+              }}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
             >
               <span>+</span> Add Item
@@ -790,7 +848,7 @@ export default function StorePOSPage() {
               >
                 All Products
               </button>
-              {categories.map((cat) => (
+              {categoriesSorted.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
@@ -1089,6 +1147,7 @@ export default function StorePOSPage() {
         <AddItemModal
           item={manualItem}
           products={products}
+          focusWeightFirst={addItemModalFocusWeightFirst}
           onChange={(field, value) => {
             setManualItem((prev) => {
               const updated = { ...prev, [field]: value };
@@ -1132,6 +1191,7 @@ export default function StorePOSPage() {
             });
           }}
           onClose={() => {
+            setAddItemModalFocusWeightFirst(false);
             setShowAddItemModal(false);
             setManualItem({
               sku: "",
@@ -1357,6 +1417,7 @@ export default function StorePOSPage() {
 function AddItemModal({
   item,
   products,
+  focusWeightFirst = false,
   onChange,
   onClose,
   onSubmit,
@@ -1370,11 +1431,27 @@ function AddItemModal({
     unitType: "KG" | "PCS";
   };
   products: Product[];
+  focusWeightFirst?: boolean;
   onChange: (field: string, value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
 }) {
   const [showWeightPad, setShowWeightPad] = useState(false);
+  const weightButtonRef = useRef<HTMLButtonElement>(null);
+
+  // When opening from product click (KG), auto-open weight pad so user can enter weight immediately
+  useEffect(() => {
+    if (focusWeightFirst && item.unitType === "KG") {
+      setShowWeightPad(true);
+    }
+  }, [focusWeightFirst, item.unitType]);
+
+  // When opening from product click (PCS), focus the weight/quantity button so user can tap to open pad
+  useEffect(() => {
+    if (focusWeightFirst && item.unitType === "PCS" && !showWeightPad) {
+      weightButtonRef.current?.focus();
+    }
+  }, [focusWeightFirst, item.unitType, showWeightPad]);
 
   const handleSkuChange = (sku: string) => {
     onChange("sku", sku);
@@ -1442,7 +1519,7 @@ function AddItemModal({
               onChange={(e) => handleSkuChange(e.target.value)}
               placeholder="Enter SKU or scan barcode"
               className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40"
-              autoFocus
+              autoFocus={!focusWeightFirst}
             />
             {products.length > 0 && (
               <select
@@ -1496,9 +1573,11 @@ function AddItemModal({
                 <span className="text-red-500">*</span>
               </label>
               <button
+                ref={weightButtonRef}
                 type="button"
                 onClick={() => setShowWeightPad(true)}
                 className="w-full px-3 sm:px-4 py-2.5 text-sm border border-gray-300/60 dark:border-gray-600/60 dark:text-white rounded-lg hover:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400/60 transition-all duration-200 touch-target bg-white/80 dark:bg-gray-800/40 text-left font-semibold"
+                tabIndex={focusWeightFirst ? 0 : undefined}
               >
                 {item.weight || (
                   <span className="text-gray-400 dark:text-gray-500 font-normal">
