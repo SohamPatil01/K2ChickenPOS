@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { requireRole } from '../utils/auth.js';
+import { getUser, requireRole } from '../utils/auth.js';
 import { analyticsService } from '../services/analyticsService.js';
 import { alertService } from '../services/alertService.js';
 import { z } from 'zod';
@@ -18,7 +18,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user?.storeId;
+        const storeId = (getUser(request) as any).storeId;
         const rawDays = (request.query as { days?: string | number })?.days;
         const days = rawDays != null
           ? Math.min(30, Math.max(1, parseInt(String(rawDays), 10) || 7))
@@ -48,7 +48,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user?.storeId;
+        const storeId = (getUser(request) as any).storeId;
         const { days } = request.query as { days?: number };
 
         if (!storeId) {
@@ -75,7 +75,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        const storeId = request.user?.storeId;
+        const storeId = (getUser(request) as any).storeId;
 
         if (!storeId) {
           return reply.status(400).send({

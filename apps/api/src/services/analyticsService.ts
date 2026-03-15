@@ -88,10 +88,33 @@ export class AnalyticsService {
   /**
    * Sales Forecasting
    * Predicts future sales based on historical data
+   * For OWNER stores, aggregates sales from owner + all franchise stores
    */
   async forecastSales(storeId: string, days: number = 7): Promise<any> {
     try {
       const forecastDays = Math.min(30, Math.max(1, Number(days) || 7));
+
+      // Resolve store and aggregate storeIds for OWNER (same as predictDemand / getSalesTrend)
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!store) {
+        throw new Error(`Store with ID ${storeId} not found`);
+      }
+
+      let storeIds: string[] = [storeId];
+      if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: storeId,
+          },
+          select: { id: true },
+        });
+        storeIds = [storeId, ...franchises.map(f => f.id)];
+      }
 
       // Get historical sales data (last 30+ days)
       const historicalDays = Math.max(30, forecastDays * 3);
@@ -100,7 +123,7 @@ export class AnalyticsService {
 
       const sales = await prisma.sale.findMany({
         where: {
-          storeId,
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'PAID',
           createdAt: {
             gte: startDate,
