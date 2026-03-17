@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { offlineDB, CartItem } from '@azela-pos/offline';
 
+export type FulfillmentType = 'PICKUP' | 'DELIVERY';
+
 interface CartState {
   items: CartItem[];
   customerId: string | null;
@@ -9,6 +11,7 @@ interface CartState {
   discountTotal: number;
   discountType: 'amount' | 'percentage';
   discountPercentage: number;
+  fulfillmentType: FulfillmentType;
   loadCart: () => Promise<void>;
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
@@ -17,6 +20,7 @@ interface CartState {
   setDiscount: (amount: number) => void;
   setDiscountType: (type: 'amount' | 'percentage') => void;
   setDiscountPercentage: (percentage: number) => void;
+  setFulfillmentType: (type: FulfillmentType) => void;
   clearCart: () => Promise<void>;
   getTotal: () => { subTotal: number; taxTotal: number; grandTotal: number };
 }
@@ -29,6 +33,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   discountTotal: 0,
   discountType: 'amount',
   discountPercentage: 0,
+  fulfillmentType: 'PICKUP',
   loadCart: async () => {
     try {
       const items = await offlineDB.cart.toArray();
@@ -103,9 +108,12 @@ export const useCartStore = create<CartState>((set, get) => ({
     const discountAmount = (subTotal * discountPercentage) / 100;
     set({ discountTotal: discountAmount });
   },
+  setFulfillmentType: (fulfillmentType: FulfillmentType) => {
+    set({ fulfillmentType });
+  },
   clearCart: async () => {
     await offlineDB.cart.clear();
-    set({ items: [], customerId: null, customerPhone: null, customerName: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0 });
+    set({ items: [], customerId: null, customerPhone: null, customerName: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP' });
   },
   getTotal: () => {
     const { items, discountTotal, discountType, discountPercentage } = get();
