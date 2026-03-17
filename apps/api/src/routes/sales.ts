@@ -141,6 +141,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
               phone: true,
             },
           },
+          deliveryOrder: {
+            select: { id: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,

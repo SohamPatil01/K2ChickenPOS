@@ -1,8 +1,14 @@
 #!/bin/bash
 
 # Script to create a local backup of the localhost PostgreSQL database.
-# READ-ONLY: pg_dump only reads from the database; it does not alter or lock tables for writes.
-# Your current data is never modified by this backup.
+#
+# BACKUP POLICY (guaranteed):
+#   - READ-ONLY: This script never writes to the database. pg_dump only reads data;
+#     it does not alter, delete, or lock tables for writes. Your live data is never modified.
+#   - INCLUDE EVERYTHING: Full database dump — all schemas, all tables, schema (DDL) + data.
+#     No tables or data are excluded. Each backup is a complete, self-contained snapshot.
+#   - NO OVERLAP: Backups are written only to timestamped files in backups/; they do not
+#     overwrite or interfere with existing data or with each other.
 
 set -e  # Exit on error
 
@@ -132,12 +138,13 @@ echo ""
 echo -e "${YELLOW}Step 3: Creating backup...${NC}"
 echo -e "${BLUE}Backup file: $BACKUP_FILE${NC}"
 
-# Create backup using pg_dump (read-only; does not alter or delete any data)
+# Create backup using pg_dump (READ-ONLY: never modifies the database)
+# Full dump: entire database, all tables, schema + data. No exclusions.
 # Options:
-#   --no-owner: Don't output commands to set ownership
-#   --no-acl: Don't output ACL (access control list) commands
+#   --no-owner: Don't output commands to set ownership (restore flexibility)
+#   --no-acl: Don't output ACL commands (restore flexibility)
 #   --verbose: Verbose output
-# Note: pg_dump includes both schema and data by default
+# Output is written only to BACKUP_FILE; the database is never written to.
 if [ -n "$LOCAL_DB_URL" ]; then
     # Use connection string
     DUMP_CMD="pg_dump \"$LOCAL_DB_URL\""

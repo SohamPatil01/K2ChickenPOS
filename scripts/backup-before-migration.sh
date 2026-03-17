@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Script to create a backup before running database migrations
-# This ensures we can restore if a migration causes issues
+# Script to create a backup before running database migrations.
+# READ-ONLY: pg_dump only reads from the database; it never modifies or deletes any data.
+# Includes full database (schema + data). Backup is written only to a file in backups/.
 
 set -e  # Exit on error
 
@@ -42,7 +43,8 @@ echo -e "${GREEN}✓ Database connection successful${NC}\n"
 
 echo -e "${YELLOW}Step 2: Creating backup...${NC}"
 
-# Create backup (schema + data)
+# Create backup (schema + data). READ-ONLY: pg_dump does not modify the database.
+# --clean --if-exists only affect the dump file (for restore); they are not run on the live DB.
 pg_dump "$DATABASE_URL" \
     --no-owner \
     --no-acl \

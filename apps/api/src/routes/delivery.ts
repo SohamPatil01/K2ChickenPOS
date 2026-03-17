@@ -14,6 +14,7 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
 
     const sale = await prisma.sale.findUnique({
       where: { id: data.saleId },
+      include: { deliveryOrder: { select: { id: true } } },
     });
 
     if (!sale || sale.storeId !== storeId || sale.status !== 'PAID') {
@@ -21,9 +22,19 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    if (data.type === 'DELIVERY' && !data.addressId) {
-      reply.code(400).send({ error: 'Address required for delivery' });
+    if (sale.deliveryOrder) {
+      reply.code(400).send({ error: 'This sale already has a delivery' });
       return;
+    }
+
+    // Address can be added later in Delivery section when type is DELIVERY
+    if (data.type === 'DELIVERY' && data.addressId) {
+      // Validate address belongs to sale's customer if provided
+      const address = await prisma.customerAddress.findUnique({ where: { id: data.addressId } });
+      if (address && sale.customerId && address.customerId !== sale.customerId) {
+        reply.code(400).send({ error: 'Address does not belong to sale customer' });
+        return;
+      }
     }
 
     // Generate OTP for delivery
@@ -254,6 +265,50 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       },
     });
 
+    return updated;
+  });
+
+  fastify.patch('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    const { id } = (request.params as any);
+    const body = (request.body as any) || {};
+    const storeId = (getUser(request) as any).storeId;
+
+    const delivery = await prisma.deliveryOrder.findUnique({
+      where: { id },
+      include: { sale: { select: { customerId: true } } },
+    });
+
+    if (!delivery || delivery.storeId !== storeId) {
+      reply.code(404).send({ error: 'Delivery not found' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (body.addressId !== undefined) {
+      if (body.addressId) {
+        const address = await prisma.customerAddress.findUnique({ where: { id: body.addressId } });
+        if (!address) {
+          reply.code(400).send({ error: 'Address not found' });
+          return;
+        }
+        if (delivery.sale.customerId && address.customerId !== delivery.sale.customerId) {
+          reply.code(400).send({ error: 'Address does not belong to sale customer' });
+          return;
+        }
+      }
+      updateData.addressId = body.addressId || null;
+    }
+    if (typeof body.deliveryFee === 'number') updateData.deliveryFee = body.deliveryFee;
+
+    const updated = await prisma.deliveryOrder.update({
+      where: { id },
+      data: updateData,
+      include: {
+        sale: { include: { customer: true } },
+        address: true,
+        assignedDriver: { select: { id: true, name: true, phone: true } },
+      },
+    });
     return updated;
   });
 

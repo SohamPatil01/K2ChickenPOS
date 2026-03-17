@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Backup only DATA (no schema). Read-only: does not alter the database.
+# Backup only DATA (no schema). READ-ONLY: does not alter or modify the database.
+# Includes all rows from all tables in the database. No data is excluded or overwritten.
 # Use this when you only need to preserve table contents for restore/migration.
 
 set -e
