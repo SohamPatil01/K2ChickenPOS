@@ -80,6 +80,7 @@ import { deliveryRoutes } from '../src/routes/delivery.js';
 import { analyticsRoutes } from '../src/routes/analytics.js';
 import { syncRoutes } from '../src/routes/sync.js';
 import { reportRoutes } from '../src/routes/reports.js';
+import { itrRoutes } from '../src/routes/itr.js';
 import { storeRoutes } from '../src/routes/stores.js';
 import { franchiseHQRoutes } from '../src/routes/franchise-hq.js';
 import { userRoutes } from '../src/routes/users.js';
@@ -233,6 +234,7 @@ async function build() {
   await fastify.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
   await fastify.register(syncRoutes, { prefix: '/api/v1/sync' });
   await fastify.register(reportRoutes, { prefix: '/api/v1/reports' });
+  await fastify.register(itrRoutes, { prefix: '/api/v1/itr' });
   await fastify.register(storeRoutes, { prefix: '/api/v1/stores' });
   await fastify.register(franchiseHQRoutes, { prefix: '/api/v1/hq' });
   await fastify.register(userRoutes, { prefix: '/api/v1/users' });
