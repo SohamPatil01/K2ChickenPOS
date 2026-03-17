@@ -42,9 +42,16 @@ export default function DashboardToday({
         ];
   const hasRevenueData = barData.some((d) => d.revenue > 0);
 
+  const paymentMethods = [
+    { key: 'cash', label: 'Cash', emoji: '💵', value: stats.paymentBreakdown.cash },
+    { key: 'upi', label: 'UPI', emoji: '📱', value: stats.paymentBreakdown.upi },
+    { key: 'card', label: 'Card', emoji: '💳', value: stats.paymentBreakdown.card },
+    { key: 'other', label: 'Other', emoji: '🔄', value: stats.paymentBreakdown.other },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700 opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
             <span className="text-2xl">💳</span>
@@ -58,15 +65,11 @@ export default function DashboardToday({
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { key: 'cash', label: 'Cash', emoji: '💵', value: stats.paymentBreakdown.cash },
-            { key: 'upi', label: 'UPI', emoji: '📱', value: stats.paymentBreakdown.upi },
-            { key: 'card', label: 'Card', emoji: '💳', value: stats.paymentBreakdown.card },
-            { key: 'other', label: 'Other', emoji: '🔄', value: stats.paymentBreakdown.other },
-          ].map(({ key, label, emoji, value }) => (
+          {paymentMethods.map(({ key, label, emoji, value }, index) => (
             <div
               key={key}
-              className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-xl p-5 shadow-lg"
+              className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl p-5 shadow-lg opacity-0 animate-fade-in-up"
+              style={{ animationDelay: `${80 + index * 60}ms` }}
             >
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
@@ -93,7 +96,7 @@ export default function DashboardToday({
 
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700 opacity-0 animate-fade-in-up" style={{ animationDelay: '320ms' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">📈</span>
@@ -176,7 +179,7 @@ export default function DashboardToday({
             )}
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700 opacity-0 animate-fade-in-up" style={{ animationDelay: '380ms' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">🥧</span>

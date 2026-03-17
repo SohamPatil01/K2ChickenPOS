@@ -25,7 +25,7 @@ export default function DashboardOverview({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl shadow-lg p-4 border border-blue-200 dark:border-blue-800">
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl shadow-lg p-4 border border-blue-200 dark:border-blue-800 opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
@@ -53,7 +53,7 @@ export default function DashboardOverview({
                 : 'No comparison data'}
           </p>
         </div>
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl shadow-lg p-4 border border-green-200 dark:border-green-800">
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl shadow-lg p-4 border border-green-200 dark:border-green-800 opacity-0 animate-fade-in-up" style={{ animationDelay: '80ms' }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-green-700 dark:text-green-300 uppercase tracking-wide">
@@ -69,7 +69,7 @@ export default function DashboardOverview({
             {stats.today.count > 0 ? `${stats.today.count} orders today` : 'No orders yet'}
           </p>
         </div>
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl shadow-lg p-4 border border-purple-200 dark:border-purple-800">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl shadow-lg p-4 border border-purple-200 dark:border-purple-800 opacity-0 animate-fade-in-up" style={{ animationDelay: '160ms' }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wide">
@@ -111,6 +111,8 @@ export default function DashboardOverview({
                     ? ((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue) * 100
                     : 0,
               }}
+              className="opacity-0 animate-fade-in-up"
+              style={{ animationDelay: '0ms' }}
             />
             <StatCard
               title="Today's Sales Count"
@@ -126,6 +128,8 @@ export default function DashboardOverview({
                     ? ((stats.today.count - stats.yesterday.count) / stats.yesterday.count) * 100
                     : 0,
               }}
+              className="opacity-0 animate-fade-in-up"
+              style={{ animationDelay: '60ms' }}
             />
             <StatCard
               title="Pending Payments"
@@ -133,6 +137,8 @@ export default function DashboardOverview({
               subtitle={`${pendingPaymentsCount} pending orders`}
               icon="⏳"
               gradient="bg-gradient-to-br from-orange-500 to-orange-600"
+              className="opacity-0 animate-fade-in-up"
+              style={{ animationDelay: '120ms' }}
             />
             <StatCard
               title="Monthly Revenue"
@@ -140,6 +146,8 @@ export default function DashboardOverview({
               subtitle={`${stats.month.count} total sales`}
               icon="📈"
               gradient="bg-gradient-to-br from-purple-500 to-purple-600"
+              className="opacity-0 animate-fade-in-up"
+              style={{ animationDelay: '180ms' }}
             />
           </>
         )}
@@ -151,7 +159,7 @@ export default function DashboardOverview({
         <div className="flex justify-center">
           <Link
             href="/store/pending-payments"
-            className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors"
+            className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-medium transition-all active:scale-95"
           >
             View Pending Payments ({pendingPaymentsCount})
           </Link>

@@ -59,7 +59,7 @@ export const SkeletonText: React.FC<{ lines?: number; className?: string }> = ({
 );
 
 export const SkeletonCard: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg ${className}`}>
+  <div className={`p-4 border border-gray-200 dark:border-gray-700 rounded-2xl ${className}`}>
     <Skeleton variant="rectangular" height={120} className="mb-4" />
     <SkeletonText lines={2} />
   </div>
@@ -95,8 +95,8 @@ export const SkeletonProductCard: React.FC = () => (
   </div>
 );
 
-export const SkeletonStatCard: React.FC = () => (
-  <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+export const SkeletonStatCard: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`p-6 bg-white dark:bg-gray-800 rounded-xl shadow ${className}`}>
     <Skeleton variant="text" height={20} className="mb-4 w-1/2" />
     <Skeleton variant="text" height={32} className="mb-2 w-3/4" />
     <Skeleton variant="text" height={14} className="w-1/3" />

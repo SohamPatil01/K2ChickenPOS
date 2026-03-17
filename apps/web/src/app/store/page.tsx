@@ -18,6 +18,7 @@ export default function StoreDashboardPage() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [showUpdatedFeedback, setShowUpdatedFeedback] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -34,7 +35,11 @@ export default function StoreDashboardPage() {
   } = useDashboardStats({ user: user ?? null });
 
   const handleRefetch = useCallback(() => {
-    refetch().then(() => setLastRefresh(new Date()));
+    refetch().then(() => {
+      setLastRefresh(new Date());
+      setShowUpdatedFeedback(true);
+      setTimeout(() => setShowUpdatedFeedback(false), 2000);
+    });
   }, [refetch]);
 
   useEffect(() => {
@@ -81,8 +86,8 @@ export default function StoreDashboardPage() {
             <Skeleton variant="text" height={16} width={150} />
           </div>
           <div className="flex gap-2">
-            <Skeleton variant="rectangular" height={40} width={120} />
-            <Skeleton variant="rectangular" height={40} width={120} />
+            <Skeleton variant="rectangular" height={40} width={120} className="rounded-xl" />
+            <Skeleton variant="rectangular" height={40} width={120} className="rounded-xl" />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -92,8 +97,8 @@ export default function StoreDashboardPage() {
           <SkeletonStatCard />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SkeletonCard className="h-64" />
-          <SkeletonCard className="h-64" />
+          <SkeletonCard className="h-64 rounded-2xl" />
+          <SkeletonCard className="h-64 rounded-2xl" />
         </div>
       </div>
     );
@@ -102,8 +107,8 @@ export default function StoreDashboardPage() {
   if (error || !stats) {
     return (
       <div className="w-full max-w-7xl mx-auto h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-6xl mb-4">⚠️</div>
+        <div className="text-center opacity-0 animate-fade-in">
+          <div className="text-6xl mb-4" aria-hidden>⚠️</div>
           <p className="text-gray-500 dark:text-gray-400 text-lg font-semibold">
             {error || 'Failed to load dashboard'}
           </p>
@@ -113,7 +118,7 @@ export default function StoreDashboardPage() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors"
+            className="mt-4 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium transition-all active:scale-95"
           >
             Refresh Page
           </button>
@@ -133,7 +138,7 @@ export default function StoreDashboardPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col relative">
-      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 bg-white dark:bg-gray-900 py-2 -mx-2 px-2 rounded-lg border-b border-gray-200 dark:border-gray-700">
+      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm py-2 -mx-2 px-2 rounded-xl border border-gray-200 dark:border-gray-700 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">
@@ -143,8 +148,13 @@ export default function StoreDashboardPage() {
                   ? 'Manager Console'
                   : 'Store Dashboard'}
             </h1>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Welcome, {user.name} • Last updated: {lastRefresh.toLocaleTimeString()}
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+              <span>Welcome, {user.name} • Last updated: {lastRefresh.toLocaleTimeString()}</span>
+              {showUpdatedFeedback && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium animate-fade-in">
+                  Updated
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -163,7 +173,7 @@ export default function StoreDashboardPage() {
                   filename: `dashboard_export_${new Date().toISOString().split('T')[0]}.csv`,
                 });
               }}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors touch-target flex items-center gap-1"
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs sm:text-sm font-medium transition-all touch-target flex items-center gap-1 active:scale-95"
               title="Export dashboard data"
             >
               <span>📥</span>
@@ -173,7 +183,7 @@ export default function StoreDashboardPage() {
               type="button"
               onClick={handleRefetch}
               disabled={loading}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors touch-target flex items-center gap-1"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl text-xs sm:text-sm font-medium transition-all touch-target flex items-center gap-1 active:scale-95 disabled:active:scale-100"
               title="Refresh dashboard"
             >
               <span className={loading ? 'animate-spin' : ''}>↻</span>
@@ -182,7 +192,7 @@ export default function StoreDashboardPage() {
             <button
               type="button"
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors touch-target ${
+              className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all touch-target active:scale-95 ${
                 autoRefresh
                   ? 'bg-green-600 hover:bg-green-700 text-white'
                   : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
@@ -193,20 +203,20 @@ export default function StoreDashboardPage() {
               <span className="sm:hidden">{autoRefresh ? '⟳' : '⊗'}</span>
             </button>
             {userRole && (
-              <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-lg font-medium text-xs sm:text-sm lg:text-base touch-target">
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-xl font-medium text-xs sm:text-sm lg:text-base touch-target">
                 {userRole}
               </div>
             )}
           </div>
         </div>
 
-        <nav className="flex gap-1 border-b border-gray-200 dark:border-gray-700 -mb-px overflow-x-auto">
+        <nav className="flex gap-1 border-b border-gray-200 dark:border-gray-700 -mb-px overflow-x-auto rounded-t-lg">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors touch-target ${
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors touch-target ${
                 activeTab === id
                   ? 'border-brand-600 text-brand-600 dark:text-brand-400 dark:border-brand-400'
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
@@ -220,38 +230,46 @@ export default function StoreDashboardPage() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         {activeTab === 'overview' && (
-          <DashboardOverview
-            stats={stats}
-            loading={loading}
-            pendingPaymentsTotal={pendingPaymentsTotal}
-            pendingPaymentsCount={pendingPaymentsCount}
-            userRole={userRole}
-          />
-        )}
-        {activeTab === 'today' && (
-          <DashboardToday
-            stats={stats}
-            salesTrendLast7={salesTrendLast7}
-            userRole={userRole}
-          />
-        )}
-        {activeTab === 'history' && (
-          <DashboardHistory
-            selectedDate={selectedDate}
-            onDateChange={setSelectedDate}
-            onLoad={() => loadHistoricalData(selectedDate)}
-            loading={loading}
-            historicalData={historicalData}
-            userRole={userRole}
-          />
-        )}
-        {activeTab === 'actions' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 lg:p-6 border border-gray-100 dark:border-gray-700">
-            <h2 className="text-base sm:text-lg font-bold dark:text-white mb-4">Quick Actions</h2>
-            <DashboardQuickActions
+          <div key="overview" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+            <DashboardOverview
+              stats={stats}
+              loading={loading}
+              pendingPaymentsTotal={pendingPaymentsTotal}
               pendingPaymentsCount={pendingPaymentsCount}
               userRole={userRole}
             />
+          </div>
+        )}
+        {activeTab === 'today' && (
+          <div key="today" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+            <DashboardToday
+              stats={stats}
+              salesTrendLast7={salesTrendLast7}
+              userRole={userRole}
+            />
+          </div>
+        )}
+        {activeTab === 'history' && (
+          <div key="history" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+            <DashboardHistory
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              onLoad={() => loadHistoricalData(selectedDate)}
+              loading={loading}
+              historicalData={historicalData}
+              userRole={userRole}
+            />
+          </div>
+        )}
+        {activeTab === 'actions' && (
+          <div key="actions" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg shadow-gray-200/50 dark:shadow-none p-4 lg:p-6 border border-gray-100 dark:border-gray-700">
+              <h2 className="text-base sm:text-lg font-bold dark:text-white mb-4">Quick Actions</h2>
+              <DashboardQuickActions
+                pendingPaymentsCount={pendingPaymentsCount}
+                userRole={userRole}
+              />
+            </div>
           </div>
         )}
       </div>

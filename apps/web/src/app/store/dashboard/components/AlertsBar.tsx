@@ -11,11 +11,11 @@ export default function AlertsBar({ stats, userRole }: AlertsBarProps) {
   if (userRole !== 'MANAGER' && userRole !== 'OWNER') return null;
 
   return (
-    <div className="bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4 sm:mb-6">
+    <div className="bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border border-orange-200 dark:border-orange-800 rounded-2xl p-4 mb-4 sm:mb-6 opacity-0 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
       <div className="flex items-start gap-3">
         <span className="text-2xl">⚠️</span>
         <div className="flex-1">
-          <h3 className="font-semibold text-orange-900 dark:text-orange-200 mb-2">Alerts & Notifications</h3>
+          <h3 className="font-bold text-orange-900 dark:text-orange-200 mb-2">Alerts & Notifications</h3>
           <div className="space-y-2">
             {stats.todayStock.currentStock < 100 && (
               <div className="text-sm text-orange-800 dark:text-orange-300 flex items-center gap-2">

@@ -19,7 +19,7 @@ export default function DashboardSection({
 }: DashboardSectionProps) {
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-xl shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700 overflow-hidden ${className}`}
+      className={`bg-white dark:bg-gray-800 rounded-2xl shadow-lg shadow-gray-200/50 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700 overflow-hidden ${className}`}
     >
       <div className="flex justify-between items-center p-4 sm:p-5 border-b border-gray-100 dark:border-gray-700">
         <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">

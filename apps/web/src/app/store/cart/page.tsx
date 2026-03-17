@@ -31,6 +31,8 @@ export default function StoreCartPage() {
   const setDiscount = useCartStore((state) => state.setDiscount);
   const setDiscountType = useCartStore((state) => state.setDiscountType);
   const setDiscountPercentage = useCartStore((state) => state.setDiscountPercentage);
+  const fulfillmentType = useCartStore((state) => state.fulfillmentType);
+  const setFulfillmentType = useCartStore((state) => state.setFulfillmentType);
   const loadCart = useCartStore((state) => state.loadCart);
   const clearCart = useCartStore((state) => state.clearCart);
 
@@ -50,6 +52,7 @@ export default function StoreCartPage() {
   const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
   const [showCustomerSection, setShowCustomerSection] = useState(true); // Show by default
   const [skipCustomer, setSkipCustomer] = useState(false);
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -298,6 +301,19 @@ export default function StoreCartPage() {
       };
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+      const fulfillType = useCartStore.getState().fulfillmentType;
+      if (fulfillType === 'DELIVERY') {
+        try {
+          await api.post('/api/v1/delivery', {
+            saleId: sale.id,
+            type: 'DELIVERY',
+            deliveryFee: 0,
+          });
+        } catch (delErr: any) {
+          console.error('[Cart] Create delivery failed:', delErr);
+          showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
+        }
+      }
       await clearCart();
       setShowPaymentModal(false);
       
@@ -438,28 +454,59 @@ export default function StoreCartPage() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-fade-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-scale-in">
           {/* Header */}
-          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-5 py-4 flex items-center justify-between z-10 rounded-t-2xl">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Payment</h2>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400">Press 1-5 for method • Enter to confirm</p>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Checkout</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Press 1-5 for method • Enter to confirm</p>
             </div>
             <button
               onClick={onClose}
               disabled={isProcessing}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 active:scale-95"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
+          {/* Pickup / Delivery */}
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wider">Fulfillment</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setFulfillmentType('PICKUP')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 touch-target ${
+                  fulfillmentType === 'PICKUP'
+                    ? 'bg-brand-600 text-white shadow-lg scale-[1.02]'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Pickup
+              </button>
+              <button
+                type="button"
+                onClick={() => setFulfillmentType('DELIVERY')}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 touch-target ${
+                  fulfillmentType === 'DELIVERY'
+                    ? 'bg-brand-600 text-white shadow-lg scale-[1.02]'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Delivery
+              </button>
+            </div>
+            {fulfillmentType === 'DELIVERY' && (
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">Order will appear in Delivery. Add address & customer details there.</p>
+            )}
+          </div>
           
           <div className="p-4 space-y-3">
             {/* Total Summary - Compact */}
-            <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-lg p-3">
+            <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-xl p-4 transition-all duration-200">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
                 <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
@@ -511,9 +558,9 @@ export default function StoreCartPage() {
                       key={method.value}
                       onClick={() => setSelectedMethod(method.value)}
                       disabled={isProcessing}
-                      className={`relative p-2 rounded-lg border-2 transition-all hover:scale-105 active:scale-95 ${
+                      className={`relative p-3 rounded-xl border-2 transition-all duration-200 hover:scale-105 active:scale-95 ${
                         selectedMethod === method.value
-                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-md'
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-lg scale-105'
                           : 'border-gray-200 dark:border-gray-600 hover:border-brand-300 dark:hover:border-brand-700'
                       }`}
                     >
@@ -667,11 +714,11 @@ export default function StoreCartPage() {
             )}
 
             {/* Action Buttons - Compact */}
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={onClose}
                 disabled={isProcessing}
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-colors disabled:opacity-50"
+                className="flex-1 px-4 py-3 text-sm border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-all duration-200 disabled:opacity-50 active:scale-[0.98]"
               >
                 Cancel
               </button>
@@ -682,7 +729,7 @@ export default function StoreCartPage() {
                   (isSplitPayment && Math.abs(splitTotal - grandTotal) > 0.01) ||
                   (!isSplitPayment && selectedMethod !== 'CREDIT' && change < 0)
                 }
-                className="flex-2 px-6 py-2.5 text-sm bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-2 px-6 py-3 text-sm bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
               >
                 {isProcessing ? (
                   <span>Processing...</span>
@@ -701,29 +748,47 @@ export default function StoreCartPage() {
     );
   };
 
+  const handleRemoveItem = async (item: any) => {
+    if (!item?.id) return;
+    setRemovingId(item.id);
+    await new Promise((r) => setTimeout(r, 280));
+    try {
+      await removeItem(item.id);
+      await loadCart();
+      showNotification('Item removed', 'success');
+    } catch (error: any) {
+      showNotification('Failed to remove item', 'error');
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+      {/* Header - animated entrance */}
+      <div className="sticky top-0 z-40 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm animate-fade-in">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/store/pos')}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 active:scale-95"
               >
                 <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Shopping Cart</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{items.length} {items.length === 1 ? 'item' : 'items'}</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Shopping Cart</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  <span className="inline-flex items-center gap-1 font-medium text-brand-600 dark:text-brand-400">{items.length}</span>
+                  {items.length === 1 ? 'item' : 'items'}
+                </p>
               </div>
             </div>
             <button
               onClick={() => router.push('/store/pos')}
-              className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+              className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -740,7 +805,7 @@ export default function StoreCartPage() {
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Section - Collapsible & Optional */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm opacity-0 animate-fade-in-up" style={{ animationDelay: '60ms' }}>
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10 rounded-t-2xl">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -987,7 +1052,7 @@ export default function StoreCartPage() {
             </div>
 
             {/* Cart Items */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden opacity-0 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -999,17 +1064,17 @@ export default function StoreCartPage() {
               
               <div className="p-6">
                 {items.length === 0 ? (
-                  <div className="text-center py-16">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 dark:bg-gray-700 mb-4">
-                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <div className="text-center py-16 animate-fade-in">
+                    <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-800 mb-6 animate-bounce-in">
+                      <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                     </div>
-                    <p className="text-gray-500 dark:text-gray-400 font-medium text-lg">Your cart is empty</p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Add items from POS to get started</p>
+                    <p className="text-gray-600 dark:text-gray-300 font-semibold text-xl">Your cart is empty</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Add items from POS to get started</p>
                     <button
                       onClick={() => router.push('/store/pos')}
-                      className="mt-6 px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium shadow-sm hover:shadow-md transition-all"
+                      className="mt-8 px-8 py-4 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98]"
                     >
                       Browse Products
                     </button>
@@ -1018,21 +1083,23 @@ export default function StoreCartPage() {
                   <div className="space-y-3">
                     {items.map((item: any, index: number) => {
                       if (!item) return null;
-                      
+                      const isRemoving = removingId === item.id;
                       const displayName = item.productName || item.productId || 'Unknown Product';
                       const qtyDisplay = item.qtyKg ? `${item.qtyKg} kg` : item.qtyPcs ? `${item.qtyPcs} pcs` : '1 pcs';
                       const rate = item.rate || 0;
                       const lineTotal = item.lineTotal || (rate * (item.qtyKg || item.qtyPcs || 1));
-                      
                       return (
                         <div
                           key={item.id || `item-${index}-${item.productId || Date.now()}`}
-                          className="group flex items-center gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-md transition-all bg-white dark:bg-gray-800/50"
+                          style={!isRemoving ? { animationDelay: `${index * 60}ms` } : undefined}
+                          className={`group flex items-center gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-2xl hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800/50 ${
+                            isRemoving ? 'animate-slide-out-left' : 'opacity-0 animate-fade-in-up'
+                          }`}
                         >
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-gray-900 dark:text-white mb-2 text-lg">{displayName}</h3>
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300">
+                              <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300">
                                 {qtyDisplay}
                               </span>
                               <span className="text-gray-400">×</span>
@@ -1044,25 +1111,16 @@ export default function StoreCartPage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-3">
                             <div className="text-right">
                               <div className="font-bold text-xl text-brand-600 dark:text-brand-400">
                                 ₹{lineTotal.toFixed(2)}
                               </div>
                             </div>
                             <button
-                              onClick={async () => {
-                                try {
-                                  if (item.id) {
-                                    await removeItem(item.id);
-                                    await loadCart();
-                                    showNotification('Item removed', 'success');
-                                  }
-                                } catch (error: any) {
-                                  showNotification('Failed to remove item', 'error');
-                                }
-                              }}
-                              className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                              onClick={() => handleRemoveItem(item)}
+                              disabled={!!removingId}
+                              className="p-2.5 text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200 opacity-80 hover:opacity-100 active:scale-90 disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100"
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1079,8 +1137,8 @@ export default function StoreCartPage() {
           </div>
 
           {/* Right Column - Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-lg overflow-hidden">
+          <div className="lg:col-span-1 animate-fade-in-up" style={{ animationDelay: '120ms' }}>
+            <div className="sticky top-24 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-500 to-brand-600">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1195,14 +1253,16 @@ export default function StoreCartPage() {
                 <button
                   onClick={() => setShowPaymentModal(true)}
                   disabled={items.length === 0}
-                  className="w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-3xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.03] active:scale-[0.97] min-h-[72px] bg-[length:200%_100%] hover:bg-[position:100%_0] animation-shimmer"
+                  className={`w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-orangeGlow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] min-h-[72px] ${
+                    items.length > 0 ? 'animate-soft-pulse' : ''
+                  }`}
                 >
                   <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col items-start">
                     <span>Checkout Now</span>
-                    <span className="text-brand-100 text-sm font-semibold">₹{grandTotal}</span>
+                    <span className="text-white/90 text-sm font-semibold">₹{grandTotal}</span>
                   </div>
                 </button>
 
@@ -1240,17 +1300,17 @@ export default function StoreCartPage() {
             </div>
 
             {/* Mobile Sticky Checkout Bar */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t-2 border-gray-200 dark:border-gray-700 p-4 z-30 shadow-2xl">
-              <div className="max-w-7xl mx-auto">
-                <div className="flex items-center gap-2 mb-2">
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-t border-gray-200 dark:border-gray-700 p-4 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+              <div className="max-w-7xl mx-auto space-y-2">
+                <div className="flex items-center gap-3">
                   <div className="flex-1">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Total Amount</div>
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Total</div>
                     <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</div>
                   </div>
                   <button
                     onClick={() => setShowPaymentModal(true)}
                     disabled={items.length === 0}
-                    className="px-6 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl font-bold text-base shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                    className="px-6 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl font-bold text-base shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50"
                   >
                     Pay Now
                   </button>
@@ -1260,7 +1320,7 @@ export default function StoreCartPage() {
                     handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
                   }}
                   disabled={items.length === 0 || isProcessingPayment}
-                  className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full py-3.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <span>⚡</span>
                   <span>Quick Pay (Cash ₹{grandTotal})</span>

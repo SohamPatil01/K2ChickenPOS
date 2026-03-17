@@ -128,75 +128,50 @@ export default function YieldTrackingPage() {
 
   const loadDailySummary = async () => {
     try {
-      // Get yield data from localStorage (temporary solution)
-      // In production, this would come from a YieldTracking API
-      const yieldData = JSON.parse(localStorage.getItem('yieldTracking') || '[]');
-      
-      // Filter for selected date
-      const dateStr = selectedDate;
-      const dayEntries = yieldData.filter((entry: any) => entry.date === dateStr);
-      
-      if (dayEntries.length > 0) {
-        const totalWholeChickenWeight = dayEntries.reduce((sum: number, e: any) => sum + e.wholeChickenWeight, 0);
-        const totalCutWeight = dayEntries.reduce((sum: number, e: any) => sum + e.totalCutWeight, 0);
-        const yieldPercent = totalWholeChickenWeight > 0 ? (totalCutWeight / totalWholeChickenWeight) * 100 : 0;
+      // Load yield data from API: inventory ledger entries with reason=YIELD
+      const startDate = new Date(selectedDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(selectedDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      const ledgerRes = await api.get('/api/v1/inventory/ledger', {
+        params: {
+          reason: 'YIELD',
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        },
+      }).catch(() => ({ data: [] }));
+
+      const yieldEntries = (ledgerRes.data || []).filter(
+        (e: any) => e.type === 'IN' && (e.qtyKg != null ? e.qtyKg > 0 : (e.qtyPcs != null && e.qtyPcs > 0))
+      );
+
+      if (yieldEntries.length > 0) {
+        const totalCutWeight = yieldEntries.reduce(
+          (sum: number, e: any) => sum + (e.qtyKg || 0) + (e.qtyPcs || 0),
+          0
+        );
+        // Whole chicken weight is not stored in ledger; we only have cut weights from adjust API
+        const totalWholeChickenWeight = 0;
+        const yieldPercent = totalWholeChickenWeight > 0
+          ? (totalCutWeight / totalWholeChickenWeight) * 100
+          : 0;
 
         setDailySummary({
           date: selectedDate,
           totalWholeChickenWeight,
           totalCutWeight,
           yieldPercent,
-          entries: dayEntries.map((e: any, idx: number) => ({
-            id: `entry-${idx}`,
-            wholeChickenWeight: e.wholeChickenWeight,
-            totalCutWeight: e.totalCutWeight,
-            yieldPercent: e.yieldPercent,
-            createdAt: e.date + 'T12:00:00', // Approximate time
+          entries: yieldEntries.map((e: any) => ({
+            id: e.id,
+            wholeChickenWeight: 0,
+            totalCutWeight: (e.qtyKg || 0) + (e.qtyPcs || 0),
+            yieldPercent: 0,
+            createdAt: e.createdAt,
           })),
         });
       } else {
-        // Fallback: try to get from ledger entries
-        const startDate = new Date(selectedDate);
-        startDate.setHours(0, 0, 0, 0);
-        const endDate = new Date(selectedDate);
-        endDate.setHours(23, 59, 59, 999);
-
-        const ledgerRes = await api.get('/api/v1/inventory/ledger', {
-          params: {
-            reason: 'ADJUSTMENT',
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-          },
-        }).catch(() => ({ data: [] }));
-
-        const yieldEntries = (ledgerRes.data || []).filter((e: any) => 
-          e.type === 'IN' && e.qtyKg && e.qtyKg > 0
-        );
-        
-        const totalCutWeight = yieldEntries.reduce((sum: number, e: any) => {
-          return sum + (e.qtyKg || 0);
-        }, 0);
-        
-        if (totalCutWeight > 0) {
-          const estimatedWholeChickenWeight = totalCutWeight / 0.85;
-          const yieldPercent = (totalCutWeight / estimatedWholeChickenWeight) * 100;
-
-          setDailySummary({
-            date: selectedDate,
-            totalWholeChickenWeight: estimatedWholeChickenWeight,
-            totalCutWeight,
-            yieldPercent,
-            entries: yieldEntries.map((e: any) => ({
-              id: e.id,
-              wholeChickenWeight: (e.qtyKg || 0) / 0.85,
-              totalCutWeight: e.qtyKg || 0,
-              yieldPercent: 85,
-              createdAt: e.createdAt,
-            })),
-          });
-        } else {
-          setDailySummary(null);
-        }
+        setDailySummary(null);
       }
     } catch (error: any) {
       console.error('Failed to load daily summary:', error);
@@ -349,8 +324,13 @@ export default function YieldTrackingPage() {
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Whole Chicken Weight</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {dailySummary.totalWholeChickenWeight.toFixed(2)} kg
+                {dailySummary.totalWholeChickenWeight > 0
+                  ? `${dailySummary.totalWholeChickenWeight.toFixed(2)} kg`
+                  : '—'}
               </p>
+              {dailySummary.totalWholeChickenWeight === 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">Not recorded in ledger</p>
+              )}
             </div>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Cut Weight</p>
@@ -362,14 +342,18 @@ export default function YieldTrackingPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">Yield %</p>
               <p
                 className={`text-2xl font-bold ${
-                  dailySummary.yieldPercent >= expectedYield * 0.9
-                    ? 'text-green-600 dark:text-green-400'
-                    : dailySummary.yieldPercent >= expectedYield * 0.8
-                    ? 'text-yellow-600 dark:text-yellow-400'
-                    : 'text-red-600 dark:text-red-400'
+                  dailySummary.totalWholeChickenWeight > 0
+                    ? dailySummary.yieldPercent >= expectedYield * 0.9
+                      ? 'text-green-600 dark:text-green-400'
+                      : dailySummary.yieldPercent >= expectedYield * 0.8
+                      ? 'text-yellow-600 dark:text-yellow-400'
+                      : 'text-red-600 dark:text-red-400'
+                    : 'text-gray-600 dark:text-gray-400'
                 }`}
               >
-                {dailySummary.yieldPercent.toFixed(2)}%
+                {dailySummary.totalWholeChickenWeight > 0
+                  ? `${dailySummary.yieldPercent.toFixed(2)}%`
+                  : '—'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Expected: {expectedYield}%</p>
             </div>
@@ -410,23 +394,27 @@ export default function YieldTrackingPage() {
                       {new Date(entry.createdAt).toLocaleTimeString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
-                      {entry.wholeChickenWeight.toFixed(2)}
+                      {entry.wholeChickenWeight > 0 ? `${entry.wholeChickenWeight.toFixed(2)}` : '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
                       {entry.totalCutWeight.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                      <span
-                        className={`font-semibold ${
-                          entry.yieldPercent >= expectedYield * 0.9
-                            ? 'text-green-600 dark:text-green-400'
-                            : entry.yieldPercent >= expectedYield * 0.8
-                            ? 'text-yellow-600 dark:text-yellow-400'
-                            : 'text-red-600 dark:text-red-400'
-                        }`}
-                      >
-                        {entry.yieldPercent.toFixed(2)}%
-                      </span>
+                      {entry.wholeChickenWeight > 0 ? (
+                        <span
+                          className={`font-semibold ${
+                            entry.yieldPercent >= expectedYield * 0.9
+                              ? 'text-green-600 dark:text-green-400'
+                              : entry.yieldPercent >= expectedYield * 0.8
+                              ? 'text-yellow-600 dark:text-yellow-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {entry.yieldPercent.toFixed(2)}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 dark:text-gray-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

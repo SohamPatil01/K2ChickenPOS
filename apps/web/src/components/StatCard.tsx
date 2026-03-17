@@ -7,6 +7,8 @@ export interface StatCardProps {
   icon: string;
   comparison?: { label: string; value: number; change: number };
   gradient?: string;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export default function StatCard({
@@ -16,13 +18,16 @@ export default function StatCard({
   icon,
   comparison,
   gradient,
+  className = '',
+  style,
 }: StatCardProps) {
   return (
     <div
-      className={`relative overflow-hidden rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 ${
+      className={`relative overflow-hidden rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 hover:scale-[1.02] ${
         gradient ||
         'bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900'
-      }`}
+      } ${className}`}
+      style={style}
     >
       <div className="absolute top-0 right-0 opacity-10">
         <div className="text-7xl">{icon}</div>
