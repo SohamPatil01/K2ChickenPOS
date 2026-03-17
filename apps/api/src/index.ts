@@ -24,6 +24,7 @@ import { deliveryRoutes } from './routes/delivery.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { syncRoutes } from './routes/sync.js';
 import { reportRoutes } from './routes/reports.js';
+import { itrRoutes } from './routes/itr.js';
 import { storeRoutes } from './routes/stores.js';
 import { franchiseHQRoutes } from './routes/franchise-hq.js';
 import { userRoutes } from './routes/users.js';
@@ -96,6 +97,7 @@ async function build() {
   await fastify.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
   await fastify.register(syncRoutes, { prefix: '/api/v1/sync' });
   await fastify.register(reportRoutes, { prefix: '/api/v1/reports' });
+  await fastify.register(itrRoutes, { prefix: '/api/v1/itr' });
   await fastify.register(storeRoutes, { prefix: '/api/v1/stores' });
   await fastify.register(franchiseHQRoutes, { prefix: '/api/v1/hq' });
   await fastify.register(userRoutes, { prefix: '/api/v1/users' });

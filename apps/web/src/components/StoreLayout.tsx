@@ -186,6 +186,12 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           roles: ["MANAGER", "OWNER"],
         },
         {
+          label: "ITR / Tax",
+          href: "/store/itr",
+          icon: "📄",
+          roles: ["MANAGER", "OWNER"],
+        },
+        {
           label: "Analytics",
           href: "/analytics",
           icon: "📊",
