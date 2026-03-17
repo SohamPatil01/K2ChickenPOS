@@ -22,7 +22,7 @@ export default function DashboardHistory({
   if (userRole !== 'MANAGER' && userRole !== 'OWNER') return null;
 
   return (
-    <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700 opacity-0 animate-fade-in">
+    <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
           <span className="text-2xl">📅</span>

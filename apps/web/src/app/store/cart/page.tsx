@@ -766,7 +766,7 @@ export default function StoreCartPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Header - animated entrance */}
-      <div className="sticky top-0 z-40 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm animate-fade-in">
+      <div className="sticky top-0 z-40 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
@@ -805,7 +805,7 @@ export default function StoreCartPage() {
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Section - Collapsible & Optional */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm opacity-0 animate-fade-in-up" style={{ animationDelay: '60ms' }}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10 rounded-t-2xl">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1052,7 +1052,7 @@ export default function StoreCartPage() {
             </div>
 
             {/* Cart Items */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden opacity-0 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1064,7 +1064,7 @@ export default function StoreCartPage() {
               
               <div className="p-6">
                 {items.length === 0 ? (
-                  <div className="text-center py-16 animate-fade-in">
+                  <div className="text-center py-16">
                     <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-800 mb-6 animate-bounce-in">
                       <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1091,9 +1091,8 @@ export default function StoreCartPage() {
                       return (
                         <div
                           key={item.id || `item-${index}-${item.productId || Date.now()}`}
-                          style={!isRemoving ? { animationDelay: `${index * 60}ms` } : undefined}
                           className={`group flex items-center gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-2xl hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800/50 ${
-                            isRemoving ? 'animate-slide-out-left' : 'opacity-0 animate-fade-in-up'
+                            isRemoving ? 'animate-slide-out-left' : ''
                           }`}
                         >
                           <div className="flex-1 min-w-0">
@@ -1137,7 +1136,7 @@ export default function StoreCartPage() {
           </div>
 
           {/* Right Column - Order Summary */}
-          <div className="lg:col-span-1 animate-fade-in-up" style={{ animationDelay: '120ms' }}>
+          <div className="lg:col-span-1">
             <div className="sticky top-24 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-500 to-brand-600">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">

@@ -107,7 +107,7 @@ export default function StoreDashboardPage() {
   if (error || !stats) {
     return (
       <div className="w-full max-w-7xl mx-auto h-full flex items-center justify-center">
-        <div className="text-center opacity-0 animate-fade-in">
+        <div className="text-center">
           <div className="text-6xl mb-4" aria-hidden>⚠️</div>
           <p className="text-gray-500 dark:text-gray-400 text-lg font-semibold">
             {error || 'Failed to load dashboard'}
@@ -138,7 +138,7 @@ export default function StoreDashboardPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col relative">
-      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm py-2 -mx-2 px-2 rounded-xl border border-gray-200 dark:border-gray-700 animate-fade-in">
+      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm py-2 -mx-2 px-2 rounded-xl border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">
@@ -151,7 +151,7 @@ export default function StoreDashboardPage() {
             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
               <span>Welcome, {user.name} • Last updated: {lastRefresh.toLocaleTimeString()}</span>
               {showUpdatedFeedback && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium animate-fade-in">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium">
                   Updated
                 </span>
               )}
@@ -230,7 +230,7 @@ export default function StoreDashboardPage() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         {activeTab === 'overview' && (
-          <div key="overview" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+          <div key="overview">
             <DashboardOverview
               stats={stats}
               loading={loading}
@@ -241,7 +241,7 @@ export default function StoreDashboardPage() {
           </div>
         )}
         {activeTab === 'today' && (
-          <div key="today" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+          <div key="today">
             <DashboardToday
               stats={stats}
               salesTrendLast7={salesTrendLast7}
@@ -250,7 +250,7 @@ export default function StoreDashboardPage() {
           </div>
         )}
         {activeTab === 'history' && (
-          <div key="history" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+          <div key="history">
             <DashboardHistory
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
@@ -262,7 +262,7 @@ export default function StoreDashboardPage() {
           </div>
         )}
         {activeTab === 'actions' && (
-          <div key="actions" className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0ms' }}>
+          <div key="actions">
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg shadow-gray-200/50 dark:shadow-none p-4 lg:p-6 border border-gray-100 dark:border-gray-700">
               <h2 className="text-base sm:text-lg font-bold dark:text-white mb-4">Quick Actions</h2>
               <DashboardQuickActions

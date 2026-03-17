@@ -25,7 +25,6 @@ export default function DashboardQuickActions({
 
   const actionCardClass =
     'flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl transition-all duration-200 touch-target shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]';
-  let actionIndex = 0;
 
   return (
     <div className="space-y-4">
@@ -33,8 +32,7 @@ export default function DashboardQuickActions({
         {pendingPaymentsCount > 0 && (
           <Link
             href="/store/pending-payments"
-            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-orange-100 dark:bg-orange-900/30 rounded-2xl hover:bg-orange-200 dark:hover:bg-orange-900/50 border-2 border-orange-300 dark:border-orange-700 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 touch-target opacity-0 animate-fade-in-up"
-            style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+            className="flex flex-col items-center justify-center p-3 sm:p-4 bg-orange-100 dark:bg-orange-900/30 rounded-2xl hover:bg-orange-200 dark:hover:bg-orange-900/50 border-2 border-orange-300 dark:border-orange-700 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 touch-target"
           >
             <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">⏳</span>
             <span className="font-medium text-xs sm:text-sm text-orange-700 dark:text-orange-300 text-center">
@@ -47,8 +45,7 @@ export default function DashboardQuickActions({
         )}
         <Link
           href="/store/pos"
-          className={`${linkClass} opacity-0 animate-fade-in-up`}
-          style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+          className={linkClass}
         >
           <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🛒</span>
           <span className="font-medium text-xs sm:text-sm text-brand-600 dark:text-brand-400 text-center">
@@ -57,8 +54,7 @@ export default function DashboardQuickActions({
         </Link>
         <Link
           href="/store/inventory"
-          className={`${actionCardClass} bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 opacity-0 animate-fade-in-up`}
-          style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+          className={`${actionCardClass} bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30`}
         >
           <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📦</span>
           <span className="font-medium text-xs sm:text-sm text-blue-600 dark:text-blue-400 text-center">
@@ -67,8 +63,7 @@ export default function DashboardQuickActions({
         </Link>
         <Link
           href="/store/stock-ledger"
-          className={`${actionCardClass} bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 opacity-0 animate-fade-in-up`}
-          style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+          className={`${actionCardClass} bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30`}
         >
           <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📋</span>
           <span className="font-medium text-xs sm:text-sm text-green-600 dark:text-green-400 text-center">
@@ -77,8 +72,7 @@ export default function DashboardQuickActions({
         </Link>
         <Link
           href="/store/reports"
-          className={`${actionCardClass} bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 opacity-0 animate-fade-in-up`}
-          style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+          className={`${actionCardClass} bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30`}
         >
           <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📈</span>
           <span className="font-medium text-xs sm:text-sm text-purple-600 dark:text-purple-400 text-center">
@@ -95,8 +89,7 @@ export default function DashboardQuickActions({
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <Link
               href="/store/wastage"
-              className={`${actionCardClass} bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 opacity-0 animate-fade-in-up`}
-              style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+              className={`${actionCardClass} bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30`}
             >
               <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">🗑️</span>
               <span className="font-medium text-xs sm:text-sm text-red-600 dark:text-red-400 text-center">
@@ -105,8 +98,7 @@ export default function DashboardQuickActions({
             </Link>
             <Link
               href="/store/yield"
-              className={`${actionCardClass} bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 opacity-0 animate-fade-in-up`}
-              style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+              className={`${actionCardClass} bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30`}
             >
               <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📊</span>
               <span className="font-medium text-xs sm:text-sm text-orange-600 dark:text-orange-400 text-center">
@@ -126,8 +118,7 @@ export default function DashboardQuickActions({
             {isExternal ? (
               <a
                 href={hqHref}
-                className={`${actionCardClass} bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 opacity-0 animate-fade-in-up`}
-                style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+                className={`${actionCardClass} bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30`}
                 onClick={(e) => {
                   if (typeof window !== 'undefined') {
                     const accessToken = localStorage.getItem('accessToken');
@@ -148,8 +139,7 @@ export default function DashboardQuickActions({
             ) : (
               <Link
                 href={hqHref}
-                className={`${actionCardClass} bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 opacity-0 animate-fade-in-up`}
-                style={{ animationDelay: `${actionIndex++ * 60}ms` }}
+                className={`${actionCardClass} bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30`}
               >
                 {hqContent}
               </Link>
