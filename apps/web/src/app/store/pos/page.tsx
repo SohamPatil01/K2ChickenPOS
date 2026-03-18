@@ -90,7 +90,7 @@ interface FranchiseConfig {
 export default function StorePOSPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { items, addItem, fulfillmentType, setFulfillmentType } = useCartStore();
+  const { items, addItem, fulfillmentType, setFulfillmentType, customerId } = useCartStore();
   const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -676,21 +676,21 @@ export default function StorePOSPage() {
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       const fulfillType = useCartStore.getState().fulfillmentType;
-      if (fulfillType === "DELIVERY") {
-        try {
-          await api.post("/api/v1/delivery", {
-            saleId: sale.id,
-            type: "DELIVERY",
-            deliveryFee: 0,
-          });
-        } catch (delErr: any) {
-          console.error("[POS] Create delivery failed:", delErr);
-          showNotification(
-            delErr.response?.data?.error || "Order paid. Add delivery from Delivery section.",
-            "info",
-            4000
-          );
-        }
+      // Walk-in (no customer) orders always go as pickup
+      const deliveryType = fulfillType === "DELIVERY" && sale.customerId ? "DELIVERY" : "PICKUP";
+      try {
+        await api.post("/api/v1/delivery", {
+          saleId: sale.id,
+          type: deliveryType,
+          deliveryFee: 0,
+        });
+      } catch (delErr: any) {
+        console.error("[POS] Create delivery failed:", delErr);
+        showNotification(
+          delErr.response?.data?.error || "Order paid. Add delivery from Delivery section.",
+          "info",
+          4000
+        );
       }
       await useCartStore.getState().clearCart();
       setShowQuickCheckout(false);
@@ -1391,17 +1391,24 @@ export default function StorePOSPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFulfillmentType("DELIVERY")}
-                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    onClick={() => customerId && setFulfillmentType("DELIVERY")}
+                    disabled={!customerId}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       fulfillmentType === "DELIVERY"
                         ? "bg-brand-600 text-white"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                     }`}
+                    title={!customerId ? "Select a customer for delivery" : ""}
                   >
                     Delivery
                   </button>
                 </div>
-                {fulfillmentType === "DELIVERY" && (
+                {!customerId && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5">
+                    Walk-in orders are pickup only. Select a customer for delivery.
+                  </p>
+                )}
+                {fulfillmentType === "DELIVERY" && customerId && (
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
                     Order will appear in Delivery. Add address & customer details there.
                   </p>

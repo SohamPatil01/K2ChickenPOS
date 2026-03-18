@@ -55,6 +55,15 @@ export default function StoreDeliveryPage() {
     deliveryFee: 0,
     addressId: '',
   });
+  const [createAddNewAddress, setCreateAddNewAddress] = useState(false);
+  const [createNewAddress, setCreateNewAddress] = useState({
+    label: 'Home',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    zip: '',
+  });
   const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
   const [detailsAddresses, setDetailsAddresses] = useState<CustomerAddress[]>([]);
   const [detailsForm, setDetailsForm] = useState({
@@ -115,6 +124,8 @@ export default function StoreDeliveryPage() {
     setShowCreate(true);
     setForm({ saleId: '', type: 'PICKUP', deliveryFee: 0, addressId: '' });
     setAddresses([]);
+    setCreateAddNewAddress(false);
+    setCreateNewAddress({ label: 'Home', line1: '', line2: '', city: '', state: '', zip: '' });
     setCreateError(null);
     loadPaidSalesWithoutDelivery();
   };
@@ -141,9 +152,38 @@ export default function StoreDeliveryPage() {
       setCreateError('Please select a sale');
       return;
     }
-    if (form.type === 'DELIVERY' && !form.addressId) {
-      setCreateError('Please select a delivery address');
-      return;
+    let addressId: string | undefined = form.addressId || undefined;
+    if (form.type === 'DELIVERY') {
+      if (createAddNewAddress) {
+        if (!createNewAddress.line1?.trim() || !createNewAddress.city?.trim()) {
+          setCreateError('Please enter address line 1 and city');
+          return;
+        }
+        const sale = paidSales.find((s) => s.id === form.saleId);
+        if (!sale?.customerId) {
+          setCreateError('This sale has no customer. Add an address in Customers first or select a sale with a customer.');
+          return;
+        }
+        setCreating(true);
+        try {
+          const addrRes = await api.post(`/api/v1/customers/${sale.customerId}/addresses`, {
+            label: createNewAddress.label || 'Home',
+            line1: createNewAddress.line1.trim(),
+            line2: createNewAddress.line2?.trim() || undefined,
+            city: createNewAddress.city.trim(),
+            state: createNewAddress.state?.trim() || undefined,
+            zip: createNewAddress.zip?.trim() || undefined,
+          });
+          addressId = addrRes.data?.id;
+        } catch (err: any) {
+          setCreateError(err.response?.data?.error || 'Failed to add address');
+          setCreating(false);
+          return;
+        }
+      } else if (!form.addressId) {
+        setCreateError('Please select a delivery address or add a new one');
+        return;
+      }
     }
     setCreating(true);
     try {
@@ -151,7 +191,7 @@ export default function StoreDeliveryPage() {
         saleId: form.saleId,
         type: form.type,
         deliveryFee: Number(form.deliveryFee) || 0,
-        addressId: form.type === 'DELIVERY' ? form.addressId || undefined : undefined,
+        addressId: form.type === 'DELIVERY' ? addressId : undefined,
       });
       setShowCreate(false);
       loadDeliveries();
@@ -388,6 +428,7 @@ export default function StoreDeliveryPage() {
                       onChange={() => {
                         setForm((f) => ({ ...f, type: 'PICKUP', addressId: '' }));
                         setAddresses([]);
+                        setCreateAddNewAddress(false);
                       }}
                       className="text-brand-600"
                     />
@@ -411,21 +452,88 @@ export default function StoreDeliveryPage() {
               {form.type === 'DELIVERY' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery address</label>
-                  <select
-                    value={form.addressId}
-                    onChange={(e) => setForm((f) => ({ ...f, addressId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
-                    required={form.type === 'DELIVERY'}
-                  >
-                    <option value="">Select address</option>
-                    {addresses.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label}: {a.line1}, {a.city}
-                      </option>
-                    ))}
-                  </select>
-                  {form.saleId && paidSales.find((s) => s.id === form.saleId)?.customerId && addresses.length === 0 && !loadingSales && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">No addresses for this customer. Add one in Customers.</p>
+                  {!createAddNewAddress ? (
+                    <>
+                      <select
+                        value={form.addressId}
+                        onChange={(e) => setForm((f) => ({ ...f, addressId: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                      >
+                        <option value="">Select address</option>
+                        {addresses.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.label}: {a.line1}, {a.city}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setCreateAddNewAddress(true)}
+                        className="mt-2 text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        + Add new address
+                      </button>
+                      {form.saleId && paidSales.find((s) => s.id === form.saleId)?.customerId && addresses.length === 0 && !loadingSales && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">No addresses for this customer. Select above or add one below.</p>
+                      )}
+                      {form.saleId && !paidSales.find((s) => s.id === form.saleId)?.customerId && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Walk-in sale has no customer. Add customer in Customers to add an address.</p>
+                      )}
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={createNewAddress.label}
+                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, label: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                        placeholder="Label (e.g. Home)"
+                      />
+                      <input
+                        type="text"
+                        value={createNewAddress.line1}
+                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, line1: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                        placeholder="Address line 1 *"
+                      />
+                      <input
+                        type="text"
+                        value={createNewAddress.line2}
+                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, line2: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                        placeholder="Line 2 (optional)"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={createNewAddress.city}
+                          onChange={(e) => setCreateNewAddress((a) => ({ ...a, city: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                          placeholder="City *"
+                        />
+                        <input
+                          type="text"
+                          value={createNewAddress.state}
+                          onChange={(e) => setCreateNewAddress((a) => ({ ...a, state: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                          placeholder="State"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={createNewAddress.zip}
+                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, zip: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm"
+                        placeholder="ZIP"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCreateAddNewAddress(false)}
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                      >
+                        Use existing address
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

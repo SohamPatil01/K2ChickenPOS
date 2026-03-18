@@ -302,17 +302,17 @@ export default function StoreCartPage() {
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       const fulfillType = useCartStore.getState().fulfillmentType;
-      if (fulfillType === 'DELIVERY') {
-        try {
-          await api.post('/api/v1/delivery', {
-            saleId: sale.id,
-            type: 'DELIVERY',
-            deliveryFee: 0,
-          });
-        } catch (delErr: any) {
-          console.error('[Cart] Create delivery failed:', delErr);
-          showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
-        }
+      // Walk-in (no customer) orders always go as pickup
+      const deliveryType = fulfillType === 'DELIVERY' && sale.customerId ? 'DELIVERY' : 'PICKUP';
+      try {
+        await api.post('/api/v1/delivery', {
+          saleId: sale.id,
+          type: deliveryType,
+          deliveryFee: deliveryType === 'DELIVERY' ? 0 : 0,
+        });
+      } catch (delErr: any) {
+        console.error('[Cart] Create delivery failed:', delErr);
+        showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
       }
       await clearCart();
       setShowPaymentModal(false);
@@ -472,7 +472,7 @@ export default function StoreCartPage() {
               </svg>
             </button>
           </div>
-          {/* Pickup / Delivery */}
+          {/* Pickup / Delivery — walk-in orders are pickup only */}
           <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
             <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wider">Fulfillment</p>
             <div className="flex gap-3">
@@ -489,17 +489,22 @@ export default function StoreCartPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setFulfillmentType('DELIVERY')}
-                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 touch-target ${
+                onClick={() => customerId && setFulfillmentType('DELIVERY')}
+                disabled={!customerId}
+                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 touch-target disabled:opacity-50 disabled:cursor-not-allowed ${
                   fulfillmentType === 'DELIVERY'
                     ? 'bg-brand-600 text-white shadow-lg scale-[1.02]'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
+                title={!customerId ? 'Select a customer for delivery' : ''}
               >
                 Delivery
               </button>
             </div>
-            {fulfillmentType === 'DELIVERY' && (
+            {!customerId && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5">Walk-in orders are pickup only. Select a customer for delivery.</p>
+            )}
+            {fulfillmentType === 'DELIVERY' && customerId && (
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">Order will appear in Delivery. Add address & customer details there.</p>
             )}
           </div>

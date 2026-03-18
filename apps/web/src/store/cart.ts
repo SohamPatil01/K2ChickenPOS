@@ -86,6 +86,11 @@ export const useCartStore = create<CartState>((set, get) => ({
     // Ensure name is preserved as string, not null/undefined
     const name = customerName ? String(customerName) : null;
     console.log('[Cart Store] setCustomer called:', { customerId, customerPhone, customerName: name });
+    // Walk-in (no customer) orders go as pickup only
+    if (!customerId) {
+      set({ customerId, customerPhone, customerName: name, fulfillmentType: 'PICKUP' });
+      return;
+    }
     set({ customerId, customerPhone, customerName: name });
   },
   setDiscount: (discountTotal) => {

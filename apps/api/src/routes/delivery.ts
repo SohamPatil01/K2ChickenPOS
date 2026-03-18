@@ -10,15 +10,42 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
 
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const data = createDeliverySchema.parse(request.body as any);
-    const storeId = (getUser(request) as any).storeId;
+    const userStoreId = (getUser(request) as any).storeId;
+    const userId = (getUser(request) as any).userId;
 
     const sale = await prisma.sale.findUnique({
       where: { id: data.saleId },
       include: { deliveryOrder: { select: { id: true } } },
     });
 
-    if (!sale || sale.storeId !== storeId || sale.status !== 'PAID') {
-      reply.code(400).send({ error: 'Sale not found or not paid' });
+    if (!sale) {
+      reply.code(404).send({ error: 'Sale not found' });
+      return;
+    }
+    if (sale.status !== 'PAID') {
+      reply.code(400).send({ error: 'Sale is not paid yet' });
+      return;
+    }
+
+    // Same access logic as sales pay: user's store or OWNER with franchise sale
+    let hasAccess = sale.storeId === userStoreId;
+    if (!hasAccess) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { store: { select: { id: true, type: true } } },
+      });
+      if (user?.role === 'OWNER' && user.store?.type === 'OWNER') {
+        const saleStore = await prisma.store.findUnique({
+          where: { id: sale.storeId },
+          select: { type: true, parentOwnerStoreId: true },
+        });
+        if (saleStore?.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === userStoreId) {
+          hasAccess = true;
+        }
+      }
+    }
+    if (!hasAccess) {
+      reply.code(403).send({ error: 'You do not have permission to create delivery for this sale' });
       return;
     }
 
@@ -41,9 +68,10 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     const otp = data.type === 'DELIVERY' ? String(Math.floor(1000 + Math.random() * 9000)) : null;
     const otpCodeHash = otp ? crypto.createHash('sha256').update(otp).digest('hex') : null;
 
+    // Use sale's storeId so delivery belongs to the same store as the sale (e.g. franchise)
     const delivery = await prisma.deliveryOrder.create({
       data: {
-        storeId,
+        storeId: sale.storeId,
         saleId: data.saleId,
         type: data.type,
         status: 'CREATED',
