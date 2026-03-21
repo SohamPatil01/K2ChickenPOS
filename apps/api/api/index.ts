@@ -174,15 +174,37 @@ async function build() {
   // Register authenticate decorator
   fastify.decorate('authenticate', authenticate);
 
-  // Health check with database connection test
+  // Health: shallow by default (no DB) + long edge cache → much lower Fast Origin Transfer from uptime pings.
+  // Use GET /health?deep=1 for full DB probe (not cached; for manual / serious checks).
   fastify.get('/health', async (request, reply) => {
+    const q = (request.query as Record<string, string | undefined>) || {};
+    const deep =
+      q.deep === '1' ||
+      q.deep === 'true' ||
+      q.full === '1' ||
+      q.full === 'true';
+
+    if (!deep) {
+      reply.header(
+        'Cache-Control',
+        'public, s-maxage=600, stale-while-revalidate=1800'
+      );
+      return {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        check: 'shallow',
+      };
+    }
+
     const health: any = {
       status: 'ok',
       timestamp: new Date().toISOString(),
       database: 'unknown',
+      check: 'deep',
     };
 
-    // Test database connection
+    reply.header('Cache-Control', 'private, no-store');
+
     try {
       if (!process.env.DATABASE_URL) {
         health.database = 'error';
@@ -191,7 +213,6 @@ async function build() {
         return health;
       }
 
-      // Extract database info from connection string (without exposing credentials)
       const dbUrl = process.env.DATABASE_URL;
       const dbHostMatch = dbUrl.match(/@([^:]+):(\d+)\/([^?]+)/);
       if (dbHostMatch) {
@@ -200,12 +221,12 @@ async function build() {
         health.databaseName = dbHostMatch[3];
       }
 
-      // Try a simple query to test connection and get database info
-      const dbInfo = await prisma.$queryRaw<Array<{db_name: string, db_version: string}>>`SELECT current_database() as db_name, version() as db_version`;
+      const dbInfo = await prisma.$queryRaw<Array<{ db_name: string; db_version: string }>>`SELECT current_database() as db_name, version() as db_version`;
       if (dbInfo && dbInfo[0]) {
         health.database = 'connected';
         health.connectedDatabase = dbInfo[0].db_name;
-        health.postgresVersion = dbInfo[0].db_version.split(' ')[0] + ' ' + dbInfo[0].db_version.split(' ')[1];
+        health.postgresVersion =
+          dbInfo[0].db_version.split(' ')[0] + ' ' + dbInfo[0].db_version.split(' ')[1];
       } else {
         health.database = 'connected';
       }
@@ -217,8 +238,6 @@ async function build() {
       reply.code(503);
     }
 
-    // Allow CDN to cache health response to reduce Fast Origin Transfer (monitoring polls often)
-    reply.header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=240');
     return health;
   });
 

@@ -134,6 +134,9 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       };
     }
 
+    // Hide walk-in orders (no customer on sale) from delivery list — they are pickup/counter only
+    where.sale = { customerId: { not: null } };
+
     const deliveries = await prisma.deliveryOrder.findMany({
       where,
       include: {
@@ -220,6 +223,17 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     if (userRole === 'DRIVER' && delivery.assignedDriverId !== userId) {
       reply.code(403).send({ error: 'Forbidden' });
       return;
+    }
+
+    // Drivers cannot move orders to admin-only workflow steps
+    if (userRole === 'DRIVER') {
+      const driverAllowed = ['OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'RETURNED'];
+      if (!driverAllowed.includes(data.status)) {
+        reply.code(403).send({
+          error: 'Drivers can only set status to Out for delivery, Delivered, Failed, or Returned',
+        });
+        return;
+      }
     }
 
     const updateData: any = {

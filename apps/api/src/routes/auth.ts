@@ -33,7 +33,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       });
 
       // Cache at CDN to reduce Fast Origin Transfer (same for all users on login screen)
-      reply.header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+      reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
       return sortedUsers;
     } catch (error: any) {
       reply.code(500).send({ error: 'Failed to fetch profiles' });

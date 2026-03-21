@@ -71,7 +71,8 @@ export default function StoreDashboardPage() {
 
   useEffect(() => {
     if (!user?.storeId || !autoRefresh) return;
-    const interval = setInterval(() => handleRefetch(), 60000);
+    // 2 min default reduces API / Fast Origin Transfer vs 1 min (still fresh enough for POS)
+    const interval = setInterval(() => handleRefetch(), 120000);
     return () => clearInterval(interval);
   }, [user?.storeId, autoRefresh, handleRefetch]);
 

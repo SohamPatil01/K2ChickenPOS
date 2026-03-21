@@ -302,17 +302,19 @@ export default function StoreCartPage() {
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       const fulfillType = useCartStore.getState().fulfillmentType;
-      // Walk-in (no customer) orders always go as pickup
-      const deliveryType = fulfillType === 'DELIVERY' && sale.customerId ? 'DELIVERY' : 'PICKUP';
-      try {
-        await api.post('/api/v1/delivery', {
-          saleId: sale.id,
-          type: deliveryType,
-          deliveryFee: deliveryType === 'DELIVERY' ? 0 : 0,
-        });
-      } catch (delErr: any) {
-        console.error('[Cart] Create delivery failed:', delErr);
-        showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
+      // Only create a delivery row for home delivery (customer + delivery). Pickup / walk-in stays out of Delivery section.
+      const isHomeDelivery = fulfillType === 'DELIVERY' && sale.customerId;
+      if (isHomeDelivery) {
+        try {
+          await api.post('/api/v1/delivery', {
+            saleId: sale.id,
+            type: 'DELIVERY',
+            deliveryFee: 0,
+          });
+        } catch (delErr: any) {
+          console.error('[Cart] Create delivery failed:', delErr);
+          showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
+        }
       }
       await clearCart();
       setShowPaymentModal(false);

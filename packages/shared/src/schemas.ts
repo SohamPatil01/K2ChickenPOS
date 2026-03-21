@@ -119,7 +119,15 @@ export const assignDriverSchema = z.object({
 });
 
 export const updateDeliveryStatusSchema = z.object({
-  status: z.enum(['READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'RETURNED']),
+  status: z.enum([
+    'CREATED',
+    'READY',
+    'ASSIGNED',
+    'OUT_FOR_DELIVERY',
+    'DELIVERED',
+    'FAILED',
+    'RETURNED',
+  ]),
   note: z.string().optional(),
   failureReason: z.string().optional(),
 });

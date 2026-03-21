@@ -180,8 +180,8 @@ export async function productRoutes(fastify: FastifyInstance) {
       orderBy: { sortOrder: 'asc' },
     });
 
-    // Short cache so product/category updates (e.g. Egg) appear quickly; still reduces origin hits
-    reply.header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+    // Edge cache: balances freshness vs Fast Origin Transfer (Vercel)
+    reply.header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
     return categories;
   });
 
