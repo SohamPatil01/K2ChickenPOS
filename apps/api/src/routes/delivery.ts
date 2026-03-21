@@ -103,7 +103,7 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
-    const { status, driverId, date } = (request.query as any);
+    const { status, driverId, date, startDate: qStart, endDate: qEnd } = (request.query as any);
     const storeId = (getUser(request) as any).storeId;
     const userRole = (getUser(request) as any).role;
 
@@ -123,15 +123,26 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       where.assignedDriverId = driverId;
     }
 
-    if (date) {
-      const startDate = new Date(date);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(date);
-      endDate.setHours(23, 59, 59, 999);
-      where.createdAt = {
-        gte: startDate,
-        lte: endDate,
+    /** YYYY-MM-DD → UTC day bounds (consistent with reports / ITR) */
+    const dayBoundsUtc = (iso: string) => {
+      const d = String(iso).split('T')[0];
+      return {
+        gte: new Date(d + 'T00:00:00.000Z'),
+        lte: new Date(d + 'T23:59:59.999Z'),
       };
+    };
+
+    if (qStart && qEnd) {
+      const gte = dayBoundsUtc(qStart).gte;
+      const lte = dayBoundsUtc(qEnd).lte;
+      if (!isNaN(gte.getTime()) && !isNaN(lte.getTime()) && gte <= lte) {
+        where.createdAt = { gte, lte };
+      }
+    } else if (date) {
+      const { gte, lte } = dayBoundsUtc(date);
+      if (!isNaN(gte.getTime())) {
+        where.createdAt = { gte, lte };
+      }
     }
 
     // Hide walk-in orders (no customer on sale) from delivery list — they are pickup/counter only
