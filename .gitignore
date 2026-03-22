@@ -21,6 +21,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+# Local server logs (repo root)
+/*.log
+.cursor/debug.log
 
 # Local env files (never commit secrets — not on GitHub)
 .env
