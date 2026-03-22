@@ -723,7 +723,7 @@ export default function StoreCustomersPage() {
                     <h3 className="font-semibold text-gray-900 dark:text-white">Loyalty</h3>
                     <button
                       type="button"
-                      onClick={loadLoyaltyInfo}
+                      onClick={() => void loadLoyaltyInfo()}
                       disabled={loadingLoyalty}
                       className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-50"
                     >
