@@ -154,7 +154,11 @@ export default function OrdersPage() {
       return;
     }
 
-    if (user.role !== "OWNER" && user.role !== "CASHIER") {
+    if (
+      user.role !== "OWNER" &&
+      user.role !== "MANAGER" &&
+      user.role !== "CASHIER"
+    ) {
       router.push("/store");
       return;
     }
@@ -162,7 +166,12 @@ export default function OrdersPage() {
 
   // Separate useEffect for loading data when filters change
   useEffect(() => {
-    if (!user || (user.role !== "OWNER" && user.role !== "CASHIER")) {
+    if (
+      !user ||
+      (user.role !== "OWNER" &&
+        user.role !== "MANAGER" &&
+        user.role !== "CASHIER")
+    ) {
       return;
     }
 
@@ -172,7 +181,12 @@ export default function OrdersPage() {
 
   // Separate useEffect for event listeners (only set up once)
   useEffect(() => {
-    if (!user || (user.role !== "OWNER" && user.role !== "CASHIER")) {
+    if (
+      !user ||
+      (user.role !== "OWNER" &&
+        user.role !== "MANAGER" &&
+        user.role !== "CASHIER")
+    ) {
       return;
     }
 

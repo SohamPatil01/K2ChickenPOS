@@ -160,7 +160,7 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           label: "Orders",
           href: "/store/orders",
           icon: "📝",
-          roles: ["OWNER"],
+          roles: ["MANAGER", "OWNER"],
         },
         {
           label: "Pending Payments",

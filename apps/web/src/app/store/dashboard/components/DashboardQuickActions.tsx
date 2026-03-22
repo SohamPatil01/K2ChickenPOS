@@ -88,6 +88,15 @@ export default function DashboardQuickActions({
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <Link
+              href="/store/orders"
+              className={`${actionCardClass} bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30`}
+            >
+              <span className="text-2xl sm:text-3xl mb-1 sm:mb-2">📝</span>
+              <span className="font-medium text-xs sm:text-sm text-indigo-600 dark:text-indigo-400 text-center">
+                Orders
+              </span>
+            </Link>
+            <Link
               href="/store/wastage"
               className={`${actionCardClass} bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30`}
             >
