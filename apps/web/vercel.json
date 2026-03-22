@@ -1,7 +1,24 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && pnpm --filter @azela-pos/shared build && pnpm --filter @azela-pos/offline build && cd apps/web && pnpm build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "headers": [
+    {
+      "source": "/_next/static/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/_next/image",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, s-maxage=604800, stale-while-revalidate=2592000" }
+      ]
+    }
+  ]
 }
 

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile --ignore-scripts=false",
   "buildCommand": "cd ../.. && pnpm install --no-frozen-lockfile && pnpm --filter @azela-pos/db generate && pnpm --filter @azela-pos/shared build && pnpm --filter @azela-pos/db build && cd apps/api && node scripts/prepare-vercel.js",
@@ -10,9 +11,37 @@
     { "path": "/api/v1/cron/daily-closing", "schedule": "0 20 * * *" }
   ],
   "headers": [
-    { "source": "/health", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=600, stale-while-revalidate=1800" }] },
-    { "source": "/api/v1/products/categories", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=120, stale-while-revalidate=300" }] },
-    { "source": "/api/v1/auth/profiles", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=300, stale-while-revalidate=600" }] },
-    { "source": "/api/v1/backup/health", "headers": [{ "key": "Cache-Control", "value": "public, s-maxage=300, stale-while-revalidate=600" }] }
+    {
+      "source": "/health",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=60, s-maxage=600, stale-while-revalidate=1800" },
+        { "key": "CDN-Cache-Control", "value": "public, s-maxage=600, stale-while-revalidate=1800" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, s-maxage=3600, stale-while-revalidate=7200" }
+      ]
+    },
+    {
+      "source": "/api/v1/products/categories",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=30, s-maxage=120, stale-while-revalidate=300" },
+        { "key": "CDN-Cache-Control", "value": "public, s-maxage=300, stale-while-revalidate=600" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, s-maxage=3600, stale-while-revalidate=7200" }
+      ]
+    },
+    {
+      "source": "/api/v1/auth/profiles",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=60, s-maxage=300, stale-while-revalidate=600" },
+        { "key": "CDN-Cache-Control", "value": "public, s-maxage=300, stale-while-revalidate=600" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, s-maxage=600, stale-while-revalidate=1200" }
+      ]
+    },
+    {
+      "source": "/api/v1/backup/health",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=60, s-maxage=300, stale-while-revalidate=600" },
+        { "key": "CDN-Cache-Control", "value": "public, s-maxage=600, stale-while-revalidate=1200" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "public, s-maxage=1800, stale-while-revalidate=3600" }
+      ]
+    }
   ]
 }
