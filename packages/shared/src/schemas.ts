@@ -17,13 +17,30 @@ export const customerSchema = z.object({
   email: z.string().email().optional(),
 });
 
+/** Empty/missing state & PIN from POS forms → placeholder so validation always passes */
+const addressPlaceField = z.preprocess(
+  (v) => {
+    if (v === undefined || v === null) return '—';
+    const s = String(v).trim();
+    return s.length > 0 ? s : '—';
+  },
+  z.string().min(1)
+);
+
 export const customerAddressSchema = z.object({
-  label: z.string().min(1),
+  label: z.preprocess(
+    (v) => {
+      if (v === undefined || v === null) return 'Home';
+      const s = String(v).trim();
+      return s.length > 0 ? s : 'Home';
+    },
+    z.string().min(1)
+  ),
   line1: z.string().min(1),
   line2: z.string().optional(),
   city: z.string().min(1),
-  state: z.string().min(1),
-  zip: z.string().min(1),
+  state: addressPlaceField,
+  zip: addressPlaceField,
   geoLat: z.number().optional(),
   geoLng: z.number().optional(),
 });
@@ -111,7 +128,16 @@ export const createDeliverySchema = z.object({
   saleId: z.string(),
   type: z.enum(['PICKUP', 'DELIVERY']),
   addressId: z.string().optional(),
+  /** When set for DELIVERY, server creates CustomerAddress for the sale customer and links it */
+  newAddress: customerAddressSchema.optional(),
   deliveryFee: z.number().default(0),
+});
+
+/** PATCH /delivery/:id — update fee, link saved address, or create + link a new customer address */
+export const patchDeliverySchema = z.object({
+  addressId: z.string().nullable().optional(),
+  newAddress: customerAddressSchema.optional(),
+  deliveryFee: z.number().optional(),
 });
 
 export const assignDriverSchema = z.object({

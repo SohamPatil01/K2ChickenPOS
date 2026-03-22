@@ -6,12 +6,13 @@ import { requireRole, getUser } from '../utils/auth.js';
 
 interface QueryParams {
   phone?: string;
+  q?: string;
 }
 
 export async function customerRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
-    const { phone } = (request.query as any);
+    const { phone, q } = (request.query as any);
     // Get default store (since auth is disabled)
     // Use the oldest OWNER store to ensure consistency
     const store = await prisma.store.findFirst({ 
@@ -20,6 +21,33 @@ export async function customerRoutes(fastify: FastifyInstance) {
       select: { id: true, name: true, type: true, parentOwnerStoreId: true }
     });
     const storeId = store?.id || '';
+
+    /** Typeahead / dropdown search: name or phone partial match */
+    const searchTerm = typeof q === 'string' ? q.trim() : '';
+    if (searchTerm.length > 0) {
+      const digits = searchTerm.replace(/\D/g, '');
+      const orClause: Array<Record<string, unknown>> = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { phone: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+      if (digits.length > 0 && digits !== searchTerm) {
+        orClause.push({ phone: { contains: digits } });
+      }
+      const matches = await prisma.customer.findMany({
+        where: {
+          storeId,
+          OR: orClause,
+        },
+        include: {
+          _count: {
+            select: { sales: true, addresses: true },
+          },
+        },
+        orderBy: [{ name: 'asc' }, { phone: 'asc' }],
+        take: 30,
+      });
+      return matches;
+    }
 
     if (phone) {
       const customer = await prisma.customer.findUnique({

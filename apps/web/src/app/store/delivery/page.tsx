@@ -293,7 +293,6 @@ export default function StoreDeliveryPage() {
       setCreateError('Please select a sale');
       return;
     }
-    let addressId: string | undefined = form.addressId || undefined;
     if (form.type === 'DELIVERY') {
       if (createAddNewAddress) {
         if (!createNewAddress.line1?.trim() || !createNewAddress.city?.trim()) {
@@ -305,22 +304,6 @@ export default function StoreDeliveryPage() {
           setCreateError('This sale has no customer. Add an address in Customers first or select a sale with a customer.');
           return;
         }
-        setCreating(true);
-        try {
-          const addrRes = await api.post(`/api/v1/customers/${sale.customerId}/addresses`, {
-            label: createNewAddress.label || 'Home',
-            line1: createNewAddress.line1.trim(),
-            line2: createNewAddress.line2?.trim() || undefined,
-            city: createNewAddress.city.trim(),
-            state: createNewAddress.state?.trim() || undefined,
-            zip: createNewAddress.zip?.trim() || undefined,
-          });
-          addressId = addrRes.data?.id;
-        } catch (err: any) {
-          setCreateError(err.response?.data?.error || 'Failed to add address');
-          setCreating(false);
-          return;
-        }
       } else if (!form.addressId) {
         setCreateError('Please select a delivery address or add a new one');
         return;
@@ -328,12 +311,26 @@ export default function StoreDeliveryPage() {
     }
     setCreating(true);
     try {
-      await api.post('/api/v1/delivery', {
+      const body: Record<string, unknown> = {
         saleId: form.saleId,
         type: form.type,
         deliveryFee: Number(form.deliveryFee) || 0,
-        addressId: form.type === 'DELIVERY' ? addressId : undefined,
-      });
+      };
+      if (form.type === 'DELIVERY') {
+        if (createAddNewAddress) {
+          body.newAddress = {
+            label: createNewAddress.label || 'Home',
+            line1: createNewAddress.line1.trim(),
+            line2: createNewAddress.line2?.trim() || undefined,
+            city: createNewAddress.city.trim(),
+            state: createNewAddress.state?.trim(),
+            zip: createNewAddress.zip?.trim(),
+          };
+        } else {
+          body.addressId = form.addressId;
+        }
+      }
+      await api.post('/api/v1/delivery', body);
       setShowCreate(false);
       loadDeliveries();
     } catch (err: any) {
@@ -395,7 +392,6 @@ export default function StoreDeliveryPage() {
     setDetailsSaving(true);
     try {
       const customerId = editingDelivery.sale.customerId || editingDelivery.sale.customer?.id;
-      let addressId = detailsForm.addressId;
       if (customerId) {
         if (detailsForm.customerName || detailsForm.customerPhone) {
           await api.put(`/api/v1/customers/${customerId}`, {
@@ -403,21 +399,27 @@ export default function StoreDeliveryPage() {
             phone: detailsForm.customerPhone || undefined,
           });
         }
-        if (addNewAddress && detailsForm.newAddress.line1 && detailsForm.newAddress.city) {
-          const addrRes = await api.post(`/api/v1/customers/${customerId}/addresses`, {
-            label: detailsForm.newAddress.label,
-            line1: detailsForm.newAddress.line1,
-            line2: detailsForm.newAddress.line2 || undefined,
-            city: detailsForm.newAddress.city,
-            state: detailsForm.newAddress.state,
-            zip: detailsForm.newAddress.zip,
-          });
-          addressId = addrRes.data?.id;
-        }
       }
-      await api.patch(`/api/v1/delivery/${editingDelivery.id}`, {
-        ...(addressId ? { addressId } : {}),
-      });
+      const patchBody: Record<string, unknown> = {};
+      if (
+        addNewAddress &&
+        detailsForm.newAddress.line1?.trim() &&
+        detailsForm.newAddress.city?.trim()
+      ) {
+        patchBody.newAddress = {
+          label: detailsForm.newAddress.label || 'Home',
+          line1: detailsForm.newAddress.line1.trim(),
+          line2: detailsForm.newAddress.line2?.trim() || undefined,
+          city: detailsForm.newAddress.city.trim(),
+          state: detailsForm.newAddress.state?.trim(),
+          zip: detailsForm.newAddress.zip?.trim(),
+        };
+      } else if (detailsForm.addressId) {
+        patchBody.addressId = detailsForm.addressId;
+      }
+      if (Object.keys(patchBody).length > 0) {
+        await api.patch(`/api/v1/delivery/${editingDelivery.id}`, patchBody);
+      }
       setEditingDelivery(null);
       loadDeliveries();
     } catch (err: any) {

@@ -2,9 +2,43 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'crypto';
 import { prisma } from '@azela-pos/db';
-import { createDeliverySchema, assignDriverSchema, updateDeliveryStatusSchema, verifyOTPSchema } from '@azela-pos/shared';
+import {
+  createDeliverySchema,
+  patchDeliverySchema,
+  assignDriverSchema,
+  updateDeliveryStatusSchema,
+  verifyOTPSchema,
+  customerAddressSchema,
+} from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
+
+/** Create or reuse a matching CustomerAddress for delivery flows */
+async function ensureCustomerAddress(customerId: string, rawAddress: unknown): Promise<string> {
+  const parsed = customerAddressSchema.parse(rawAddress);
+  const existing = await prisma.customerAddress.findFirst({
+    where: {
+      customerId,
+      line1: { equals: parsed.line1.trim(), mode: 'insensitive' },
+      city: { equals: parsed.city.trim(), mode: 'insensitive' },
+    },
+  });
+  if (existing) return existing.id;
+  const created = await prisma.customerAddress.create({
+    data: {
+      customerId,
+      label: parsed.label,
+      line1: parsed.line1.trim(),
+      line2: parsed.line2?.trim() || null,
+      city: parsed.city.trim(),
+      state: parsed.state,
+      zip: parsed.zip,
+      geoLat: parsed.geoLat ?? null,
+      geoLng: parsed.geoLng ?? null,
+    },
+  });
+  return created.id;
+}
 
 export async function deliveryRoutes(fastify: FastifyInstance) {
 
@@ -54,10 +88,24 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       return;
     }
 
+    let resolvedAddressId: string | null | undefined = data.addressId;
+
+    if (data.type === 'DELIVERY' && data.newAddress) {
+      if (!sale.customerId) {
+        reply.code(400).send({ error: 'Add a customer to the sale before saving a delivery address' });
+        return;
+      }
+      try {
+        resolvedAddressId = await ensureCustomerAddress(sale.customerId, data.newAddress);
+      } catch (e: any) {
+        reply.code(400).send({ error: e?.message || 'Invalid delivery address' });
+        return;
+      }
+    }
+
     // Address can be added later in Delivery section when type is DELIVERY
-    if (data.type === 'DELIVERY' && data.addressId) {
-      // Validate address belongs to sale's customer if provided
-      const address = await prisma.customerAddress.findUnique({ where: { id: data.addressId } });
+    if (data.type === 'DELIVERY' && resolvedAddressId) {
+      const address = await prisma.customerAddress.findUnique({ where: { id: resolvedAddressId } });
       if (address && sale.customerId && address.customerId !== sale.customerId) {
         reply.code(400).send({ error: 'Address does not belong to sale customer' });
         return;
@@ -76,7 +124,7 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
         type: data.type,
         status: 'CREATED',
         deliveryFee: data.deliveryFee,
-        addressId: data.addressId,
+        addressId: resolvedAddressId ?? null,
         otpCodeHash,
       },
       include: {
@@ -353,7 +401,6 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
 
   fastify.patch('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
-    const body = (request.body as any) || {};
     const storeId = (getUser(request) as any).storeId;
 
     const delivery = await prisma.deliveryOrder.findUnique({
@@ -366,8 +413,28 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       return;
     }
 
+    let body: ReturnType<typeof patchDeliverySchema.parse>;
+    try {
+      body = patchDeliverySchema.parse(request.body || {});
+    } catch (e: any) {
+      reply.code(400).send({ error: e?.message || 'Invalid request body' });
+      return;
+    }
+
     const updateData: any = {};
-    if (body.addressId !== undefined) {
+
+    if (body.newAddress) {
+      if (!delivery.sale.customerId) {
+        reply.code(400).send({ error: 'Add a customer to the sale before saving a delivery address' });
+        return;
+      }
+      try {
+        updateData.addressId = await ensureCustomerAddress(delivery.sale.customerId, body.newAddress);
+      } catch (e: any) {
+        reply.code(400).send({ error: e?.message || 'Invalid delivery address' });
+        return;
+      }
+    } else if (body.addressId !== undefined) {
       if (body.addressId) {
         const address = await prisma.customerAddress.findUnique({ where: { id: body.addressId } });
         if (!address) {
@@ -382,6 +449,18 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       updateData.addressId = body.addressId || null;
     }
     if (typeof body.deliveryFee === 'number') updateData.deliveryFee = body.deliveryFee;
+
+    if (Object.keys(updateData).length === 0) {
+      const unchanged = await prisma.deliveryOrder.findUnique({
+        where: { id },
+        include: {
+          sale: { include: { customer: true } },
+          address: true,
+          assignedDriver: { select: { id: true, name: true, phone: true } },
+        },
+      });
+      return unchanged;
+    }
 
     const updated = await prisma.deliveryOrder.update({
       where: { id },

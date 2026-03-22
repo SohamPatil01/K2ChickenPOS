@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 
@@ -17,6 +17,9 @@ interface Customer {
     label: string;
     line1: string;
     city: string;
+    state?: string;
+    zip?: string;
+    line2?: string;
   }>;
   sales: Array<{
     id: string;
@@ -24,6 +27,17 @@ interface Customer {
     grandTotal: number;
     createdAt: string;
   }>;
+}
+
+interface CustomerListRow {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  loyaltyPoints?: number;
+  loyaltyTier?: string;
+  totalSpent?: number;
+  _count?: { sales: number; addresses?: number };
 }
 
 interface PurchaseHistorySale {
@@ -76,12 +90,33 @@ interface Address {
   zip: string;
 }
 
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join('') || '?'
+  );
+}
+
 export default function StoreCustomersPage() {
   const { user } = useAuthStore();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [searchPhone, setSearchPhone] = useState('');
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const [allCustomers, setAllCustomers] = useState<CustomerListRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<CustomerListRow[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerForm, setCustomerForm] = useState({
@@ -107,6 +142,8 @@ export default function StoreCustomersPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingLoyalty, setLoadingLoyalty] = useState(false);
 
+  const showSearchDropdown = searchFocused && debouncedSearch.length > 0;
+
   useEffect(() => {
     loadCustomers();
   }, []);
@@ -114,32 +151,91 @@ export default function StoreCustomersPage() {
   const loadCustomers = async () => {
     try {
       const response = await api.get('/api/v1/customers');
-      setCustomers(response.data || []);
+      const data = response.data;
+      setAllCustomers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load customers:', error);
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchPhone) {
-      loadCustomers();
+  const fetchCustomerDetail = useCallback(async (id: string): Promise<Customer | null> => {
+    try {
+      const res = await api.get(`/api/v1/customers/${id}`);
+      return res.data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 180);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (debouncedSearch.length === 0) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      setHighlightIndex(-1);
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await api.get(`/api/v1/customers?phone=${searchPhone}`);
-      if (response.data) {
-        setSelectedCustomer(response.data);
-        setCustomers([response.data]);
-      } else {
-        setCustomers([]);
-        setSelectedCustomer(null);
+    let cancelled = false;
+    setSearchLoading(true);
+    setHighlightIndex(-1);
+
+    api
+      .get('/api/v1/customers', { params: { q: debouncedSearch } })
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data;
+        setSearchResults(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setSearchResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSearchLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    const onDocDown = (e: MouseEvent) => {
+      if (!searchWrapRef.current?.contains(e.target as Node)) {
+        setSearchFocused(false);
       }
-    } catch (error) {
-      console.error('Failed to search customer:', error);
-    } finally {
-      setLoading(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, []);
+
+  const pickCustomer = async (row: CustomerListRow) => {
+    setSearchFocused(false);
+    setSearchQuery('');
+    setDebouncedSearch('');
+    setSearchResults([]);
+    setHighlightIndex(-1);
+    setDetailLoading(true);
+    const full = await fetchCustomerDetail(row.id);
+    setDetailLoading(false);
+    if (full) {
+      setSelectedCustomer(full);
+    } else {
+      setSelectedCustomer({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        email: row.email,
+        loyaltyPoints: row.loyaltyPoints,
+        loyaltyTier: row.loyaltyTier,
+        totalSpent: row.totalSpent,
+        addresses: [],
+        sales: [],
+      });
     }
   };
 
@@ -158,7 +254,8 @@ export default function StoreCustomersPage() {
       await loadCustomers();
       setShowCustomerModal(false);
       setCustomerForm({ name: '', phone: '', email: '' });
-      setSelectedCustomer(response.data);
+      const full = await fetchCustomerDetail(response.data?.id);
+      if (full) setSelectedCustomer(full);
       alert('Customer added successfully!');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to create customer');
@@ -172,7 +269,7 @@ export default function StoreCustomersPage() {
     }
 
     try {
-      const response = await api.put(`/api/v1/customers/${editingCustomer.id}`, {
+      await api.put(`/api/v1/customers/${editingCustomer.id}`, {
         name: customerForm.name,
         phone: customerForm.phone,
         email: customerForm.email || undefined,
@@ -181,7 +278,8 @@ export default function StoreCustomersPage() {
       setShowCustomerModal(false);
       setEditingCustomer(null);
       setCustomerForm({ name: '', phone: '', email: '' });
-      setSelectedCustomer(response.data);
+      const full = await fetchCustomerDetail(editingCustomer.id);
+      if (full) setSelectedCustomer(full);
       alert('Customer updated successfully!');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to update customer');
@@ -194,19 +292,23 @@ export default function StoreCustomersPage() {
       return;
     }
 
-    if (!addressForm.label || !addressForm.line1 || !addressForm.city || !addressForm.state || !addressForm.zip) {
-      alert('Please fill in all required address fields');
+    if (!addressForm.label?.trim() || !addressForm.line1?.trim() || !addressForm.city?.trim()) {
+      alert('Please fill in label, address line 1, and city');
       return;
     }
 
     try {
-      await api.post(`/api/v1/customers/${selectedCustomer.id}/addresses`, addressForm);
+      await api.post(`/api/v1/customers/${selectedCustomer.id}/addresses`, {
+        label: addressForm.label.trim() || 'Home',
+        line1: addressForm.line1.trim(),
+        line2: addressForm.line2?.trim() || undefined,
+        city: addressForm.city.trim(),
+        state: addressForm.state?.trim(),
+        zip: addressForm.zip?.trim(),
+      });
       await loadCustomers();
-      // Reload selected customer with addresses
-      const response = await api.get(`/api/v1/customers?phone=${selectedCustomer.phone}`);
-      if (response.data) {
-        setSelectedCustomer(response.data);
-      }
+      const full = await fetchCustomerDetail(selectedCustomer.id);
+      if (full) setSelectedCustomer(full);
       setShowAddressModal(false);
       setAddressForm({ label: '', line1: '', line2: '', city: '', state: '', zip: '' });
       alert('Address added successfully!');
@@ -246,15 +348,16 @@ export default function StoreCustomersPage() {
     }
   };
 
-  const loadLoyaltyInfo = async () => {
+  const loadLoyaltyInfo = async (opts?: { keepClosed?: boolean }) => {
     if (!selectedCustomer) return;
+    if (!opts?.keepClosed) setShowLoyaltyModal(true);
     setLoadingLoyalty(true);
     try {
       const response = await api.get(`/api/v1/customers/${selectedCustomer.id}/loyalty`);
       setLoyaltyInfo(response.data);
-      setShowLoyaltyModal(true);
     } catch (error: any) {
       console.error('Failed to load loyalty info:', error);
+      if (!opts?.keepClosed) setShowLoyaltyModal(false);
       alert(error.response?.data?.error || 'Failed to load loyalty information');
     } finally {
       setLoadingLoyalty(false);
@@ -275,12 +378,9 @@ export default function StoreCustomersPage() {
       alert('Points redeemed successfully!');
       setLoyaltyForm({ points: 0, description: '' });
       setLoyaltyAction(null);
-      await loadLoyaltyInfo();
-      // Reload customer to update points
-      const response = await api.get(`/api/v1/customers?phone=${selectedCustomer.phone}`);
-      if (response.data) {
-        setSelectedCustomer(response.data);
-      }
+      await loadLoyaltyInfo({ keepClosed: true });
+      const full = await fetchCustomerDetail(selectedCustomer.id);
+      if (full) setSelectedCustomer(full);
       await loadCustomers();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to redeem points');
@@ -298,8 +398,7 @@ export default function StoreCustomersPage() {
 
     try {
       await api.delete(`/api/v1/customers/${selectedCustomer.id}`);
-      // Remove customer from list
-      setCustomers(customers.filter((c) => c.id !== selectedCustomer.id));
+      setAllCustomers((prev) => prev.filter((c) => c.id !== selectedCustomer.id));
       setSelectedCustomer(null);
       alert('Customer deleted successfully');
     } catch (error: any) {
@@ -322,248 +421,408 @@ export default function StoreCustomersPage() {
       alert('Points adjusted successfully!');
       setLoyaltyForm({ points: 0, description: '' });
       setLoyaltyAction(null);
-      await loadLoyaltyInfo();
-      // Reload customer to update points
-      const response = await api.get(`/api/v1/customers?phone=${selectedCustomer.phone}`);
-      if (response.data) {
-        setSelectedCustomer(response.data);
-      }
+      await loadLoyaltyInfo({ keepClosed: true });
+      const full = await fetchCustomerDetail(selectedCustomer.id);
+      if (full) setSelectedCustomer(full);
       await loadCustomers();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to adjust points');
     }
   };
 
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSearchDropdown || debouncedSearch.length === 0) {
+      if (e.key === 'Escape') setSearchFocused(false);
+      return;
+    }
+
+    const list = searchResults;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => (list.length === 0 ? -1 : i < list.length - 1 ? i + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => (list.length === 0 ? -1 : i <= 0 ? list.length - 1 : i - 1));
+    } else if (e.key === 'Enter') {
+      const idx = highlightIndex >= 0 ? highlightIndex : 0;
+      if (list[idx]) {
+        e.preventDefault();
+        void pickCustomer(list[idx]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setSearchFocused(false);
+    }
+  };
+
+  const modalBackdrop =
+    'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm';
+
   return (
-    <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-        <div>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2 sm:gap-3">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Customers</h1>
-            <button
-              onClick={openNewCustomer}
-              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
-            >
-              + Add Customer
-            </button>
+    <div className="w-full max-w-7xl mx-auto min-h-0 flex flex-col gap-4 pb-10">
+      {/* Hero */}
+      <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white p-5 sm:p-6 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Customers</h1>
+            <p className="text-white/85 text-sm mt-1 max-w-xl">
+              Search by name or phone — suggestions appear as you type. View loyalty, addresses, and purchase
+              history in one place.
+            </p>
+            <p className="text-white/70 text-xs mt-2 font-medium">{allCustomers.length} customers on file</p>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 mb-3 sm:mb-4">
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <input
-                type="text"
-                placeholder="Search by phone..."
-                value={searchPhone}
-                onChange={(e) => setSearchPhone(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 touch-target"
-              />
-              <button
-                onClick={handleSearch}
-                className="px-4 py-2.5 sm:py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm sm:text-base transition-colors touch-target font-medium"
-              >
-                {loading ? 'Searching...' : 'Search'}
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4">
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-              {customers.length === 0 ? (
-                <p className="text-center py-8 text-gray-500 dark:text-gray-400">No customers found</p>
-              ) : (
-                customers.map((customer) => (
-                  <div
-                    key={customer.id}
-                    onClick={() => setSelectedCustomer(customer)}
-                    className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                      selectedCustomer?.id === customer.id
-                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
-                        : 'border-gray-200 dark:border-gray-700'
-                    }`}
-                  >
-                    <div className="font-semibold dark:text-white">{customer.name}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-300">{customer.phone}</div>
-                    {customer.email && (
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{customer.email}</div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={openNewCustomer}
+            className="shrink-0 px-5 py-2.5 rounded-xl bg-white text-brand-700 font-semibold text-sm shadow-md hover:bg-white/95 transition-colors"
+          >
+            + Add customer
+          </button>
         </div>
-        {selectedCustomer && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold dark:text-white">Customer Details</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => openEditCustomer(selectedCustomer)}
-                  className="px-3 py-1 text-sm bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
-                >
-                  Edit
-                </button>
-                {user?.role === 'OWNER' && (
-                  <button
-                    onClick={handleDeleteCustomer}
-                    className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                  >
-                    Delete
-                  </button>
-                )}
+      </div>
+
+      {/* Search combobox */}
+      <div ref={searchWrapRef} className="relative z-20">
+        <label htmlFor="customer-search" className="sr-only">
+          Search customers
+        </label>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
+            🔍
+          </span>
+          <input
+            id="customer-search"
+            ref={searchInputRef}
+            type="search"
+            autoComplete="off"
+            placeholder="Start typing a name or phone…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onKeyDown={onSearchKeyDown}
+            role="combobox"
+            aria-expanded={showSearchDropdown}
+            aria-controls="customer-search-listbox"
+            aria-autocomplete="list"
+            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-base"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => {
+                setSearchQuery('');
+                setDebouncedSearch('');
+                setSearchResults([]);
+                searchInputRef.current?.focus();
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {showSearchDropdown && (
+          <div
+            id="customer-search-listbox"
+            role="listbox"
+            className="absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+          >
+            {searchLoading ? (
+              <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                <span className="inline-block animate-pulse">Searching…</span>
               </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <div className="font-semibold text-sm text-gray-600 dark:text-gray-300">Name</div>
-                <div className="text-lg dark:text-white">{selectedCustomer.name}</div>
+            ) : searchResults.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No matches for &ldquo;{debouncedSearch}&rdquo;
               </div>
-              <div>
-                <div className="font-semibold text-sm text-gray-600 dark:text-gray-300">Phone</div>
-                <div className="text-lg dark:text-white">{selectedCustomer.phone}</div>
-              </div>
-              {selectedCustomer.email && (
-                <div>
-                  <div className="font-semibold text-sm text-gray-600 dark:text-gray-300">Email</div>
-                  <div className="text-lg dark:text-white">{selectedCustomer.email}</div>
-                </div>
-              )}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <div className="font-semibold dark:text-white">Addresses</div>
-                  <button
-                    onClick={() => setShowAddressModal(true)}
-                    className="text-sm text-brand-600 dark:text-brand-400 hover:underline"
-                  >
-                    + Add Address
-                  </button>
-                </div>
-                {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 ? (
-                  selectedCustomer.addresses.map((addr) => (
-                    <div key={addr.id} className="mb-2 p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                      <div className="font-medium dark:text-white">{addr.label}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-300">
-                        {addr.line1}, {addr.city}
+            ) : (
+              <ul className="py-2">
+                {searchResults.map((row, idx) => (
+                  <li key={row.id} role="option" aria-selected={highlightIndex === idx}>
+                    <button
+                      type="button"
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
+                        highlightIndex === idx
+                          ? 'bg-brand-50 dark:bg-brand-900/30'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/80'
+                      }`}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                      onClick={() => void pickCustomer(row)}
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 text-sm font-bold">
+                        {initials(row.name)}
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No addresses added</p>
-                )}
-              </div>
-              {/* Loyalty Information */}
-              <div className="p-4 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="font-semibold text-lg dark:text-white">Loyalty Program</div>
-                  <button
-                    onClick={loadLoyaltyInfo}
-                    className="text-sm text-brand-600 dark:text-brand-400 hover:underline"
-                    disabled={loadingLoyalty}
-                  >
-                    {loadingLoyalty ? 'Loading...' : 'View Details'}
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Points</div>
-                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                      {selectedCustomer.loyaltyPoints || 0}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Tier</div>
-                    <div className="text-lg font-semibold capitalize text-orange-600 dark:text-orange-400">
-                      {selectedCustomer.loyaltyTier || 'BRONZE'}
-                    </div>
-                  </div>
-                </div>
-                {selectedCustomer.totalSpent !== undefined && (
-                  <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    Total Spent: ₹{selectedCustomer.totalSpent.toFixed(2)}
-                  </div>
-                )}
-              </div>
-
-              {/* Purchase History & Loyalty Actions */}
-              <div className="flex gap-2">
-                <button
-                  onClick={loadPurchaseHistory}
-                  className="flex-1 px-4 py-2 bg-brand-500 text-white rounded-md hover:bg-brand-600 text-sm transition-colors"
-                  disabled={loadingHistory}
-                >
-                  {loadingHistory ? 'Loading...' : '📋 Purchase History'}
-                </button>
-                <button
-                  onClick={() => {
-                    setLoyaltyAction('redeem');
-                    setLoyaltyForm({ points: 0, description: '' });
-                    setShowLoyaltyModal(true);
-                    loadLoyaltyInfo();
-                  }}
-                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 text-sm transition-colors"
-                >
-                  🎁 Redeem Points
-                </button>
-              </div>
-
-              {selectedCustomer.sales && selectedCustomer.sales.length > 0 && (
-                <div>
-                  <div className="font-semibold mb-2 dark:text-white">Recent Purchases</div>
-                  <div className="space-y-2">
-                    {selectedCustomer.sales.slice(0, 5).map((sale) => (
-                      <div
-                        key={sale.id}
-                        className="p-2 bg-gray-50 dark:bg-gray-700 rounded flex justify-between"
-                      >
-                        <div>
-                          <div className="font-medium dark:text-white">{sale.saleNo}</div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">
-                            {new Date(sale.createdAt).toLocaleDateString()}
-                          </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-gray-900 dark:text-white truncate">{row.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{row.phone}</div>
+                      </div>
+                      {row._count != null && (
+                        <div className="shrink-0 text-xs text-gray-400 dark:text-gray-500 text-right">
+                          {row._count.sales ?? 0} orders
                         </div>
-                        <div className="font-semibold dark:text-white">₹{sale.grandTotal.toFixed(2)}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-0 flex-1">
+        {/* Directory */}
+        <div className="lg:col-span-2 flex flex-col min-h-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Directory</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tap a customer to open details</p>
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-[280px] max-h-[calc(100vh-320px)]">
+            {allCustomers.length === 0 ? (
+              <p className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 px-4">
+                No customers yet. Add one to get started.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                {allCustomers.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => void pickCustomer(row)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                        selectedCustomer?.id === row.id
+                          ? 'bg-brand-50 dark:bg-brand-900/25 border-l-4 border-brand-500'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
+                      }`}
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold">
+                        {initials(row.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white truncate">{row.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{row.phone}</div>
+                      </div>
+                      {row._count != null && (
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 shrink-0">
+                          {row._count.sales} ord
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Detail panel */}
+        <div className="lg:col-span-3 min-h-[320px]">
+          {detailLoading ? (
+            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-400">
+              Loading customer…
+            </div>
+          ) : !selectedCustomer ? (
+            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center text-center p-8 text-gray-500 dark:text-gray-400">
+              <div className="text-4xl mb-3 opacity-40">👤</div>
+              <p className="font-medium text-gray-700 dark:text-gray-300">Select a customer</p>
+              <p className="text-sm mt-1 max-w-xs">
+                Use search above or pick from the directory to see profile, addresses, and loyalty.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-800">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white text-xl font-bold shadow-md">
+                    {initials(selectedCustomer.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                          {selectedCustomer.name}
+                        </h2>
+                        <p className="text-brand-600 dark:text-brand-400 font-medium">{selectedCustomer.phone}</p>
+                        {selectedCustomer.email && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{selectedCustomer.email}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditCustomer(selectedCustomer)}
+                          className="px-3 py-1.5 text-sm rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium"
+                        >
+                          Edit
+                        </button>
+                        {user?.role === 'OWNER' && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteCustomer}
+                            className="px-3 py-1.5 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors font-medium"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+                        ⭐ {Math.round(selectedCustomer.loyaltyPoints ?? 0)} pts
+                      </span>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 capitalize">
+                        {selectedCustomer.loyaltyTier || 'BRONZE'}
+                      </span>
+                      {selectedCustomer.totalSpent !== undefined && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
+                          ₹{selectedCustomer.totalSpent.toFixed(0)} spent
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-6">
+                <section>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                      Addresses
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddressModal(true)}
+                      className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                    >
+                      + Add address
+                    </button>
+                  </div>
+                  {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {selectedCustomer.addresses.map((addr) => (
+                        <div
+                          key={addr.id}
+                          className="rounded-xl border border-gray-100 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-900/40 p-3"
+                        >
+                          <div className="text-xs font-semibold text-brand-600 dark:text-brand-400">{addr.label}</div>
+                          <p className="text-sm text-gray-700 dark:text-gray-200 mt-1">
+                            {addr.line1}
+                            {addr.city ? `, ${addr.city}` : ''}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No saved addresses</p>
+                  )}
+                </section>
+
+                <section className="rounded-xl border border-orange-200/80 dark:border-orange-800/50 bg-gradient-to-br from-orange-50/90 to-amber-50/50 dark:from-orange-950/30 dark:to-amber-950/20 p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Loyalty</h3>
+                    <button
+                      type="button"
+                      onClick={loadLoyaltyInfo}
+                      disabled={loadingLoyalty}
+                      className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-50"
+                    >
+                      {loadingLoyalty ? 'Loading…' : 'View details'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Points</div>
+                      <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                        {Math.round(selectedCustomer.loyaltyPoints ?? 0)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">Tier</div>
+                      <div className="text-lg font-semibold capitalize text-orange-700 dark:text-orange-300">
+                        {selectedCustomer.loyaltyTier || 'BRONZE'}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={loadPurchaseHistory}
+                    disabled={loadingHistory}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
+                  >
+                    {loadingHistory ? 'Loading…' : 'Purchase history'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoyaltyAction('redeem');
+                      setLoyaltyForm({ points: 0, description: '' });
+                      void loadLoyaltyInfo();
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"
+                  >
+                    Redeem points
+                  </button>
+                </div>
+
+                {selectedCustomer.sales && selectedCustomer.sales.length > 0 && (
+                  <section>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Recent purchases</h3>
+                    <ul className="space-y-2">
+                      {selectedCustomer.sales.slice(0, 5).map((sale) => (
+                        <li
+                          key={sale.id}
+                          className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-900/50 px-3 py-2"
+                        >
+                          <div>
+                            <div className="font-medium text-sm text-gray-900 dark:text-white">{sale.saleNo}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(sale.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="font-semibold text-sm text-gray-900 dark:text-white">
+                            ₹{sale.grandTotal.toFixed(2)}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Customer Modal */}
       {showCustomerModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-            <h2 className="text-2xl font-bold dark:text-white mb-4">
-              {editingCustomer ? 'Edit Customer' : 'Add Customer'}
+        <div className={modalBackdrop}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
+            <h2 className="text-xl font-bold dark:text-white mb-4">
+              {editingCustomer ? 'Edit customer' : 'Add customer'}
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Name *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
                 <input
                   type="text"
                   value={customerForm.name}
                   onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                   placeholder="Customer name"
-                  required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Phone *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone *</label>
                 <input
                   type="tel"
                   value={customerForm.phone}
                   onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="10 digit phone number"
-                  required
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  placeholder="Phone number"
                 />
               </div>
               <div>
@@ -572,24 +831,26 @@ export default function StoreCustomersPage() {
                   type="email"
                   value={customerForm.email}
                   onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="customer@example.com"
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  placeholder="optional@email.com"
                 />
               </div>
-              <div className="flex gap-2 mt-6">
+              <div className="flex gap-2 pt-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowCustomerModal(false);
                     setEditingCustomer(null);
                     setCustomerForm({ name: '', phone: '', email: '' });
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={editingCustomer ? handleUpdateCustomer : handleCreateCustomer}
-                  className="flex-1 px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 text-white font-medium hover:bg-brand-600"
                 >
                   {editingCustomer ? 'Update' : 'Create'}
                 </button>
@@ -601,101 +862,90 @@ export default function StoreCustomersPage() {
 
       {/* Address Modal */}
       {showAddressModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-            <h2 className="text-2xl font-bold dark:text-white mb-4">Add Address</h2>
+        <div className={modalBackdrop}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
+            <h2 className="text-xl font-bold dark:text-white mb-4">Add address</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Label *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label *</label>
                 <input
                   type="text"
                   value={addressForm.label}
                   onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="Home, Office, etc."
-                  required
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
+                  placeholder="Home, Office…"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Address Line 1 *
+                  Address line 1 *
                 </label>
                 <input
                   type="text"
                   value={addressForm.line1}
                   onChange={(e) => setAddressForm({ ...addressForm, line1: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="Street address"
-                  required
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Address Line 2
+                  Address line 2
                 </label>
                 <input
                   type="text"
                   value={addressForm.line2}
                   onChange={(e) => setAddressForm({ ...addressForm, line2: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  placeholder="Apartment, suite, etc."
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    City *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City *</label>
                   <input
                     type="text"
                     value={addressForm.city}
                     onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    required
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    State *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
                   <input
                     type="text"
                     value={addressForm.state}
                     onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    required
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
+                    placeholder="Optional"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  ZIP Code *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN / ZIP</label>
                 <input
                   type="text"
                   value={addressForm.zip}
                   onChange={(e) => setAddressForm({ ...addressForm, zip: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  required
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
+                  placeholder="Optional"
                 />
               </div>
-              <div className="flex gap-2 mt-6">
+              <div className="flex gap-2 pt-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowAddressModal(false);
                     setAddressForm({ label: '', line1: '', line2: '', city: '', state: '', zip: '' });
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleAddAddress}
-                  className="flex-1 px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 text-white font-medium hover:bg-brand-600"
                 >
-                  Add Address
+                  Save address
                 </button>
               </div>
             </div>
@@ -705,17 +955,17 @@ export default function StoreCustomersPage() {
 
       {/* Purchase History Modal */}
       {showPurchaseHistory && selectedCustomer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className={modalBackdrop}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold dark:text-white">
-                Purchase History - {selectedCustomer.name}
-              </h2>
+              <h2 className="text-xl font-bold dark:text-white">Purchase history — {selectedCustomer.name}</h2>
               <button
+                type="button"
                 onClick={() => setShowPurchaseHistory(false)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl leading-none p-1"
+                aria-label="Close"
               >
-                ✕
+                ×
               </button>
             </div>
             {purchaseHistory.length === 0 ? (
@@ -725,7 +975,7 @@ export default function StoreCustomersPage() {
                 {purchaseHistory.map((sale) => (
                   <div
                     key={sale.id}
-                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                    className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50/50 dark:bg-gray-900/30"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -744,7 +994,7 @@ export default function StoreCustomersPage() {
                       </div>
                     </div>
                     <div className="mb-3">
-                      <div className="font-medium mb-2 dark:text-white">Items:</div>
+                      <div className="font-medium mb-2 dark:text-white text-sm">Items</div>
                       <div className="space-y-1">
                         {sale.items.map((item) => (
                           <div key={item.id} className="flex justify-between text-sm dark:text-gray-300">
@@ -757,11 +1007,11 @@ export default function StoreCustomersPage() {
                         ))}
                       </div>
                     </div>
-                    <div className="flex gap-2 text-sm">
+                    <div className="flex gap-2 text-sm flex-wrap">
                       {sale.payments.map((payment, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded dark:text-white"
+                          className="px-2 py-1 bg-white dark:bg-gray-800 rounded-lg dark:text-white border border-gray-200 dark:border-gray-600"
                         >
                           {payment.method}: ₹{payment.amount.toFixed(2)}
                         </span>
@@ -776,30 +1026,36 @@ export default function StoreCustomersPage() {
       )}
 
       {/* Loyalty Modal */}
-      {showLoyaltyModal && loyaltyInfo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      {showLoyaltyModal && (
+        <div className={modalBackdrop}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold dark:text-white">Loyalty Information</h2>
+              <h2 className="text-xl font-bold dark:text-white">Loyalty</h2>
               <button
+                type="button"
                 onClick={() => {
                   setShowLoyaltyModal(false);
                   setLoyaltyAction(null);
                 }}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 text-2xl leading-none p-1"
+                aria-label="Close"
               >
-                ✕
+                ×
               </button>
             </div>
 
-            {loyaltyAction ? (
+            {loadingLoyalty && !loyaltyInfo ? (
+              <div className="py-16 text-center text-gray-500 dark:text-gray-400">Loading loyalty…</div>
+            ) : !loyaltyInfo ? (
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">Could not load loyalty data.</div>
+            ) : loyaltyAction ? (
               <div className="space-y-4">
-                <h3 className="text-xl font-semibold capitalize dark:text-white">
-                  {loyaltyAction === 'redeem' ? 'Redeem Points' : 'Adjust Points'}
+                <h3 className="text-lg font-semibold capitalize dark:text-white">
+                  {loyaltyAction === 'redeem' ? 'Redeem points' : 'Adjust points'}
                 </h3>
                 <div>
                   <label className="block text-sm font-medium mb-1 dark:text-gray-300">
-                    Points {loyaltyAction === 'redeem' ? 'to Redeem' : 'Adjustment'} *
+                    Points {loyaltyAction === 'redeem' ? 'to redeem' : 'adjustment'} *
                   </label>
                   <input
                     type="number"
@@ -807,7 +1063,7 @@ export default function StoreCustomersPage() {
                     onChange={(e) =>
                       setLoyaltyForm({ ...loyaltyForm, points: parseFloat(e.target.value) || 0 })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
                     placeholder="Enter points"
                     min={loyaltyAction === 'redeem' ? 1 : undefined}
                   />
@@ -817,29 +1073,30 @@ export default function StoreCustomersPage() {
                   <textarea
                     value={loyaltyForm.description}
                     onChange={(e) => setLoyaltyForm({ ...loyaltyForm, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500"
                     rows={3}
-                    placeholder="Enter description"
                   />
                 </div>
                 {loyaltyAction === 'redeem' && (
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Current Balance: {loyaltyInfo.customer?.loyaltyPoints || loyaltyInfo.points || 0} points
+                    Current balance: {loyaltyInfo.customer?.loyaltyPoints || loyaltyInfo.points || 0} points
                   </div>
                 )}
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setLoyaltyAction(null);
                       setLoyaltyForm({ points: 0, description: '' });
                     }}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={loyaltyAction === 'redeem' ? handleRedeemPoints : handleAdjustPoints}
-                    className="flex-1 px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 text-white font-medium hover:bg-brand-600"
                   >
                     {loyaltyAction === 'redeem' ? 'Redeem' : 'Adjust'}
                   </button>
@@ -847,7 +1104,7 @@ export default function StoreCustomersPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 mb-6 p-4 rounded-xl bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20">
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Points</div>
                     <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
@@ -861,7 +1118,7 @@ export default function StoreCustomersPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Spent</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total spent</div>
                     <div className="text-xl font-semibold dark:text-white">
                       ₹{(loyaltyInfo.customer?.totalSpent || loyaltyInfo.totalSpent || 0).toFixed(2)}
                     </div>
@@ -870,36 +1127,38 @@ export default function StoreCustomersPage() {
 
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold dark:text-white">Transaction History</h3>
+                    <h3 className="font-semibold dark:text-white">Transactions</h3>
                     <div className="flex gap-2">
                       <button
+                        type="button"
                         onClick={() => {
                           setLoyaltyAction('redeem');
                           setLoyaltyForm({ points: 0, description: '' });
                         }}
-                        className="px-3 py-1 text-sm bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                        className="px-3 py-1.5 text-sm rounded-lg bg-orange-500 text-white hover:bg-orange-600"
                       >
                         Redeem
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setLoyaltyAction('adjust');
                           setLoyaltyForm({ points: 0, description: '' });
                         }}
-                        className="px-3 py-1 text-sm bg-brand-500 text-white rounded hover:bg-brand-600 transition-colors"
+                        className="px-3 py-1.5 text-sm rounded-lg bg-brand-500 text-white hover:bg-brand-600"
                       >
                         Adjust
                       </button>
                     </div>
                   </div>
-                  {(!loyaltyInfo.transactions || loyaltyInfo.transactions.length === 0) ? (
+                  {!loyaltyInfo.transactions || loyaltyInfo.transactions.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-gray-400">No transactions yet</p>
                   ) : (
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {loyaltyInfo.transactions.map((tx: LoyaltyTransaction) => (
                         <div
                           key={tx.id}
-                          className="p-3 bg-gray-50 dark:bg-gray-700 rounded flex justify-between items-center"
+                          className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl flex justify-between items-center"
                         >
                           <div>
                             <div className="font-medium dark:text-white">{tx.description || tx.type}</div>
@@ -907,9 +1166,7 @@ export default function StoreCustomersPage() {
                               {new Date(tx.createdAt).toLocaleString()}
                             </div>
                             {tx.sale && (
-                              <div className="text-xs text-gray-500 dark:text-gray-500">
-                                Sale: {tx.sale.saleNo}
-                              </div>
+                              <div className="text-xs text-gray-500">Sale: {tx.sale.saleNo}</div>
                             )}
                           </div>
                           <div className="text-right">
@@ -924,9 +1181,7 @@ export default function StoreCustomersPage() {
                               {tx.points}
                             </div>
                             {tx.balance !== undefined && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                Balance: {tx.balance}
-                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Bal: {tx.balance}</div>
                             )}
                           </div>
                         </div>
@@ -939,7 +1194,6 @@ export default function StoreCustomersPage() {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 }
