@@ -103,7 +103,15 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
-    const { status, driverId, date, startDate: qStart, endDate: qEnd } = (request.query as any);
+    const {
+      status,
+      driverId,
+      date,
+      startDate: qStart,
+      endDate: qEnd,
+      createdAfter: qCreatedAfter,
+      createdBefore: qCreatedBefore,
+    } = (request.query as any);
     const storeId = (getUser(request) as any).storeId;
     const userRole = (getUser(request) as any).role;
 
@@ -112,7 +120,20 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     if (userRole === 'DRIVER') {
       where.assignedDriverId = (getUser(request) as any).userId;
     } else {
-      where.storeId = storeId;
+      // OWNER at HQ: deliveries are stored under franchise sale.storeId — include all franchise stores
+      const userStore = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { type: true },
+      });
+      if (userRole === 'OWNER' && userStore?.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: { parentOwnerStoreId: storeId, type: 'FRANCHISE' },
+          select: { id: true },
+        });
+        where.storeId = { in: [storeId, ...franchises.map((f) => f.id)] };
+      } else {
+        where.storeId = storeId;
+      }
     }
 
     if (status) {
@@ -123,25 +144,34 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       where.assignedDriverId = driverId;
     }
 
-    /** YYYY-MM-DD → UTC day bounds (consistent with reports / ITR) */
-    const dayBoundsUtc = (iso: string) => {
-      const d = String(iso).split('T')[0];
-      return {
-        gte: new Date(d + 'T00:00:00.000Z'),
-        lte: new Date(d + 'T23:59:59.999Z'),
-      };
-    };
-
-    if (qStart && qEnd) {
-      const gte = dayBoundsUtc(qStart).gte;
-      const lte = dayBoundsUtc(qEnd).lte;
+    /** Prefer client local-day bounds (ISO from browser) so “today” matches the user’s timezone */
+    if (qCreatedAfter && qCreatedBefore) {
+      const gte = new Date(String(qCreatedAfter));
+      const lte = new Date(String(qCreatedBefore));
       if (!isNaN(gte.getTime()) && !isNaN(lte.getTime()) && gte <= lte) {
         where.createdAt = { gte, lte };
       }
-    } else if (date) {
-      const { gte, lte } = dayBoundsUtc(date);
-      if (!isNaN(gte.getTime())) {
-        where.createdAt = { gte, lte };
+    } else {
+      /** YYYY-MM-DD → UTC day bounds (legacy / server-side tools) */
+      const dayBoundsUtc = (iso: string) => {
+        const d = String(iso).split('T')[0];
+        return {
+          gte: new Date(d + 'T00:00:00.000Z'),
+          lte: new Date(d + 'T23:59:59.999Z'),
+        };
+      };
+
+      if (qStart && qEnd) {
+        const gte = dayBoundsUtc(qStart).gte;
+        const lte = dayBoundsUtc(qEnd).lte;
+        if (!isNaN(gte.getTime()) && !isNaN(lte.getTime()) && gte <= lte) {
+          where.createdAt = { gte, lte };
+        }
+      } else if (date) {
+        const { gte, lte } = dayBoundsUtc(date);
+        if (!isNaN(gte.getTime())) {
+          where.createdAt = { gte, lte };
+        }
       }
     }
 

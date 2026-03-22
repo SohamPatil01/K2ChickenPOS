@@ -11,6 +11,9 @@ import {
   endOfWeek,
   isValid,
   parseISO,
+  parse,
+  startOfDay,
+  endOfDay,
 } from 'date-fns';
 
 interface Delivery {
@@ -103,7 +106,8 @@ export default function StoreDeliveryPage() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [datePreset, setDatePreset] = useState<DatePreset>('today');
+  // Default last 7 days so list isn’t empty when “today” doesn’t match UTC / no orders today
+  const [datePreset, setDatePreset] = useState<DatePreset>('last7');
   const [customStart, setCustomStart] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [search, setSearch] = useState('');
@@ -141,6 +145,7 @@ export default function StoreDeliveryPage() {
   const [addNewAddress, setAddNewAddress] = useState(false);
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   const dateRangeParams = useMemo(() => {
     const today = new Date();
@@ -175,17 +180,28 @@ export default function StoreDeliveryPage() {
 
   const loadDeliveries = useCallback(async () => {
     setLoading(true);
+    setListError(null);
     try {
       const params: Record<string, string> = {};
       if (statusFilter) params.status = statusFilter;
+      // Send local calendar-day bounds as ISO so API filters match the user’s timezone (not UTC midnight)
       if (dateRangeParams) {
-        params.startDate = dateRangeParams.startDate;
-        params.endDate = dateRangeParams.endDate;
+        const startLocal = startOfDay(parse(dateRangeParams.startDate, 'yyyy-MM-dd', new Date()));
+        const endLocal = endOfDay(parse(dateRangeParams.endDate, 'yyyy-MM-dd', new Date()));
+        params.createdAfter = startLocal.toISOString();
+        params.createdBefore = endLocal.toISOString();
       }
       const response = await api.get<Delivery[]>('/api/v1/delivery', { params });
-      setDeliveries(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
+      const raw = response.data;
+      setDeliveries(Array.isArray(raw) ? raw : []);
+    } catch (error: unknown) {
       console.error('Failed to load deliveries:', error);
+      const msg =
+        (error as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.error ||
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (error as { message?: string })?.message ||
+        'Could not load deliveries. Check connection and try Refresh.';
+      setListError(msg);
       setDeliveries([]);
     } finally {
       setLoading(false);
@@ -566,6 +582,15 @@ export default function StoreDeliveryPage() {
           </div>
         </div>
       </div>
+
+      {listError && (
+        <div
+          className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200"
+          role="alert"
+        >
+          <strong className="font-semibold">Couldn’t load deliveries.</strong> {listError}
+        </div>
+      )}
 
       {/* Quick stats */}
       <div className="flex flex-wrap gap-2">

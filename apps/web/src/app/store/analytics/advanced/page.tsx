@@ -44,10 +44,20 @@ interface Forecast {
     ma7: number;
     ma30: number;
   }>;
-  forecast: Array<{ date: string; predicted: number; confidence: string }>;
+  forecast: Array<{
+    date: string;
+    predicted: number;
+    predictedLow?: number;
+    predictedHigh?: number;
+    confidence: string;
+  }>;
   trend: string;
-  accuracy: number;
+  naiveMapePct?: number | null;
+  accuracyNote?: string;
   avgDailySales: number;
+  insufficientHistory?: boolean;
+  minDaysRecommended?: number;
+  daysWithPositiveSales?: number;
 }
 
 interface Demand {
@@ -61,14 +71,31 @@ interface Demand {
     totalRevenue: number;
     frequency: number;
   }>;
-  peakHour: { hour: number; count: number } | null;
+  categories?: Array<{
+    categoryName: string;
+    totalRevenue: number;
+    totalQty: number;
+    lineCount: number;
+  }>;
+  byStore?: Array<{ storeId: string; storeName: string; products: unknown[] }>;
+  abcSummary?: { A: number; B: number; C: number; note?: string };
+  peakHour: { hour: number; count: number; timezone?: string } | null;
   peakDay: { day: string; count: number } | null;
 }
 
 interface InventoryRecommendation {
+  mode?: string;
+  note?: string;
+  historyDays?: number;
+  leadTimeDays?: number;
+  orderingCost?: number;
+  holdingCostPerUnit?: number;
   recommendations: Array<{
+    storeId?: string;
+    storeName?: string;
     productName: string;
     currentStock: number;
+    inboundOpenQty?: number;
     reorderPoint: number;
     suggestedOrderQty: number;
     status: string;
@@ -77,6 +104,11 @@ interface InventoryRecommendation {
   outOfStock: number;
   lowStock: number;
   overstock: number;
+  stores?: Array<{
+    storeId: string;
+    storeName: string;
+    recommendations: InventoryRecommendation["recommendations"];
+  }>;
 }
 
 interface SalesOverview {
@@ -84,11 +116,40 @@ interface SalesOverview {
   totalOrders: number;
   avgOrderValue: number;
   bestDay: { date: string; revenue: number } | null;
-  peakHour: { hour: number; count: number } | null;
+  peakHour: { hour: number; count: number; timezone?: string } | null;
   dailyRevenue: Array<{ date: string; total: number }>;
   topProducts: Array<{ name: string; revenue: number }>;
   revenueByDayOfWeek: Array<{ day: string; value: number }>;
   paymentMix: Array<{ name: string; value: number }>;
+  insufficientHistory?: boolean;
+  minDaysRecommended?: number;
+  daysWithSales?: number;
+  calendarNote?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+interface InsightItem {
+  severity: "low" | "medium" | "high";
+  title: string;
+  detail: string;
+}
+
+interface InsightsPayload {
+  insights: InsightItem[];
+  period: { start: string; end: string; priorStart: string; priorEnd: string };
+  franchiseStoreId: string | null;
+  storeIds?: string[];
+}
+
+function defaultDateRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 29);
+  return {
+    startDateStr: start.toISOString().split("T")[0],
+    endDateStr: end.toISOString().split("T")[0],
+  };
 }
 
 export default function AdvancedAnalyticsPage() {
@@ -101,76 +162,121 @@ export default function AdvancedAnalyticsPage() {
     null
   );
   const [salesOverview, setSalesOverview] = useState<SalesOverview | null>(null);
+  const [insights, setInsights] = useState<InsightsPayload | null>(null);
+  const [{ startDateStr, endDateStr }, setDateRange] = useState(defaultDateRange);
+  const [franchiseStoreId, setFranchiseStoreId] = useState<string>("");
+  const [franchiseOptions, setFranchiseOptions] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [demandByStore, setDemandByStore] = useState(false);
+  const [analyticsErrors, setAnalyticsErrors] = useState<string[]>([]);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "sales-overview" | "forecast" | "demand" | "inventory"
+    "sales-overview" | "forecast" | "demand" | "inventory" | "insights"
   >("sales-overview");
+
+  const isOwner = user?.store?.type === "OWNER";
+
+  const scopeParams = () => ({
+    startDate: startDateStr,
+    endDate: endDateStr,
+    ...(franchiseStoreId ? { franchiseStoreId } : {}),
+  });
 
   useEffect(() => {
     if (!user) {
       router.push("/login");
       return;
     }
+    if (!isOwner) return;
+    (async () => {
+      try {
+        const res = await api.get("/api/v1/stores/franchises/summary");
+        const list = (res.data || []).map((f: { id: string; name: string }) => ({
+          id: f.id,
+          name: f.name,
+        }));
+        setFranchiseOptions(list);
+      } catch {
+        setFranchiseOptions([]);
+      }
+    })();
+  }, [user, isOwner, router]);
+
+  useEffect(() => {
+    if (!user) return;
     loadAnalytics();
     loadSalesOverview();
-  }, [user, router]);
+    loadInsights();
+  }, [user, startDateStr, endDateStr, franchiseStoreId, demandByStore]);
 
   const loadAnalytics = async () => {
     try {
       setLoading(true);
+      setAnalyticsErrors([]);
 
       if (!user?.storeId) {
         console.error("[Analytics] User storeId is missing");
         return;
       }
 
-      console.log("[Analytics] Loading analytics for store:", user.storeId);
+      const common = scopeParams();
+      const errs: string[] = [];
 
-      const [forecastRes, demandRes, inventoryRes] = await Promise.all([
-        api
-          .get("/api/v1/analytics/forecast", { params: { days: 7 } })
-          .catch((err) => {
-            console.error(
-              "Forecast API error:",
-              err.response?.data || err.message
-            );
-            if (err.response?.status === 400) {
-              console.error("Forecast error details:", err.response.data);
-            }
-            return { data: null };
-          }),
-        api
-          .get("/api/v1/analytics/demand", { params: { days: 30 } })
-          .catch((err) => {
-            console.error(
-              "Demand API error:",
-              err.response?.data || err.message
-            );
-            if (err.response?.status === 400) {
-              console.error("Demand error details:", err.response.data);
-            }
-            return { data: null };
-          }),
-        api.get("/api/v1/analytics/inventory-recommendations").catch((err) => {
-          console.error(
-            "Inventory API error:",
-            err.response?.data || err.message
-          );
-          if (err.response?.status === 400) {
-            console.error("Inventory error details:", err.response.data);
-          }
+      const forecastRes = await api
+        .get("/api/v1/analytics/forecast", {
+          params: {
+            ...common,
+            days: 7,
+            historyDays: 90,
+          },
+        })
+        .catch((err) => {
+          const msg =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message;
+          errs.push(`Forecast: ${msg}`);
           return { data: null };
-        }),
-      ]);
+        });
 
-      console.log("[Analytics] API responses:", {
-        forecast: forecastRes.data ? "loaded" : "null",
-        demand: demandRes.data ? "loaded" : "null",
-        inventory: inventoryRes.data ? "loaded" : "null",
-        forecastSales: forecastRes.data?.avgDailySales,
-        demandFastMoving: demandRes.data?.fastMoving?.length,
-        inventoryRecs: inventoryRes.data?.recommendations?.length,
-      });
+      const demandRes = await api
+        .get("/api/v1/analytics/demand", {
+          params: {
+            ...common,
+            days: 30,
+            ...(isOwner && !franchiseStoreId && demandByStore
+              ? { byStore: "true" }
+              : {}),
+          },
+        })
+        .catch((err) => {
+          const msg =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message;
+          errs.push(`Demand: ${msg}`);
+          return { data: null };
+        });
 
+      const inventoryRes = await api
+        .get("/api/v1/analytics/inventory-recommendations", {
+          params: {
+            ...common,
+            historyDays: 30,
+          },
+        })
+        .catch((err) => {
+          const msg =
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message;
+          errs.push(`Inventory: ${msg}`);
+          return { data: null };
+        });
+
+      setAnalyticsErrors(errs);
       setForecast(forecastRes.data);
       setDemand(demandRes.data);
       setInventory(inventoryRes.data);
@@ -182,76 +288,49 @@ export default function AdvancedAnalyticsPage() {
   };
 
   const loadSalesOverview = async () => {
+    if (!user?.storeId) return;
+    setOverviewError(null);
     try {
-      const end = new Date();
-      const start = new Date();
-      start.setDate(start.getDate() - 30);
-      const res = await api.get("/api/v1/sales", {
-        params: {
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
-          status: "PAID",
-        },
+      const res = await api.get("/api/v1/analytics/sales-overview", {
+        params: scopeParams(),
       });
-      const sales = res.data || [];
-      const totalRevenue = sales.reduce((s: number, sale: any) => s + (sale.grandTotal || 0), 0);
-      const totalOrders = sales.length;
-      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-      const byDate: Record<string, number> = {};
-      const byHour: Record<number, number> = {};
-      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const byDayOfWeek: Record<string, number> = Object.fromEntries(dayNames.map((d) => [d, 0]));
-      const paymentMap: Record<string, number> = {};
-      const productRevenue: Record<string, number> = {};
-      sales.forEach((sale: any) => {
-        const d = new Date(sale.createdAt);
-        const dateKey = d.toISOString().split("T")[0];
-        byDate[dateKey] = (byDate[dateKey] || 0) + (sale.grandTotal || 0);
-        const hour = d.getHours();
-        byHour[hour] = (byHour[hour] || 0) + 1;
-        const dayKey = dayNames[d.getDay()];
-        byDayOfWeek[dayKey] = (byDayOfWeek[dayKey] || 0) + (sale.grandTotal || 0);
-        (sale.payments || []).forEach((p: any) => {
-          const method = p.method || "Other";
-          paymentMap[method] = (paymentMap[method] || 0) + (p.amount || 0);
-        });
-        (sale.items || []).forEach((item: any) => {
-          const name = item.product?.name || "Unknown";
-          productRevenue[name] = (productRevenue[name] || 0) + (item.lineTotal || 0);
-        });
-      });
-      const dailyRevenue = Object.entries(byDate).map(([date, total]) => ({ date, total })).sort((a, b) => a.date.localeCompare(b.date));
-      const bestDayEntry = Object.entries(byDate).sort((a, b) => b[1] - a[1])[0];
-      const peakHourEntry = Object.entries(byHour).sort((a, b) => b[1] - a[1])[0];
-      const topProducts = Object.entries(productRevenue)
-        .map(([name, revenue]) => ({ name, revenue }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 10);
-      const revenueByDayOfWeek = dayNames.map((day) => ({ day, value: byDayOfWeek[day] || 0 }));
-      const paymentMix = Object.entries(paymentMap).map(([name, value]) => ({ name, value }));
-      setSalesOverview({
-        totalRevenue,
-        totalOrders,
-        avgOrderValue,
-        bestDay: bestDayEntry ? { date: bestDayEntry[0], revenue: bestDayEntry[1] } : null,
-        peakHour: peakHourEntry ? { hour: parseInt(peakHourEntry[0]), count: peakHourEntry[1] } : null,
-        dailyRevenue,
-        topProducts,
-        revenueByDayOfWeek,
-        paymentMix,
-      });
-    } catch (e) {
+      setSalesOverview(res.data || null);
+    } catch (e: any) {
+      const msg =
+        e.response?.data?.message ||
+        e.response?.data?.error ||
+        e.message ||
+        "Failed to load sales overview";
       console.error("Failed to load sales overview:", e);
       setSalesOverview(null);
+      setOverviewError(msg);
+    }
+  };
+
+  const loadInsights = async () => {
+    if (!user?.storeId) return;
+    setInsightsError(null);
+    try {
+      const res = await api.get("/api/v1/analytics/insights", {
+        params: scopeParams(),
+      });
+      setInsights(res.data || null);
+    } catch (e: any) {
+      const msg =
+        e.response?.data?.message ||
+        e.response?.data?.error ||
+        e.message ||
+        "Failed to load insights";
+      setInsights(null);
+      setInsightsError(msg);
     }
   };
 
   const loadSalesFallback = async (tab: "forecast" | "demand") => {
     setLoading(true);
     try {
-      const end = new Date();
-      const start = new Date();
-      start.setDate(start.getDate() - 30);
+      const start = new Date(startDateStr + "T00:00:00.000Z");
+      const end = new Date(endDateStr + "T23:59:59.999Z");
       const res = await api.get("/api/v1/sales", {
         params: {
           startDate: start.toISOString(),
@@ -269,9 +348,14 @@ export default function AdvancedAnalyticsPage() {
         });
         const dates: string[] = [];
         const values: number[] = [];
-        for (let i = 29; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
+        const dayMs = 86400000;
+        const n = Math.max(
+          1,
+          Math.round((end.getTime() - start.getTime()) / dayMs) + 1
+        );
+        for (let i = n - 1; i >= 0; i--) {
+          const d = new Date(end);
+          d.setUTCDate(d.getUTCDate() - i);
           const key = d.toISOString().split("T")[0];
           dates.push(key);
           values.push(salesByDate[key] || 0);
@@ -298,7 +382,7 @@ export default function AdvancedAnalyticsPage() {
           })),
           forecast: forecastArr,
           trend,
-          accuracy: 0,
+          naiveMapePct: null,
           avgDailySales: values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0,
         });
         setActiveTab("forecast");
@@ -357,60 +441,137 @@ export default function AdvancedAnalyticsPage() {
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Advanced Analytics
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Predictive insights and recommendations
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Advanced Analytics
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Predictive insights and recommendations (UTC day boundaries; peak hour UTC)
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                const tag = `${startDateStr}_${endDateStr}`;
+                if (activeTab === "sales-overview" && salesOverview) {
+                  exportToCSV({
+                    data: salesOverview.dailyRevenue.map((r) => ({
+                      date: r.date,
+                      revenue: r.total,
+                    })),
+                    filename: `sales_overview_${tag}.csv`,
+                  });
+                } else if (activeTab === "forecast" && forecast) {
+                  exportToCSV({
+                    data: forecast.forecast,
+                    filename: `sales_forecast_${tag}.csv`,
+                  });
+                } else if (activeTab === "demand" && demand) {
+                  exportToCSV({
+                    data: [...demand.fastMoving, ...demand.slowMoving],
+                    filename: `demand_analysis_${tag}.csv`,
+                  });
+                } else if (activeTab === "inventory" && inventory) {
+                  exportToCSV({
+                    data: inventory.recommendations,
+                    filename: `inventory_recommendations_${tag}.csv`,
+                  });
+                } else if (activeTab === "insights" && insights) {
+                  exportToCSV({
+                    data: insights.insights,
+                    filename: `analytics_insights_${tag}.csv`,
+                  });
+                }
+              }}
+              className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
+            >
+              📥 Export CSV
+            </button>
+            <button
+              onClick={() => {
+                loadAnalytics();
+                loadSalesOverview();
+                loadInsights();
+              }}
+              className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
+            >
+              🔄 Refresh
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              if (activeTab === "sales-overview" && salesOverview) {
-                exportToCSV({
-                  data: salesOverview.dailyRevenue.map((r) => ({ date: r.date, revenue: r.total })),
-                  filename: `sales_overview_${new Date().toISOString().split("T")[0]}.csv`,
-                });
-              } else if (activeTab === "forecast" && forecast) {
-                exportToCSV({
-                  data: forecast.forecast,
-                  filename: `sales_forecast_${
-                    new Date().toISOString().split("T")[0]
-                  }.csv`,
-                });
-              } else if (activeTab === "demand" && demand) {
-                exportToCSV({
-                  data: [...demand.fastMoving, ...demand.slowMoving],
-                  filename: `demand_analysis_${
-                    new Date().toISOString().split("T")[0]
-                  }.csv`,
-                });
-              } else if (activeTab === "inventory" && inventory) {
-                exportToCSV({
-                  data: inventory.recommendations,
-                  filename: `inventory_recommendations_${
-                    new Date().toISOString().split("T")[0]
-                  }.csv`,
-                });
+
+        <div className="flex flex-wrap items-end gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              Start date
+            </label>
+            <input
+              type="date"
+              value={startDateStr}
+              onChange={(e) =>
+                setDateRange((r) => ({ ...r, startDateStr: e.target.value }))
               }
-            }}
-            className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
-          >
-            📥 Export CSV
-          </button>
-          <button
-            onClick={() => {
-              loadAnalytics();
-              loadSalesOverview();
-            }}
-            className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
-          >
-            🔄 Refresh
-          </button>
+              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              End date
+            </label>
+            <input
+              type="date"
+              value={endDateStr}
+              onChange={(e) =>
+                setDateRange((r) => ({ ...r, endDateStr: e.target.value }))
+              }
+              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+            />
+          </div>
+          {isOwner && (
+            <div className="min-w-[200px]">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Store scope
+              </label>
+              <select
+                value={franchiseStoreId}
+                onChange={(e) => setFranchiseStoreId(e.target.value)}
+                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+              >
+                <option value="">All locations (owner + franchises)</option>
+                <option value={user?.storeId || ""}>
+                  {user?.store?.name || "HQ"} (owner store)
+                </option>
+                {franchiseOptions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {isOwner && !franchiseStoreId && (
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={demandByStore}
+                onChange={(e) => setDemandByStore(e.target.checked)}
+              />
+              Demand: per-store breakdown
+            </label>
+          )}
         </div>
+
+        {(analyticsErrors.length > 0 || overviewError || insightsError) && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-1">
+            {overviewError && <p>Overview: {overviewError}</p>}
+            {insightsError && <p>Insights: {insightsError}</p>}
+            {analyticsErrors.map((e, i) => (
+              <p key={i}>{e}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -455,6 +616,16 @@ export default function AdvancedAnalyticsPage() {
         >
           📦 Inventory Recommendations
         </button>
+        <button
+          onClick={() => setActiveTab("insights")}
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === "insights"
+              ? "border-blue-600 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+          }`}
+        >
+          💡 Insights
+        </button>
       </div>
 
       {/* Sales Overview Tab */}
@@ -462,9 +633,18 @@ export default function AdvancedAnalyticsPage() {
         <div className="space-y-6">
           {salesOverview ? (
             <>
+              {salesOverview.insufficientHistory && (
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-900 dark:text-blue-100">
+                  Limited history: {salesOverview.daysWithSales ?? 0} day(s) with sales in this range.
+                  {salesOverview.minDaysRecommended != null &&
+                    ` We recommend at least ${salesOverview.minDaysRecommended} days for steadier charts.`}
+                </div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
-                  <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">Total Revenue (30d)</h3>
+                  <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+                    Total Revenue ({salesOverview.startDate && salesOverview.endDate ? `${salesOverview.startDate} → ${salesOverview.endDate}` : "range"})
+                  </h3>
                   <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
                     ₹{salesOverview.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                   </p>
@@ -489,7 +669,7 @@ export default function AdvancedAnalyticsPage() {
                   </p>
                 </div>
                 <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 rounded-lg p-6 border border-cyan-200 dark:border-cyan-800">
-                  <h3 className="text-sm font-medium text-cyan-700 dark:text-cyan-300 mb-2">Peak Hour</h3>
+                  <h3 className="text-sm font-medium text-cyan-700 dark:text-cyan-300 mb-2">Peak Hour (UTC)</h3>
                   <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
                     {salesOverview.peakHour ? `${salesOverview.peakHour.hour}:00` : "—"}
                   </p>
@@ -500,8 +680,8 @@ export default function AdvancedAnalyticsPage() {
               </div>
 
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Daily Revenue (Last 30 Days)</h3>
-                {salesOverview.dailyRevenue.length > 0 ? (
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Daily Revenue</h3>
+                {salesOverview.dailyRevenue.some((r) => r.total > 0) ? (
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={salesOverview.dailyRevenue.map((r) => ({ ...r, total: r.total }))}>
@@ -634,6 +814,13 @@ export default function AdvancedAnalyticsPage() {
             </div>
           ) : (
             <>
+          {forecast.insufficientHistory && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+              Low history for forecasting: {forecast.daysWithPositiveSales ?? 0} day(s) with sales.
+              {forecast.minDaysRecommended != null &&
+                ` ${forecast.minDaysRecommended}+ days recommended; projections may be noisy.`}
+            </div>
+          )}
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
@@ -646,12 +833,15 @@ export default function AdvancedAnalyticsPage() {
             </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-6 border border-green-200 dark:border-green-800">
               <h3 className="text-sm font-medium text-green-700 dark:text-green-300 mb-2">
-                Accuracy
+                Naive MAPE (7d)
               </h3>
               <p className="text-3xl font-bold text-green-900 dark:text-green-100">
-                {forecast.accuracy !== undefined && forecast.accuracy !== null
-                  ? `${forecast.accuracy}%`
-                  : "0%"}
+                {forecast.naiveMapePct != null
+                  ? `${forecast.naiveMapePct}%`
+                  : "—"}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                Same-day-as-yesterday baseline; lower is better.
               </p>
             </div>
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
@@ -669,7 +859,7 @@ export default function AdvancedAnalyticsPage() {
           {/* Historical Chart with Moving Averages */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Historical Sales Trend (Last 30 Days)
+              Historical sales (recent window)
             </h3>
             {forecast.historical && forecast.historical.length > 0 ? (
               <div className="h-[350px]">
@@ -824,7 +1014,7 @@ export default function AdvancedAnalyticsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                7-Day Forecast
+                Forecast (next days)
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -836,6 +1026,9 @@ export default function AdvancedAnalyticsPage() {
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
                       Predicted Sales
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                      Low / High
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
                       Confidence
@@ -857,6 +1050,11 @@ export default function AdvancedAnalyticsPage() {
                             ? `₹${f.predicted.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
                             : "₹0"}
                         </td>
+                        <td className="px-4 py-3 text-right text-xs text-gray-600 dark:text-gray-400">
+                          {f.predictedLow != null && f.predictedHigh != null
+                            ? `₹${Math.round(f.predictedLow).toLocaleString("en-IN")} – ₹${Math.round(f.predictedHigh).toLocaleString("en-IN")}`
+                            : "—"}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <span
                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -875,7 +1073,7 @@ export default function AdvancedAnalyticsPage() {
                   ) : (
                     <tr>
                       <td
-                        colSpan={3}
+                        colSpan={4}
                         className="px-4 py-3 text-sm text-center text-gray-500"
                       >
                         No forecast data available
@@ -936,12 +1134,18 @@ export default function AdvancedAnalyticsPage() {
       {activeTab === "demand" && (
         demand ? (
         <div className="space-y-6">
+          {demand.abcSummary && (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+              <strong>ABC mix:</strong> A={demand.abcSummary.A}, B={demand.abcSummary.B}, C=
+              {demand.abcSummary.C}. {demand.abcSummary.note}
+            </div>
+          )}
           {/* Peak Times */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {demand.peakHour && (
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg p-6 border border-orange-200 dark:border-orange-800">
                 <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">
-                  Peak Hour
+                  Peak Hour (UTC)
                 </h3>
                 <p className="text-3xl font-bold text-orange-900 dark:text-orange-100">
                   {demand.peakHour.hour}:00
@@ -970,7 +1174,7 @@ export default function AdvancedAnalyticsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Fast Moving Products
+                Fast movers (ABC class A — top revenue share)
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -1027,7 +1231,7 @@ export default function AdvancedAnalyticsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Slow Moving Products
+                Slow movers (ABC class C — tail revenue)
               </h3>
             </div>
             <div className="overflow-x-auto">
@@ -1079,6 +1283,86 @@ export default function AdvancedAnalyticsPage() {
               </table>
             </div>
           </div>
+
+          {demand.categories && demand.categories.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Category revenue
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                        Revenue
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                        Lines
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {demand.categories.map((c, i) => (
+                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                          {c.categoryName}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right">
+                          ₹{c.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+                          {c.lineCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {demand.byStore && demand.byStore.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Per-store products (owner)
+              </h3>
+              {demand.byStore.map((s) => (
+                <div
+                  key={s.storeId}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
+                >
+                  <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 font-medium">
+                    {s.storeName}
+                  </div>
+                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Product</th>
+                          <th className="px-4 py-2 text-right">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(s.products as any[]).slice(0, 15).map((p: any, i: number) => (
+                          <tr key={i} className="border-t border-gray-100 dark:border-gray-700">
+                            <td className="px-4 py-2">{p.productName}</td>
+                            <td className="px-4 py-2 text-right">
+                              ₹{(p.totalRevenue || 0).toLocaleString("en-IN")}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
@@ -1107,6 +1391,18 @@ export default function AdvancedAnalyticsPage() {
       {activeTab === "inventory" && (
         inventory ? (
         <div className="space-y-6">
+          {inventory.mode === "multi" && inventory.note && (
+            <p className="text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-900/40">
+              {inventory.note}
+            </p>
+          )}
+          {(inventory.leadTimeDays != null || inventory.historyDays != null) && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Lead time {inventory.leadTimeDays ?? "—"}d · History window {inventory.historyDays ?? "—"}d · EOQ uses
+              ordering cost ₹{inventory.orderingCost ?? "—"} / holding ₹
+              {inventory.holdingCostPerUnit ?? "—"} per unit (env overrides).
+            </p>
+          )}
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-lg p-6 border border-red-200 dark:border-red-800">
@@ -1146,11 +1442,19 @@ export default function AdvancedAnalyticsPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
+                    {inventory.mode === "multi" && (
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                        Store
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
                       Product
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
-                      Current Stock
+                      Current
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                      On order
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
                       Reorder Point
@@ -1174,6 +1478,11 @@ export default function AdvancedAnalyticsPage() {
                         key={index}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
                       >
+                        {inventory.mode === "multi" && (
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            {rec.storeName || rec.storeId || "—"}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                           {rec.productName}
                         </td>
@@ -1181,6 +1490,11 @@ export default function AdvancedAnalyticsPage() {
                           {typeof rec.currentStock === "number" && !Number.isNaN(rec.currentStock)
                             ? rec.currentStock.toFixed(2)
                             : "0.00"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                          {rec.inboundOpenQty != null && !Number.isNaN(rec.inboundOpenQty)
+                            ? rec.inboundOpenQty.toFixed(2)
+                            : "—"}
                         </td>
                         <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
                           {typeof rec.reorderPoint === "number" && !Number.isNaN(rec.reorderPoint)
@@ -1215,10 +1529,10 @@ export default function AdvancedAnalyticsPage() {
                   ) : (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={inventory.mode === "multi" ? 8 : 7}
                         className="px-4 py-3 text-sm text-center text-gray-500"
                       >
-                        No inventory recommendations available
+                        No inventory recommendations — stock levels look adequate for this window.
                       </td>
                     </tr>
                   )}
@@ -1240,6 +1554,42 @@ export default function AdvancedAnalyticsPage() {
             </button>
           </div>
         )
+      )}
+
+      {activeTab === "insights" && (
+        <div className="space-y-4">
+          {insights && insights.insights.length > 0 ? (
+            <div className="grid gap-3">
+              {insights.insights.map((ins, i) => (
+                <div
+                  key={i}
+                  className={`rounded-lg border px-4 py-3 ${
+                    ins.severity === "high"
+                      ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
+                      : ins.severity === "medium"
+                      ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
+                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-900 dark:text-white">{ins.title}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{ins.detail}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-gray-600 dark:text-gray-400">
+              {insights
+                ? "No insights for this range — try widening dates or adding more sales."
+                : "Load failed or no data. Use Refresh or check errors above."}
+            </div>
+          )}
+          {insights?.period && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Compared current {insights.period.start}–{insights.period.end} vs prior{" "}
+              {insights.period.priorStart}–{insights.period.priorEnd}.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
