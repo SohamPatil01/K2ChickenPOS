@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "NODE_OPTIONS='--disable-warning=DEP0169' next dev -p 3001",
     "dev:clean": "rm -rf .next && NODE_OPTIONS='--disable-warning=DEP0169' next dev -p 3001",
-    "build": "NODE_OPTIONS='--disable-warning=DEP0169' next build",
+    "build": "NODE_ENV=production NODE_OPTIONS='--disable-warning=DEP0169' next build",
     "start": "NODE_OPTIONS='--disable-warning=DEP0169' next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
@@ -20,9 +20,9 @@
     "axios": "^1.6.2",
     "date-fns": "^3.0.6",
     "jsbarcode": "^3.11.5",
-    "next": "14.0.4",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "next": "15.2.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.49.2",
     "react-to-print": "^2.14.15",
     "recharts": "^2.10.3",
@@ -32,8 +32,8 @@
   "devDependencies": {
     "@types/jsbarcode": "^3.11.4",
     "@types/node": "^20.10.0",
-    "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.18",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.16",
     "dotenv": "^17.2.3",
     "postcss": "^8.4.32",
