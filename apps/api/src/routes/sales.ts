@@ -822,36 +822,37 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Create payments - ensure method is valid enum value (skip when completion-only with no positive amounts)
       const validPaymentMethods: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
-      const paymentData = payments.map((p: any) => {
-        // Normalize the method to uppercase and trim
-        const methodStr = String(p.method || '').toUpperCase().trim();
+      const paymentData: Array<{
+        saleId: string;
+        method: PaymentMethod;
+        amount: number;
+        txnRef: string | null;
+      }> = [];
 
+      for (const p of payments) {
+        const methodStr = String((p as any).method || '').toUpperCase().trim();
         if (!validPaymentMethods.includes(methodStr as PaymentMethod)) {
-          throw new Error(`Invalid payment method: "${p.method}". Must be one of: ${validPaymentMethods.join(', ')}`);
+          reply.code(400).send({
+            error: `Invalid payment method: "${(p as any).method}". Must be one of: ${validPaymentMethods.join(', ')}`,
+          });
+          return;
         }
-
-        // Cast to PaymentMethod enum type
-        const method = methodStr as PaymentMethod;
-
-        return {
+        const amount = Number((p as any).amount);
+        if (Number.isNaN(amount) || !Number.isFinite(amount)) {
+          reply.code(400).send({ error: 'Invalid payment amount' });
+          return;
+        }
+        paymentData.push({
           saleId: id,
-          method: method,
-          amount: Number(p.amount),
-          txnRef: p.txnRef || null,
-        };
-      });
-
-      const paymentsToCreate = paymentData.filter((p: { amount: number }) => p.amount > 0);
-      if (paymentsToCreate.length > 0) {
-        console.log('[Payment] Creating payments:', JSON.stringify(paymentsToCreate, null, 2));
-        await prisma.payment.createMany({
-          data: paymentsToCreate,
+          method: methodStr as PaymentMethod,
+          amount,
+          txnRef: (p as any).txnRef || null,
         });
-      } else if (isCompletionOnly) {
-        console.log('[Payment] Completion-only (credit order already fully paid); skipping payment createMany, will update status to PAID');
       }
 
-      // Update sale status
+      const paymentsToCreate = paymentData.filter((p) => p.amount > 0);
+
+      // Update sale status (computed before DB write; applied inside transaction with payments)
       // Credit orders should always remain OPEN, even when fully paid
       // This allows tracking of credit sales separately
       let saleStatus = sale.status; // Keep current status initially
@@ -875,14 +876,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const updatedSale = await prisma.sale.update({
-        where: { id },
-        data: { status: saleStatus },
-        include: {
-          items: { include: { product: true } },
-          payments: true,
-          customer: true,
-        },
+      const updatedSale = await prisma.$transaction(async (tx) => {
+        if (paymentsToCreate.length > 0) {
+          console.log('[Payment] Creating payments:', JSON.stringify(paymentsToCreate, null, 2));
+          await tx.payment.createMany({
+            data: paymentsToCreate,
+          });
+        } else if (isCompletionOnly) {
+          console.log(
+            '[Payment] Completion-only (credit order already fully paid); skipping payment createMany, will update status to PAID'
+          );
+        }
+
+        return tx.sale.update({
+          where: { id },
+          data: { status: saleStatus },
+          include: {
+            items: { include: { product: true } },
+            payments: true,
+            customer: true,
+          },
+        });
       });
 
       // Update inventory - only if not already deducted
@@ -907,13 +921,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
             const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
 
             if (hasQtyKg || hasQtyPcs) {
+              const pcs =
+                hasQtyPcs && item.qtyPcs != null ? Math.round(Number(item.qtyPcs)) : null;
               await prisma.inventoryLedger.create({
                 data: {
                   storeId: sale.storeId, // Use sale's storeId, not user's storeId
                   productId: item.productId,
                   type: 'OUT',
                   qtyKg: hasQtyKg ? item.qtyKg : null,
-                  qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+                  qtyPcs: pcs != null && !Number.isNaN(pcs) ? pcs : null,
                   reason: 'SALE',
                   refId: id,
                 },
@@ -998,6 +1014,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       return updatedSale;
     } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        reply.code(400).send({
+          error: 'Invalid payment data',
+          details: error.issues || error.errors,
+        });
+        return;
+      }
       const message = error?.message || 'Unknown error';
       console.error('Failed to process payment:', error);
       console.error('Error details:', {

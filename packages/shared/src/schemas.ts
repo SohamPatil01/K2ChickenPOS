@@ -63,9 +63,15 @@ export const createSaleSchema = z.object({
   couponCode: z.string().optional(),
 });
 
+const paymentMethodEnum = z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']);
+
 export const paymentSchema = z.object({
-  method: z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']),
-  amount: z.number().min(0),
+  method: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toUpperCase() : v),
+    paymentMethodEnum
+  ),
+  /** Coerce: JSON/clients sometimes send amounts as strings */
+  amount: z.coerce.number().min(0),
   txnRef: z.string().optional(),
 });
 

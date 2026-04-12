@@ -50,9 +50,10 @@ export const createSaleSchema = z.object({
     discountTotal: z.number().default(0),
     couponCode: z.string().optional(),
 });
+const paymentMethodEnum = z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']);
 export const paymentSchema = z.object({
-    method: z.enum(['CASH', 'CARD', 'UPI']),
-    amount: z.number().min(0),
+    method: z.preprocess((v) => (typeof v === 'string' ? v.trim().toUpperCase() : v), paymentMethodEnum),
+    amount: z.coerce.number().min(0),
     txnRef: z.string().optional(),
 });
 export const paySaleSchema = z.object({

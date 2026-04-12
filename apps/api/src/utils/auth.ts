@@ -21,8 +21,7 @@ export async function authenticate(
     await request.jwtVerify();
     const payload = request.user as any;
     if (!payload?.userId || !payload?.storeId) {
-      reply.code(401).send({ error: 'Invalid token' });
-      return;
+      return reply.code(401).send({ error: 'Invalid token' });
     }
     request.user = {
       userId: payload.userId,
@@ -30,7 +29,7 @@ export async function authenticate(
       role: payload.role,
     };
   } catch (err) {
-    reply.code(401).send({ error: 'Unauthorized' });
+    return reply.code(401).send({ error: 'Unauthorized' });
   }
 }
 
