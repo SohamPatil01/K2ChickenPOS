@@ -22,6 +22,19 @@ if [ -z "$DATABASE_URL" ]; then
     exit 1
 fi
 
+# Prisma connection strings often include ?schema=public — libpq (psql/pg_dump) rejects the
+# "schema" query parameter. Strip it for CLI tools while keeping sslmode and other params.
+if command -v node >/dev/null 2>&1; then
+    DATABASE_URL_CLI=$(node -e "
+      const u = new URL(process.argv[1]);
+      u.searchParams.delete('schema');
+      process.stdout.write(u.href);
+    " "$DATABASE_URL") || { echo -e "${RED}Error: Could not parse DATABASE_URL${NC}"; exit 1; }
+else
+    echo -e "${RED}Error: node is required to normalize DATABASE_URL (install Node.js)${NC}"
+    exit 1
+fi
+
 # Create backups directory if it doesn't exist
 BACKUPS_DIR="backups"
 mkdir -p "$BACKUPS_DIR"
@@ -33,7 +46,7 @@ BACKUP_FILE="$BACKUPS_DIR/backup_pre_migration_${TIMESTAMP}.sql"
 echo -e "${YELLOW}Step 1: Testing database connection...${NC}"
 
 # Test connection
-if ! psql "$DATABASE_URL" -c "SELECT 1;" > /dev/null 2>&1; then
+if ! psql "$DATABASE_URL_CLI" -c "SELECT 1;" > /dev/null 2>&1; then
     echo -e "${RED}Error: Cannot connect to database!${NC}"
     echo "Please check your DATABASE_URL"
     exit 1
@@ -45,7 +58,7 @@ echo -e "${YELLOW}Step 2: Creating backup...${NC}"
 
 # Create backup (schema + data). READ-ONLY: pg_dump does not modify the database.
 # --clean --if-exists only affect the dump file (for restore); they are not run on the live DB.
-pg_dump "$DATABASE_URL" \
+pg_dump "$DATABASE_URL_CLI" \
     --no-owner \
     --no-acl \
     --clean \
@@ -65,10 +78,9 @@ echo -e "  Size: $BACKUP_SIZE\n"
 
 echo -e "${YELLOW}Step 3: Verifying backup...${NC}"
 
-# Check if backup contains data
-if grep -q "INSERT INTO" "$BACKUP_FILE"; then
-    ROW_COUNT=$(grep -c "INSERT INTO" "$BACKUP_FILE" || echo "0")
-    echo -e "${GREEN}✓ Backup contains data (${ROW_COUNT} INSERT statements)${NC}\n"
+# Check if backup contains data (pg_dump often uses COPY ... FROM stdin instead of INSERT)
+if grep -qE "^(INSERT INTO|COPY public\.)" "$BACKUP_FILE"; then
+    echo -e "${GREEN}✓ Backup contains table data (INSERT and/or COPY)${NC}\n"
 else
     echo -e "${YELLOW}⚠ Warning: Backup may not contain data${NC}\n"
 fi
@@ -77,7 +89,7 @@ fi
 echo -e "${YELLOW}Step 4: Recording current database state...${NC}"
 
 STATE_FILE="$BACKUPS_DIR/backup_state_${TIMESTAMP}.txt"
-psql "$DATABASE_URL" -c "
+psql "$DATABASE_URL_CLI" -c "
 SELECT 
     schemaname,
     tablename,
