@@ -20,7 +20,7 @@ This migration adds two new columns to the `PurchaseOrderItem` table:
 
 ### Step 1: Get Your Production Database URL
 
-You mentioned: `postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true`
+Use your production **Transaction** / pooler URL from Supabase (same value you set as `DATABASE_URL` in Vercel for Prisma).
 
 ### Step 2: Run the Migration Script
 
@@ -28,7 +28,7 @@ Open your terminal and run:
 
 ```bash
 # Set the database URL (use your production URL)
-export DATABASE_URL="postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+export DATABASE_URL="postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:6543/postgres?sslmode=require&pgbouncer=true"
 
 # Make the script executable
 chmod +x scripts/apply-sinkage-migration-production.sh

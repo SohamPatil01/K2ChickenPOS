@@ -25,8 +25,10 @@ DATABASE_POSTGRES_PRISMA_URL
 **DATABASE_URL** (for Prisma - use PRISMA URL with pooling):
 
 ```
-postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true
+postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:6543/postgres?sslmode=require&pgbouncer=true
 ```
+
+(Copy the real **Transaction pooler** / Prisma URL from Supabase → **Settings** → **Database**; do not paste secrets into Git.)
 
 **JWT_SECRET** (generate a strong secret, at least 32 characters):
 
@@ -55,10 +57,10 @@ Open your terminal and run:
 
 ```bash
 # Navigate to project root
-cd "/Users/soham/Downloads/k2 chicken pos 2"
+cd /path/to/K2ChickenPOS
 
-# Set DATABASE_URL to NON-POOLING connection (for migrations)
-export DATABASE_URL="postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+# Set DATABASE_URL to NON-POOLING connection (for migrations) — from Supabase dashboard only
+export DATABASE_URL="postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require"
 
 # Run migrations (creates all tables)
 pnpm db:migrate:deploy

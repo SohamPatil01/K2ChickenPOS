@@ -15,7 +15,7 @@ Your POS system uses a **hybrid storage architecture** with three storage layers
 ### Location
 
 - **Cloud Database**: Supabase (AWS-hosted PostgreSQL)
-- **Connection**: `postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:6543/postgres`
+- **Connection**: Use the URI from Supabase (**Settings** → **Database**). Never commit it to Git; use `.env` locally and Vercel env in production.
 
 ### What's Stored Here
 
@@ -259,7 +259,7 @@ User session and authentication:
 
 ```bash
 # Set your database URL
-export DATABASE_URL="postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+export DATABASE_URL="postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require"
 
 # Open Prisma Studio
 cd packages/db

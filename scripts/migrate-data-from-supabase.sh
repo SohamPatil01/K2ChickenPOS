@@ -12,8 +12,14 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Data Migration: Supabase → Local Database ===${NC}\n"
 
-# Remote database (Supabase) - NON-POOLING connection for data export
-REMOTE_DB_URL="${REMOTE_DATABASE_URL:-postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require}"
+# Remote database (Supabase) - NON-POOLING connection for data export.
+# Set REMOTE_DATABASE_URL — never commit credentials to the repo.
+if [ -z "$REMOTE_DATABASE_URL" ]; then
+    echo -e "${RED}Error: REMOTE_DATABASE_URL is not set.${NC}"
+    echo "  export REMOTE_DATABASE_URL='postgres://...'  # from Supabase (non-pooling)"
+    exit 1
+fi
+REMOTE_DB_URL="$REMOTE_DATABASE_URL"
 
 # Local database
 LOCAL_DB_NAME="azela_pos"

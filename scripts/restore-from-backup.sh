@@ -39,9 +39,14 @@ echo -e "${BLUE}Backup file: $BACKUP_FILE${NC}"
 BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 echo -e "${BLUE}Backup size: $BACKUP_SIZE${NC}\n"
 
-# Supabase database connection (NON-POOLING for restore operations)
-# You can override this with SUPABASE_DATABASE_URL environment variable
-SUPABASE_DB_URL="${SUPABASE_DATABASE_URL:-postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require}"
+# Supabase database connection (NON-POOLING for restore operations).
+# Set SUPABASE_DATABASE_URL in your shell or .env — never commit real URLs.
+if [ -z "$SUPABASE_DATABASE_URL" ]; then
+    echo -e "${RED}Error: SUPABASE_DATABASE_URL is not set.${NC}"
+    echo "  export SUPABASE_DATABASE_URL='postgres://...'  # port 5432, non-pooling, from Supabase dashboard"
+    exit 1
+fi
+SUPABASE_DB_URL="$SUPABASE_DATABASE_URL"
 
 echo -e "${YELLOW}⚠️  WARNING: This will replace ALL data in your Supabase database!${NC}"
 echo -e "${YELLOW}⚠️  Make sure you have a current backup before proceeding!${NC}\n"

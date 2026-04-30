@@ -51,7 +51,7 @@ Find your backup SQL file. It might be named something like:
 cd /Users/soham/Desktop/K2POS/K2ChickenPOS
 
 # Set your Supabase database URL (NON-POOLING connection for restore)
-export SUPABASE_DATABASE_URL="postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+export SUPABASE_DATABASE_URL="postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require"
 
 # Run the restore script
 ./scripts/restore-from-backup.sh /path/to/your/backup.sql
@@ -103,7 +103,7 @@ If you cannot restore from backup, you'll need to re-seed the database:
 
 ```bash
 # Set DATABASE_URL to NON-POOLING connection (for migrations)
-export DATABASE_URL="postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+export DATABASE_URL="postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require"
 
 # Run migrations to ensure all tables exist
 pnpm db:migrate:deploy
@@ -113,7 +113,7 @@ pnpm db:migrate:deploy
 
 ```bash
 # Make sure DATABASE_URL is set (use NON-POOLING for seeding)
-export DATABASE_URL="postgres://postgres.vkhworlflayiqinqknnk:3vv3qlkaZk9UBIFV@aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+export DATABASE_URL="postgres://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@[POOLER_HOST]:5432/postgres?sslmode=require"
 
 # Run seed script (this will create stores, users, products, etc.)
 pnpm db:seed
