@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
@@ -67,6 +67,7 @@ export default function OrdersPage() {
       id: string;
       productId: string;
       productName: string;
+      unitType: "KG" | "PCS";
       qtyKg?: number;
       qtyPcs?: number;
       rate: number;
@@ -80,6 +81,9 @@ export default function OrdersPage() {
     endDate: new Date().toISOString().split("T")[0],
   });
   const [statusFilter, setStatusFilter] = useState<string>("ALL"); // ALL, OPEN, PAID, VOID
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<
+    string | undefined
+  >(undefined);
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -102,7 +106,19 @@ export default function OrdersPage() {
     setStatusFilter(
       filters.status && filters.status.trim() !== "" ? filters.status : "ALL"
     );
+    setPaymentMethodFilter(
+      filters.paymentMethod && filters.paymentMethod.trim() !== ""
+        ? filters.paymentMethod
+        : undefined
+    );
   }, []);
+
+  const displayedSales = useMemo(() => {
+    if (!paymentMethodFilter) return sales;
+    return sales.filter((s) =>
+      (s.payments || []).some((p) => p.method === paymentMethodFilter)
+    );
+  }, [sales, paymentMethodFilter]);
 
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
@@ -268,6 +284,7 @@ export default function OrdersPage() {
         id: item.id,
         productId: item.product.id,
         productName: item.product.name,
+        unitType: item.product.unitType,
         qtyKg: item.qtyKg,
         qtyPcs: item.qtyPcs,
         rate: item.rate,
@@ -286,6 +303,7 @@ export default function OrdersPage() {
           id: "",
           productId: "",
           productName: "",
+          unitType: "KG",
           qtyKg: undefined,
           qtyPcs: undefined,
           rate: 0,
@@ -310,6 +328,7 @@ export default function OrdersPage() {
         ...newItems[index],
         productId: value,
         productName: product?.name || "",
+        unitType: product?.unitType || "KG",
         rate: product?.pricePerUnit || 0,
         taxRate: product?.taxRate || 0,
       };
@@ -327,7 +346,10 @@ export default function OrdersPage() {
     let taxTotal = 0;
 
     editForm.items.forEach((item) => {
-      const qty = item.qtyKg || item.qtyPcs || 0;
+      const qty =
+        item.unitType === "PCS"
+          ? Number(item.qtyPcs) || 0
+          : Number(item.qtyKg) || 0;
       const lineTotal = qty * item.rate;
       subTotal += lineTotal;
       taxTotal += lineTotal * (item.taxRate / 100);
@@ -354,10 +376,15 @@ export default function OrdersPage() {
       return;
     }
 
-    const invalidItems = editForm.items.filter(
-      (item) =>
-        !item.productId || (!item.qtyKg && !item.qtyPcs) || item.rate <= 0
-    );
+    const invalidItems = editForm.items.filter((item) => {
+      if (!item.productId || item.rate <= 0) return true;
+      if (item.unitType === "PCS") {
+        const q = Number(item.qtyPcs);
+        return !Number.isFinite(q) || q <= 0;
+      }
+      const q = Number(item.qtyKg);
+      return !Number.isFinite(q) || q <= 0;
+    });
 
     if (invalidItems.length > 0) {
       showNotification("Please fill in all item details correctly", "error");
@@ -536,12 +563,12 @@ export default function OrdersPage() {
           <button
             onClick={() =>
               exportSalesCSV(
-                sales,
+                displayedSales,
                 `orders-${new Date().toISOString().split("T")[0]}.csv`
               )
             }
             className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
-            disabled={sales.length === 0}
+            disabled={displayedSales.length === 0}
           >
             📊 Export CSV
           </button>
@@ -562,65 +589,20 @@ export default function OrdersPage() {
         storageKey="orders_filters"
       />
 
-      {/* Legacy Filters (keeping for compatibility) */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:[color-scheme:dark]"
-            >
-              <option value="ALL">All Orders</option>
-              <option value="OPEN">Pending (OPEN)</option>
-              <option value="PAID">Paid</option>
-              <option value="VOID">Cancelled</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={dateFilter.startDate}
-              onChange={(e) =>
-                setDateFilter({ ...dateFilter, startDate: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:[color-scheme:dark]"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              End Date
-            </label>
-            <input
-              type="date"
-              value={dateFilter.endDate}
-              onChange={(e) =>
-                setDateFilter({ ...dateFilter, endDate: e.target.value })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md dark:[color-scheme:dark]"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Sales List */}
       <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
         <div className="flex-1 overflow-y-auto min-h-0">
-          {sales.length === 0 ? (
+          {displayedSales.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400">
-                No orders found
+                {sales.length === 0
+                  ? "No orders found"
+                  : "No orders match the selected filters"}
               </p>
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {sales.map((sale) => {
+              {displayedSales.map((sale) => {
                 return (
                   <div
                     key={sale.id}

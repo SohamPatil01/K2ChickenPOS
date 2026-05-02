@@ -12,6 +12,7 @@ import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
 import { SkeletonProductCard } from "@/components/ui";
+import { normalizePaymentsForSale } from "@/lib/normalizeSalePayments";
 
 interface Product {
   id: string;
@@ -619,6 +620,18 @@ export default function StorePOSPage() {
 
   const handleQuickCheckoutPay = async (method: string) => {
     if (isProcessingPayment) return;
+
+    if (method === "CREDIT") {
+      const st = useCartStore.getState();
+      if (!st.customerId) {
+        showNotification(
+          "Credit bills need a customer. Add phone & name from the cart first.",
+          "warning"
+        );
+        return;
+      }
+    }
+
     setIsProcessingPayment(true);
 
     try {
@@ -628,9 +641,7 @@ export default function StorePOSPage() {
         customerPhone,
         customerName,
         discountTotal,
-        getTotal,
       } = useCartStore.getState();
-      const { subTotal, taxTotal, grandTotal } = getTotal();
 
       const saleData = {
         customerId: customerId || undefined,
@@ -664,14 +675,12 @@ export default function StorePOSPage() {
         throw new Error("Invalid sale response");
       }
 
-      const roundedSaleGrandTotal = Math.round(grandTotal);
+      const roundedSaleGrandTotal = Math.round(sale.grandTotal);
       const paymentData = {
-        payments: [
-          {
-            method,
-            amount: roundedSaleGrandTotal,
-          },
-        ],
+        payments: normalizePaymentsForSale(
+          [{ method, amount: roundedSaleGrandTotal }],
+          sale.grandTotal
+        ),
       };
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);

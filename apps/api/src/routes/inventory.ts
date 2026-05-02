@@ -213,7 +213,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/adjust', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/adjust', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER', 'CASHIER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = request.body as any;
       

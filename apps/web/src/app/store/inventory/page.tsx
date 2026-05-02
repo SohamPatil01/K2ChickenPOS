@@ -291,12 +291,21 @@ export default function StoreInventoryPage() {
       return;
     }
 
-    if (user.role !== "MANAGER" && user.role !== "OWNER") {
+    if (
+      user.role !== "MANAGER" &&
+      user.role !== "OWNER" &&
+      user.role !== "CASHIER"
+    ) {
       router.push("/store");
       return;
     }
 
-    if (user && (user.role === "MANAGER" || user.role === "OWNER")) {
+    if (
+      user &&
+      (user.role === "MANAGER" ||
+        user.role === "OWNER" ||
+        user.role === "CASHIER")
+    ) {
       loadInventoryRef.current?.(true); // Force initial load
       loadCategories();
       if (activeTab === "addStock") {
