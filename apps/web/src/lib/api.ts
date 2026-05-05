@@ -1,7 +1,13 @@
 import axios from 'axios';
 
-// Use same-origin so requests go through Next.js rewrite proxy (no cross-origin, no CORS preflight)
-const API_BASE = '';
+/**
+ * When `NEXT_PUBLIC_API_URL` is set (e.g. on Vercel), call the API directly. Browsers send
+ * `Authorization` on that cross-origin request; CORS is enabled on the API. Using only
+ * Next.js rewrites for `/api/*` can drop or omit auth headers on some deployments, which
+ * surfaces as 401 on protected routes like GET /api/v1/products.
+ * Local dev: leave unset and rely on `next.config.js` rewrites to localhost.
+ */
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 export const api = axios.create({
   baseURL: API_BASE,

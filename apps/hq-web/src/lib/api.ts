@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Use same-origin so requests go through Next.js rewrite proxy (no cross-origin, no CORS preflight)
-const API_BASE = '';
+/** See apps/web/src/lib/api.ts — direct API URL avoids auth header loss via Next rewrites on Vercel. */
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
 
 export const api = axios.create({
   baseURL: API_BASE,
