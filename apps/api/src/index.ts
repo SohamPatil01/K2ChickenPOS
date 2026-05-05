@@ -64,7 +64,8 @@ async function build() {
           skipOnError: true,
           // Skip rate limiting for health check and login endpoints
           skip: ((request: any): boolean => {
-            return (request as any).url === '/health' || (request as any).url === '/api/v1/auth/login';
+            const u = (request as any).url || '';
+            return u === '/health' || u === '/' || u === '/api/v1/auth/login';
           }) as any,
           addHeaders: {
             'x-ratelimit-limit': true,
@@ -84,6 +85,13 @@ async function build() {
   fastify.get('/health', async () => {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
+
+  fastify.get('/', async () => ({
+    name: 'K2 Chicken POS API',
+    ok: true,
+    docs: 'REST routes are under /api/v1/…',
+    health: '/health',
+  }));
 
   // Register routes
   await fastify.register(authRoutes, { prefix: '/api/v1/auth' });

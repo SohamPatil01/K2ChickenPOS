@@ -145,7 +145,8 @@ async function build() {
     timeWindow: '1 minute',
     skipOnError: true,
     skip: ((request: any): boolean => {
-      return (request as any).url === '/health' || (request as any).url === '/api/v1/auth/login';
+      const u = (request as any).url || '';
+      return u === '/health' || u === '/' || u === '/api/v1/auth/login';
     }) as any,
     addHeaders: {
       'x-ratelimit-limit': true,
@@ -240,6 +241,15 @@ async function build() {
 
     return health;
   });
+
+  // Root — browsers and uptime tools often hit GET /; this is the REST API, not the web app.
+  fastify.get('/', async () => ({
+    name: 'K2 Chicken POS API',
+    ok: true,
+    docs: 'REST routes are under /api/v1/…',
+    health: '/health',
+    healthDeep: '/health?deep=1',
+  }));
 
   // Register routes
   await fastify.register(authRoutes, { prefix: '/api/v1/auth' });
