@@ -4,6 +4,17 @@ import { prisma, PaymentMethod } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
+import { quantitiesForInventoryDeduction } from '../utils/saleItemLedger.js';
+
+async function loadProductUnitTypes(productIds) {
+  const ids = [...new Set((productIds || []).filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  const rows = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, unitType: true },
+  });
+  return new Map(rows.map((r) => [r.id, r.unitType]));
+}
 
 export async function saleRoutes(fastify: FastifyInstance) {
 
@@ -449,20 +460,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
         });
 
         // Deduct inventory for OPEN orders (even when discount override is required)
-        // Inventory should be deducted when order is created, not when payment is made
+        const unitMapOverride = await loadProductUnitTypes(sale.items.map((i) => i.productId));
         for (const item of sale.items) {
-          // Only create ledger entry if there's actual quantity to deduct
-          const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
-          const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-
-          if (hasQtyKg || hasQtyPcs) {
+          const ut = unitMapOverride.get(item.productId) || 'KG';
+          const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
+          if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
             await prisma.inventoryLedger.create({
               data: {
                 storeId,
                 productId: item.productId,
                 type: 'OUT',
-                qtyKg: hasQtyKg ? item.qtyKg : null,
-                qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+                qtyKg,
+                qtyPcs,
                 reason: 'SALE',
                 refId: sale.id,
               },
@@ -576,20 +585,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
 
       // Deduct inventory for OPEN orders (credit sales)
-      // Inventory should be deducted when order is created, not when payment is made
+      const unitMapCreate = await loadProductUnitTypes(sale.items.map((i) => i.productId));
       for (const item of sale.items) {
-        // Only create ledger entry if there's actual quantity to deduct
-        const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
-        const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-
-        if (hasQtyKg || hasQtyPcs) {
+        const ut = unitMapCreate.get(item.productId) || 'KG';
+        const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
+        if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
           await prisma.inventoryLedger.create({
             data: {
               storeId,
               productId: item.productId,
               type: 'OUT',
-              qtyKg: hasQtyKg ? item.qtyKg : null,
-              qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+              qtyKg,
+              qtyPcs,
               reason: 'SALE',
               refId: sale.id,
             },
@@ -916,20 +923,16 @@ export async function saleRoutes(fastify: FastifyInstance) {
         // This prevents double-deduction for credit/OPEN orders
         if (existingLedgerCount === 0) {
           for (const item of sale.items) {
-            // Only create ledger entry if there's actual quantity to deduct
-            const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
-            const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-
-            if (hasQtyKg || hasQtyPcs) {
-              const pcs =
-                hasQtyPcs && item.qtyPcs != null ? Math.round(Number(item.qtyPcs)) : null;
+            const ut = item.product?.unitType || 'KG';
+            const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
+            if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
               await prisma.inventoryLedger.create({
                 data: {
                   storeId: sale.storeId, // Use sale's storeId, not user's storeId
                   productId: item.productId,
                   type: 'OUT',
-                  qtyKg: hasQtyKg ? item.qtyKg : null,
-                  qtyPcs: pcs != null && !Number.isNaN(pcs) ? pcs : null,
+                  qtyKg,
+                  qtyPcs,
                   reason: 'SALE',
                   refId: id,
                 },
@@ -1232,17 +1235,21 @@ export async function saleRoutes(fastify: FastifyInstance) {
     // Reverse inventory if full refund
     if (!amount || amount >= sale.grandTotal) {
       for (const item of sale.items) {
-        await prisma.inventoryLedger.create({
-          data: {
-            storeId,
-            productId: item.productId,
-            type: 'IN',
-            qtyKg: item.qtyKg,
-            qtyPcs: item.qtyPcs,
-            reason: 'ADJUSTMENT',
-            refId: id,
-          },
-        });
+        const ut = item.product?.unitType || 'KG';
+        const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
+        if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
+          await prisma.inventoryLedger.create({
+            data: {
+              storeId,
+              productId: item.productId,
+              type: 'IN',
+              qtyKg,
+              qtyPcs,
+              reason: 'ADJUSTMENT',
+              refId: id,
+            },
+          });
+        }
       }
     }
 
@@ -1375,20 +1382,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }),
       });
 
-      // Deduct inventory for new/updated items
+      const unitMapPut = await loadProductUnitTypes(data.items.map((i) => i.productId));
       for (const item of data.items) {
-        // Only create ledger entry if there's actual quantity to deduct
-        const hasQtyKg = item.qtyKg !== null && item.qtyKg !== undefined && item.qtyKg > 0;
-        const hasQtyPcs = item.qtyPcs !== null && item.qtyPcs !== undefined && item.qtyPcs > 0;
-
-        if (hasQtyKg || hasQtyPcs) {
+        const ut = unitMapPut.get(item.productId) || 'KG';
+        const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
+        if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
           await prisma.inventoryLedger.create({
             data: {
               storeId: existingSale.storeId,
               productId: item.productId,
               type: 'OUT',
-              qtyKg: hasQtyKg ? item.qtyKg : null,
-              qtyPcs: hasQtyPcs ? item.qtyPcs : null,
+              qtyKg,
+              qtyPcs,
               reason: 'SALE',
               refId: id,
             },

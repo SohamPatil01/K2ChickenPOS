@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
@@ -9,6 +9,10 @@ import api from "@/lib/api";
 import { getHQConsoleUrl } from "@/lib/hq";
 import GlobalBarcodeScanner from "./GlobalBarcodeScanner";
 import Notification from "./Notification";
+import {
+  flushPendingPosSync,
+  getPendingSyncCount,
+} from "@/lib/posSync";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -22,6 +26,17 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
   const [isOffline, setIsOffline] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [syncBusy, setSyncBusy] = useState(false);
+
+  const refreshPendingSync = useCallback(async () => {
+    try {
+      const n = await getPendingSyncCount();
+      setPendingSyncCount(n);
+    } catch {
+      setPendingSyncCount(0);
+    }
+  }, []);
 
   useEffect(() => {
     // Check online/offline status
@@ -37,6 +52,27 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    void refreshPendingSync();
+    const id = window.setInterval(() => void refreshPendingSync(), 8000);
+    const onPending = () => void refreshPendingSync();
+    window.addEventListener("pos-pending-sync-changed", onPending);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("pos-pending-sync-changed", onPending);
+    };
+  }, [refreshPendingSync]);
+
+  useEffect(() => {
+    const onOnlineFlush = async () => {
+      setIsOffline(false);
+      await flushPendingPosSync("");
+      await refreshPendingSync();
+    };
+    window.addEventListener("online", onOnlineFlush);
+    return () => window.removeEventListener("online", onOnlineFlush);
+  }, [refreshPendingSync]);
 
   // Enter key: ensure form submit works across entire POS/store (keyboard-friendly)
   useEffect(() => {
@@ -119,6 +155,12 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
           label: "Stock Ledger",
           href: "/store/stock-ledger",
           icon: "📋",
+          roles: ["MANAGER", "OWNER"],
+        },
+        {
+          label: "Stock reconciliation",
+          href: "/store/inventory/reconciliation",
+          icon: "⚖️",
           roles: ["MANAGER", "OWNER"],
         },
         {
@@ -295,12 +337,54 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
         </svg>
       </button>
 
-      {/* Offline Indicator - Floating */}
-      {isOffline && (
-        <div className="fixed top-4 right-4 z-50 flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400 rounded-lg shadow-lg text-xs sm:text-sm border border-yellow-200 dark:border-yellow-800">
-          <span>🔴</span>
-          <span className="hidden sm:inline">Offline Mode</span>
-          <span className="sm:hidden">Offline</span>
+      {/* Offline + queued sync */}
+      {(isOffline || pendingSyncCount > 0) && (
+        <div className="fixed top-4 right-4 z-50 flex max-w-[min(420px,calc(100vw-2rem))] flex-col items-end gap-2">
+          {isOffline && (
+            <div className="flex items-center gap-1 sm:gap-2 rounded-lg border border-yellow-200 bg-yellow-100 px-3 py-2 text-xs text-yellow-800 shadow-lg dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400 sm:text-sm">
+              <span>🔴</span>
+              <span className="hidden sm:inline">Offline Mode</span>
+              <span className="sm:hidden">Offline</span>
+            </div>
+          )}
+          {pendingSyncCount > 0 && (
+            <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-900 shadow-lg dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100 sm:text-sm">
+              <span>
+                Queued sync:{" "}
+                <strong>{pendingSyncCount}</strong> bill
+                {pendingSyncCount === 1 ? "" : "s"}
+              </span>
+              <button
+                type="button"
+                disabled={syncBusy || isOffline || !user}
+                onClick={async () => {
+                  setSyncBusy(true);
+                  try {
+                    const r = await flushPendingPosSync("");
+                    await refreshPendingSync();
+                    if (!r.ok && r.error) {
+                      useNotificationStore.getState().showNotification(
+                        r.error,
+                        "error",
+                        5000
+                      );
+                    } else if (r.acked > 0) {
+                      useNotificationStore.getState().showNotification(
+                        `Synced ${r.acked} queued bill(s)`,
+                        "success",
+                        4000
+                      );
+                    }
+                  } finally {
+                    setSyncBusy(false);
+                  }
+                }}
+                className="rounded-md bg-orange-600 px-2 py-1 text-xs font-medium text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {syncBusy ? "…" : "Sync now"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

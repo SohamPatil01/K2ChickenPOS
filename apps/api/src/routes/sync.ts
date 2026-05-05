@@ -3,14 +3,19 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { getUser } from '../utils/auth.js';
 import { syncEventsSchema } from '@azela-pos/shared';
+import { applyOfflineCheckoutFromSync } from '../services/offlineCheckoutSync.js';
 
 export async function syncRoutes(fastify: FastifyInstance) {
 
   fastify.post('/events', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const data = syncEventsSchema.parse(request.body as any);
     const storeId = (getUser(request) as any).storeId;
+    const userId = (getUser(request) as any).userId;
 
+    /** Server SyncEvent row ids (audit). */
     const ackedIds: string[] = [];
+    /** Dexie queuedEvents.id values — client clears queue rows by these. */
+    const ackedQueueIds: number[] = [];
 
     for (const event of data.events) {
       try {
@@ -27,7 +32,7 @@ export async function syncRoutes(fastify: FastifyInstance) {
         });
 
         // Process event based on type
-        await processSyncEvent(event.eventType, event.payloadJson, storeId);
+        await processSyncEvent(event.eventType, event.payloadJson, storeId, userId);
 
         // Mark as acked
         await prisma.syncEvent.update({
@@ -36,13 +41,16 @@ export async function syncRoutes(fastify: FastifyInstance) {
         });
 
         ackedIds.push(syncEvent.id);
+        if (typeof event.clientQueueId === 'number' && Number.isFinite(event.clientQueueId)) {
+          ackedQueueIds.push(event.clientQueueId);
+        }
       } catch (error) {
         console.error('Error processing sync event:', error);
         // Continue processing other events
       }
     }
 
-    return { ackedIds, success: true };
+    return { ackedIds, ackedQueueIds, success: true };
   });
 
   fastify.get('/bootstrap', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -131,16 +139,17 @@ export async function syncRoutes(fastify: FastifyInstance) {
 async function processSyncEvent(
   eventType: string,
   payload: Record<string, any>,
-  storeId: string
+  storeId: string,
+  userId: string
 ): Promise<void> {
-  // Process different event types
   switch (eventType) {
     case 'SALE_CREATED':
     case 'SALE_PAID':
-      // Sales are already created on server, just acknowledge
+      break;
+    case 'OFFLINE_CHECKOUT_COMPLETE':
+      await applyOfflineCheckoutFromSync(payload, storeId, userId);
       break;
     case 'INVENTORY_ADJUSTED':
-      // Inventory adjustments can be synced
       break;
     default:
       console.log(`Unhandled event type: ${eventType}`);

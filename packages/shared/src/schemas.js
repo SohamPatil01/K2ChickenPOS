@@ -140,6 +140,7 @@ export const syncEventSchema = z.object({
     eventType: z.string(),
     payloadJson: z.record(z.any()),
     clientCreatedAt: z.string().datetime(),
+    clientQueueId: z.number().int().optional(),
 });
 export const syncEventsSchema = z.object({
     deviceId: z.string(),

@@ -9,10 +9,10 @@ import api from '@/lib/api';
 import NumPad from '@/components/NumPad';
 import VirtualKeyboard from '@/components/VirtualKeyboard';
 import BillSuccessAnimation from '@/components/BillSuccessAnimation';
-import { offlineDB } from '@azela-pos/offline';
+import { offlineDB, queueEvent } from '@azela-pos/offline';
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
-import { normalizePaymentsForSale } from '@/lib/normalizeSalePayments';
+import { normalizePaymentsForSale } from '@azela-pos/shared';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -258,8 +258,29 @@ export default function StoreCartPage() {
         })),
         customerId: (!skipCustomer && customerId) ? customerId : undefined,
         customerPhone: (!skipCustomer && customerPhone) ? customerPhone : undefined,
+        customerName: (!skipCustomer && customerName) ? customerName : undefined,
         discountTotal: discountTotal || 0,
       };
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const idempotencyKey = crypto.randomUUID();
+        const paymentsQueued = normalizePaymentsForSale(payments, grandTotal);
+        await queueEvent('OFFLINE_CHECKOUT_COMPLETE', {
+          idempotencyKey,
+          createSale: saleData,
+          payments: paymentsQueued,
+          fulfillmentType: useCartStore.getState().fulfillmentType,
+        });
+        setShowPaymentModal(false);
+        await clearCart();
+        showNotification(
+          'Offline: bill queued. It will sync when you are back online (see header).',
+          'success',
+          6500
+        );
+        window.dispatchEvent(new CustomEvent('pos-pending-sync-changed'));
+        return;
+      }
 
       console.log('[Cart] Creating sale with data:', saleData);
       const saleResponse = await api.post('/api/v1/sales', saleData);

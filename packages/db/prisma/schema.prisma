@@ -410,7 +410,11 @@ model Sale {
   discountOverride DiscountOverride?
   loyaltyTransactions LoyaltyTransaction[]
 
+  // Idempotency key from offline sync replay (unique per store when set)
+  offlineIdempotencyKey String?
+
   @@unique([storeId, saleNo])
+  @@unique([storeId, offlineIdempotencyKey])
   @@index([storeId, createdAt])
   @@index([storeId, businessDate])
   @@index([customerId])

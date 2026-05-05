@@ -72,12 +72,21 @@ export interface LocalCustomer {
   lastSyncedAt: number;
 }
 
+/** Serialized POS/cart state for hold/recall */
+export interface HeldCartRow {
+  id?: number;
+  label: string;
+  createdAt: number;
+  snapshotJson: string;
+}
+
 export class OfflineDB extends Dexie {
   cart!: Table<CartItem, number>;
   queuedEvents!: Table<QueuedEvent, number>;
   localSales!: Table<LocalSale, number>;
   localProducts!: Table<LocalProduct, number>;
   localCustomers!: Table<LocalCustomer, number>;
+  heldCarts!: Table<HeldCartRow, number>;
 
   constructor() {
     super('AzelaPOS');
@@ -87,6 +96,14 @@ export class OfflineDB extends Dexie {
       localSales: '++id, localSaleId, serverSaleId, status, createdAt',
       localProducts: '++id, productId, sku, plu, lastSyncedAt',
       localCustomers: '++id, customerId, phone, lastSyncedAt',
+    });
+    this.version(2).stores({
+      cart: '++id, productId, createdAt',
+      queuedEvents: '++id, eventType, clientCreatedAt, ackedAt',
+      localSales: '++id, localSaleId, serverSaleId, status, createdAt',
+      localProducts: '++id, productId, sku, plu, lastSyncedAt',
+      localCustomers: '++id, customerId, phone, lastSyncedAt',
+      heldCarts: '++id, label, createdAt',
     });
   }
 }

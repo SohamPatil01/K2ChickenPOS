@@ -37,9 +37,10 @@ export async function markEventError(
   eventId: number,
   error: string
 ): Promise<void> {
+  const row = await offlineDB.queuedEvents.get(eventId);
   await offlineDB.queuedEvents.update(eventId, {
     lastError: error,
-    retryCount: (await offlineDB.queuedEvents.get(eventId))?.retryCount || 0 + 1,
+    retryCount: (row?.retryCount ?? 0) + 1,
   });
 }
 
@@ -54,7 +55,11 @@ export async function syncEventsToServer(
   }
 
   try {
-    const response = await fetch(`${apiUrl}/api/v1/sync/events`, {
+    const syncUrl =
+      !apiUrl || apiUrl.trim() === ''
+        ? '/api/v1/sync/events'
+        : `${apiUrl.replace(/\/$/, '')}/api/v1/sync/events`;
+    const response = await fetch(syncUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -66,6 +71,7 @@ export async function syncEventsToServer(
           eventType: e.eventType,
           payloadJson: e.payloadJson,
           clientCreatedAt: e.clientCreatedAt,
+          clientQueueId: e.id,
         })),
       }),
     });
@@ -76,19 +82,24 @@ export async function syncEventsToServer(
     }
 
     const result = await response.json();
-    const ackedIds = result.ackedIds || [];
+    const ackedQueueIds: number[] = Array.isArray(result.ackedQueueIds)
+      ? result.ackedQueueIds.filter((n: unknown) => typeof n === 'number')
+      : [];
 
-    await markEventsAcked(ackedIds);
+    if (ackedQueueIds.length > 0) {
+      await markEventsAcked(ackedQueueIds);
+    }
 
     const errors: Array<{ id: number; error: string }> = [];
+    const ackedSet = new Set(ackedQueueIds);
     for (const event of pendingEvents) {
-      if (!ackedIds.includes(event.id!)) {
+      if (!ackedSet.has(event.id!)) {
         await markEventError(event.id!, 'Not acknowledged by server');
         errors.push({ id: event.id!, error: 'Not acknowledged by server' });
       }
     }
 
-    return { success: true, ackedIds, errors };
+    return { success: true, ackedIds: ackedQueueIds, errors };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     for (const event of pendingEvents) {

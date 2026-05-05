@@ -101,7 +101,28 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      console.log(`[Inventory Summary] Owner store ID: ${ownerStoreId}, Querying store ID: ${storeId}`);
+      // Ledger rows are per physical store. Franchise OPEN/PAID sales write OUT with the
+      // franchise storeId — OWNER users default to owner storeId and would miss those unless we aggregate.
+      const explicitLedgerStore = (request.query as any)?.ledgerStoreId as string | undefined;
+      let ledgerStoreIds: string[];
+      if (explicitLedgerStore) {
+        ledgerStoreIds = [explicitLedgerStore];
+      } else if (store.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: store.id,
+          },
+          select: { id: true },
+        });
+        ledgerStoreIds = [store.id, ...franchises.map((f) => f.id)];
+      } else {
+        ledgerStoreIds = [storeId];
+      }
+
+      console.log(
+        `[Inventory Summary] Owner store ID: ${ownerStoreId}, ledger storeIds: ${ledgerStoreIds.join(',')}, price storeId: ${storeId}`
+      );
 
       // Get all products
       const products = await prisma.product.findMany({
@@ -111,7 +132,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         },
         include: {
           inventoryLedgers: {
-            where: { storeId },
+            where: { storeId: { in: ledgerStoreIds } },
             // Remove orderBy to get all entries, order doesn't matter for calculation
           },
           storeProductPrices: {
@@ -131,11 +152,11 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
 
       // Also verify we can query ledger entries directly
       const allLedgers = await prisma.inventoryLedger.findMany({
-        where: { storeId },
+        where: { storeId: { in: ledgerStoreIds } },
         orderBy: { createdAt: 'desc' },
         take: 10, // Get more for verification
       });
-      console.log(`[Inventory Summary] Direct ledger query for store ${storeId}: Found ${allLedgers.length} total entries`);
+      console.log(`[Inventory Summary] Direct ledger query (scoped stores): Found ${allLedgers.length} recent entries`);
       if (allLedgers.length > 0) {
         console.log(`[Inventory Summary] Recent ledger entries (last 10):`);
         allLedgers.forEach((ledger, idx) => {
@@ -149,7 +170,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         let totalQtyKg = 0;
         let totalQtyPcs = 0;
 
-        console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries for store ${storeId}`);
+        console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries (stores: ${ledgerStoreIds.join(',')})`);
 
         // Log each ledger entry for debugging
         product.inventoryLedgers.forEach((ledger: any, index: number) => {
@@ -157,10 +178,9 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         });
 
         for (const ledger of product.inventoryLedgers) {
-          // Verify the ledger belongs to the correct store
-          if (ledger.storeId !== storeId) {
-            console.warn(`[Inventory Summary] ⚠️ Ledger entry ${ledger.id} has storeId ${ledger.storeId} but expected ${storeId}`);
-            continue; // Skip entries that don't match
+          if (!ledgerStoreIds.includes(ledger.storeId)) {
+            console.warn(`[Inventory Summary] ⚠️ Ledger entry ${ledger.id} storeId ${ledger.storeId} not in scope`);
+            continue;
           }
           
           // Handle null/undefined values properly
@@ -210,6 +230,87 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         details: error.message,
         ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
       });
+    }
+  });
+
+  /** Compare sale line quantities vs SALE ledger OUT for a date range (spot mismatches). */
+  fastify.get('/reconciliation', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = getUser(request as any);
+      const storeId = user.storeId;
+      const startDate = (request.query as any)?.startDate as string | undefined;
+      const endDate = (request.query as any)?.endDate as string | undefined;
+      if (!startDate || !endDate) {
+        reply.code(400).send({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
+        return;
+      }
+      const start = new Date(startDate + 'T00:00:00.000Z');
+      const end = new Date(endDate + 'T23:59:59.999Z');
+
+      const sales = await prisma.sale.findMany({
+        where: {
+          storeId,
+          status: { in: ['OPEN', 'PAID'] },
+          createdAt: { gte: start, lte: end },
+        },
+        include: { items: true },
+      });
+
+      const soldMap = new Map<string, { kg: number; pcs: number }>();
+      for (const s of sales) {
+        for (const it of s.items) {
+          const cur = soldMap.get(it.productId) || { kg: 0, pcs: 0 };
+          cur.kg += it.qtyKg || 0;
+          cur.pcs += it.qtyPcs || 0;
+          soldMap.set(it.productId, cur);
+        }
+      }
+
+      const ledgerRows = await prisma.inventoryLedger.findMany({
+        where: {
+          storeId,
+          reason: 'SALE',
+          type: 'OUT',
+          createdAt: { gte: start, lte: end },
+        },
+      });
+
+      const ledgerMap = new Map<string, { kg: number; pcs: number }>();
+      for (const L of ledgerRows) {
+        const cur = ledgerMap.get(L.productId) || { kg: 0, pcs: 0 };
+        cur.kg += L.qtyKg || 0;
+        cur.pcs += L.qtyPcs || 0;
+        ledgerMap.set(L.productId, cur);
+      }
+
+      const productIds = new Set([...soldMap.keys(), ...ledgerMap.keys()]);
+      const products = await prisma.product.findMany({
+        where: { id: { in: [...productIds] } },
+        select: { id: true, name: true, unitType: true },
+      });
+      const byId = Object.fromEntries(products.map((p) => [p.id, p]));
+
+      const rows = [...productIds].map((pid) => {
+        const sold = soldMap.get(pid) || { kg: 0, pcs: 0 };
+        const led = ledgerMap.get(pid) || { kg: 0, pcs: 0 };
+        const p = byId[pid];
+        return {
+          productId: pid,
+          productName: p?.name || pid,
+          unitType: p?.unitType,
+          soldQtyKg: Math.round(sold.kg * 1000) / 1000,
+          soldQtyPcs: Math.round(sold.pcs),
+          ledgerOutKg: Math.round(led.kg * 1000) / 1000,
+          ledgerOutPcs: Math.round(led.pcs),
+          deltaKg: Math.round((sold.kg - led.kg) * 1000) / 1000,
+          deltaPcs: Math.round(sold.pcs - led.pcs),
+        };
+      });
+      rows.sort((a, b) => a.productName.localeCompare(b.productName));
+
+      return { startDate, endDate, rows };
+    } catch (error: any) {
+      reply.code(500).send({ error: 'Failed to load reconciliation', details: error.message });
     }
   });
 

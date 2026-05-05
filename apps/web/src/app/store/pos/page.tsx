@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useCartStore } from "@/store/cart";
@@ -12,7 +12,15 @@ import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
 import { SkeletonProductCard } from "@/components/ui";
-import { normalizePaymentsForSale } from "@/lib/normalizeSalePayments";
+import { normalizePaymentsForSale } from "@azela-pos/shared";
+import {
+  queueEvent,
+  saveHeldCart,
+  listHeldCarts,
+  deleteHeldCart,
+  getHeldCart,
+  type HeldCartSnapshot,
+} from "@azela-pos/offline";
 
 interface Product {
   id: string;
@@ -91,7 +99,19 @@ interface FranchiseConfig {
 export default function StorePOSPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { items, addItem, fulfillmentType, setFulfillmentType, customerId } = useCartStore();
+  const {
+    items,
+    addItem,
+    fulfillmentType,
+    setFulfillmentType,
+    customerId,
+    clearCart,
+    loadCart,
+    setCustomer,
+    setDiscount,
+    setDiscountType,
+    setDiscountPercentage,
+  } = useCartStore();
   const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -144,6 +164,91 @@ export default function StorePOSPage() {
     grandTotal: number;
   } | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [stockByProductId, setStockByProductId] = useState<
+    Record<string, { kg: number; pcs: number }>
+  >({});
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [heldRows, setHeldRows] = useState<
+    Array<{ id: number; label: string; createdAt: number }>
+  >([]);
+  const [shortcutsBanner, setShortcutsBanner] = useState(false);
+
+  const loadStockSummary = useCallback(async () => {
+    try {
+      const res = await api.get("/api/v1/inventory/summary");
+      const map: Record<string, { kg: number; pcs: number }> = {};
+      for (const row of res.data || []) {
+        map[row.productId] = {
+          kg: Number(row.currentQtyKg) || 0,
+          pcs: Number(row.currentQtyPcs) || 0,
+        };
+      }
+      setStockByProductId(map);
+    } catch {
+      /* optional stock hints */
+    }
+  }, []);
+
+  const openHoldModal = useCallback(async () => {
+    try {
+      setHeldRows(await listHeldCarts());
+      setShowHoldModal(true);
+    } catch {
+      showNotification("Could not load held carts", "error");
+    }
+  }, [showNotification]);
+
+  const toggleFavorite = useCallback(
+    (productId: string) => {
+      if (!user?.storeId) return;
+      setFavoriteIds((prev) => {
+        const next = prev.includes(productId)
+          ? prev.filter((id) => id !== productId)
+          : [...prev, productId];
+        localStorage.setItem(
+          `pos-favorites-${user.storeId}`,
+          JSON.stringify(next)
+        );
+        return next;
+      });
+    },
+    [user?.storeId]
+  );
+
+  useEffect(() => {
+    if (!user?.storeId || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(`pos-favorites-${user.storeId}`);
+      setFavoriteIds(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      setFavoriteIds([]);
+    }
+  }, [user?.storeId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.tagName === "SELECT"
+      ) {
+        return;
+      }
+      if (e.altKey && e.key.toLowerCase() === "h") {
+        e.preventDefault();
+        void openHoldModal();
+      }
+      if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsBanner(true);
+        window.setTimeout(() => setShortcutsBanner(false), 7000);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openHoldModal]);
 
   useEffect(() => {
     if (!user) {
@@ -153,12 +258,44 @@ export default function StorePOSPage() {
     loadProducts();
     loadCategories();
     loadFranchiseConfig();
+    loadStockSummary();
     useCartStore.getState().loadCart();
     // Focus barcode input on mount
     if (barcodeInputRef.current) {
       barcodeInputRef.current.focus();
     }
-  }, [user, router]);
+  }, [user, router, loadStockSummary]);
+
+  function assertStockForLine(
+    product: Product,
+    qtyKg?: number,
+    qtyPcs?: number
+  ): boolean {
+    const st = stockByProductId[product.id];
+    if (!st || product.id === "manual") return true;
+    if (product.unitType === "KG") {
+      const need = qtyKg ?? qtyPcs ?? 1;
+      if (st.kg + 1e-6 < need) {
+        showNotification(
+          `Low stock: ${product.name} — only ${st.kg.toFixed(3)} kg on hand`,
+          "warning",
+          4500
+        );
+        return false;
+      }
+    } else {
+      const need = Math.ceil(qtyPcs ?? qtyKg ?? 1);
+      if (st.pcs < need) {
+        showNotification(
+          `Low stock: ${product.name} — only ${st.pcs} pcs on hand`,
+          "warning",
+          4500
+        );
+        return false;
+      }
+    }
+    return true;
+  }
 
   const loadProducts = async () => {
     setLoading((prev) => ({ ...prev, products: true }));
@@ -459,6 +596,10 @@ export default function StorePOSPage() {
       return;
     }
 
+    if (!assertStockForLine(product, qtyKg, qtyPcs)) {
+      return;
+    }
+
     // Calculate line total (base amount without tax) - matching backend logic
     const qty = qtyKg || qtyPcs || 1;
     const rate = overridePrice || lockedPrice || product.pricePerUnit;
@@ -518,6 +659,17 @@ export default function StorePOSPage() {
 
     // Find product by SKU if exists
     const product = products.find((p) => p.sku === manualItem.sku);
+
+    if (
+      product &&
+      !assertStockForLine(
+        product,
+        manualItem.unitType === "KG" ? weight : undefined,
+        manualItem.unitType === "PCS" ? qtyPcs : undefined
+      )
+    ) {
+      return;
+    }
 
     // Calculate base line total (qty * rate) - matching backend logic
     const finalRate =
@@ -589,6 +741,16 @@ export default function StorePOSPage() {
       const rate = priceOverrideData.requestedPrice;
       const lineTotal = qty * rate; // Base amount without tax
 
+      if (
+        !assertStockForLine(
+          product,
+          product.unitType === "KG" ? qty : undefined,
+          product.unitType === "PCS" ? qty : undefined
+        )
+      ) {
+        return;
+      }
+
       await addItem({
         productId: product.id,
         productName: product.name,
@@ -616,6 +778,78 @@ export default function StorePOSPage() {
         5000
       );
     }
+  };
+
+  const holdCurrentCart = async () => {
+    if (items.length === 0) {
+      showNotification("Cart is empty", "warning");
+      return;
+    }
+    const label = window.prompt(
+      "Hold label (e.g. Counter 2)",
+      `Hold ${items.length} items`
+    );
+    if (label === null) return;
+    const st = useCartStore.getState();
+    const snap: HeldCartSnapshot = {
+      customerId: st.customerId,
+      customerPhone: st.customerPhone,
+      customerName: st.customerName,
+      discountTotal: st.discountTotal,
+      discountType: st.discountType,
+      discountPercentage: st.discountPercentage,
+      fulfillmentType: st.fulfillmentType,
+      items: st.items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        qtyKg: i.qtyKg,
+        qtyPcs: i.qtyPcs,
+        rate: i.rate,
+        taxRate: i.taxRate,
+        lineTotal: i.lineTotal,
+        metaJson: i.metaJson as Record<string, unknown> | undefined,
+      })),
+    };
+    await saveHeldCart(label || "Hold", snap);
+    await clearCart();
+    await loadCart();
+    showNotification("Cart held", "success");
+    try {
+      setHeldRows(await listHeldCarts());
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const recallHeldCartById = async (heldId: number) => {
+    const row = await getHeldCart(heldId);
+    if (!row) return;
+    await clearCart();
+    const snap = row.snapshot;
+    setCustomer(snap.customerId, snap.customerPhone, snap.customerName);
+    setFulfillmentType(snap.fulfillmentType);
+    setDiscountType(snap.discountType);
+    if (snap.discountType === "percentage") {
+      setDiscountPercentage(snap.discountPercentage);
+    } else {
+      setDiscount(snap.discountTotal);
+    }
+    for (const line of snap.items) {
+      await addItem({
+        productId: line.productId,
+        productName: line.productName,
+        qtyKg: line.qtyKg,
+        qtyPcs: line.qtyPcs,
+        rate: line.rate,
+        taxRate: line.taxRate,
+        lineTotal: line.lineTotal,
+        metaJson: line.metaJson,
+      });
+    }
+    await deleteHeldCart(heldId);
+    await loadCart();
+    showNotification(`Recalled: ${row.label}`, "success");
+    setShowHoldModal(false);
   };
 
   const handleQuickCheckoutPay = async (method: string) => {
@@ -654,8 +888,35 @@ export default function StorePOSPage() {
           qtyPcs: item.qtyPcs || undefined,
           rate: item.rate,
           taxRate: item.taxRate,
+          metaJson: item.metaJson || undefined,
         })),
       };
+
+      const clientGrandTotal = useCartStore.getState().getTotal().grandTotal;
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const idempotencyKey = crypto.randomUUID();
+        const paymentsQueued = normalizePaymentsForSale(
+          [{ method, amount: clientGrandTotal }],
+          clientGrandTotal
+        );
+        await queueEvent("OFFLINE_CHECKOUT_COMPLETE", {
+          idempotencyKey,
+          createSale: saleData,
+          payments: paymentsQueued,
+          fulfillmentType: useCartStore.getState().fulfillmentType,
+        });
+        await clearCart();
+        await loadCart();
+        setShowQuickCheckout(false);
+        showNotification(
+          "Offline: bill queued. It will sync when you are back online.",
+          "success",
+          6500
+        );
+        window.dispatchEvent(new CustomEvent("pos-pending-sync-changed"));
+        return;
+      }
 
       const saleResponse = await api.post("/api/v1/sales", saleData);
 
@@ -766,6 +1027,9 @@ export default function StorePOSPage() {
   const productsForGrid = sortProductsByDisplayOrder(
     filteredProducts.filter((p) => !masaleIds.has(p.id))
   );
+  const favoriteProducts = sortProductsByDisplayOrder(
+    products.filter((p) => favoriteIds.includes(p.id))
+  );
   const categoriesSorted = sortCategoriesByDisplayOrder(categories);
 
   return (
@@ -788,6 +1052,10 @@ export default function StorePOSPage() {
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
               Scan or tap products to add
+            </p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 hidden sm:block">
+              Shortcuts: Alt+H held carts · ? hint · Stock shown from inventory
+              summary
             </p>
           </div>
           <div className="grid grid-cols-2 sm:flex sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
@@ -818,6 +1086,20 @@ export default function StorePOSPage() {
               className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
             >
               ⚡ Quick Pay
+            </button>
+            <button
+              type="button"
+              onClick={() => void holdCurrentCart()}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+            >
+              ⏸ Hold
+            </button>
+            <button
+              type="button"
+              onClick={() => void openHoldModal()}
+              className="px-4 py-2.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-900 dark:text-indigo-100 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+            >
+              📋 Held
             </button>
             <Link
               href="/store/cart"
@@ -1070,6 +1352,26 @@ export default function StorePOSPage() {
               </div>
             )}
 
+            {favoriteProducts.length > 0 && (
+              <div className="mb-3 flex-shrink-0">
+                <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                  Favorites (tap ☆ on a tile to pin)
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                  {favoriteProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => handleAddProduct(product)}
+                      className="flex-shrink-0 px-3 py-2 rounded-lg border border-brand-200 dark:border-brand-700 bg-brand-50/80 dark:bg-brand-900/20 text-sm font-medium text-brand-900 dark:text-brand-100 whitespace-nowrap"
+                    >
+                      {product.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Products Grid */}
             <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
               {loading.products ? (
@@ -1112,12 +1414,29 @@ export default function StorePOSPage() {
                     const displayPrice =
                       product.productMaster?.hqLockedPrice ||
                       product.pricePerUnit;
+                    const st = stockByProductId[product.id];
+                    const isFav = favoriteIds.includes(product.id);
                     return (
-                      <button
+                      <div
                         key={product.id}
-                        onClick={() => handleAddProduct(product)}
-                        className="flex flex-col p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 active:scale-[0.98] text-left shadow-sm hover:shadow-md transition-all"
+                        className="relative flex flex-col p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 shadow-sm hover:shadow-md transition-all"
                       >
+                        <button
+                          type="button"
+                          title={isFav ? "Remove favorite" : "Add favorite"}
+                          className="absolute top-2 right-2 z-10 h-8 w-8 rounded-full bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-600 text-lg leading-none flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:hover:bg-gray-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(product.id);
+                          }}
+                        >
+                          {isFav ? "★" : "☆"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddProduct(product)}
+                          className="flex flex-col flex-1 text-left active:scale-[0.98]"
+                        >
                         <div className="flex justify-center items-center mb-3 flex-shrink-0">
                           {product.imageUrl ? (
                             <img
@@ -1158,7 +1477,16 @@ export default function StorePOSPage() {
                             </span>
                           )}
                         </div>
-                      </button>
+                        {st && (
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                            Stock:{" "}
+                            {product.unitType === "KG"
+                              ? `${st.kg.toFixed(2)} kg`
+                              : `${st.pcs} pcs`}
+                          </span>
+                        )}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1462,6 +1790,65 @@ export default function StorePOSPage() {
                     Processing payment...
                   </p>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shortcutsBanner && (
+        <div className="fixed bottom-4 left-1/2 z-[100] max-w-md -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-3 text-center text-sm text-white shadow-xl">
+          <p className="mb-1 font-semibold">POS shortcuts</p>
+          <p className="text-xs text-gray-300">
+            Alt+H — Held carts · ? — This hint · Hold — Park current cart · ☆ on a
+            tile — Favorites · Checkout warns if stock is low (from inventory)
+          </p>
+        </div>
+      )}
+
+      {showHoldModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+              <h2 className="text-lg font-semibold dark:text-white">
+                Held carts
+              </h2>
+              <button
+                type="button"
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setShowHoldModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-2 overflow-y-auto p-4">
+              {heldRows.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No held carts
+                </p>
+              ) : (
+                heldRows.map((h) => (
+                  <div
+                    key={h.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-600"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium dark:text-white">
+                        {h.label}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(h.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="flex-shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700"
+                      onClick={() => void recallHeldCartById(h.id)}
+                    >
+                      Recall
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </div>
