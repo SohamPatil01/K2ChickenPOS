@@ -42,8 +42,7 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Prisma
-packages/db/prisma/migrations
+# Prisma (migrations are committed for deploy / migrate deploy)
 
 # Database
 *.db

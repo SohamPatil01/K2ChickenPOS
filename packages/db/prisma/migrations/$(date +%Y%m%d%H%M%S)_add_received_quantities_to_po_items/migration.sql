@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "PurchaseOrderItem" ADD COLUMN     "receivedQtyKg" DOUBLE PRECISION,
+ADD COLUMN     "receivedQtyPcs" INTEGER,
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
