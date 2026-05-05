@@ -25,13 +25,26 @@ export async function applyOfflineCheckoutFromSync(
 ): Promise<void> {
   const data = offlinePayloadSchema.parse(payload);
 
-  const existing = await prisma.sale.findFirst({
+  // Idempotency without Sale.offlineIdempotencyKey (supports DBs that never added that column).
+  const existingAudit = await prisma.auditLog.findFirst({
     where: {
       storeId,
-      offlineIdempotencyKey: data.idempotencyKey,
+      action: 'SALE_CREATED_OFFLINE_SYNC',
+      metaJson: {
+        path: ['offlineIdempotencyKey'],
+        equals: data.idempotencyKey,
+      },
     },
-    include: { payments: true },
+    orderBy: { createdAt: 'desc' },
   });
+
+  const existing =
+    existingAudit?.entityId != null
+      ? await prisma.sale.findUnique({
+          where: { id: existingAudit.entityId },
+          include: { payments: true },
+        })
+      : null;
 
   if (existing) {
     const paid = Math.round(
@@ -186,7 +199,6 @@ export async function applyOfflineCheckoutFromSync(
         taxTotal,
         grandTotal: roundedGrandTotal,
         createdByUserId: userId,
-        offlineIdempotencyKey: data.idempotencyKey,
         items: {
           create: cs.items.map((item: any) => {
             const qty = item.qtyKg || item.qtyPcs || 0;

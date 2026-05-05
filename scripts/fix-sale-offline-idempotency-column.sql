@@ -1,6 +1,5 @@
--- Run ONCE against your PRODUCTION Postgres (same DB as Vercel DATABASE_URL).
--- Fixes: "The column Sale.offlineIdempotencyKey does not exist in the current database"
--- Safe to re-run: uses IF NOT EXISTS.
+-- OPTIONAL: App no longer requires this column (offline idempotency uses AuditLog).
+-- Safe to run if you already planned to add it; uses IF NOT EXISTS.
 
 ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "offlineIdempotencyKey" TEXT;
 
