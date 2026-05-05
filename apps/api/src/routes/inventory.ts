@@ -84,55 +84,22 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/summary', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/summary', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Check if storeId is provided in query params
-      const queryStoreId = (request.query as any)?.storeId;
-      
-      // Try to get user's store from authentication, fallback to query param or default store
-      let user;
-      let store;
-      let storeId = '';
-      
-      try {
-        user = getUser(request as any);
-        if (user && (user as any).storeId) {
-          storeId = queryStoreId || (user as any).storeId; // Use query param if provided, otherwise user's store
-        store = await prisma.store.findUnique({ 
-          where: { id: storeId },
-          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-        });
-        console.log(`[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`);
-        }
-      } catch (authError: any) {
-        // Not authenticated, use query param or default to oldest OWNER store
-        if (queryStoreId) {
-          storeId = queryStoreId;
-          store = await prisma.store.findUnique({ 
-          where: { id: storeId },
-          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-        });
-          console.log(`[Inventory Summary] Using query store ID: ${storeId}`);
-        } else {
-          console.log('[Inventory Summary] User not authenticated, using fallback store');
-          const defaultStore = await prisma.store.findFirst({ 
-            where: { type: 'OWNER' },
-            orderBy: { createdAt: 'asc' },
-            select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-          });
-          storeId = defaultStore?.id || '';
-          store = defaultStore;
-        }
-      }
-      
+      const queryStoreId = (request.query as any)?.storeId as string | undefined;
+      const user = getUser(request as any);
+      const storeId = queryStoreId || user.storeId;
+
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, name: true, type: true, parentOwnerStoreId: true },
+      });
+      console.log(
+        `[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`
+      );
+
       if (!storeId || !store) {
         reply.code(400).send({ error: 'Store ID is required' });
-        return;
-      }
-      
-      if (!store) {
-        console.error(`[Inventory Summary] Store not found for ID: ${storeId}`);
-        reply.code(404).send({ error: 'Store not found', details: `Store with ID ${storeId} does not exist` });
         return;
       }
 

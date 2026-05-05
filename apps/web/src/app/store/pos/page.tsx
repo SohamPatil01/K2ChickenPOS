@@ -175,8 +175,16 @@ export default function StorePOSPage() {
   const [shortcutsBanner, setShortcutsBanner] = useState(false);
 
   const loadStockSummary = useCallback(async () => {
+    if (!user?.storeId) return;
     try {
-      const res = await api.get("/api/v1/inventory/summary");
+      const res = await api.get("/api/v1/inventory/summary", {
+        params: { _t: Date.now(), storeId: user.storeId },
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      });
       const map: Record<string, { kg: number; pcs: number }> = {};
       for (const row of res.data || []) {
         map[row.productId] = {
@@ -185,10 +193,10 @@ export default function StorePOSPage() {
         };
       }
       setStockByProductId(map);
-    } catch {
-      /* optional stock hints */
+    } catch (e) {
+      console.warn("POS: could not load inventory summary for stock hints", e);
     }
-  }, []);
+  }, [user?.storeId]);
 
   const openHoldModal = useCallback(async () => {
     try {
