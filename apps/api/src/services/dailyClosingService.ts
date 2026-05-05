@@ -1,6 +1,4 @@
-import { PrismaClient } from '@azela-pos/db';
-
-const prisma = new PrismaClient();
+import { prisma } from '@azela-pos/db';
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);

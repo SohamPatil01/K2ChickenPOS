@@ -1,7 +1,5 @@
-import { PrismaClient } from '@azela-pos/db';
+import { prisma } from '@azela-pos/db';
 import { emailService } from './emailService.js';
-
-const prisma = new PrismaClient();
 
 /**
  * Report Scheduler Service
