@@ -8,6 +8,7 @@
     "build": "pnpm --recursive build",
     "db:generate": "pnpm --filter @azela-pos/db generate",
     "db:migrate": "pnpm --filter @azela-pos/db migrate",
+    "db:migrate:deploy": "pnpm --filter @azela-pos/db migrate:deploy",
     "db:seed": "pnpm --filter @azela-pos/db seed",
     "db:studio": "pnpm --filter @azela-pos/db studio",
     "lint": "pnpm --recursive lint",
