@@ -401,14 +401,9 @@ export async function storeRoutes(fastify: FastifyInstance) {
         const user = getUser(request);
         const storeId = user.storeId;
 
+        // Prisma forbids mixing top-level `select` and `include` on the same query.
         const store = await prisma.store.findUnique({
           where: { id: storeId },
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            parentOwnerStoreId: true,
-          },
           include: {
             franchiseConfig: {
               include: {

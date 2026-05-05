@@ -123,6 +123,24 @@ export default function StoreInventoryPage() {
   const [stockProducts, setStockProducts] = useState<Product[]>([]);
   const [addingStock, setAddingStock] = useState(false);
 
+  /** HQ owner: franchise sites for choosing which store receives ledger adjustments */
+  const [ownerFranchises, setOwnerFranchises] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [ownerOpsLedgerStoreId, setOwnerOpsLedgerStoreId] = useState("");
+
+  const showOwnerLedgerPicker =
+    user?.store?.type === "OWNER" && ownerFranchises.length > 0;
+
+  const appendLedgerStoreToAdjustBody = (requestData: Record<string, unknown>) => {
+    if (
+      showOwnerLedgerPicker &&
+      (ownerOpsLedgerStoreId || user?.storeId)
+    ) {
+      requestData.ledgerStoreId = ownerOpsLedgerStoreId || user!.storeId;
+    }
+  };
+
   // Refs to prevent multiple simultaneous loads
   const loadingRef = useRef(false);
   const lastLoadTimeRef = useRef(0);
@@ -284,6 +302,39 @@ export default function StoreInventoryPage() {
   loadInventoryRef.current = loadInventory;
 
   useEffect(() => {
+    if (user?.storeId) {
+      setOwnerOpsLedgerStoreId(user.storeId);
+    }
+  }, [user?.storeId]);
+
+  useEffect(() => {
+    if (user?.store?.type !== "OWNER") {
+      setOwnerFranchises([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get("/api/v1/stores/franchises")
+      .then((r) => {
+        if (cancelled) return;
+        const raw = r.data;
+        const list = Array.isArray(raw)
+          ? raw.map((f: { id: string; name: string }) => ({
+              id: f.id,
+              name: f.name,
+            }))
+          : [];
+        setOwnerFranchises(list);
+      })
+      .catch(() => {
+        if (!cancelled) setOwnerFranchises([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.store?.type]);
+
+  useEffect(() => {
     if (user === undefined) return;
 
     if (!user) {
@@ -420,6 +471,7 @@ export default function StoreInventoryPage() {
           requestData.qtyPcs = Math.round(item.qtyPcs);
         }
 
+        appendLedgerStoreToAdjustBody(requestData);
         await api.post("/api/v1/inventory/adjust", requestData);
       }
 
@@ -522,6 +574,7 @@ export default function StoreInventoryPage() {
         requestData.qtyPcs = Math.round(qtyPcs);
       }
 
+      appendLedgerStoreToAdjustBody(requestData);
       const response = await api.post("/api/v1/inventory/adjust", requestData);
 
       if (response.data) {
@@ -610,6 +663,7 @@ export default function StoreInventoryPage() {
         requestData.qtyPcs = Math.round(adjustment);
       }
 
+      appendLedgerStoreToAdjustBody(requestData);
       const response = await api.post("/api/v1/inventory/adjust", requestData);
 
       if (response.data) {
@@ -954,6 +1008,13 @@ export default function StoreInventoryPage() {
                   ? 'Click "Adjust" on any product to add or subtract inventory'
                   : "Add multiple items to inventory at once"}
               </p>
+              {showOwnerLedgerPicker && activeTab === "inventory" && (
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-2 max-w-xl">
+                  Stock totals combine HQ and all franchise locations. When you
+                  adjust, pick which site should receive the change so counts stay
+                  correct.
+                </p>
+              )}
             </div>
             <button
               onClick={() => loadInventory(true)}
@@ -1213,6 +1274,29 @@ export default function StoreInventoryPage() {
                 <h2 className="text-lg font-semibold dark:text-white mb-4">
                   Add Stock Item
                 </h2>
+                {showOwnerLedgerPicker && user?.storeId && (
+                  <div className="mb-4 max-w-md">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Receive into store
+                    </label>
+                    <select
+                      value={ownerOpsLedgerStoreId || user.storeId}
+                      onChange={(e) =>
+                        setOwnerOpsLedgerStoreId(e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value={user.storeId}>
+                        {user.store.name} (HQ)
+                      </option>
+                      {ownerFranchises.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1452,6 +1536,29 @@ export default function StoreInventoryPage() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Enter positive value to add, negative to subtract
                 </p>
+                {showOwnerLedgerPicker && user?.storeId && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Apply to store
+                    </label>
+                    <select
+                      value={ownerOpsLedgerStoreId || user.storeId}
+                      onChange={(e) =>
+                        setOwnerOpsLedgerStoreId(e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value={user.storeId}>
+                        {user.store.name} (HQ)
+                      </option>
+                      {ownerFranchises.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
@@ -1513,12 +1620,12 @@ export default function StoreInventoryPage() {
                       if (selectedProduct.unitType === "KG") {
                         setAdjustForm({
                           ...adjustForm,
-                          qtyKg: Math.max(0, current - subtract).toString(),
+                          qtyKg: (current - subtract).toString(),
                         });
                       } else {
                         setAdjustForm({
                           ...adjustForm,
-                          qtyPcs: Math.max(0, current - subtract).toString(),
+                          qtyPcs: (current - subtract).toString(),
                         });
                       }
                     }}
@@ -2031,6 +2138,35 @@ export default function StoreInventoryPage() {
                     ? `${editStockProduct.currentQtyKg.toFixed(2)} kg`
                     : `${editStockProduct.currentQtyPcs} pcs`}
                 </p>
+                {showOwnerLedgerPicker && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                    The table shows combined stock across locations. The new
+                    quantity you set applies only to the store selected below.
+                  </p>
+                )}
+                {showOwnerLedgerPicker && user?.storeId && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Apply to store
+                    </label>
+                    <select
+                      value={ownerOpsLedgerStoreId || user.storeId}
+                      onChange={(e) =>
+                        setOwnerOpsLedgerStoreId(e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value={user.storeId}>
+                        {user.store.name} (HQ)
+                      </option>
+                      {ownerFranchises.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

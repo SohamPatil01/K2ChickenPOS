@@ -10,7 +10,12 @@ const nextConfig = {
   transpilePackages: ['@azela-pos/shared', '@azela-pos/offline'],
   // Proxy API to same origin to avoid cross-origin requests and CORS preflight
   async rewrites() {
-    return [{ source: '/api/:path*', destination: `${apiUrl}/api/:path*` }];
+    return [
+      // Browsers probe /favicon.ico even when metadata points at SVG
+      { source: '/favicon.ico', destination: '/favicon.svg' },
+      { source: '/favicon.png', destination: '/favicon.svg' },
+      { source: '/api/:path*', destination: `${apiUrl}/api/:path*` },
+    ];
   },
   // Suppress webpack warnings
   webpack: (config, { isServer }) => {

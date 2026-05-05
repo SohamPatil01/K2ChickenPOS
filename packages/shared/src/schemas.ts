@@ -106,6 +106,8 @@ export const inventoryAdjustSchema = z.object({
   qtyKg: z.number().optional(),
   qtyPcs: z.number().int().optional(),
   reason: z.string(),
+  /** When set (e.g. by HQ owner), ledger row is written for this store after permission checks */
+  ledgerStoreId: z.string().optional(),
 });
 
 export const wastageSchema = z.object({

@@ -5,6 +5,47 @@ import { inventoryAdjustSchema, wastageSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 
+/** Signed delta and absolute ledger fields, using product unit with sensible fallback if the wrong field was sent */
+function resolveSignedAdjustQty(
+  unitType: string,
+  qtyKg: number | undefined | null,
+  qtyPcs: number | undefined | null
+): { signed: number; absQtyKg: number | undefined; absQtyPcs: number | undefined } | null {
+  const k =
+    qtyKg !== undefined && qtyKg !== null && !Number.isNaN(Number(qtyKg))
+      ? Number(qtyKg)
+      : null;
+  const p =
+    qtyPcs !== undefined && qtyPcs !== null && !Number.isNaN(Number(qtyPcs))
+      ? Number(qtyPcs)
+      : null;
+
+  if (unitType === 'KG') {
+    if (k !== null && k !== 0) {
+      return { signed: k, absQtyKg: Math.abs(k), absQtyPcs: undefined };
+    }
+    if (p !== null && p !== 0) {
+      return { signed: p, absQtyKg: Math.abs(p), absQtyPcs: undefined };
+    }
+    return null;
+  }
+  if (p !== null && p !== 0) {
+    return {
+      signed: p,
+      absQtyKg: undefined,
+      absQtyPcs: Math.abs(Math.round(p)),
+    };
+  }
+  if (k !== null && k !== 0) {
+    return {
+      signed: k,
+      absQtyKg: undefined,
+      absQtyPcs: Math.abs(Math.round(k)),
+    };
+  }
+  return null;
+}
+
 export async function inventoryRoutes(fastify: FastifyInstance) {
 
   // Diagnostic endpoint to check ledger entries
@@ -323,6 +364,10 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         productId: body.productId,
         reason: body.reason || 'ADJUSTMENT',
       };
+
+      if (body.ledgerStoreId !== undefined && body.ledgerStoreId !== null && String(body.ledgerStoreId).trim() !== '') {
+        validationData.ledgerStoreId = String(body.ledgerStoreId).trim();
+      }
       
       if (body.qtyKg !== undefined && body.qtyKg !== null) {
         // Preserve exact value - don't round, just parse
@@ -335,36 +380,61 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       
       const data = inventoryAdjustSchema.parse(validationData);
       const user = getUser(request);
-      const storeId = user.storeId;
+      const userStoreId = user.storeId;
       const userId = user.userId;
 
-      if (!storeId || !userId) {
+      if (!userStoreId || !userId) {
         reply.code(400).send({ error: 'Store ID and User ID are required' });
         return;
       }
 
-      // Determine if it's IN or OUT based on quantity sign
-      const qty = data.qtyKg || data.qtyPcs || 0;
-      if (qty === 0) {
-        reply.code(400).send({ error: 'Quantity cannot be zero' });
+      const userStore = await prisma.store.findUnique({
+        where: { id: userStoreId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+      if (!userStore) {
+        reply.code(400).send({ error: 'User store not found' });
         return;
       }
 
-      // Ensure at least one quantity is provided
-      if (!data.qtyKg && !data.qtyPcs) {
-        reply.code(400).send({ error: 'Either qtyKg or qtyPcs must be provided' });
-        return;
-      }
+      const requestedLedgerStoreId =
+        data.ledgerStoreId && data.ledgerStoreId.trim() !== ''
+          ? data.ledgerStoreId.trim()
+          : null;
 
-      const type = qty > 0 ? 'IN' : 'OUT';
-      // Store absolute values in ledger - preserve exact decimal precision for qtyKg
-      const absQtyKg = data.qtyKg !== undefined && data.qtyKg !== null ? Math.abs(data.qtyKg) : undefined;
-      const absQtyPcs = data.qtyPcs !== undefined && data.qtyPcs !== null ? Math.abs(data.qtyPcs) : undefined;
-      
-      // Ensure at least one quantity will be stored
-      if (absQtyKg === undefined && absQtyPcs === undefined) {
-        reply.code(400).send({ error: 'At least one quantity (qtyKg or qtyPcs) must be provided' });
-        return;
+      let storeId = userStoreId;
+      if (requestedLedgerStoreId && requestedLedgerStoreId !== userStoreId) {
+        if (user.role === 'MANAGER' || user.role === 'CASHIER') {
+          reply.code(403).send({ error: 'You can only adjust inventory for your own store' });
+          return;
+        }
+        if (user.role !== 'OWNER') {
+          reply.code(403).send({ error: 'Not allowed to adjust another store' });
+          return;
+        }
+        const target = await prisma.store.findUnique({
+          where: { id: requestedLedgerStoreId },
+          select: { id: true, type: true, parentOwnerStoreId: true },
+        });
+        if (!target) {
+          reply.code(404).send({ error: 'Store not found' });
+          return;
+        }
+        if (userStore.type === 'OWNER') {
+          const allowed =
+            target.id === userStore.id ||
+            (target.type === 'FRANCHISE' && target.parentOwnerStoreId === userStore.id);
+          if (!allowed) {
+            reply
+              .code(403)
+              .send({ error: 'You can only adjust inventory for your HQ or your franchise stores' });
+            return;
+          }
+          storeId = target.id;
+        } else {
+          reply.code(403).send({ error: 'You can only adjust inventory for your own store' });
+          return;
+        }
       }
 
       // Validate reason enum value
@@ -406,6 +476,23 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      const resolved = resolveSignedAdjustQty(
+        product.unitType,
+        data.qtyKg,
+        data.qtyPcs
+      );
+      if (!resolved) {
+        reply.code(400).send({
+          error: 'Quantity cannot be zero',
+          details: 'Provide a non-zero qtyKg or qtyPcs for this product unit type',
+        });
+        return;
+      }
+
+      const type = resolved.signed > 0 ? 'IN' : 'OUT';
+      const absQtyKg = resolved.absQtyKg;
+      const absQtyPcs = resolved.absQtyPcs;
+
       console.log(`[Inventory Adjust] Creating ledger entry:`, {
         storeId,
         productId: data.productId,
@@ -416,6 +503,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         originalReason: reason,
         originalInput: { qtyKg: body.qtyKg, qtyPcs: body.qtyPcs },
         parsedData: { qtyKg: data.qtyKg, qtyPcs: data.qtyPcs },
+        unitType: product.unitType,
+        resolvedSigned: resolved.signed,
       });
 
       const ledger = await prisma.inventoryLedger.create({
@@ -482,7 +571,10 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       console.error('[Inventory Adjust] Error stack:', error.stack);
       
       if (error.name === 'ZodError') {
-        reply.code(400).send({ error: 'Invalid input data', details: error.errors });
+        reply.code(400).send({
+          error: 'Invalid input data',
+          details: error.issues ?? error.errors,
+        });
         return;
       }
       if (error.message === 'User not authenticated' || error.message?.includes('authenticated')) {
@@ -597,7 +689,10 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       return ledger;
     } catch (error: any) {
       if (error.name === 'ZodError') {
-        reply.code(400).send({ error: 'Invalid input data', details: error.errors });
+        reply.code(400).send({
+          error: 'Invalid input data',
+          details: error.issues ?? error.errors,
+        });
         return;
       }
       console.error('Failed to record wastage:', error);
