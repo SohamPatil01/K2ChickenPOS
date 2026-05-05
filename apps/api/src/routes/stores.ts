@@ -401,19 +401,10 @@ export async function storeRoutes(fastify: FastifyInstance) {
         const user = getUser(request);
         const storeId = user.storeId;
 
-        // Prisma forbids mixing top-level `select` and `include` on the same query.
+        // Load store only — avoids joining FranchiseConfig for OWNER (common on POS).
         const store = await prisma.store.findUnique({
           where: { id: storeId },
-          include: {
-            franchiseConfig: {
-              include: {
-                pricingPlan: true,
-                areaManager: {
-                  select: { id: true, name: true, phone: true },
-                },
-              },
-            },
-          },
+          select: { id: true, name: true, type: true },
         });
 
         if (!store) {
@@ -421,13 +412,27 @@ export async function storeRoutes(fastify: FastifyInstance) {
           return;
         }
 
+        const defaultFranchisePayload = {
+          id: null,
+          franchiseStoreId: store.id,
+          status: 'ACTIVE' as const,
+          pricingPlan: null,
+          royaltyPercentage: 0,
+          allowedWastagePercent: 5.0,
+          allowedDiscountPercent: 10.0,
+          isPricingLocked: false,
+          isDiscountLocked: false,
+          isWastageLocked: false,
+          areaManager: null,
+          onboardingCompleted: false,
+        };
+
         // For OWNER stores, return default config (no restrictions)
         if (store.type === 'OWNER') {
           return {
             id: null,
             franchiseStoreId: store.id,
             status: 'ACTIVE',
-            pricingPlan: null,
             royaltyPercentage: 0,
             allowedWastagePercent: 100.0, // No restriction for owner
             allowedDiscountPercent: 100.0, // No restriction for owner
@@ -436,50 +441,59 @@ export async function storeRoutes(fastify: FastifyInstance) {
             isWastageLocked: false,
             areaManager: null,
             onboardingCompleted: true,
+            pricingPlan: null,
           };
         }
 
-        // For FRANCHISE stores, return their config or default if not found
+        // For FRANCHISE stores, load config by franchiseStoreId (1:1), not via Store include
         if (store.type === 'FRANCHISE') {
-          if (!store.franchiseConfig) {
-            // Return default config for franchise without config
-            return {
-              id: null,
-              franchiseStoreId: store.id,
-              status: 'ACTIVE',
-              pricingPlan: null,
-              royaltyPercentage: 0,
-              allowedWastagePercent: 5.0,
-              allowedDiscountPercent: 10.0,
-              isPricingLocked: false,
-              isDiscountLocked: false,
-              isWastageLocked: false,
-              areaManager: null,
-              onboardingCompleted: false,
-            };
+          let cfg = null;
+          try {
+            cfg = await prisma.franchiseConfig.findUnique({
+              where: { franchiseStoreId: store.id },
+              include: {
+                pricingPlan: true,
+                areaManager: {
+                  select: { id: true, name: true, phone: true },
+                },
+              },
+            });
+          } catch (cfgErr: any) {
+            console.error('[franchise-config] FranchiseConfig query failed:', cfgErr?.message || cfgErr);
+            // POS should still load: return conservative defaults
+            return defaultFranchisePayload;
+          }
+
+          if (!cfg) {
+            return defaultFranchisePayload;
           }
 
           return {
-            id: store.franchiseConfig.id,
+            id: cfg.id,
             franchiseStoreId: store.id,
-            status: store.franchiseConfig.status,
-            pricingPlan: store.franchiseConfig.pricingPlan,
-            royaltyPercentage: store.franchiseConfig.royaltyPercentage || 0,
-            allowedWastagePercent: store.franchiseConfig.allowedWastagePercent || 5.0,
-            allowedDiscountPercent: store.franchiseConfig.allowedDiscountPercent || 10.0,
-            isPricingLocked: store.franchiseConfig.isPricingLocked || false,
-            isDiscountLocked: store.franchiseConfig.isDiscountLocked || false,
-            isWastageLocked: store.franchiseConfig.isWastageLocked || false,
-            areaManager: store.franchiseConfig.areaManager,
-            onboardingCompleted: !!store.franchiseConfig.onboardingCompletedAt,
+            status: cfg.status,
+            pricingPlan: cfg.pricingPlan,
+            royaltyPercentage: cfg.royaltyPercentage || 0,
+            allowedWastagePercent: cfg.allowedWastagePercent || 5.0,
+            allowedDiscountPercent: cfg.allowedDiscountPercent || 10.0,
+            isPricingLocked: cfg.isPricingLocked || false,
+            isDiscountLocked: cfg.isDiscountLocked || false,
+            isWastageLocked: cfg.isWastageLocked || false,
+            areaManager: cfg.areaManager,
+            onboardingCompleted: !!cfg.onboardingCompletedAt,
           };
         }
 
-        // Unknown store type
         reply.code(400).send({ error: 'Invalid store type' });
+        return;
       } catch (error: any) {
-        console.error('Failed to fetch franchise config:', error);
-        reply.code(500).send({ error: 'Failed to fetch franchise config' });
+        console.error('Failed to fetch franchise config:', error?.message || error);
+        reply.code(500).send({
+          error: 'Failed to fetch franchise config',
+          ...(process.env.NODE_ENV !== 'production' && {
+            details: error?.message || String(error),
+          }),
+        });
       }
     }
   );
