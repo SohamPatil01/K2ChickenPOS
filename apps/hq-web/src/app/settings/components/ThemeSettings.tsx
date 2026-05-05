@@ -14,9 +14,10 @@ export default function ThemeSettings() {
     setMounted(true);
     
     // Load saved theme from localStorage (check both hq-theme and theme for compatibility)
-    const savedTheme = localStorage.getItem('hq-theme') || localStorage.getItem('theme') as ThemeMode | null;
-    if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-      setTheme(savedTheme);
+    const rawTheme =
+      localStorage.getItem('hq-theme') ?? localStorage.getItem('theme');
+    if (rawTheme === 'light' || rawTheme === 'dark' || rawTheme === 'system') {
+      setTheme(rawTheme);
     }
 
     // Detect system preference

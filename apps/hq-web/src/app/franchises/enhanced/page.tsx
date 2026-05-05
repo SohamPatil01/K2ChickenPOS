@@ -13,6 +13,9 @@ interface FranchiseConfig {
   id: string;
   name: string;
   status: string;
+  isPricingLocked?: boolean;
+  isDiscountLocked?: boolean;
+  isWastageLocked?: boolean;
   pricingPlan?: {
     id: string;
     name: string;

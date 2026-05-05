@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { runDailyClosing } from '../cron/dailyClosing';
+import type { AuthUser } from '../types/fastify.js';
 
 /**
  * Cron endpoints for scheduled tasks
@@ -12,7 +13,9 @@ export async function cronRoutes(fastify: FastifyInstance) {
     try {
       // Security: Only allow Vercel Cron or authenticated admin
       const isVercelCron = request.headers['x-vercel-cron'] === '1';
-      const isAdmin = request.user?.role === 'OWNER' || request.user?.role === 'MANAGER';
+      const authUser = request.user as AuthUser | undefined;
+      const isAdmin =
+        authUser?.role === 'OWNER' || authUser?.role === 'MANAGER';
 
       if (!isVercelCron && !isAdmin) {
         return reply.code(403).send({
@@ -43,15 +46,18 @@ export async function cronRoutes(fastify: FastifyInstance) {
     preHandler: [fastify.authenticate],
   }, async (request, reply) => {
     try {
+      const authUser = request.user as AuthUser;
       // Only allow OWNER or MANAGER
-      if (request.user?.role !== 'OWNER' && request.user?.role !== 'MANAGER') {
+      if (authUser.role !== 'OWNER' && authUser.role !== 'MANAGER') {
         return reply.code(403).send({
           error: 'Forbidden',
           message: 'Only owners and managers can manually trigger daily closing',
         });
       }
 
-      console.log(`[API] Manual daily closing triggered by ${request.user.name}`);
+      console.log(
+        `[API] Manual daily closing triggered by user ${authUser.userId}`
+      );
       const results = await runDailyClosing();
 
       return reply.code(200).send({

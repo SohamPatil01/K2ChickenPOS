@@ -14,9 +14,9 @@ export default function ThemeSettings() {
     setMounted(true);
     
     // Load saved theme from localStorage
-    const savedTheme = localStorage.getItem('theme') as ThemeMode | null;
-    if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-      setTheme(savedTheme);
+    const rawTheme = localStorage.getItem('theme');
+    if (rawTheme === 'light' || rawTheme === 'dark' || rawTheme === 'system') {
+      setTheme(rawTheme);
     }
 
     // Detect system preference
