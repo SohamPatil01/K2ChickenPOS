@@ -17,8 +17,12 @@ const nextConfig = {
       { source: '/api/:path*', destination: `${apiUrl}/api/:path*` },
     ];
   },
-  // Suppress webpack warnings
+  // ESM in @azela-pos/shared uses ./foo.js specifiers; sources are .ts — map for webpack
   webpack: (config, { isServer }) => {
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.ts', '.tsx', '.js'],
+    };
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,

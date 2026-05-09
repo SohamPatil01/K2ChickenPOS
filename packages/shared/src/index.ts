@@ -1,5 +1,5 @@
-export * from './barcode';
-export * from './schemas';
-export * from './types';
-export * from './normalizePayments';
+export * from './barcode.js';
+export * from './schemas.js';
+export * from './types.js';
+export * from './normalizePayments.js';
 
