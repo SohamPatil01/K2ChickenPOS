@@ -42,6 +42,12 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Stray emit next to sources (packages build to dist/)
+packages/shared/src/*.js
+packages/shared/src/*.js.map
+packages/db/src/*.js
+packages/db/src/*.js.map
+
 # Prisma (migrations are committed for deploy / migrate deploy)
 
 # Database
