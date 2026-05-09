@@ -12,7 +12,7 @@ import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
 import { SkeletonProductCard } from "@/components/ui";
-import { normalizePaymentsForSale } from "@azela-pos/shared";
+import { normalizeBarcodeForLookup, normalizePaymentsForSale } from "@azela-pos/shared";
 import {
   queueEvent,
   saveHeldCart,
@@ -419,7 +419,8 @@ export default function StorePOSPage() {
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim()) {
+    const lookup = normalizeBarcodeForLookup(barcodeInput);
+    if (!lookup) {
       showNotification("Please enter or scan a barcode", "warning", 3000);
       return;
     }
@@ -436,7 +437,7 @@ export default function StorePOSPage() {
       }
 
       // Try parsing as scale barcode
-      const parsed = await parseScaleBarcode(barcodeInput, storeId);
+      const parsed = await parseScaleBarcode(lookup, storeId);
 
       if (parsed) {
         let product = products.find((p) => p.id === parsed.productId);
@@ -505,7 +506,7 @@ export default function StorePOSPage() {
             }
           }
           showNotification(
-            `Product not found for barcode: ${barcodeInput}`,
+            `Product not found for barcode: ${lookup}`,
             "error",
             4000
           );
@@ -514,7 +515,9 @@ export default function StorePOSPage() {
 
       // Try as SKU/PLU
       const product = products.find(
-        (p) => p.sku === barcodeInput || p.plu === barcodeInput
+        (p) =>
+          normalizeBarcodeForLookup(p.sku) === lookup ||
+          normalizeBarcodeForLookup(p.plu) === lookup
       );
       if (product) {
         handleAddProduct(product);
@@ -527,13 +530,13 @@ export default function StorePOSPage() {
 
       // If not found, open manual entry with SKU pre-filled
       showNotification(
-        `Product not found. Opening manual entry for: ${barcodeInput}`,
+        `Product not found. Opening manual entry for: ${lookup}`,
         "info",
         3000
       );
       setAddItemModalFocusWeightFirst(false);
       setManualItem({
-        sku: barcodeInput,
+        sku: lookup,
         description: "",
         weight: "",
         rate: "",
@@ -552,7 +555,7 @@ export default function StorePOSPage() {
       // On error, open manual entry modal
       setAddItemModalFocusWeightFirst(false);
       setManualItem({
-        sku: barcodeInput,
+        sku: lookup,
         description: "",
         weight: "",
         rate: "",
@@ -696,7 +699,7 @@ export default function StorePOSPage() {
       metaJson: {
         sku: manualItem.sku,
         manualEntry: true,
-        barcode: barcodeInput || undefined,
+        barcode: manualItem.sku || undefined,
       },
     });
 

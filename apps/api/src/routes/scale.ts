@@ -1,8 +1,12 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
-import { scaleBarcodeConfigSchema, parseBarcodeSchema } from '@azela-pos/shared';
-import { parseScaleBarcode } from '../utils/barcode.js';
+import { normalizeBarcodeForLookup, scaleBarcodeConfigSchema, parseBarcodeSchema } from '@azela-pos/shared';
+import {
+  fetchProductByWhitespaceNormalizedSkuPlu,
+  parseScaleBarcode,
+  scaleBarcodeConfigScopeIdsFromStore,
+} from '../utils/barcode.js';
 import { getUser } from '../utils/auth.js';
 
 export async function scaleRoutes(fastify: FastifyInstance) {
@@ -10,9 +14,24 @@ export async function scaleRoutes(fastify: FastifyInstance) {
   fastify.get('/config', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const storeId = (getUser(request) as any).storeId;
 
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, type: true, parentOwnerStoreId: true },
+    });
+    if (!store) {
+      reply.code(404).send({ error: 'Store not found' });
+      return;
+    }
+
+    const scopeIds = scaleBarcodeConfigScopeIdsFromStore(store);
+    if (!scopeIds) {
+      reply.code(400).send({ error: 'Owner store not found for this location' });
+      return;
+    }
+
     const configs = await prisma.scaleBarcodeConfig.findMany({
       where: {
-        storeId,
+        storeId: { in: scopeIds },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -113,7 +132,7 @@ export async function scaleRoutes(fastify: FastifyInstance) {
 
     if (!result) {
       // Clean barcode for lookup
-      const cleanBarcode = barcode.trim().replace(/\s/g, '');
+      const cleanBarcode = normalizeBarcodeForLookup(barcode);
       
       // Get store to find ownerStoreId (same logic as parseScaleBarcode)
       const store = await prisma.store.findUnique({
@@ -126,7 +145,7 @@ export async function scaleRoutes(fastify: FastifyInstance) {
         
         if (ownerStoreId) {
           // Check if product exists by SKU with correct ownerStoreId
-          const productBySku = await prisma.product.findFirst({
+          let productBySku = await prisma.product.findFirst({
             where: {
               ownerStoreId,
               OR: [
@@ -148,6 +167,14 @@ export async function scaleRoutes(fastify: FastifyInstance) {
               },
             },
           });
+
+          if (!productBySku) {
+            productBySku = await fetchProductByWhitespaceNormalizedSkuPlu(
+              ownerStoreId,
+              storeId,
+              barcode
+            );
+          }
 
           if (productBySku) {
             if (productBySku.storeProductPrices.length === 0) {
@@ -177,35 +204,40 @@ export async function scaleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Check if scale config exists but doesn't match
-      const config = await prisma.scaleBarcodeConfig.findFirst({
-        where: {
-          storeId,
-          isActive: true,
-        },
+      const storeForScope = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
       });
+      const scopeIds = storeForScope ? scaleBarcodeConfigScopeIdsFromStore(storeForScope) : null;
+      const allConfigs = scopeIds?.length
+        ? await prisma.scaleBarcodeConfig.findMany({
+            where: { storeId: { in: scopeIds }, isActive: true },
+          })
+        : [];
 
-      // If barcode doesn't start with scale prefix, it's a standard product barcode
-      // Return null (not an error) so frontend can try direct SKU lookup
-      if (config && !cleanBarcode.startsWith(config.prefix) && !barcode.startsWith(config.prefix)) {
-        // This is a standard product barcode, not a scale barcode
-        // Return null so frontend can handle it
+      const prefixMatch = allConfigs.filter(
+        (c) => cleanBarcode.startsWith(c.prefix) || barcode.startsWith(c.prefix)
+      );
+
+      // Scale rules exist for this chain but this scan looks like a retail SKU (e.g. masale EAN)
+      if (allConfigs.length > 0 && prefixMatch.length === 0) {
         reply.code(200).send(null);
         return;
       }
 
-      if (config) {
-        reply.code(400).send({ 
+      if (prefixMatch.length > 0) {
+        prefixMatch.sort((a, b) => b.prefix.length - a.prefix.length);
+        const config = prefixMatch[0];
+        reply.code(400).send({
           error: 'Failed to parse scale barcode',
           message: 'Barcode format does not match scale barcode configuration',
           barcode,
           configName: config.name,
-          configPrefix: config.prefix
+          configPrefix: config.prefix,
         });
         return;
       }
 
-      // No config and no product found - return null for frontend to handle
       reply.code(200).send(null);
       return;
     }

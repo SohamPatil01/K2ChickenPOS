@@ -1,13 +1,193 @@
+import type { ScaleBarcodeConfig } from '@prisma/client';
 import { prisma } from '@azela-pos/db';
-import type { ParsedBarcode } from '@azela-pos/shared';
+import { normalizeBarcodeForLookup, type ParsedBarcode } from '@azela-pos/shared';
+
+/** Store IDs whose scale configs apply at this till: franchise store + parent owner (HQ). */
+export function scaleBarcodeConfigScopeIdsFromStore(store: {
+  id: string;
+  type: string;
+  parentOwnerStoreId: string | null;
+}): string[] | null {
+  const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+  if (!ownerStoreId) return null;
+  return [...new Set([store.id, ownerStoreId])];
+}
+
+async function tryParseScaleBarcodeWithConfig(
+  barcode: string,
+  cleanBarcode: string,
+  config: ScaleBarcodeConfig,
+  ownerStoreId: string,
+  storeId: string
+): Promise<ParsedBarcode | null> {
+  if (!cleanBarcode.startsWith(config.prefix) && !barcode.startsWith(config.prefix)) {
+    return null;
+  }
+
+  const pluEnd = config.prefix.length + config.pluStart + config.pluLength;
+  if (barcode.length < pluEnd) {
+    return null;
+  }
+
+  const productIdentifier = barcode.substring(
+    config.prefix.length + config.pluStart,
+    pluEnd
+  );
+
+  let product = await prisma.product.findFirst({
+    where: {
+      ownerStoreId,
+      plu: productIdentifier,
+      isActive: true,
+    },
+    include: {
+      storeProductPrices: {
+        where: {
+          storeId,
+          isActive: true,
+        },
+        orderBy: { effectiveFrom: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!product) {
+    product = await prisma.product.findFirst({
+      where: {
+        ownerStoreId,
+        sku: productIdentifier,
+        isActive: true,
+      },
+      include: {
+        storeProductPrices: {
+          where: {
+            storeId,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+      },
+    });
+  }
+
+  if (!product) {
+    return null;
+  }
+
+  let weightKg: number;
+  let pricePerKg = product.storeProductPrices[0]?.pricePerUnit || 0;
+  let lineTotal: number;
+
+  const hasWeightEncoded =
+    config.weightLength > 0 &&
+    config.prefix.length + config.weightStart + config.weightLength <= barcode.length;
+
+  if (hasWeightEncoded) {
+    const weightStr = barcode.substring(
+      config.prefix.length + config.weightStart,
+      config.prefix.length + config.weightStart + config.weightLength
+    );
+    const weightInt = parseInt(weightStr, 10);
+    weightKg = weightInt / Math.pow(10, config.weightDecimal);
+    lineTotal = weightKg * pricePerKg;
+  } else {
+    weightKg = 0;
+    lineTotal = 0;
+  }
+
+  if (config.priceStart !== undefined && config.priceLength && config.priceDecimal !== undefined) {
+    const priceEnd = config.prefix.length + config.priceStart + config.priceLength;
+    if (barcode.length < priceEnd) {
+      return null;
+    }
+    const priceStr = barcode.substring(
+      config.prefix.length + config.priceStart,
+      priceEnd
+    );
+    const priceInt = parseInt(priceStr, 10);
+    const encodedPrice = priceInt / Math.pow(10, config.priceDecimal);
+
+    if (!hasWeightEncoded) {
+      lineTotal = encodedPrice;
+      if (pricePerKg > 0) {
+        weightKg = encodedPrice / pricePerKg;
+      } else {
+        return null;
+      }
+    } else {
+      lineTotal = encodedPrice;
+      if (weightKg > 0) {
+        pricePerKg = encodedPrice / weightKg;
+      }
+    }
+  } else if (!hasWeightEncoded) {
+    return null;
+  }
+
+  return {
+    productId: product.id,
+    plu: product.plu,
+    weightKg,
+    pricePerKg,
+    lineTotal,
+    raw: barcode,
+  };
+}
+
+export async function fetchProductByWhitespaceNormalizedSkuPlu(
+  ownerStoreId: string,
+  storeId: string,
+  barcode: string
+) {
+  const cleanBarcode = normalizeBarcodeForLookup(barcode);
+  if (!cleanBarcode) return null;
+  const id = await findProductIdByWhitespaceStrippedSkuPlu(ownerStoreId, cleanBarcode);
+  if (!id) return null;
+  return productWithPricesForStore(id, storeId);
+}
+
+async function productWithPricesForStore(productId: string, storeId: string) {
+  return prisma.product.findFirst({
+    where: { id: productId },
+    include: {
+      storeProductPrices: {
+        where: {
+          storeId,
+          isActive: true,
+        },
+        orderBy: { effectiveFrom: 'desc' },
+        take: 1,
+      },
+    },
+  });
+}
+
+/** Match when DB SKU/PLU contains spaces (e.g. "8 906148 690207") but scan is compact. */
+async function findProductIdByWhitespaceStrippedSkuPlu(
+  ownerStoreId: string,
+  cleanBarcode: string
+): Promise<string | null> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "Product"
+    WHERE "ownerStoreId" = ${ownerStoreId}
+      AND "isActive" = true
+      AND (
+        regexp_replace("sku", '[[:space:]]', '', 'g') = ${cleanBarcode}
+        OR regexp_replace("plu", '[[:space:]]', '', 'g') = ${cleanBarcode}
+      )
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
 
 export async function parseScaleBarcode(
   barcode: string,
   storeId: string,
   configId?: string
 ): Promise<ParsedBarcode | null> {
-  // Clean barcode (remove spaces, trim)
-  const cleanBarcode = barcode.trim().replace(/\s/g, '');
+  const cleanBarcode = normalizeBarcodeForLookup(barcode);
   
   // Get store to find ownerStoreId
   const store = await prisma.store.findUnique({
@@ -110,6 +290,13 @@ export async function parseScaleBarcode(
       },
     });
   }
+
+  if (!productBySku && cleanBarcode.length > 0) {
+    const id = await findProductIdByWhitespaceStrippedSkuPlu(ownerStoreId, cleanBarcode);
+    if (id) {
+      productBySku = await productWithPricesForStore(id, storeId);
+    }
+  }
   
   // Fallback: If still not found, try without ownerStoreId filter (for products that might be shared)
   // This is a safety net in case ownerStoreId doesn't match
@@ -134,6 +321,21 @@ export async function parseScaleBarcode(
         },
       },
     });
+
+    if (!productBySku && cleanBarcode.length > 0) {
+      const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "Product"
+        WHERE "isActive" = true
+          AND (
+            regexp_replace("sku", '[[:space:]]', '', 'g') = ${cleanBarcode}
+            OR regexp_replace("plu", '[[:space:]]', '', 'g') = ${cleanBarcode}
+          )
+        LIMIT 1
+      `;
+      if (rows[0]) {
+        productBySku = await productWithPricesForStore(rows[0].id, storeId);
+      }
+    }
     
     if (productBySku) {
       console.log(`[Barcode] Found product without ownerStoreId filter - ownerStoreId: ${productBySku.ownerStoreId}, expected: ${ownerStoreId}`);
@@ -174,151 +376,57 @@ export async function parseScaleBarcode(
   // Log if not found (for debugging)
   console.log(`[Barcode] Product not found by SKU/PLU: ${cleanBarcode}, ownerStoreId: ${ownerStoreId}, storeId: ${storeId}`);
 
-  // Get scale barcode config
-  let config;
+  const scopeIds = scaleBarcodeConfigScopeIdsFromStore(store);
+  if (!scopeIds?.length) {
+    return null;
+  }
+
   if (configId) {
-    config = await prisma.scaleBarcodeConfig.findUnique({
+    const config = await prisma.scaleBarcodeConfig.findUnique({
       where: { id: configId },
     });
-  } else {
-    config = await prisma.scaleBarcodeConfig.findFirst({
-      where: {
-        storeId,
-        isActive: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    if (!config?.isActive || !scopeIds.includes(config.storeId)) {
+      return null;
+    }
+    return tryParseScaleBarcodeWithConfig(barcode, cleanBarcode, config, ownerStoreId, storeId);
   }
 
-  // If no config exists, return null (product not found by SKU and no scale config)
-  if (!config) {
-    return null;
-  }
-
-  // IMPORTANT: Only try scale barcode parsing if barcode starts with the config prefix
-  // This prevents masale/EAN-13 barcodes (starting with 8 or 9) from being parsed as scale barcodes
-  if (!cleanBarcode.startsWith(config.prefix) && !barcode.startsWith(config.prefix)) {
-    // Barcode doesn't match scale format - return null
-    // This is a standard product barcode that should be looked up by SKU
-    // If we got here, SKU lookup already failed, so product doesn't exist
-    return null;
-  }
-
-  // Extract product identifier (PLU or Product ID/SKU)
-  const productIdentifier = barcode.substring(
-    config.prefix.length + config.pluStart,
-    config.prefix.length + config.pluStart + config.pluLength
-  );
-
-  // Note: store and ownerStoreId are already defined above from SKU lookup
-  // Reuse them here for scale barcode parsing
-
-  // Try to find product by PLU first, then by SKU (for numeric product IDs)
-  let product = await prisma.product.findFirst({
+  const configs = await prisma.scaleBarcodeConfig.findMany({
     where: {
-      ownerStoreId,
-      plu: productIdentifier,
+      storeId: { in: scopeIds },
       isActive: true,
-    },
-    include: {
-      storeProductPrices: {
-        where: {
-          storeId,
-          isActive: true,
-        },
-        orderBy: { effectiveFrom: 'desc' },
-        take: 1,
-      },
     },
   });
 
-  // If not found by PLU, try SKU (for numeric product IDs like "00001")
-  if (!product) {
-    product = await prisma.product.findFirst({
-      where: {
-        ownerStoreId,
-        sku: productIdentifier,
-        isActive: true,
-      },
-      include: {
-        storeProductPrices: {
-          where: {
-            storeId,
-            isActive: true,
-          },
-          orderBy: { effectiveFrom: 'desc' },
-          take: 1,
-        },
-      },
-    });
-  }
-
-  if (!product) {
+  if (configs.length === 0) {
     return null;
   }
 
-  // Extract weight if encoded, otherwise calculate from price
-  let weightKg: number;
-  let pricePerKg = product.storeProductPrices[0]?.pricePerUnit || 0;
-  let lineTotal: number;
+  const prefixMatches = configs.filter(
+    (c) => cleanBarcode.startsWith(c.prefix) || barcode.startsWith(c.prefix)
+  );
 
-  // Check if weight is encoded in barcode (weightLength must be > 0)
-  const hasWeightEncoded = config.weightLength > 0 &&
-                           (config.prefix.length + config.weightStart + config.weightLength) <= barcode.length;
+  prefixMatches.sort((a, b) => {
+    const aLocal = a.storeId === storeId ? 0 : 1;
+    const bLocal = b.storeId === storeId ? 0 : 1;
+    if (aLocal !== bLocal) return aLocal - bLocal;
+    if (b.prefix.length !== a.prefix.length) return b.prefix.length - a.prefix.length;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
 
-  if (hasWeightEncoded) {
-    // Extract weight from barcode
-    const weightStr = barcode.substring(
-      config.prefix.length + config.weightStart,
-      config.prefix.length + config.weightStart + config.weightLength
+  for (const config of prefixMatches) {
+    const parsed = await tryParseScaleBarcodeWithConfig(
+      barcode,
+      cleanBarcode,
+      config,
+      ownerStoreId,
+      storeId
     );
-    const weightInt = parseInt(weightStr, 10);
-    weightKg = weightInt / Math.pow(10, config.weightDecimal);
-    lineTotal = weightKg * pricePerKg;
-  } else {
-    // Weight not encoded - will calculate from total price
-    weightKg = 0; // Will be calculated below
-    lineTotal = 0;
-  }
-
-  // Extract price if encoded
-  if (config.priceStart !== undefined && config.priceLength && config.priceDecimal !== undefined) {
-    const priceStr = barcode.substring(
-      config.prefix.length + config.priceStart,
-      config.prefix.length + config.priceStart + config.priceLength
-    );
-    const priceInt = parseInt(priceStr, 10);
-    const encodedPrice = priceInt / Math.pow(10, config.priceDecimal);
-    
-    // If weight is not encoded, the price represents total price - calculate weight
-    if (!hasWeightEncoded) {
-      lineTotal = encodedPrice;
-      if (pricePerKg > 0) {
-        weightKg = encodedPrice / pricePerKg;
-      } else {
-        // If no unit price, can't calculate weight
-        return null;
-      }
-    } else {
-      // Weight is encoded, so price could be per-unit or total
-      // Assume it's total price if weight is also encoded
-      lineTotal = encodedPrice;
-      if (weightKg > 0) {
-        pricePerKg = encodedPrice / weightKg;
-      }
+    if (parsed) {
+      return parsed;
     }
-  } else if (!hasWeightEncoded) {
-    // No price and no weight encoded - can't parse
-    return null;
   }
 
-  return {
-    productId: product.id,
-    plu: product.plu,
-    weightKg,
-    pricePerKg,
-    lineTotal,
-    raw: barcode,
-  };
+  return null;
 }
 

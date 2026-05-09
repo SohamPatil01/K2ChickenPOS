@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { Card } from '@/components/ui';
 import { Button } from '@/components/ui';
+import { useAuthStore } from '@/store/auth';
 
 interface ScaleBarcodeConfig {
   id: string;
+  storeId?: string;
   name: string;
   prefix: string;
   pluStart: number;
@@ -24,6 +26,7 @@ interface ScaleBarcodeConfig {
 }
 
 export default function BarcodeSettings() {
+  const { user } = useAuthStore();
   const [configs, setConfigs] = useState<ScaleBarcodeConfig[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -157,7 +160,10 @@ export default function BarcodeSettings() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold">Scale Barcode Configuration</h2>
-          <p className="text-gray-600 text-sm mt-1">Configure how scale barcodes are parsed</p>
+          <p className="text-gray-600 text-sm mt-1">
+            Configure how scale barcodes are parsed. HQ (owner) configurations apply at every store in the chain;
+            you can add store-specific rules here when needed.
+          </p>
         </div>
         <Button onClick={() => handleOpenModal()}>+ Add Configuration</Button>
       </div>
@@ -174,6 +180,7 @@ export default function BarcodeSettings() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Prefix</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PLU</th>
@@ -184,8 +191,20 @@ export default function BarcodeSettings() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {configs.map((config) => (
+              {configs.map((config) => {
+                const isInherited =
+                  !!user?.storeId &&
+                  !!config.storeId &&
+                  config.storeId !== user.storeId;
+                return (
                 <tr key={config.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {isInherited ? (
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">HQ</span>
+                    ) : (
+                      <span className="rounded bg-emerald-50 px-2 py-0.5 text-emerald-800">This store</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap font-medium">{config.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">{config.prefix}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -201,8 +220,12 @@ export default function BarcodeSettings() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      onClick={() => handleToggleActive(config)}
-                      className={`px-2 py-1 rounded text-xs cursor-pointer ${
+                      onClick={() => {
+                        if (!isInherited) handleToggleActive(config);
+                      }}
+                      className={`px-2 py-1 rounded text-xs ${
+                        isInherited ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                      } ${
                         config.isActive ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
                       }`}
                     >
@@ -210,15 +233,22 @@ export default function BarcodeSettings() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                    <button onClick={() => handleOpenModal(config)} className="text-blue-600 hover:text-blue-800">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(config.id)} className="text-red-600 hover:text-red-800">
-                      Delete
-                    </button>
+                    {!isInherited ? (
+                      <>
+                        <button type="button" onClick={() => handleOpenModal(config)} className="text-blue-600 hover:text-blue-800">
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => handleDelete(config.id)} className="text-red-600 hover:text-red-800">
+                          Delete
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-gray-400">Managed in HQ</span>
+                    )}
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

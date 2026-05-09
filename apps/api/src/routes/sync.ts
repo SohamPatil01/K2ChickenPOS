@@ -4,6 +4,7 @@ import { prisma } from '@azela-pos/db';
 import { getUser } from '../utils/auth.js';
 import { syncEventsSchema } from '@azela-pos/shared';
 import { applyOfflineCheckoutFromSync } from '../services/offlineCheckoutSync.js';
+import { scaleBarcodeConfigScopeIdsFromStore } from '../utils/barcode.js';
 
 export async function syncRoutes(fastify: FastifyInstance) {
 
@@ -91,10 +92,12 @@ export async function syncRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // Get scale configs
+    const scaleScopeIds = scaleBarcodeConfigScopeIdsFromStore(store) ?? [storeId];
+
+    // Get scale configs (franchise till + parent owner / HQ)
     const scaleConfigs = await prisma.scaleBarcodeConfig.findMany({
       where: {
-        storeId,
+        storeId: { in: scaleScopeIds },
         isActive: true,
       },
     });

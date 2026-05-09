@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useCartStore } from '@/store/cart';
 import { useNotificationStore } from '@/store/notification';
+import { normalizeBarcodeForLookup } from '@azela-pos/shared';
 import { parseScaleBarcode } from '@/lib/barcode';
 import api from '@/lib/api';
 import CartAnimation from './CartAnimation';
@@ -78,7 +79,8 @@ export default function GlobalBarcodeScanner() {
 
 
   const processBarcode = async (barcode: string) => {
-    if (!barcode.trim() || isProcessing || !user) return;
+    const normalized = normalizeBarcodeForLookup(barcode);
+    if (!normalized || isProcessing || !user) return;
     
     setIsProcessing(true);
     
@@ -91,7 +93,7 @@ export default function GlobalBarcodeScanner() {
       }
 
       // Try parsing as scale barcode
-      const parsed = await parseScaleBarcode(barcode, storeId);
+      const parsed = await parseScaleBarcode(normalized, storeId);
 
       if (parsed) {
         const product = products.find((p) => p.id === parsed.productId);
@@ -142,8 +144,12 @@ export default function GlobalBarcodeScanner() {
         }
       }
 
-      // Try as SKU/PLU
-      const product = products.find((p) => p.sku === barcode || p.plu === barcode);
+      // Try as SKU/PLU (normalize so DB spacing / scan spacing both match)
+      const product = products.find(
+        (p) =>
+          normalizeBarcodeForLookup(p.sku) === normalized ||
+          normalizeBarcodeForLookup(p.plu) === normalized
+      );
       if (product) {
         // Navigate to POS if not already there
         if (pathname !== '/store/pos' && pathname !== '/store/cart') {
@@ -187,7 +193,7 @@ export default function GlobalBarcodeScanner() {
 
       // If product not found, show error notification
       showNotification(
-        `❌ Product not found for barcode: ${barcode}`,
+        `❌ Product not found for barcode: ${normalized}`,
         'error',
         3000
       );
@@ -262,8 +268,8 @@ export default function GlobalBarcodeScanner() {
               barcodeTimeout.current = null;
             }
             
-            // Process barcode if it looks valid (at least 3 characters)
-            if (barcode.length >= 3) {
+            // Process barcode if it looks valid (at least 3 characters after normalizing)
+            if (normalizeBarcodeForLookup(barcode).length >= 3) {
               processBarcode(barcode);
             }
           } else {
