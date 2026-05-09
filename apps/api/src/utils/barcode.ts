@@ -2,6 +2,17 @@ import type { ScaleBarcodeConfig } from '@prisma/client';
 import { prisma } from '@azela-pos/db';
 import { normalizeBarcodeForLookup, type ParsedBarcode } from '@azela-pos/shared';
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Clamp kg to a small number of decimals (avoids 0.5238095238… from price ÷ rate). */
+function roundWeightKg(value: number, decimalPlaces: number): number {
+  const places = Math.min(6, Math.max(2, decimalPlaces));
+  const m = 10 ** places;
+  return Math.round(value * m) / m;
+}
+
 /** Store IDs whose scale configs apply at this till: franchise store + parent owner (HQ). */
 export function scaleBarcodeConfigScopeIdsFromStore(store: {
   id: string;
@@ -124,6 +135,18 @@ async function tryParseScaleBarcodeWithConfig(
     }
   } else if (!hasWeightEncoded) {
     return null;
+  }
+
+  const weightPlaces = hasWeightEncoded
+    ? Math.min(4, Math.max(2, config.weightDecimal))
+    : Math.min(4, Math.max(3, config.weightDecimal));
+
+  weightKg = roundWeightKg(weightKg, weightPlaces);
+  lineTotal = roundMoney(lineTotal);
+  if (weightKg > 0) {
+    pricePerKg = roundMoney(lineTotal / weightKg);
+  } else {
+    pricePerKg = roundMoney(pricePerKg);
   }
 
   return {
