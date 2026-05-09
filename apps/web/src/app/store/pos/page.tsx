@@ -1195,6 +1195,7 @@ export default function StorePOSPage() {
                 <input
                   ref={barcodeInputRef}
                   type="text"
+                  data-pos-primary-barcode="true"
                   placeholder="Scan barcode or enter SKU... (Enter to add)"
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}

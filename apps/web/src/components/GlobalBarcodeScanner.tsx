@@ -215,6 +215,21 @@ export default function GlobalBarcodeScanner() {
       // Check if user is actively typing in an input
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      // POS page form owns this field — do not buffer keys or handle Enter here (avoids double add with onSubmit)
+      const isPosPrimaryBarcode =
+        isInput &&
+        (target as HTMLInputElement).getAttribute('data-pos-primary-barcode') === 'true';
+      if (isPosPrimaryBarcode) {
+        if (e.key === 'Enter') {
+          barcodeBuffer.current = '';
+          if (barcodeTimeout.current) {
+            clearTimeout(barcodeTimeout.current);
+            barcodeTimeout.current = null;
+          }
+        }
+        return;
+      }
       
       // Check if it's the barcode input field specifically
       const isBarcodeInput = isInput && (target as HTMLInputElement).placeholder?.toLowerCase().includes('barcode') || 
