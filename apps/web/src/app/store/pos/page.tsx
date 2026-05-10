@@ -44,6 +44,61 @@ interface Category {
   name: string;
 }
 
+type PosImageFallback = "chicken" | "spice" | "package";
+
+function PosProductTileImage({
+  src,
+  alt,
+  fallback,
+  aspectClass = "aspect-[4/3]",
+}: {
+  src?: string | null;
+  alt: string;
+  fallback: PosImageFallback;
+  aspectClass?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const show = Boolean(src) && !failed;
+  const icons: Record<PosImageFallback, string> = {
+    chicken: "🍗",
+    spice: "🧂",
+    package: "📦",
+  };
+  return (
+    <div
+      className={`relative w-full ${aspectClass} rounded-xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800`}
+    >
+      {show ? (
+        <img
+          src={src!}
+          alt={alt}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div
+          className="absolute inset-0 flex items-center justify-center text-5xl sm:text-6xl select-none"
+          aria-hidden
+        >
+          {icons[fallback]}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function posGridImageFallback(product: Product): PosImageFallback {
+  const t = `${product.categoryName} ${product.name}`.toLowerCase();
+  if (
+    /(chicken|mutton|meat|fish|egg|bone|drum|wing|liver|breast|leg|raw|cut|mince|skin|gizzard|carcass|carcus|tandoor)/.test(
+      t
+    )
+  ) {
+    return "chicken";
+  }
+  return "package";
+}
+
 // Fixed display order for POS layout (categories then products)
 const POS_CATEGORY_DISPLAY_ORDER = [
   "Chicken Cuts",
@@ -120,7 +175,6 @@ export default function StorePOSPage() {
   const [franchiseConfig, setFranchiseConfig] =
     useState<FranchiseConfig | null>(null);
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [addItemModalFocusWeightFirst, setAddItemModalFocusWeightFirst] =
     useState(false);
@@ -145,7 +199,6 @@ export default function StorePOSPage() {
     productName: string;
     productImage?: string | null;
   } | null>(null);
-  const [isCategoriesVisible, setIsCategoriesVisible] = useState(false);
   const [loading, setLoading] = useState({
     products: false,
     categories: false,
@@ -1069,14 +1122,7 @@ export default function StorePOSPage() {
               summary
             </p>
           </div>
-          <div className="grid grid-cols-2 sm:flex sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
-            <button
-              onClick={() => setIsCategoriesVisible(!isCategoriesVisible)}
-              className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center gap-2"
-              aria-label="Toggle categories"
-            >
-              <span>📁</span> Categories
-            </button>
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
             <button
               onClick={() => {
                 setAddItemModalFocusWeightFirst(false);
@@ -1129,114 +1175,118 @@ export default function StorePOSPage() {
         </div>
       </div>
 
-      {isCategoriesVisible && (
-        <div className="mb-3 flex-shrink-0 px-2">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Categories
-              </h2>
+      <div className="mb-2 flex-shrink-0 px-2">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+            Category (tap to filter)
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin touch-pan-x snap-x snap-mandatory">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(null)}
+              className={`flex-shrink-0 snap-start px-4 py-2.5 rounded-xl text-sm font-semibold min-h-[44px] touch-manipulation ${
+                !selectedCategory
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600"
+              }`}
+            >
+              All
+            </button>
+            {categoriesSorted.map((cat) => (
               <button
-                onClick={() => setIsCategoriesVisible(false)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                aria-label="Hide categories"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                  !selectedCategory
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                type="button"
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex-shrink-0 snap-start px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap min-h-[44px] touch-manipulation ${
+                  selectedCategory === cat.id
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >
-                All Products
+                {cat.name}
               </button>
-              {categoriesSorted.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                    selectedCategory === cat.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-hidden px-2">
         <div className="flex-1 relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-5 overflow-hidden flex flex-col min-h-0">
           <div className="relative flex flex-col min-h-0 h-full">
-            {/* Search and Barcode Inputs */}
-            <div className="mb-4 space-y-3 flex-shrink-0">
-              <form onSubmit={handleBarcodeSubmit} className="relative">
-                <input
-                  ref={barcodeInputRef}
-                  type="text"
-                  data-pos-primary-barcode="true"
-                  placeholder="Scan barcode or enter SKU... (Enter to add)"
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  className="w-full px-4 py-3 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 placeholder:text-gray-400"
-                />
-                <button type="submit" className="sr-only" tabIndex={-1}>
-                  Add barcode
-                </button>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
-                  <svg
-                    className="w-4 h-4 sm:w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                    />
-                  </svg>
+            {/* Barcode + search — always visible */}
+            <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3 flex-shrink-0">
+              <form onSubmit={handleBarcodeSubmit}>
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
+                  Barcode / SKU
+                </label>
+                <div className="relative">
+                  <input
+                    ref={barcodeInputRef}
+                    type="text"
+                    data-pos-primary-barcode="true"
+                    placeholder="Scan or type, then Enter"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    className="w-full min-h-[48px] px-4 py-3 pr-11 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 placeholder:text-gray-400 touch-manipulation"
+                  />
+                  <button type="submit" className="sr-only" tabIndex={-1}>
+                    Add barcode
+                  </button>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                      />
+                    </svg>
+                  </div>
                 </div>
               </form>
-              <div className="relative flex items-center w-full">
-                <div
-                  className={`relative w-full ${
-                    isSearchExpanded || searchQuery ? "flex-1" : "w-10"
-                  }`}
-                >
-                  {!isSearchExpanded && !searchQuery ? (
+              <div className="relative">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
+                  Search products
+                </label>
+                <div className="relative w-full">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Name or SKU…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full min-h-[48px] px-4 py-3 pl-11 text-base border-2 border-gray-300 dark:border-gray-600 dark:text-white rounded-xl bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
+                  />
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      />
+                    </svg>
+                  </div>
+                  {searchQuery && (
                     <button
-                      onClick={() => {
-                        setIsSearchExpanded(true);
-                        setTimeout(() => searchInputRef.current?.focus(), 100);
-                      }}
-                      className="w-10 h-10 flex items-center justify-center rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      aria-label="Search products"
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-red-500 rounded-lg touch-manipulation"
+                      aria-label="Clear search"
                     >
                       <svg
-                        className="w-4 h-4 text-gray-500"
+                        className="w-5 h-5"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -1245,85 +1295,26 @@ export default function StorePOSPage() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          d="M6 18L18 6M6 6l12 12"
                         />
                       </svg>
                     </button>
-                  ) : (
-                    <div className="relative w-full">
-                      <input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="Search... (Enter to search)"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onFocus={() => setIsSearchExpanded(true)}
-                        onBlur={() => {
-                          if (!searchQuery) {
-                            setTimeout(() => {
-                              if (!searchInputRef.current?.matches(":focus")) {
-                                setIsSearchExpanded(false);
-                              }
-                            }, 200);
-                          }
-                        }}
-                        className="w-full px-4 py-3 pl-10 text-base border-2 border-gray-300 dark:border-gray-600 dark:text-white rounded-xl bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                          />
-                        </svg>
-                      </div>
-                      {searchQuery && (
-                        <button
-                          onClick={() => {
-                            setSearchQuery("");
-                            setIsSearchExpanded(false);
-                          }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 p-1 rounded"
-                          aria-label="Clear search"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Top shelf: Masale only — grid layout, tap to add 1 to cart */}
+            {/* Masale — large tiles; photo if available, else spice icon */}
             {masaleProducts.length > 0 && (
-              <div className="mb-4 flex-shrink-0 border-b-2 border-amber-200 dark:border-amber-800 pb-4">
-                <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
-                  <span>🌶</span> Top shelf — Masale
+              <div className="mb-4 flex-shrink-0 border-b border-amber-200/80 dark:border-amber-800/80 pb-4">
+                <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100 mb-2 flex flex-wrap items-center gap-2">
+                  <span aria-hidden>🧂</span>
+                  Masale & spices
                   <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
-                    (tap to add 1)
+                    Tap card to add 1
                   </span>
                 </h3>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {masaleProducts.map((product) => {
                     const displayPrice =
                       product.productMaster?.hqLockedPrice ??
@@ -1337,17 +1328,27 @@ export default function StorePOSPage() {
                         onClick={() =>
                           handleAddProductToCart(product, qtyKg, qtyPcs)
                         }
-                        className="flex flex-col items-center justify-center p-3 border-2 border-amber-300 dark:border-amber-600 rounded-xl bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 hover:border-amber-400 active:scale-[0.97] cursor-pointer touch-manipulation"
+                        className="flex flex-col text-left rounded-2xl border-2 border-amber-300/90 dark:border-amber-600/80 bg-amber-50/90 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-500 active:scale-[0.98] shadow-sm overflow-hidden min-h-[160px] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                       >
-                        <span className="text-lg mb-1" aria-hidden>
-                          🌶
-                        </span>
-                        <span className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 text-center w-full leading-tight">
-                          {product.name}
-                        </span>
-                        <span className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">
-                          ₹{displayPrice.toFixed(2)}
-                        </span>
+                        <div className="w-full px-2 pt-2">
+                          <PosProductTileImage
+                            src={product.imageUrl}
+                            alt={product.name}
+                            fallback="spice"
+                            aspectClass="aspect-[5/4] max-h-[100px] sm:max-h-[110px]"
+                          />
+                        </div>
+                        <div className="flex flex-col flex-1 px-3 pb-3 pt-2 justify-between gap-1">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-50 line-clamp-2 leading-snug">
+                            {product.name}
+                          </span>
+                          <span className="text-base font-bold text-amber-700 dark:text-amber-300">
+                            ₹{displayPrice.toFixed(2)}
+                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
+                              /{product.unitType}
+                            </span>
+                          </span>
+                        </div>
                       </button>
                     );
                   })}
@@ -1367,15 +1368,15 @@ export default function StorePOSPage() {
             {favoriteProducts.length > 0 && (
               <div className="mb-3 flex-shrink-0">
                 <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
-                  Favorites (tap ☆ on a tile to pin)
+                  Favorites — tap to add (☆ on a tile to pin)
                 </p>
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin touch-pan-x">
                   {favoriteProducts.map((product) => (
                     <button
                       key={product.id}
                       type="button"
                       onClick={() => handleAddProduct(product)}
-                      className="flex-shrink-0 px-3 py-2 rounded-lg border border-brand-200 dark:border-brand-700 bg-brand-50/80 dark:bg-brand-900/20 text-sm font-medium text-brand-900 dark:text-brand-100 whitespace-nowrap"
+                      className="flex-shrink-0 min-h-[44px] px-4 py-2.5 rounded-xl border-2 border-brand-300 dark:border-brand-600 bg-brand-50 dark:bg-brand-950/40 text-sm font-semibold text-brand-900 dark:text-brand-100 whitespace-nowrap touch-manipulation active:scale-[0.98]"
                     >
                       {product.name}
                     </button>
@@ -1387,11 +1388,11 @@ export default function StorePOSPage() {
             {/* Products Grid */}
             <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
               {loading.products ? (
-                <>
-                  {Array.from({ length: 12 }).map((_, i) => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                  {Array.from({ length: 10 }).map((_, i) => (
                     <SkeletonProductCard key={i} />
                   ))}
-                </>
+                </div>
               ) : error.products ? (
                 <div className="text-center py-12">
                   <p className="text-sm text-red-500/80 dark:text-red-400/80 mb-3">
@@ -1420,7 +1421,7 @@ export default function StorePOSPage() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 overflow-y-auto">
                   {productsForGrid.map((product) => {
                     const isLocked = product.productMaster?.isHQLocked;
                     const displayPrice =
@@ -1431,12 +1432,12 @@ export default function StorePOSPage() {
                     return (
                       <div
                         key={product.id}
-                        className="relative flex flex-col p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-gray-700/50 shadow-sm hover:shadow-md transition-all"
+                        className="relative flex flex-col rounded-2xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-lg transition-all overflow-hidden min-h-[200px] sm:min-h-[220px]"
                       >
                         <button
                           type="button"
                           title={isFav ? "Remove favorite" : "Add favorite"}
-                          className="absolute top-2 right-2 z-10 h-8 w-8 rounded-full bg-white/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-600 text-lg leading-none flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:hover:bg-gray-700"
+                          className="absolute top-2 right-2 z-10 min-h-[44px] min-w-[44px] rounded-full bg-white/95 dark:bg-gray-900/95 border-2 border-gray-200 dark:border-gray-600 text-xl leading-none flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:hover:bg-gray-800 touch-manipulation shadow-sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleFavorite(product.id);
@@ -1447,56 +1448,38 @@ export default function StorePOSPage() {
                         <button
                           type="button"
                           onClick={() => handleAddProduct(product)}
-                          className="flex flex-col flex-1 text-left active:scale-[0.98]"
+                          className="flex flex-col flex-1 text-left p-3 pt-2 active:scale-[0.99] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 rounded-2xl"
                         >
-                        <div className="flex justify-center items-center mb-3 flex-shrink-0">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.name}
-                              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                                const placeholder =
-                                  target.nextElementSibling as HTMLElement;
-                                if (placeholder)
-                                  placeholder.style.display = "flex";
-                              }}
-                            />
-                          ) : null}
-                          <div
-                            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-2xl sm:text-3xl ${
-                              product.imageUrl ? "hidden" : ""
-                            }`}
-                          >
-                            📦
+                          <PosProductTileImage
+                            src={product.imageUrl}
+                            alt={product.name}
+                            fallback={posGridImageFallback(product)}
+                            aspectClass="aspect-[4/3]"
+                          />
+                          <div className="font-bold text-sm sm:text-base line-clamp-2 text-gray-900 dark:text-gray-50 leading-snug mt-3 min-h-[2.5rem]">
+                            {product.name}
                           </div>
-                        </div>
-                        <div className="font-semibold text-sm sm:text-base line-clamp-2 text-gray-800 dark:text-gray-100 leading-snug min-h-[2.5rem]">
-                          {product.name}
-                        </div>
-                        <div className="flex items-baseline gap-1 mt-2 flex-wrap">
-                          <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
-                            ₹{displayPrice.toFixed(2)}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            /{product.unitType}
-                          </span>
-                          {isLocked && (
-                            <span className="text-xs ml-1" title="Price locked">
-                              🔒
+                          <div className="flex items-baseline gap-1 mt-2 flex-wrap">
+                            <span className="text-lg sm:text-xl font-extrabold text-gray-900 dark:text-white">
+                              ₹{displayPrice.toFixed(2)}
+                            </span>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                              /{product.unitType}
+                            </span>
+                            {isLocked && (
+                              <span className="text-xs ml-1" title="Price locked">
+                                🔒
+                              </span>
+                            )}
+                          </div>
+                          {st && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-medium">
+                              Stock:{" "}
+                              {product.unitType === "KG"
+                                ? `${st.kg.toFixed(2)} kg`
+                                : `${st.pcs} pcs`}
                             </span>
                           )}
-                        </div>
-                        {st && (
-                          <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-                            Stock:{" "}
-                            {product.unitType === "KG"
-                              ? `${st.kg.toFixed(2)} kg`
-                              : `${st.pcs} pcs`}
-                          </span>
-                        )}
                         </button>
                       </div>
                     );
