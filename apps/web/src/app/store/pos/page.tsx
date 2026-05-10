@@ -99,6 +99,14 @@ function posGridImageFallback(product: Product): PosImageFallback {
   return "package";
 }
 
+/** Category chips for Masale/Spices only affect the sidebar, not the main grid */
+function isMasaleCategoryName(name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    n.includes("spice") || n.includes("masale") || n.includes("masala")
+  );
+}
+
 // Fixed display order for POS layout (categories then products)
 const POS_CATEGORY_DISPLAY_ORDER = [
   "Chicken Cuts",
@@ -1059,17 +1067,6 @@ export default function StorePOSPage() {
     }
   };
 
-  const filteredProducts = products.filter((p) => {
-    if (selectedCategory && p.categoryId !== selectedCategory) return false;
-    if (
-      searchQuery &&
-      !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-      return false;
-    return true;
-  });
-
   // Masale products: category Spices/Masale or name contains Masala/Masale (resolve category from list if needed)
   const masaleProducts = products.filter((p) => {
     const cat = (
@@ -1087,10 +1084,45 @@ export default function StorePOSPage() {
   });
 
   const masaleIds = new Set(masaleProducts.map((p) => p.id));
-  // Main grid: same filters as filteredProducts but exclude Masale (they stay in top shelf only), sorted by display order
+
+  const selectedCatObj = selectedCategory
+    ? categories.find((c) => c.id === selectedCategory)
+    : null;
+  const applyCategoryToMainGrid =
+    Boolean(selectedCategory && selectedCatObj) &&
+    !isMasaleCategoryName(selectedCatObj!.name);
+
+  // Main grid: never masale; picking Masale category still shows all meat/cuts here
   const productsForGrid = sortProductsByDisplayOrder(
-    filteredProducts.filter((p) => !masaleIds.has(p.id))
+    products.filter((p) => {
+      if (masaleIds.has(p.id)) return false;
+      if (applyCategoryToMainGrid && p.categoryId !== selectedCategory)
+        return false;
+      if (
+        searchQuery &&
+        !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+        return false;
+      return true;
+    })
   );
+
+  const masaleCategoryChipActive =
+    Boolean(selectedCategory && selectedCatObj) &&
+    isMasaleCategoryName(selectedCatObj!.name);
+
+  const masaleForSidebar = masaleProducts.filter((p) => {
+    if (masaleCategoryChipActive && p.categoryId !== selectedCategory)
+      return false;
+    if (
+      searchQuery &&
+      !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+      !p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+      return false;
+    return true;
+  });
   const favoriteProducts = sortProductsByDisplayOrder(
     products.filter((p) => favoriteIds.includes(p.id))
   );
@@ -1304,58 +1336,6 @@ export default function StorePOSPage() {
               </div>
             </div>
 
-            {/* Masale — large tiles; photo if available, else spice icon */}
-            {masaleProducts.length > 0 && (
-              <div className="mb-4 flex-shrink-0 border-b border-amber-200/80 dark:border-amber-800/80 pb-4">
-                <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100 mb-2 flex flex-wrap items-center gap-2">
-                  <span aria-hidden>🧂</span>
-                  Masale & spices
-                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
-                    Tap card to add 1
-                  </span>
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {masaleProducts.map((product) => {
-                    const displayPrice =
-                      product.productMaster?.hqLockedPrice ??
-                      product.pricePerUnit;
-                    const qtyKg = product.unitType === "KG" ? 1 : undefined;
-                    const qtyPcs = product.unitType === "PCS" ? 1 : undefined;
-                    return (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() =>
-                          handleAddProductToCart(product, qtyKg, qtyPcs)
-                        }
-                        className="flex flex-col text-left rounded-2xl border-2 border-amber-300/90 dark:border-amber-600/80 bg-amber-50/90 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-500 active:scale-[0.98] shadow-sm overflow-hidden min-h-[160px] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                      >
-                        <div className="w-full px-2 pt-2">
-                          <PosProductTileImage
-                            src={product.imageUrl}
-                            alt={product.name}
-                            fallback="spice"
-                            aspectClass="aspect-[5/4] max-h-[100px] sm:max-h-[110px]"
-                          />
-                        </div>
-                        <div className="flex flex-col flex-1 px-3 pb-3 pt-2 justify-between gap-1">
-                          <span className="text-sm font-semibold text-gray-900 dark:text-gray-50 line-clamp-2 leading-snug">
-                            {product.name}
-                          </span>
-                          <span className="text-base font-bold text-amber-700 dark:text-amber-300">
-                            ₹{displayPrice.toFixed(2)}
-                            <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
-                              /{product.unitType}
-                            </span>
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {franchiseConfig?.isPricingLocked && (
               <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-3 flex-shrink-0 flex items-center gap-2">
                 <span className="text-amber-600">🔒</span>
@@ -1385,7 +1365,65 @@ export default function StorePOSPage() {
               </div>
             )}
 
-            {/* Products Grid */}
+            {/* Masale — one horizontal row; scroll sideways so it doesn’t push the page down */}
+            {masaleProducts.length > 0 && (
+              <div className="mb-3 flex-shrink-0 border-b border-amber-200/80 dark:border-amber-800/80 pb-3">
+                <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100 mb-2 flex flex-wrap items-center gap-2">
+                  <span aria-hidden>🧂</span>
+                  Masale &amp; spices
+                  <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                    Swipe sideways · tap to add 1
+                  </span>
+                </h3>
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin touch-pan-x snap-x snap-mandatory">
+                  {masaleForSidebar.length === 0 ? (
+                    <p className="text-sm text-amber-800/80 dark:text-amber-200/80 py-4 px-2">
+                      No masale match your search
+                    </p>
+                  ) : (
+                    masaleForSidebar.map((product) => {
+                      const displayPrice =
+                        product.productMaster?.hqLockedPrice ??
+                        product.pricePerUnit;
+                      const qtyKg = product.unitType === "KG" ? 1 : undefined;
+                      const qtyPcs = product.unitType === "PCS" ? 1 : undefined;
+                      return (
+                        <button
+                          key={product.id}
+                          type="button"
+                          onClick={() =>
+                            handleAddProductToCart(product, qtyKg, qtyPcs)
+                          }
+                          className="flex-shrink-0 snap-start w-[9.25rem] sm:w-44 flex flex-col text-left rounded-2xl border-2 border-amber-300/90 dark:border-amber-600/80 bg-amber-50/90 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-500 active:scale-[0.98] shadow-sm overflow-hidden min-h-[160px] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                        >
+                          <div className="w-full px-2 pt-2">
+                            <PosProductTileImage
+                              src={product.imageUrl}
+                              alt={product.name}
+                              fallback="spice"
+                              aspectClass="aspect-[5/4] max-h-[100px] sm:max-h-[110px]"
+                            />
+                          </div>
+                          <div className="flex flex-col flex-1 px-3 pb-3 pt-2 justify-between gap-1">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-50 line-clamp-2 leading-snug">
+                              {product.name}
+                            </span>
+                            <span className="text-base font-bold text-amber-700 dark:text-amber-300">
+                              ₹{displayPrice.toFixed(2)}
+                              <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
+                                /{product.unitType}
+                              </span>
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Main product grid */}
             <div className="flex-1 overflow-y-auto -mx-1 px-1 min-h-0">
               {loading.products ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
@@ -1421,7 +1459,7 @@ export default function StorePOSPage() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                   {productsForGrid.map((product) => {
                     const isLocked = product.productMaster?.isHQLocked;
                     const displayPrice =
@@ -1467,7 +1505,10 @@ export default function StorePOSPage() {
                               /{product.unitType}
                             </span>
                             {isLocked && (
-                              <span className="text-xs ml-1" title="Price locked">
+                              <span
+                                className="text-xs ml-1"
+                                title="Price locked"
+                              >
                                 🔒
                               </span>
                             )}
