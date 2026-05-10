@@ -88,10 +88,10 @@ export const SkeletonTable: React.FC<{ rows?: number; columns?: number }> = ({
 );
 
 export const SkeletonProductCard: React.FC = () => (
-  <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
-    <Skeleton variant="rectangular" height={80} className="mb-3" />
-    <Skeleton variant="text" height={16} className="mb-2" />
-    <Skeleton variant="text" height={14} className="w-2/3" />
+  <div className="p-2 border border-gray-200 dark:border-gray-700 rounded-xl">
+    <Skeleton variant="rectangular" height={64} className="mb-2 rounded-lg" />
+    <Skeleton variant="text" height={14} className="mb-1.5" />
+    <Skeleton variant="text" height={12} className="w-2/3" />
   </div>
 );
 
