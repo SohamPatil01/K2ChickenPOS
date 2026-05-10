@@ -810,6 +810,22 @@ export async function saleRoutes(fastify: FastifyInstance) {
       if (sale.status === 'OPEN' || hasCreditPayment || hasNewCreditPayment) {
         // Allow partial payments for OPEN orders or credit orders
         if (roundedTotalPaidAfter > roundedGrandTotal + 0.5) {
+          // Double-submit / retry: first /pay succeeded; second would overpay — return success (idempotent)
+          const roundedExistingPaid = Math.round(currentTotalPaid);
+          if (newPaymentsTotal > 0 && roundedExistingPaid >= roundedGrandTotal - 0.5) {
+            console.warn('[Payment API] Duplicate pay ignored; sale already fully paid:', id);
+            const freshSale = await prisma.sale.findUnique({
+              where: { id },
+              include: {
+                items: { include: { product: true } },
+                payments: true,
+                customer: true,
+              },
+            });
+            if (freshSale) {
+              return freshSale;
+            }
+          }
           reply.code(400).send({
             error: 'Payment amount exceeds remaining balance',
             details: `Total paid: ₹${roundedTotalPaidAfter}, Grand total: ₹${roundedGrandTotal}`

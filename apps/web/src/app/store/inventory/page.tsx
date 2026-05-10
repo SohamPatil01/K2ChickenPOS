@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useNotificationStore } from "@/store/notification";
@@ -17,6 +17,60 @@ interface InventoryItem {
   currentQtyPcs: number;
   imageUrl?: string | null;
   pricePerUnit?: number;
+  categoryName?: string;
+  createdAt?: string;
+}
+
+/** Masale / spices — sort newest first by product createdAt */
+function isMasaleLikeCategory(name: string): boolean {
+  const n = (name || "").toLowerCase();
+  return n.includes("spice") || n.includes("masale") || n.includes("masala");
+}
+
+function pluNumericKey(plu: string): number {
+  const digits = String(plu || "").replace(/\D/g, "");
+  if (!digits) return Number.NaN;
+  const n = parseInt(digits, 10);
+  return Number.isFinite(n) ? n : Number.NaN;
+}
+
+/** Raw chicken & other catalog: PLU order. Masale block: created date (newest first). */
+function sortInventoryForDisplay(items: InventoryItem[]): InventoryItem[] {
+  const masale: InventoryItem[] = [];
+  const meat: InventoryItem[] = [];
+  for (const row of items) {
+    if (isMasaleLikeCategory(row.categoryName || "")) masale.push(row);
+    else meat.push(row);
+  }
+  masale.sort((a, b) => {
+    const ta = new Date(a.createdAt || 0).getTime();
+    const tb = new Date(b.createdAt || 0).getTime();
+    return tb - ta;
+  });
+  meat.sort((a, b) => {
+    const na = pluNumericKey(a.plu);
+    const nb = pluNumericKey(b.plu);
+    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+    return String(a.plu).localeCompare(String(b.plu), undefined, {
+      numeric: true,
+    });
+  });
+  return [...meat, ...masale];
+}
+
+function formatInventoryDate(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 interface Category {
@@ -40,6 +94,10 @@ export default function StoreInventoryPage() {
   const { user } = useAuthStore();
   const { showNotification } = useNotificationStore();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const displayInventory = useMemo(
+    () => sortInventoryForDisplay(inventory),
+    [inventory]
+  );
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -147,6 +205,7 @@ export default function StoreInventoryPage() {
   const loadInventoryRef = useRef<((force?: boolean) => Promise<void>) | null>(
     null
   );
+  const createProductInFlightRef = useRef(false);
 
   const loadInventory = useCallback(
     async (force = false) => {
@@ -165,17 +224,9 @@ export default function StoreInventoryPage() {
       lastLoadTimeRef.current = now;
       setLoading(true);
 
-      // Clear inventory state first to force UI update
-      setInventory([]);
-
       try {
-        // Force fresh data by adding cache-busting timestamp
         const timestamp = Date.now();
-        console.log(
-          `[Frontend] Loading inventory at ${new Date(timestamp).toISOString()}`
-        );
-        // Pass storeId if user is authenticated and has a store
-        const params: any = { _t: timestamp };
+        const params: Record<string, string | number> = { _t: timestamp };
         if (user?.storeId) {
           params.storeId = user.storeId;
         }
@@ -188,97 +239,20 @@ export default function StoreInventoryPage() {
             Expires: "0",
           },
         });
-        console.log("[Frontend] Inventory API response:", response.data);
-        console.log(
-          "[Frontend] Inventory loaded:",
-          response.data?.length || 0,
-          "items"
-        );
 
-        // Always set to empty array if response is not valid
         if (!response.data || !Array.isArray(response.data)) {
-          console.warn(
-            "[Frontend] Invalid response format, setting inventory to empty"
-          );
           setInventory([]);
           return;
         }
 
-        // Log some sample data for debugging
-        if (response.data.length > 0) {
-          const sample = response.data[0];
-          console.log("[Frontend] Sample inventory item:", {
-            productName: sample.productName,
-            currentQtyKg: sample.currentQtyKg,
-            currentQtyPcs: sample.currentQtyPcs,
-            unitType: sample.unitType,
-          });
-
-          // Log all items with their stock values
-          response.data.forEach((item: any) => {
-            console.log(
-              `[Frontend] ${item.productName}: ${
-                item.unitType === "KG"
-                  ? `${item.currentQtyKg} kg`
-                  : `${item.currentQtyPcs} pcs`
-              }`
-            );
-          });
-
-          // Also call debug endpoint to check ledger entries
-          try {
-            const debugResponse = await api.get("/api/v1/inventory/debug");
-            console.log(
-              "[Frontend] Debug endpoint response:",
-              debugResponse.data
-            );
-            if (debugResponse.data.totalLedgerEntries === 0) {
-              console.warn(
-                "[Frontend] ⚠️ No ledger entries found for this store!"
-              );
-            } else {
-              console.log(
-                `[Frontend] Found ${debugResponse.data.totalLedgerEntries} ledger entries for store ${debugResponse.data.storeId}`
-              );
-            }
-          } catch (debugError) {
-            console.error(
-              "[Frontend] Failed to call debug endpoint:",
-              debugError
-            );
-          }
-        } else {
-          console.log("[Frontend] No inventory items returned from API");
-        }
-
-        // Set inventory data - ensure we're setting an array
-        const inventoryData = Array.isArray(response.data) ? response.data : [];
-        console.log(
-          "[Frontend] Setting inventory state with",
-          inventoryData.length,
-          "items"
-        );
+        const inventoryData = response.data as InventoryItem[];
         setInventory(inventoryData);
 
-        if (inventoryData.length === 0) {
-          console.log("[Frontend] No products found in inventory");
+        if (force && inventoryData.length > 0) {
           showNotification(
-            "No inventory items found. Products may need stock entries.",
-            "info"
+            `Loaded ${inventoryData.length} inventory items`,
+            "success"
           );
-        } else {
-          console.log(
-            "[Frontend] Successfully loaded",
-            inventoryData.length,
-            "inventory items"
-          );
-          // Only show success notification on forced loads to avoid spam
-          if (force) {
-            showNotification(
-              `Loaded ${inventoryData.length} inventory items`,
-              "success"
-            );
-          }
         }
       } catch (error: any) {
         console.error("Failed to load inventory:", error);
@@ -366,9 +340,6 @@ export default function StoreInventoryPage() {
 
     // Listen for PO finalization events to refresh inventory
     const handlePOFinalized = () => {
-      console.log(
-        "[Inventory] PO finalized event received, refreshing inventory..."
-      );
       loadInventoryRef.current?.(true);
     };
 
@@ -482,7 +453,6 @@ export default function StoreInventoryPage() {
       setStockItems([]);
       setSelectedStockProduct(null);
       setStockItemForm({ qtyKg: "", qtyPcs: "", reason: "RECEIVE" });
-      console.log("[Frontend] Stock added, waiting for DB commit...");
       // Wait for DB commit then refresh inventory and product lists so Egg/others show updated counts
       await new Promise((resolve) => setTimeout(resolve, 500));
       await loadInventory(true);
@@ -579,7 +549,6 @@ export default function StoreInventoryPage() {
 
       if (response.data) {
         showNotification("Inventory adjusted successfully!", "success");
-        console.log("[Frontend] Inventory adjusted, waiting for DB commit...");
         await new Promise((resolve) => setTimeout(resolve, 500));
         await loadInventory(true);
         await loadStockProducts();
@@ -668,7 +637,6 @@ export default function StoreInventoryPage() {
 
       if (response.data) {
         showNotification("Stock updated successfully!", "success");
-        console.log("[Frontend] Stock updated, waiting for DB commit...");
         await new Promise((resolve) => setTimeout(resolve, 500));
         await loadInventory(true);
         await loadStockProducts();
@@ -695,7 +663,6 @@ export default function StoreInventoryPage() {
   };
 
   const openDeleteModal = (item: InventoryItem) => {
-    console.log("Opening delete modal for:", item);
     setProductToDelete(item);
     setShowDeleteModal(true);
   };
@@ -705,36 +672,31 @@ export default function StoreInventoryPage() {
 
     setDeleteLoading(true);
     try {
-      console.log("Deleting product:", productToDelete.productId);
       const response = await api.delete(
         `/api/v1/products/${productToDelete.productId}`
       );
-      console.log("Delete response:", response);
 
-      // Check for success (response.data?.success or just status 200)
       if (
         response.status === 200 ||
         response.status === 204 ||
         response.data?.success
       ) {
-        // Refresh inventory list
         await loadInventory();
         setShowDeleteModal(false);
         setProductToDelete(null);
-        alert("Product deleted successfully");
+        showNotification("Product deleted", "success");
       } else {
         throw new Error("Delete operation did not succeed");
       }
     } catch (error: any) {
       console.error("Failed to delete product:", error);
-      console.error("Error response:", error?.response);
       const message =
         error?.response?.data?.error ||
         error?.response?.data?.details ||
         error?.response?.data?.message ||
         error.message ||
         "Failed to delete product";
-      alert(`Error: ${message}`);
+      showNotification(message, "error");
     } finally {
       setDeleteLoading(false);
     }
@@ -790,23 +752,26 @@ export default function StoreInventoryPage() {
   };
 
   const handleCreateProduct = async () => {
+    if (createProductInFlightRef.current || addProductLoading) return;
+
     if (!addProductForm.name) {
-      alert("Please fill in Product Name");
+      showNotification("Please fill in product name", "warning");
       return;
     }
     if (!addProductForm.sku || !addProductForm.plu) {
-      alert("SKU and PLU are required");
+      showNotification("SKU and PLU are required", "warning");
       return;
     }
     if (!addProductForm.categoryId) {
-      alert("Please select a category");
+      showNotification("Please select a category", "warning");
       return;
     }
     if (!addProductForm.pricePerUnit) {
-      alert("Please enter a price");
+      showNotification("Please enter a price", "warning");
       return;
     }
 
+    createProductInFlightRef.current = true;
     setAddProductLoading(true);
     try {
       const taxRate = parseFloat(addProductForm.taxRate || "0") || 0;
@@ -846,15 +811,19 @@ export default function StoreInventoryPage() {
 
       resetAddProductForm();
       setShowAddProductModal(false);
-      alert("Product created successfully! You can now adjust its inventory.");
+      showNotification(
+        "Product created. Use Adjust to add opening stock if needed.",
+        "success"
+      );
     } catch (error: any) {
       console.error("Failed to create product:", error);
       const message =
         error?.response?.data?.error ||
         error.message ||
         "Failed to create product";
-      alert(message);
+      showNotification(message, "error");
     } finally {
+      createProductInFlightRef.current = false;
       setAddProductLoading(false);
     }
   };
@@ -1086,6 +1055,9 @@ export default function StoreInventoryPage() {
       {activeTab === "inventory" ? (
         /* Table Container - Responsive with horizontal scroll on mobile and vertical scroll on iPad */
         <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+          <p className="text-xs text-gray-500 dark:text-gray-400 px-3 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+            Order: meat / raw chicken by PLU, then masale &amp; spices by date added (newest first).
+          </p>
           <div className="flex-1 overflow-y-auto overflow-x-auto -mx-3 sm:mx-0 min-h-0">
             <div className="inline-block min-w-full align-middle">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -1097,11 +1069,17 @@ export default function StoreInventoryPage() {
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Product
                     </th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden lg:table-cell">
+                      Category
+                    </th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">
                       SKU
                     </th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">
                       PLU
+                    </th>
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden lg:table-cell">
+                      Added
                     </th>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Unit
@@ -1117,7 +1095,7 @@ export default function StoreInventoryPage() {
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center">
+                      <td colSpan={9} className="px-6 py-4 text-center">
                         <p className="text-gray-500 dark:text-gray-400">
                           Loading...
                         </p>
@@ -1125,7 +1103,7 @@ export default function StoreInventoryPage() {
                     </tr>
                   ) : inventory.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center">
+                      <td colSpan={9} className="px-6 py-4 text-center">
                         <div className="py-8">
                           <p className="text-gray-500 dark:text-gray-400 mb-2">
                             No inventory data found
@@ -1143,7 +1121,7 @@ export default function StoreInventoryPage() {
                       </td>
                     </tr>
                   ) : (
-                    inventory.map((item) => (
+                    displayInventory.map((item) => (
                       <tr
                         key={item.productId}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
@@ -1173,11 +1151,17 @@ export default function StoreInventoryPage() {
                             SKU: {item.sku} | PLU: {item.plu}
                           </div>
                         </td>
+                        <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell max-w-[140px] truncate">
+                          {item.categoryName || "—"}
+                        </td>
                         <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm sm:text-base text-gray-500 dark:text-gray-400 hidden sm:table-cell">
                           {item.sku}
                         </td>
                         <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm sm:text-base text-gray-500 dark:text-gray-400 hidden md:table-cell">
                           {item.plu}
+                        </td>
+                        <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">
+                          {formatInventoryDate(item.createdAt)}
                         </td>
                         <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-sm sm:text-base text-gray-500 dark:text-gray-400">
                           <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs sm:text-sm font-medium">
@@ -1242,11 +1226,6 @@ export default function StoreInventoryPage() {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  console.log(
-                                    "Delete button clicked for product:",
-                                    item.productName,
-                                    item.productId
-                                  );
                                   openDeleteModal(item);
                                 }}
                                 className="flex-1 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold bg-red-500 text-white rounded hover:bg-red-600 active:bg-red-700 transition-colors touch-target whitespace-nowrap"

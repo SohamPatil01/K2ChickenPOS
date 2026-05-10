@@ -190,6 +190,8 @@ export default function StorePOSPage() {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [showQuickCheckout, setShowQuickCheckout] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  /** Sync guard — React state is async; prevents double /sales + /pay (credit often hit twice). */
+  const paymentInFlightRef = useRef(false);
   const [completedSale, setCompletedSale] = useState<{
     saleNo: string;
     grandTotal: number;
@@ -895,7 +897,7 @@ export default function StorePOSPage() {
   };
 
   const handleQuickCheckoutPay = async (method: string) => {
-    if (isProcessingPayment) return;
+    if (paymentInFlightRef.current || isProcessingPayment) return;
 
     if (method === "CREDIT") {
       const st = useCartStore.getState();
@@ -908,6 +910,7 @@ export default function StorePOSPage() {
       }
     }
 
+    paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
 
     try {
@@ -1005,7 +1008,11 @@ export default function StorePOSPage() {
           );
         }
       }
-      await useCartStore.getState().clearCart();
+      try {
+        await useCartStore.getState().clearCart();
+      } catch (clearErr) {
+        console.error("[POS] clearCart after payment:", clearErr);
+      }
       setShowQuickCheckout(false);
 
       setCompletedSale({
@@ -1033,6 +1040,7 @@ export default function StorePOSPage() {
         error.response?.data?.error || error.message || "Payment failed";
       showNotification(errorMessage, "error", 5000);
     } finally {
+      paymentInFlightRef.current = false;
       setIsProcessingPayment(false);
     }
   };

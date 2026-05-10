@@ -50,6 +50,7 @@ export default function StoreCartPage() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const paymentInFlightRef = useRef(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
   const [showCustomerSection, setShowCustomerSection] = useState(true); // Show by default
@@ -218,7 +219,7 @@ export default function StoreCartPage() {
   }, [tempCustomerPhone, tempCustomerName, customerId]);
 
   const handleCreateSale = useCallback(async (payments: Array<{ method: string; amount: number }>) => {
-    if (isProcessingPayment) {
+    if (paymentInFlightRef.current || isProcessingPayment) {
       console.log('[Cart] Payment already processing, ignoring duplicate call');
       return;
     }
@@ -234,6 +235,7 @@ export default function StoreCartPage() {
       }
     }
 
+    paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
     
     try {
@@ -242,7 +244,6 @@ export default function StoreCartPage() {
 
       if (items.length === 0) {
         showNotification('Cart is empty', 'warning');
-        setIsProcessingPayment(false);
         return;
       }
 
@@ -324,7 +325,11 @@ export default function StoreCartPage() {
           showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
         }
       }
-      await clearCart();
+      try {
+        await clearCart();
+      } catch (clearErr) {
+        console.error('[Cart] clearCart after payment:', clearErr);
+      }
       setShowPaymentModal(false);
       
       setCompletedSale({
@@ -364,6 +369,7 @@ export default function StoreCartPage() {
       
       showNotification(errorMessage, 'error', 5000);
     } finally {
+      paymentInFlightRef.current = false;
       setIsProcessingPayment(false);
     }
   }, [isProcessingPayment, router, showNotification, clearCart, getTotal, skipCustomer]);

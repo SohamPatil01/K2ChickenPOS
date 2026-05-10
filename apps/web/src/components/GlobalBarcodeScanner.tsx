@@ -53,14 +53,21 @@ export default function GlobalBarcodeScanner() {
 
   const loadProducts = async () => {
     try {
-      const response = await api.get('/api/v1/products');
+      const response = await api.get('/api/v1/products', {
+        params: { _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
       const productsData = response.data || [];
-      
-      // Load productMaster data for each product
+
+      // Make SKU/PLU scans work immediately; HQ master enrichment can take a long time
+      setProducts(productsData);
+
       const productsWithMaster = await Promise.all(
         productsData.map(async (p: any) => {
           try {
-            const masterRes = await api.get(`/api/v1/hq/product-master?productId=${p.id}`).catch(() => null);
+            const masterRes = await api
+              .get(`/api/v1/hq/product-master?productId=${p.id}`)
+              .catch(() => null);
             return {
               ...p,
               productMaster: masterRes?.data?.[0] || null,
@@ -70,10 +77,41 @@ export default function GlobalBarcodeScanner() {
           }
         })
       );
-      
+
       setProducts(productsWithMaster);
     } catch (error: any) {
       console.error('Failed to load products:', error);
+    }
+  };
+
+  /** When in-memory list is empty or stale, resolve by API (same store as session). */
+  const fetchProductById = async (
+    productId: string
+  ): Promise<Product | undefined> => {
+    try {
+      const res = await api.get(`/api/v1/products/${productId}`);
+      return res.data ?? undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const fetchProductBySkuOrPlu = async (
+    normalized: string
+  ): Promise<Product | undefined> => {
+    try {
+      const res = await api.get('/api/v1/products', {
+        params: { search: normalized, _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+      });
+      const list: Product[] = res.data || [];
+      return list.find(
+        (p) =>
+          normalizeBarcodeForLookup(p.sku) === normalized ||
+          normalizeBarcodeForLookup(p.plu) === normalized
+      );
+    } catch {
+      return undefined;
     }
   };
 
@@ -96,7 +134,10 @@ export default function GlobalBarcodeScanner() {
       const parsed = await parseScaleBarcode(normalized, storeId);
 
       if (parsed) {
-        const product = products.find((p) => p.id === parsed.productId);
+        let product = products.find((p) => p.id === parsed.productId);
+        if (!product) {
+          product = await fetchProductById(parsed.productId);
+        }
         if (product) {
           // Navigate to POS if not already there
           if (pathname !== '/store/pos' && pathname !== '/store/cart') {
@@ -145,11 +186,14 @@ export default function GlobalBarcodeScanner() {
       }
 
       // Try as SKU/PLU (normalize so DB spacing / scan spacing both match)
-      const product = products.find(
+      let product = products.find(
         (p) =>
           normalizeBarcodeForLookup(p.sku) === normalized ||
           normalizeBarcodeForLookup(p.plu) === normalized
       );
+      if (!product) {
+        product = await fetchProductBySkuOrPlu(normalized);
+      }
       if (product) {
         // Navigate to POS if not already there
         if (pathname !== '/store/pos' && pathname !== '/store/cart') {

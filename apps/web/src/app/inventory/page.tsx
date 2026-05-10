@@ -98,7 +98,6 @@ export default function InventoryPage() {
           Expires: "0",
         },
       });
-      console.log("Inventory loaded:", response.data?.length || 0);
       if (response.data && Array.isArray(response.data)) {
         setInventory(response.data);
         if (response.data.length === 0) {

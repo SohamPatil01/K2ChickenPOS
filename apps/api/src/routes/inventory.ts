@@ -94,9 +94,6 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         where: { id: storeId },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true },
       });
-      console.log(
-        `[Inventory Summary] User store ID: ${storeId}, Store name: ${store?.name}, Store type: ${store?.type}`
-      );
 
       if (!storeId || !store) {
         reply.code(400).send({ error: 'Store ID is required' });
@@ -128,10 +125,6 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         ledgerStoreIds = [storeId];
       }
 
-      console.log(
-        `[Inventory Summary] Owner store ID: ${ownerStoreId}, ledger storeIds: ${ledgerStoreIds.join(',')}, price storeId: ${storeId}`
-      );
-
       // Get all products
       const products = await prisma.product.findMany({
         where: {
@@ -139,6 +132,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           isActive: true,
         },
         include: {
+          category: { select: { name: true } },
           inventoryLedgers: {
             where: { storeId: { in: ledgerStoreIds } },
             // Remove orderBy to get all entries, order doesn't matter for calculation
@@ -156,38 +150,12 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         },
       });
 
-      console.log(`[Inventory Summary] Found ${products.length} products for store ${storeId}`);
-
-      // Also verify we can query ledger entries directly
-      const allLedgers = await prisma.inventoryLedger.findMany({
-        where: { storeId: { in: ledgerStoreIds } },
-        orderBy: { createdAt: 'desc' },
-        take: 10, // Get more for verification
-      });
-      console.log(`[Inventory Summary] Direct ledger query (scoped stores): Found ${allLedgers.length} recent entries`);
-      if (allLedgers.length > 0) {
-        console.log(`[Inventory Summary] Recent ledger entries (last 10):`);
-        allLedgers.forEach((ledger, idx) => {
-          console.log(`[Inventory Summary]   ${idx + 1}. Product: ${ledger.productId}, Type: ${ledger.type}, QtyKg: ${ledger.qtyKg}, QtyPcs: ${ledger.qtyPcs}, Reason: ${ledger.reason}, Created: ${ledger.createdAt}`);
-        });
-      } else {
-        console.log(`[Inventory Summary] ⚠️ No ledger entries found for store ${storeId}!`);
-      }
-
       const summary = products.map((product: any) => {
         let totalQtyKg = 0;
         let totalQtyPcs = 0;
 
-        console.log(`[Inventory Summary] Product ${product.name} (${product.id}) has ${product.inventoryLedgers.length} ledger entries (stores: ${ledgerStoreIds.join(',')})`);
-
-        // Log each ledger entry for debugging
-        product.inventoryLedgers.forEach((ledger: any, index: number) => {
-          console.log(`[Inventory Summary]   Ledger ${index + 1}: type=${ledger.type}, qtyKg=${ledger.qtyKg}, qtyPcs=${ledger.qtyPcs}, reason=${ledger.reason}, storeId=${ledger.storeId}`);
-        });
-
         for (const ledger of product.inventoryLedgers) {
           if (!ledgerStoreIds.includes(ledger.storeId)) {
-            console.warn(`[Inventory Summary] ⚠️ Ledger entry ${ledger.id} storeId ${ledger.storeId} not in scope`);
             continue;
           }
           
@@ -209,8 +177,6 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         // Ensure non-negative values and final rounding (use 3 decimal places for consistency)
         totalQtyKg = Math.max(0, Math.round(totalQtyKg * 1000) / 1000);
         totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
-        
-        console.log(`[Inventory Summary] Product ${product.name} calculated totals: ${totalQtyKg} kg, ${totalQtyPcs} pcs`);
 
         return {
           productId: product.id,
@@ -222,10 +188,11 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           currentQtyPcs: totalQtyPcs,
           imageUrl: product.imageUrl,
           pricePerUnit: product.storeProductPrices[0]?.pricePerUnit || 0,
+          categoryName: product.category?.name || '',
+          createdAt: product.createdAt?.toISOString?.() ?? product.createdAt,
         };
       });
 
-      console.log(`[Inventory Summary] Returning ${summary.length} items`);
       return summary;
     } catch (error: any) {
       console.error('[Inventory Summary] Error:', error);
