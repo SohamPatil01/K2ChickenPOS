@@ -861,10 +861,11 @@ export default function InventoryPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  SKU * (Auto-generated)
+                  SKU *
                 </label>
                 <input
                   type="text"
+                  data-skip-global-barcode="true"
                   value={addProductForm.sku}
                   onChange={(e) =>
                     setAddProductForm({
@@ -872,18 +873,20 @@ export default function InventoryPage() {
                       sku: e.target.value,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                  placeholder="Auto-generated"
-                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 dark:text-white"
+                  placeholder="Type or scan barcode"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Auto-generated, but can be edited if needed</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Defaults when you open this form; edit or scan to set.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  PLU * (Auto-generated)
+                  PLU *
                 </label>
                 <input
                   type="text"
+                  data-skip-global-barcode="true"
                   value={addProductForm.plu}
                   onChange={(e) =>
                     setAddProductForm({
@@ -891,11 +894,12 @@ export default function InventoryPage() {
                       plu: e.target.value,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                  placeholder="Auto-generated"
-                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 dark:text-white"
+                  placeholder="Type or scan barcode"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Auto-generated, but can be edited if needed</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Often same as SKU for retail barcodes.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

@@ -230,6 +230,22 @@ export default function GlobalBarcodeScanner() {
         }
         return;
       }
+
+      // Product forms (SKU/PLU) — scanner should fill the field only, not add to cart
+      const skipGlobalBarcode =
+        isInput &&
+        ((target as HTMLElement).getAttribute('data-skip-global-barcode') === 'true' ||
+          !!(target as HTMLElement).closest('[data-skip-global-barcode]'));
+      if (skipGlobalBarcode) {
+        if (e.key === 'Enter') {
+          barcodeBuffer.current = '';
+          if (barcodeTimeout.current) {
+            clearTimeout(barcodeTimeout.current);
+            barcodeTimeout.current = null;
+          }
+        }
+        return;
+      }
       
       // Check if it's the barcode input field specifically
       const isBarcodeInput = isInput && (target as HTMLInputElement).placeholder?.toLowerCase().includes('barcode') || 
