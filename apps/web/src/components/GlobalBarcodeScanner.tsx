@@ -139,13 +139,6 @@ export default function GlobalBarcodeScanner() {
           product = await fetchProductById(parsed.productId);
         }
         if (product) {
-          // Navigate to POS if not already there
-          if (pathname !== '/store/pos' && pathname !== '/store/cart') {
-            router.push('/store/pos');
-            // Wait a bit for navigation
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-
           // Add to cart
           const qty = parsed.weightKg || parsed.qtyPcs || 1;
           const rate = parsed.pricePerKg || product.pricePerUnit;
@@ -180,6 +173,9 @@ export default function GlobalBarcodeScanner() {
             2000
           );
           console.log('Barcode scanned and added to cart:', product.name);
+          if (pathname !== '/store/cart') {
+            router.push('/store/cart');
+          }
           setIsProcessing(false);
           return;
         }
@@ -195,12 +191,6 @@ export default function GlobalBarcodeScanner() {
         product = await fetchProductBySkuOrPlu(normalized);
       }
       if (product) {
-        // Navigate to POS if not already there
-        if (pathname !== '/store/pos' && pathname !== '/store/cart') {
-          router.push('/store/pos');
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-
         // Add to cart with default quantity
         const qty = 1;
         const rate = product.pricePerUnit;
@@ -231,6 +221,9 @@ export default function GlobalBarcodeScanner() {
           2000
         );
         console.log('Barcode scanned and added to cart:', product.name);
+        if (pathname !== '/store/cart') {
+          router.push('/store/cart');
+        }
         setIsProcessing(false);
         return;
       }

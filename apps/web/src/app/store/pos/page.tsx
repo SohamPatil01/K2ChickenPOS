@@ -500,7 +500,7 @@ export default function StorePOSPage() {
         }
 
         if (product) {
-          await handleAddProductToCart(
+          const added = await handleAddProductToCart(
             product,
             parsed.weightKg,
             parsed.qtyPcs,
@@ -509,6 +509,9 @@ export default function StorePOSPage() {
           setBarcodeInput("");
           if (barcodeInputRef.current) {
             barcodeInputRef.current.focus();
+          }
+          if (added) {
+            router.push("/store/cart");
           }
           return;
         } else {
@@ -522,7 +525,7 @@ export default function StorePOSPage() {
               const fetchedProduct = productResponse.data;
 
               if (fetchedProduct) {
-                await handleAddProductToCart(
+                const added = await handleAddProductToCart(
                   fetchedProduct,
                   parsed.weightKg,
                   parsed.qtyPcs,
@@ -531,6 +534,9 @@ export default function StorePOSPage() {
                 setBarcodeInput("");
                 if (barcodeInputRef.current) {
                   barcodeInputRef.current.focus();
+                }
+                if (added) {
+                  router.push("/store/cart");
                 }
                 return;
               }
@@ -553,10 +559,17 @@ export default function StorePOSPage() {
           normalizeBarcodeForLookup(p.plu) === lookup
       );
       if (product) {
-        handleAddProduct(product);
+        const added = await handleAddProductToCart(
+          product,
+          product.unitType === "KG" ? 1 : undefined,
+          product.unitType === "PCS" ? 1 : undefined
+        );
         setBarcodeInput("");
         if (barcodeInputRef.current) {
           barcodeInputRef.current.focus();
+        }
+        if (added) {
+          router.push("/store/cart");
         }
         return;
       }
@@ -619,7 +632,7 @@ export default function StorePOSPage() {
     qtyKg?: number,
     qtyPcs?: number,
     overridePrice?: number
-  ) => {
+  ): Promise<boolean> => {
     // Check if price is locked
     const isPriceLocked =
       franchiseConfig?.isPricingLocked || product.productMaster?.isHQLocked;
@@ -637,11 +650,11 @@ export default function StorePOSPage() {
         managerPin: "",
       });
       setShowPriceOverrideModal(true);
-      return;
+      return false;
     }
 
     if (!assertStockForLine(product, qtyKg, qtyPcs)) {
-      return;
+      return false;
     }
 
     // Calculate line total (base amount without tax) - matching backend logic
@@ -672,6 +685,7 @@ export default function StorePOSPage() {
       productName: product.name,
       productImage: product.imageUrl,
     });
+    return true;
   };
 
   const handleManualItemSubmit = () => {
@@ -814,6 +828,7 @@ export default function StorePOSPage() {
 
       setShowPriceOverrideModal(false);
       setPriceOverrideData(null);
+      router.push("/store/cart");
     } catch (error: any) {
       showNotification(
         "Failed to override price: " +

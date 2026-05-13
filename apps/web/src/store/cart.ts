@@ -3,6 +3,41 @@ import { offlineDB, CartItem } from '@azela-pos/offline';
 
 export type FulfillmentType = 'PICKUP' | 'DELIVERY';
 
+function roundedRate(rate: number): number {
+  return Math.round(rate * 100) / 100;
+}
+
+/** Same catalog line (e.g. same masale twice): merge qty instead of a second row */
+function findMergeableCartLine(
+  items: CartItem[],
+  incoming: Omit<CartItem, 'id' | 'createdAt'>
+): number {
+  if (incoming.productId === 'manual') return -1;
+
+  return items.findIndex((ex) => {
+    if (!ex.id) return false;
+    if (ex.productId !== incoming.productId) return false;
+    if (roundedRate(ex.rate) !== roundedRate(incoming.rate)) return false;
+    if (ex.taxRate !== incoming.taxRate) return false;
+
+    const exM = ex.metaJson || {};
+    const inM = incoming.metaJson || {};
+    if (exM.manualEntry || inM.manualEntry) return false;
+
+    const exKg = ex.qtyKg ?? 0;
+    const exPcs = ex.qtyPcs ?? 0;
+    const inKg = incoming.qtyKg ?? 0;
+    const inPcs = incoming.qtyPcs ?? 0;
+
+    const exPcsOnly = exPcs > 0 && exKg === 0;
+    const inPcsOnly = inPcs > 0 && inKg === 0;
+    const exKgOnly = exKg > 0 && exPcs === 0;
+    const inKgOnly = inKg > 0 && inPcs === 0;
+
+    return (exPcsOnly && inPcsOnly) || (exKgOnly && inKgOnly);
+  });
+}
+
 interface CartState {
   items: CartItem[];
   customerId: string | null;
@@ -51,17 +86,46 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
   addItem: async (item) => {
     try {
-      const cartItem: CartItem = {
-        ...item,
-        createdAt: Date.now(),
-      };
-      console.log('Adding item to cart:', cartItem);
-      const id = await offlineDB.cart.add(cartItem);
-      console.log('Item added with ID:', id);
-      // Reload items to get the id that was assigned
       const items = await offlineDB.cart.toArray();
-      console.log('Cart after add:', items.length, 'items');
-      set({ items });
+      const mergeIdx = findMergeableCartLine(items, item);
+
+      if (mergeIdx >= 0) {
+        const ex = items[mergeIdx];
+        const exKg = ex.qtyKg ?? 0;
+        const exPcs = ex.qtyPcs ?? 0;
+        const inKg = item.qtyKg ?? 0;
+        const inPcs = item.qtyPcs ?? 0;
+
+        const exPcsOnly = exPcs > 0 && exKg === 0;
+        let newPcs = exPcs;
+        let newKg = exKg;
+        if (exPcsOnly) {
+          newPcs = exPcs + inPcs;
+        } else {
+          newKg = Math.round((exKg + inKg) * 1000) / 1000;
+        }
+
+        const lineTotal =
+          exPcsOnly && newKg === 0
+            ? Math.round(newPcs * ex.rate * 100) / 100
+            : Math.round(newKg * ex.rate * 100) / 100;
+
+        await offlineDB.cart.update(ex.id!, {
+          ...(exPcsOnly
+            ? { qtyPcs: newPcs, qtyKg: undefined }
+            : { qtyKg: newKg, qtyPcs: undefined }),
+          lineTotal,
+        });
+      } else {
+        const cartItem: CartItem = {
+          ...item,
+          createdAt: Date.now(),
+        };
+        await offlineDB.cart.add(cartItem);
+      }
+
+      const next = await offlineDB.cart.toArray();
+      set({ items: next });
     } catch (error) {
       console.error('Error adding item to cart:', error);
     }
