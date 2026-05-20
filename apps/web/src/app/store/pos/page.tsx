@@ -928,8 +928,6 @@ export default function StorePOSPage() {
     paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
 
-    let createdSaleId: string | null = null;
-
     try {
       const {
         items: cartItems,
@@ -997,7 +995,6 @@ export default function StorePOSPage() {
       if (!sale || !sale.id) {
         throw new Error("Invalid sale response");
       }
-      createdSaleId = sale.id;
 
       const roundedSaleGrandTotal = Math.round(sale.grandTotal);
       const paymentData = {
@@ -1054,39 +1051,6 @@ export default function StorePOSPage() {
       }
     } catch (error: any) {
       console.error("[Quick Checkout] Payment error:", error);
-
-      if (createdSaleId && method === "CREDIT") {
-        try {
-          const check = await api.get(`/api/v1/sales/${createdSaleId}`);
-          const creditRecorded = (check.data?.payments || []).some(
-            (p: { method: string }) => p.method === "CREDIT"
-          );
-          if (creditRecorded) {
-            const recovered = check.data;
-            const roundedSaleGrandTotal = Math.round(recovered.grandTotal ?? 0);
-            try {
-              await useCartStore.getState().clearCart();
-            } catch {
-              /* non-blocking */
-            }
-            setShowQuickCheckout(false);
-            setCompletedSale({
-              saleNo: recovered.saleNo || "N/A",
-              grandTotal: roundedSaleGrandTotal,
-            });
-            setShowSuccessAnimation(true);
-            window.dispatchEvent(
-              new CustomEvent("sale-created", {
-                detail: { saleId: createdSaleId, payments: [{ method, amount: roundedSaleGrandTotal }] },
-              })
-            );
-            return;
-          }
-        } catch (recoverErr) {
-          console.warn("[Quick Checkout] Could not recover credit sale:", recoverErr);
-        }
-      }
-
       const errorMessage =
         error.response?.data?.error || error.message || "Payment failed";
       showNotification(errorMessage, "error", 5000);

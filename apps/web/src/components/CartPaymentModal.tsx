@@ -32,7 +32,6 @@ export default function CartPaymentModal({
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([]);
   const amountInputRef = useRef<HTMLInputElement>(null);
-  const payTriggeredRef = useRef(false);
 
   useEffect(() => {
     setAmountPaid(grandTotal.toString());
@@ -51,21 +50,10 @@ export default function CartPaymentModal({
   ];
 
   const handlePayment = useCallback(() => {
-    if (isProcessing || payTriggeredRef.current) return;
-
     if (isSplitPayment) {
       if (Math.abs(splitTotal - grandTotal) > 0.01) {
         return;
       }
-    } else if (selectedMethod !== 'CREDIT' && change < 0) {
-      return;
-    } else if (selectedMethod === 'CREDIT' && !customerId) {
-      return;
-    }
-
-    payTriggeredRef.current = true;
-
-    if (isSplitPayment) {
       onPay(splitPayments);
     } else {
       onPay([
@@ -84,16 +72,7 @@ export default function CartPaymentModal({
     selectedMethod,
     amountPaid,
     onPay,
-    isProcessing,
-    change,
-    customerId,
   ]);
-
-  useEffect(() => {
-    if (!isProcessing) {
-      payTriggeredRef.current = false;
-    }
-  }, [isProcessing]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {

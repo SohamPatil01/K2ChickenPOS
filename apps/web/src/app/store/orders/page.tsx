@@ -482,12 +482,10 @@ export default function OrdersPage() {
     }
 
     try {
-      // CREDIT is booked separately — remaining cash due excludes credit lines
+      // Check if there are existing payments (credit payments)
       const existingPayments = sale.payments || [];
-      const actualPaid = existingPayments
-        .filter((p) => p.method !== "CREDIT")
-        .reduce((sum, p) => sum + p.amount, 0);
-      const remainingAmount = Math.round(sale.grandTotal - actualPaid);
+      const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+      const remainingAmount = Math.round(sale.grandTotal - totalPaid);
 
       // Complete the order by adding a CASH payment.
       // If already fully paid (e.g. credit), send amount 0 to avoid "exceeds remaining balance" and just trigger status update.
