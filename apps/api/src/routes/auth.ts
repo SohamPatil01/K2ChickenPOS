@@ -28,14 +28,18 @@ export async function authRoutes(fastify: FastifyInstance) {
       // Sort by role priority: OWNER, MANAGER, CASHIER, DRIVER
       const roleOrder = { OWNER: 0, MANAGER: 1, CASHIER: 2, DRIVER: 3 };
       const sortedUsers = users.sort((a, b) => {
-        const roleDiff = (roleOrder[a.role as keyof typeof roleOrder] || 99) - (roleOrder[b.role as keyof typeof roleOrder] || 99);
+        const roleDiff = (roleOrder[a.role as keyof typeof roleOrder] ?? 99) - (roleOrder[b.role as keyof typeof roleOrder] ?? 99);
         return roleDiff !== 0 ? roleDiff : a.name.localeCompare(b.name);
       });
 
-      // Cache at CDN to reduce Fast Origin Transfer (same for all users on login screen)
-      reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+      // Cache successful responses only — never cache 5xx at the edge (see vercel.json note).
+      reply.header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
       return sortedUsers;
     } catch (error: any) {
+      console.error('[Auth] Failed to fetch profiles:', error?.message || error);
+      reply.header('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+      reply.header('CDN-Cache-Control', 'no-store');
+      reply.header('Vercel-CDN-Cache-Control', 'no-store');
       reply.code(500).send({ error: 'Failed to fetch profiles' });
     }
   });

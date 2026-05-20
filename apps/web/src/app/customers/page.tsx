@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import api from '@/lib/api';
+import { parseCustomerListResponse } from '@/lib/customers';
 
 interface Customer {
   id: string;
@@ -113,7 +114,10 @@ export default function CustomersPage() {
   const loadCustomers = async () => {
     try {
       const response = await api.get('/api/v1/customers');
-      setCustomers(response.data);
+      const totalHeader =
+        response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
+      const { customers } = parseCustomerListResponse(response.data, totalHeader);
+      setCustomers(customers as Customer[]);
     } catch (error) {
       console.error('Failed to load customers:', error);
     }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '@/lib/api';
+import { parseCustomerListResponse } from '@/lib/customers';
 import { useAuthStore } from '@/store/auth';
 
 interface Customer {
@@ -107,6 +108,9 @@ export default function StoreCustomersPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [allCustomers, setAllCustomers] = useState<CustomerListRow[]>([]);
+  const [customerTotal, setCustomerTotal] = useState(0);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchResults, setSearchResults] = useState<CustomerListRow[]>([]);
@@ -149,12 +153,30 @@ export default function StoreCustomersPage() {
   }, []);
 
   const loadCustomers = async () => {
+    setListLoading(true);
+    setListError(null);
     try {
       const response = await api.get('/api/v1/customers');
-      const data = response.data;
-      setAllCustomers(Array.isArray(data) ? data : []);
-    } catch (error) {
+      const totalHeader =
+        response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
+      const { customers, total } = parseCustomerListResponse(
+        response.data,
+        totalHeader
+      );
+      setAllCustomers(customers as CustomerListRow[]);
+      setCustomerTotal(total);
+    } catch (error: unknown) {
       console.error('Failed to load customers:', error);
+      const err = error as { response?: { data?: { error?: string; details?: string } } };
+      const msg =
+        err.response?.data?.details ||
+        err.response?.data?.error ||
+        'Could not load customers. Check your connection and try again.';
+      setListError(msg);
+      setAllCustomers([]);
+      setCustomerTotal(0);
+    } finally {
+      setListLoading(false);
     }
   };
 
@@ -469,7 +491,11 @@ export default function StoreCustomersPage() {
               Search by name or phone — suggestions appear as you type. View loyalty, addresses, and purchase
               history in one place.
             </p>
-            <p className="text-white/70 text-xs mt-2 font-medium">{allCustomers.length} customers on file</p>
+            <p className="text-white/70 text-xs mt-2 font-medium">
+              {customerTotal > 0
+                ? `${customerTotal.toLocaleString()} customers on file`
+                : `${allCustomers.length} customers on file`}
+            </p>
           </div>
           <button
             type="button"
@@ -579,7 +605,22 @@ export default function StoreCustomersPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tap a customer to open details</p>
           </div>
           <div className="flex-1 overflow-y-auto min-h-[280px] max-h-[calc(100vh-320px)]">
-            {allCustomers.length === 0 ? (
+            {listLoading ? (
+              <p className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 px-4">
+                Loading customers…
+              </p>
+            ) : listError ? (
+              <div className="text-center py-10 px-4">
+                <p className="text-sm text-red-600 dark:text-red-400">{listError}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadCustomers()}
+                  className="mt-3 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : allCustomers.length === 0 ? (
               <p className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 px-4">
                 No customers yet. Add one to get started.
               </p>

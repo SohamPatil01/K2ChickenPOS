@@ -6,6 +6,7 @@ import { useCartStore } from '@/store/cart';
 import { useAuthStore } from '@/store/auth';
 import { useNotificationStore } from '@/store/notification';
 import api from '@/lib/api';
+import { parseCustomerListResponse } from '@/lib/customers';
 import NumPad from '@/components/NumPad';
 import VirtualKeyboard from '@/components/VirtualKeyboard';
 import BillSuccessAnimation from '@/components/BillSuccessAnimation';
@@ -116,7 +117,10 @@ export default function StoreCartPage() {
   const loadAllCustomers = async () => {
     try {
       const response = await api.get('/api/v1/customers');
-      setAllCustomers(response.data || []);
+      const totalHeader =
+        response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
+      const { customers } = parseCustomerListResponse(response.data, totalHeader);
+      setAllCustomers(customers);
     } catch (error: any) {
       console.error('Failed to load customers:', error);
     }
@@ -131,11 +135,9 @@ export default function StoreCartPage() {
         setTempCustomerName(response.data.name || '');
         setCustomerSearchResults([]);
       } else {
-        const allCustomers = await api.get('/api/v1/customers');
-        const filtered = (allCustomers.data || []).filter((c: any) => 
-          c.phone.includes(phone) || phone.includes(c.phone)
-        ).slice(0, 5);
-        setCustomerSearchResults(filtered);
+        const searchRes = await api.get('/api/v1/customers', { params: { q: phone } });
+        const { customers } = parseCustomerListResponse(searchRes.data);
+        setCustomerSearchResults(customers.slice(0, 8));
       }
     } catch (error: any) {
       console.error('Failed to search customers:', error);

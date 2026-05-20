@@ -12,6 +12,7 @@ interface QueryParams {
 export async function customerRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
+    try {
     const { phone, q } = (request.query as any);
     // Get default store (since auth is disabled)
     // Use the oldest OWNER store to ensure consistency
@@ -21,6 +22,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
       select: { id: true, name: true, type: true, parentOwnerStoreId: true }
     });
     const storeId = store?.id || '';
+
+    if (!storeId) {
+      reply.code(503).send({ error: 'Store not configured' });
+      return;
+    }
 
     /** Typeahead / dropdown search: name or phone partial match */
     const searchTerm = typeof q === 'string' ? q.trim() : '';
@@ -74,18 +80,28 @@ export async function customerRoutes(fastify: FastifyInstance) {
       return customer || null;
     }
 
-    const customers = await prisma.customer.findMany({
-      where: { storeId },
-      include: {
-        _count: {
-          select: { sales: true },
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        where: { storeId },
+        include: {
+          _count: {
+            select: { sales: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.customer.count({ where: { storeId } }),
+    ]);
 
+    // Return a JSON array (legacy clients) + total in header for the customers tab count.
+    reply.header('X-Customer-Total', String(total));
+    reply.header('Cache-Control', 'private, no-store');
     return customers;
+    } catch (error: any) {
+      console.error('[Customers] List failed:', error?.message || error);
+      reply.header('Cache-Control', 'private, no-store, no-cache');
+      reply.code(500).send({ error: 'Failed to load customers', details: error?.message });
+    }
   });
 
   fastify.get('/:customerId', async (request: any, reply: FastifyReply) => {

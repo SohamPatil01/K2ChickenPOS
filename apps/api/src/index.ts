@@ -54,7 +54,7 @@ async function build() {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'Pragma', 'If-Modified-Since', 'Expires'],
-    exposedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Type', 'Authorization', 'X-Customer-Total'],
   });
 
         // Register rate limiting with higher limits to prevent blocking legitimate requests
