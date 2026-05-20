@@ -130,7 +130,17 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post('/refresh', async (request: any, reply: FastifyReply) => {
     try {
-      const decoded = fastify.jwt.verify((request.body as any).refreshToken) as any;
+      const refreshToken =
+        typeof (request.body as any)?.refreshToken === 'string'
+          ? (request.body as any).refreshToken.trim()
+          : '';
+
+      if (!refreshToken) {
+        reply.code(401).send({ error: 'Invalid token', reason: 'missing_refresh_token' });
+        return;
+      }
+
+      const decoded = fastify.jwt.verify(refreshToken) as any;
       const user = await prisma.user.findUnique({
         where: { id: decoded.userId },
         include: { 
@@ -160,8 +170,14 @@ export async function authRoutes(fastify: FastifyInstance) {
       );
 
       return { accessToken };
-    } catch (err) {
-      reply.code(401).send({ error: 'Invalid token' });
+    } catch (err: any) {
+      const reason =
+        err?.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED' ||
+        err?.message?.includes('expired')
+          ? 'expired'
+          : 'invalid';
+      console.warn('[Auth] Refresh failed:', reason, err?.message);
+      reply.code(401).send({ error: 'Invalid token', reason });
     }
   });
 
