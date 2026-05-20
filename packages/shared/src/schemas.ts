@@ -14,7 +14,11 @@ export const refreshTokenSchema = z.object({
 export const customerSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(10),
-  email: z.string().email().optional(),
+  email: z
+    .preprocess((v) => {
+      if (v === undefined || v === null || v === '') return undefined;
+      return String(v).trim();
+    }, z.string().email().optional()),
 });
 
 /** Empty/missing state & PIN from POS forms → placeholder so validation always passes */
