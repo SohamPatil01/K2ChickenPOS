@@ -159,11 +159,11 @@ export default function StoreCustomersPage() {
       const response = await api.get('/api/v1/customers');
       const totalHeader =
         response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
-      const { customers, total } = parseCustomerListResponse(
+      const { customers, total } = parseCustomerListResponse<CustomerListRow>(
         response.data,
         totalHeader
       );
-      setAllCustomers(customers as CustomerListRow[]);
+      setAllCustomers(customers);
       setCustomerTotal(total);
     } catch (error: unknown) {
       console.error('Failed to load customers:', error);

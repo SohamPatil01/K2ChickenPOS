@@ -119,7 +119,10 @@ export default function StoreCartPage() {
       const response = await api.get('/api/v1/customers');
       const totalHeader =
         response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
-      const { customers } = parseCustomerListResponse(response.data, totalHeader);
+      const { customers } = parseCustomerListResponse<{ id: string; name: string; phone: string }>(
+        response.data,
+        totalHeader
+      );
       setAllCustomers(customers);
     } catch (error: any) {
       console.error('Failed to load customers:', error);
@@ -136,7 +139,9 @@ export default function StoreCartPage() {
         setCustomerSearchResults([]);
       } else {
         const searchRes = await api.get('/api/v1/customers', { params: { q: phone } });
-        const { customers } = parseCustomerListResponse(searchRes.data);
+        const { customers } = parseCustomerListResponse<{ id: string; name: string; phone: string }>(
+          searchRes.data
+        );
         setCustomerSearchResults(customers.slice(0, 8));
       }
     } catch (error: any) {
