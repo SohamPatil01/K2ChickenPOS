@@ -9,83 +9,122 @@ interface QueryParams {
   q?: string;
 }
 
-export async function customerRoutes(fastify: FastifyInstance) {
-
-  fastify.get('/', async (request: any, reply: FastifyReply) => {
-    const { phone, q } = (request.query as any);
-    // Get default store (since auth is disabled)
-    // Use the oldest OWNER store to ensure consistency
-    const store = await prisma.store.findFirst({ 
+async function resolveCustomerStoreScope(request: any) {
+  let storeId = '';
+  let userRole = '';
+  try {
+    const user = getUser(request);
+    storeId = (user as any).storeId || '';
+    userRole = (user as any).role || '';
+  } catch {
+    const store = await prisma.store.findFirst({
       where: { type: 'OWNER' },
       orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+      select: { id: true, type: true },
     });
-    const storeId = store?.id || '';
+    storeId = store?.id || '';
+    userRole = 'OWNER';
+  }
 
-    /** Typeahead / dropdown search: name or phone partial match */
-    const searchTerm = typeof q === 'string' ? q.trim() : '';
-    if (searchTerm.length > 0) {
-      const digits = searchTerm.replace(/\D/g, '');
-      const orClause: Array<Record<string, unknown>> = [
-        { name: { contains: searchTerm, mode: 'insensitive' } },
-        { phone: { contains: searchTerm, mode: 'insensitive' } },
-      ];
-      if (digits.length > 0 && digits !== searchTerm) {
-        orClause.push({ phone: { contains: digits } });
-      }
-      const matches = await prisma.customer.findMany({
-        where: {
-          storeId,
-          OR: orClause,
-        },
-        include: {
-          _count: {
-            select: { sales: true, addresses: true },
-          },
-        },
-        orderBy: [{ name: 'asc' }, { phone: 'asc' }],
-        take: 30,
+  let storeIds = storeId ? [storeId] : [];
+  if (storeId && userRole === 'OWNER') {
+    const userStore = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { type: true },
+    });
+    if (userStore?.type === 'OWNER') {
+      const franchises = await prisma.store.findMany({
+        where: { type: 'FRANCHISE', parentOwnerStoreId: storeId },
+        select: { id: true },
       });
-      return matches;
+      storeIds = [storeId, ...franchises.map((f) => f.id)];
     }
+  }
 
-    if (phone) {
-      const customer = await prisma.customer.findUnique({
-        where: {
-          storeId_phone: {
-            storeId,
-            phone,
+  const storeIdFilter =
+    storeIds.length > 1 ? { in: storeIds } : storeIds[0] || '';
+
+  return { storeId, storeIds, storeIdFilter };
+}
+
+export async function customerRoutes(fastify: FastifyInstance) {
+
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { phone, q } = (request.query as any);
+      const { storeId, storeIdFilter } = await resolveCustomerStoreScope(request);
+
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+
+      /** Typeahead / dropdown search: name or phone partial match */
+      const searchTerm = typeof q === 'string' ? q.trim() : '';
+      if (searchTerm.length > 0) {
+        const digits = searchTerm.replace(/\D/g, '');
+        const orClause: Array<Record<string, unknown>> = [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { phone: { contains: searchTerm, mode: 'insensitive' } },
+        ];
+        if (digits.length > 0 && digits !== searchTerm) {
+          orClause.push({ phone: { contains: digits } });
+        }
+        const matches = await prisma.customer.findMany({
+          where: {
+            storeId: storeIdFilter,
+            OR: orClause,
           },
-        },
-        include: {
-          addresses: true,
-          sales: {
-            take: 10,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              items: {
-                include: { product: true },
+          include: {
+            _count: {
+              select: { sales: true, addresses: true },
+            },
+          },
+          orderBy: [{ name: 'asc' }, { phone: 'asc' }],
+          take: 30,
+        });
+        return matches;
+      }
+
+      if (phone) {
+        const customer = await prisma.customer.findFirst({
+          where: {
+            storeId: storeIdFilter,
+            phone: String(phone).trim(),
+          },
+          include: {
+            addresses: true,
+            sales: {
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                items: {
+                  include: { product: true },
+                },
               },
             },
           },
+        });
+
+        return customer || null;
+      }
+
+      const customers = await prisma.customer.findMany({
+        where: { storeId: storeIdFilter },
+        include: {
+          _count: {
+            select: { sales: true },
+          },
         },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
       });
 
-      return customer || null;
+      return customers;
+    } catch (error: any) {
+      console.error('Failed to list customers:', error);
+      reply.code(500).send({ error: 'Failed to load customers', details: error.message });
     }
-
-    const customers = await prisma.customer.findMany({
-      where: { storeId },
-      include: {
-        _count: {
-          select: { sales: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-
-    return customers;
   });
 
   fastify.get('/:customerId', async (request: any, reply: FastifyReply) => {
@@ -127,16 +166,13 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/', async (request: any, reply: FastifyReply) => {
+  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const data = customerSchema.parse(request.body as any);
-    // Get default store (since auth is disabled)
-    // Use the oldest OWNER store to ensure consistency
-    const store = await prisma.store.findFirst({ 
-      where: { type: 'OWNER' },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-    });
-    const storeId = store?.id || '';
+    const { storeId } = await resolveCustomerStoreScope(request);
+    if (!storeId) {
+      reply.code(400).send({ error: 'Store ID is required' });
+      return;
+    }
 
     const customer = await prisma.customer.upsert({
       where: {

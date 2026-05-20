@@ -44,11 +44,15 @@ export default function StoreCartPage() {
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [showNameDropdown, setShowNameDropdown] = useState(false);
+  const [showPhoneDropdown, setShowPhoneDropdown] = useState(false);
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [tempCustomerPhone, setTempCustomerPhone] = useState(customerPhone || '');
   const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  /** Prevents input blur from closing the picker before mousedown selection runs */
+  const customerPickerActiveRef = useRef(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const paymentInFlightRef = useRef(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -116,30 +120,103 @@ export default function StoreCartPage() {
   const loadAllCustomers = async () => {
     try {
       const response = await api.get('/api/v1/customers');
-      setAllCustomers(response.data || []);
+      const data = response.data;
+      setAllCustomers(Array.isArray(data) ? data : []);
     } catch (error: any) {
       console.error('Failed to load customers:', error);
+      showNotification(
+        error.response?.data?.error || 'Could not load customers. Try again.',
+        'error'
+      );
     }
   };
 
-  const searchCustomers = async (phone: string) => {
-    try {
-      const response = await api.get(`/api/v1/customers?phone=${phone}`);
-      if (response.data) {
-        setCustomer(response.data.id, response.data.phone, response.data.name || null);
-        setTempCustomerPhone(response.data.phone);
-        setTempCustomerName(response.data.name || '');
+  const selectCustomer = useCallback((customer: { id: string; phone: string; name?: string | null }) => {
+    setCustomer(customer.id, customer.phone, customer.name || null);
+    setTempCustomerPhone(customer.phone);
+    setTempCustomerName(customer.name || '');
+    setShowNameDropdown(false);
+    setShowPhoneDropdown(false);
+    setCustomerSearchResults([]);
+  }, [setCustomer]);
+
+  const fetchCustomerSuggestions = useCallback(
+    async (query: string, source: 'name' | 'phone' = 'name') => {
+      const term = query.trim();
+      if (!term) {
         setCustomerSearchResults([]);
-      } else {
-        const allCustomers = await api.get('/api/v1/customers');
-        const filtered = (allCustomers.data || []).filter((c: any) => 
-          c.phone.includes(phone) || phone.includes(c.phone)
-        ).slice(0, 5);
-        setCustomerSearchResults(filtered);
+        setShowNameDropdown(false);
+        setShowPhoneDropdown(false);
+        return;
       }
-    } catch (error: any) {
-      console.error('Failed to search customers:', error);
+
+      setCustomerSearchLoading(true);
+      try {
+        const response = await api.get('/api/v1/customers', { params: { q: term } });
+        const data = Array.isArray(response.data) ? response.data : [];
+        setCustomerSearchResults(data.slice(0, 8));
+        const hasResults = data.length > 0;
+        if (source === 'name') {
+          setShowNameDropdown(hasResults);
+        } else {
+          setShowPhoneDropdown(hasResults);
+        }
+      } catch (error: any) {
+        console.error('Failed to search customers:', error);
+        const lower = term.toLowerCase();
+        const digits = term.replace(/\D/g, '');
+        const filtered = allCustomers
+          .filter((c: any) => {
+            const name = (c.name || '').toLowerCase();
+            const phone = String(c.phone || '');
+            return name.includes(lower) || (digits.length > 0 && phone.includes(digits));
+          })
+          .slice(0, 8);
+        setCustomerSearchResults(filtered);
+        const hasResults = filtered.length > 0;
+        if (source === 'name') {
+          setShowNameDropdown(hasResults);
+        } else {
+          setShowPhoneDropdown(hasResults);
+        }
+      } finally {
+        setCustomerSearchLoading(false);
+      }
+    },
+    [allCustomers]
+  );
+
+  const pickCustomerFromDropdown = useCallback(
+    (customer: { id: string; phone: string; name?: string | null }) => {
+      customerPickerActiveRef.current = true;
+      selectCustomer(customer);
+      requestAnimationFrame(() => {
+        customerPickerActiveRef.current = false;
+      });
+    },
+    [selectCustomer]
+  );
+
+  const searchCustomersByPhone = async (phone: string) => {
+    const trimmed = phone.trim();
+    if (trimmed.length < 3) {
+      setShowPhoneDropdown(false);
+      return;
     }
+
+    if (trimmed.length >= 10) {
+      try {
+        const response = await api.get('/api/v1/customers', { params: { phone: trimmed } });
+        if (response.data?.id) {
+          selectCustomer(response.data);
+          return;
+        }
+      } catch (error: any) {
+        console.error('Failed to look up customer by phone:', error);
+      }
+    }
+
+    await fetchCustomerSuggestions(trimmed, 'phone');
   };
 
   const createOrUpdateCustomer = async (phone: string, name: string) => {
@@ -218,6 +295,31 @@ export default function StoreCartPage() {
     }
   }, [tempCustomerPhone, tempCustomerName, customerId]);
 
+  useEffect(() => {
+    if (!showCustomerSection || skipCustomer) return;
+    const term =
+      tempCustomerName.trim().length > 0
+        ? tempCustomerName.trim()
+        : tempCustomerPhone.trim();
+    if (term.length < 1) {
+      setCustomerSearchResults([]);
+      setShowNameDropdown(false);
+      setShowPhoneDropdown(false);
+      return;
+    }
+    const source = tempCustomerName.trim().length > 0 ? 'name' : 'phone';
+    const timeoutId = setTimeout(() => {
+      fetchCustomerSuggestions(term, source);
+    }, 200);
+    return () => clearTimeout(timeoutId);
+  }, [
+    tempCustomerName,
+    tempCustomerPhone,
+    showCustomerSection,
+    skipCustomer,
+    fetchCustomerSuggestions,
+  ]);
+
   const handleCreateSale = useCallback(async (payments: Array<{ method: string; amount: number }>) => {
     if (paymentInFlightRef.current || isProcessingPayment) {
       console.log('[Cart] Payment already processing, ignoring duplicate call');
@@ -237,6 +339,8 @@ export default function StoreCartPage() {
 
     paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
+
+    let createdSaleId: string | null = null;
     
     try {
       const { items, customerId, customerPhone, customerName, discountTotal } = useCartStore.getState();
@@ -303,6 +407,7 @@ export default function StoreCartPage() {
         console.error('[Cart] Invalid sale response:', sale);
         throw new Error('Invalid sale response: Sale ID not found');
       }
+      createdSaleId = sale.id;
 
       const roundedSaleGrandTotal = Math.round(sale.grandTotal);
       
@@ -353,6 +458,36 @@ export default function StoreCartPage() {
       }
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
+
+      // Pay may have succeeded on the server (e.g. double-tap); recover if credit payment exists
+      if (createdSaleId && payments.some((p) => p.method === 'CREDIT')) {
+        try {
+          const check = await api.get(`/api/v1/sales/${createdSaleId}`);
+          const salePayments = check.data?.payments || [];
+          const creditRecorded = salePayments.some((p: { method: string }) => p.method === 'CREDIT');
+          if (creditRecorded) {
+            const recovered = check.data;
+            const roundedSaleGrandTotal = Math.round(recovered.grandTotal ?? 0);
+            try {
+              await clearCart();
+            } catch {
+              /* non-blocking */
+            }
+            setShowPaymentModal(false);
+            setCompletedSale({
+              saleNo: recovered.saleNo || 'N/A',
+              grandTotal: roundedSaleGrandTotal,
+            });
+            setShowSuccessAnimation(true);
+            window.dispatchEvent(
+              new CustomEvent('sale-created', { detail: { saleId: createdSaleId, payments } })
+            );
+            return;
+          }
+        } catch (recoverErr) {
+          console.warn('[Cart] Could not recover credit sale after pay error:', recoverErr);
+        }
+      }
       
       let errorMessage = 'Failed to process payment';
       
@@ -535,7 +670,7 @@ export default function StoreCartPage() {
               {showCustomerSection && !skipCustomer && (
                 <div className="p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                  <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Phone Number
                     </label>
@@ -545,7 +680,12 @@ export default function StoreCartPage() {
                         placeholder="Enter phone number"
                         value={tempCustomerPhone}
                         readOnly
-                        onClick={() => setShowNumPad(true)}
+                        onClick={() => {
+                          setShowNumPad(true);
+                          if (tempCustomerPhone.trim().length >= 3) {
+                            void searchCustomersByPhone(tempCustomerPhone);
+                          }
+                        }}
                         className={`w-full px-4 py-3 pl-11 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${
                           tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10
                             ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
@@ -563,9 +703,34 @@ export default function StoreCartPage() {
                         Phone number must be at least 10 digits
                       </p>
                     )}
+                    {showPhoneDropdown && customerSearchResults.length > 0 && (
+                      <div
+                        role="listbox"
+                        className="absolute left-0 right-0 z-[200] mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto pointer-events-auto"
+                        onMouseDown={() => {
+                          customerPickerActiveRef.current = true;
+                        }}
+                      >
+                        {customerSearchResults.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              pickCustomerFromDropdown(customer);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name || 'Customer'}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="relative z-50">
+                  <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Customer Name
                     </label>
@@ -578,28 +743,22 @@ export default function StoreCartPage() {
                           const newName = e.target.value;
                           setTempCustomerName(newName);
                           setCustomer(customerId, tempCustomerPhone || null, newName || null);
-                          if (newName.length >= 1) {
-                            const filtered = allCustomers.filter((c: any) => 
-                              c.name.toLowerCase().startsWith(newName.toLowerCase())
-                            ).slice(0, 5);
-                            setCustomerSearchResults(filtered);
-                            setShowNameDropdown(filtered.length > 0);
-                          } else {
-                            setShowNameDropdown(false);
-                          }
                         }}
                         onFocus={() => {
-                          if (tempCustomerName.length >= 1) {
-                            const filtered = allCustomers.filter((c: any) => 
-                              c.name.toLowerCase().startsWith(tempCustomerName.toLowerCase())
-                            ).slice(0, 5);
-                            setCustomerSearchResults(filtered);
-                            setShowNameDropdown(filtered.length > 0);
+                          if (tempCustomerName.trim().length >= 1) {
+                            void fetchCustomerSuggestions(tempCustomerName.trim(), 'name');
+                          } else if (allCustomers.length > 0) {
+                            setCustomerSearchResults(allCustomers.slice(0, 8));
+                            setShowNameDropdown(true);
                           }
                         }}
                         onBlur={() => {
-                          setTimeout(() => setShowNameDropdown(false), 200);
                           setTimeout(() => {
+                            if (customerPickerActiveRef.current) return;
+                            setShowNameDropdown(false);
+                          }, 250);
+                          setTimeout(() => {
+                            if (customerPickerActiveRef.current) return;
                             const currentName = tempCustomerName.trim();
                             const currentPhone = tempCustomerPhone.trim();
                             if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
@@ -664,24 +823,34 @@ export default function StoreCartPage() {
                       </div>
                     </div>
                     
-                    {showNameDropdown && customerSearchResults.length > 0 && (
-                      <div className="absolute z-[100] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto">
-                        {customerSearchResults.map((customer) => (
-                          <button
-                            key={customer.id}
-                            type="button"
-                            onClick={() => {
-                              setCustomer(customer.id, customer.phone, customer.name);
-                              setTempCustomerPhone(customer.phone);
-                              setTempCustomerName(customer.name);
-                              setShowNameDropdown(false);
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
-                          >
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
-                          </button>
-                        ))}
+                    {(customerSearchLoading || (showNameDropdown && customerSearchResults.length > 0)) && (
+                      <div
+                        role="listbox"
+                        className="absolute left-0 right-0 z-[200] mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto pointer-events-auto"
+                        onMouseDown={() => {
+                          customerPickerActiveRef.current = true;
+                        }}
+                      >
+                        {customerSearchLoading ? (
+                          <p className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">Searching...</p>
+                        ) : (
+                          customerSearchResults.map((customer) => (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              role="option"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                pickCustomerFromDropdown(customer);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-brand-50 dark:active:bg-brand-900/30 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer touch-manipulation"
+                            >
+                              <div className="font-medium text-sm text-gray-900 dark:text-white pointer-events-none">{customer.name || 'Customer'}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 pointer-events-none">{customer.phone}</div>
+                            </button>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>
@@ -1041,8 +1210,8 @@ export default function StoreCartPage() {
           onChange={(value) => {
             setTempCustomerPhone(value);
             setCustomer(null, value || null, tempCustomerName || null);
-            if (value && value.length >= 6) {
-              searchCustomers(value);
+            if (value && value.length >= 3) {
+              void searchCustomersByPhone(value);
             }
           }}
           onClose={() => {
@@ -1068,13 +1237,7 @@ export default function StoreCartPage() {
           onChange={(value) => {
             setTempCustomerName(value);
             setCustomer(customerId, tempCustomerPhone || null, value || null);
-            if (value && value.length >= 1) {
-              const filtered = allCustomers.filter((c: any) => 
-                c.name.toLowerCase().startsWith(value.toLowerCase())
-              ).slice(0, 5);
-              setCustomerSearchResults(filtered);
-              setShowNameDropdown(filtered.length > 0);
-            } else {
+            if (!value || value.trim().length === 0) {
               setShowNameDropdown(false);
             }
           }}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useNotificationStore } from '@/store/notification';
@@ -51,6 +51,7 @@ export default function PendingPaymentsPage() {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null); // null = pay all, or specific order ID
   const [processing, setProcessing] = useState(false);
+  const paymentInFlightRef = useRef(false);
   const [showNumPad, setShowNumPad] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [successData, setSuccessData] = useState<{ amount: number; customerName: string; orderNo?: string } | null>(null);
@@ -111,6 +112,7 @@ export default function PendingPaymentsPage() {
 
   const handleProcessPayment = async () => {
     if (!selectedCustomer) return;
+    if (paymentInFlightRef.current || processing) return;
 
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -118,6 +120,7 @@ export default function PendingPaymentsPage() {
       return;
     }
 
+    paymentInFlightRef.current = true;
     setProcessing(true);
     try {
       if (selectedOrder) {
@@ -237,6 +240,7 @@ export default function PendingPaymentsPage() {
         'error'
       );
     } finally {
+      paymentInFlightRef.current = false;
       setProcessing(false);
     }
   };
