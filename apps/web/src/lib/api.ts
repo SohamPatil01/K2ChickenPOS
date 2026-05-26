@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getApiBaseUrl } from './apiBaseUrl';
 
 /**
  * When `NEXT_PUBLIC_API_URL` is set (e.g. on Vercel), call the API directly. Browsers send
@@ -7,7 +8,7 @@ import axios from 'axios';
  * surfaces as 401 on protected routes like GET /api/v1/products.
  * Local dev: leave unset and rely on `next.config.js` rewrites to localhost.
  */
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+const API_BASE = getApiBaseUrl();
 
 export const api = axios.create({
   baseURL: API_BASE,

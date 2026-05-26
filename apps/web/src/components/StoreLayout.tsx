@@ -13,6 +13,7 @@ import {
   flushPendingPosSync,
   getPendingSyncCount,
 } from "@/lib/posSync";
+import { refreshOfflineCatalog } from "@/lib/offlineBootstrap";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -67,12 +68,18 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
   useEffect(() => {
     const onOnlineFlush = async () => {
       setIsOffline(false);
-      await flushPendingPosSync("");
+      await flushPendingPosSync();
+      await refreshOfflineCatalog();
       await refreshPendingSync();
     };
     window.addEventListener("online", onOnlineFlush);
     return () => window.removeEventListener("online", onOnlineFlush);
   }, [refreshPendingSync]);
+
+  useEffect(() => {
+    if (!user || isOffline) return;
+    void refreshOfflineCatalog();
+  }, [user, isOffline]);
 
   // Enter key: ensure form submit works across entire POS/store (keyboard-friendly)
   useEffect(() => {
@@ -360,7 +367,7 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
                 onClick={async () => {
                   setSyncBusy(true);
                   try {
-                    const r = await flushPendingPosSync("");
+                    const r = await flushPendingPosSync();
                     await refreshPendingSync();
                     if (!r.ok && r.error) {
                       useNotificationStore.getState().showNotification(

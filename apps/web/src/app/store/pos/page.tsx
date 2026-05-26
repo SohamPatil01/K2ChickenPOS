@@ -19,7 +19,10 @@ import {
   listHeldCarts,
   deleteHeldCart,
   getHeldCart,
+  saveLocalProducts,
+  getCachedProducts,
   type HeldCartSnapshot,
+  type LocalProduct,
 } from "@azela-pos/offline";
 
 interface Product {
@@ -123,6 +126,40 @@ function sortProductsByDisplayOrder<T extends { name: string }>(items: T[]): T[]
     if (j === -1) return -1;
     return i - j;
   });
+}
+
+function mapCachedProduct(p: LocalProduct): Product {
+  return {
+    id: p.productId,
+    name: p.name,
+    sku: p.sku,
+    plu: p.plu,
+    categoryId: p.categoryId,
+    categoryName: p.categoryName,
+    unitType: p.unitType,
+    taxRate: p.taxRate,
+    pricePerUnit: p.pricePerUnit,
+  };
+}
+
+function categoriesFromProducts(products: Product[]): Category[] {
+  const byId = new Map<string, Category>();
+  for (const p of products) {
+    if (p.categoryId && !byId.has(p.categoryId)) {
+      byId.set(p.categoryId, {
+        id: p.categoryId,
+        name: p.categoryName || "General",
+      });
+    }
+  }
+  return Array.from(byId.values());
+}
+
+async function loadProductsFromCache(): Promise<Product[]> {
+  const cached = await getCachedProducts();
+  return sortProductsByDisplayOrder(
+    cached.filter((p) => p.isActive).map(mapCachedProduct)
+  );
 }
 
 interface FranchiseConfig {
@@ -341,6 +378,32 @@ export default function StorePOSPage() {
   const loadProducts = async () => {
     setLoading((prev) => ({ ...prev, products: true }));
     setError((prev) => ({ ...prev, products: undefined }));
+
+    const applyCachedProducts = async (): Promise<boolean> => {
+      const offlineProducts = await loadProductsFromCache();
+      if (offlineProducts.length === 0) return false;
+      setProducts(offlineProducts);
+      setCategories(categoriesFromProducts(offlineProducts));
+      showNotification(
+        `Offline catalog: ${offlineProducts.length} products loaded`,
+        "warning",
+        4500
+      );
+      return true;
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      if (!(await applyCachedProducts())) {
+        setError((prev) => ({
+          ...prev,
+          products:
+            "You are offline and no product catalog is cached. Go online once to sync the catalog.",
+        }));
+      }
+      setLoading((prev) => ({ ...prev, products: false }));
+      return;
+    }
+
     try {
       const response = await api.get("/api/v1/products", {
         params: { _t: Date.now() },
@@ -366,14 +429,31 @@ export default function StorePOSPage() {
       );
 
       setProducts(productsWithMaster);
+      await saveLocalProducts(
+        productsWithMaster.map((p: Product) => ({
+          productId: p.id,
+          sku: p.sku || "",
+          plu: p.plu || "",
+          name: p.name,
+          categoryId: p.categoryId,
+          categoryName: p.categoryName || "",
+          unitType: p.unitType,
+          taxRate: p.taxRate,
+          pricePerUnit: p.pricePerUnit,
+          isActive: true,
+        }))
+      );
     } catch (error: any) {
       console.error("Failed to load products:", error);
 
-      // Enhanced error handling for network errors
+      if (await applyCachedProducts()) {
+        return;
+      }
+
       let errorMessage = "Failed to load products. Please try again.";
       if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
         errorMessage =
-          "Cannot connect to API server. Please check if the API is running (requests are proxied from this app).";
+          "Cannot connect to API server. Connect once while online to cache products for offline use.";
         console.error("Network Error Details:", {
           errorCode: error.code,
           errorMessage: error.message,
@@ -398,6 +478,16 @@ export default function StorePOSPage() {
   const loadCategories = async () => {
     setLoading((prev) => ({ ...prev, categories: true }));
     setError((prev) => ({ ...prev, categories: undefined }));
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const offlineProducts = await loadProductsFromCache();
+      if (offlineProducts.length > 0) {
+        setCategories(categoriesFromProducts(offlineProducts));
+      }
+      setLoading((prev) => ({ ...prev, categories: false }));
+      return;
+    }
+
     try {
       const response = await api.get("/api/v1/products/categories", {
         params: { _t: Date.now() },
@@ -406,6 +496,11 @@ export default function StorePOSPage() {
       setCategories(response.data || []);
     } catch (error: any) {
       console.error("Failed to load categories:", error);
+      const offlineProducts = await loadProductsFromCache();
+      if (offlineProducts.length > 0) {
+        setCategories(categoriesFromProducts(offlineProducts));
+        return;
+      }
       const errorMessage =
         error.response?.data?.error ||
         error.message ||
