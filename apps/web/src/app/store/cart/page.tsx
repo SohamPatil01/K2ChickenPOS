@@ -10,7 +10,11 @@ import { parseCustomerListResponse } from '@/lib/customers';
 import NumPad from '@/components/NumPad';
 import VirtualKeyboard from '@/components/VirtualKeyboard';
 import BillSuccessAnimation from '@/components/BillSuccessAnimation';
-import { offlineDB, queueEvent } from '@azela-pos/offline';
+import {
+  isCheckoutNetworkError,
+  isOfflineForCheckout,
+  queueOfflineCheckout,
+} from '@/lib/offlineCheckout';
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
 import { normalizePaymentsForSale } from '@azela-pos/shared';
@@ -244,18 +248,11 @@ export default function StoreCartPage() {
 
     paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
-    
-    try {
-      const { items, customerId, customerPhone, customerName, discountTotal } = useCartStore.getState();
-      const { subTotal, taxTotal, grandTotal } = getTotal();
 
-      if (items.length === 0) {
-        showNotification('Cart is empty', 'warning');
-        return;
-      }
-
-      // Skip customer validation if user explicitly skipped customer section
-      const saleData = {
+    const buildSaleData = () => {
+      const { items, customerId, customerPhone, customerName, discountTotal } =
+        useCartStore.getState();
+      return {
         items: items.map((item) => ({
           productId: item.productId,
           qtyKg: item.qtyKg,
@@ -264,29 +261,49 @@ export default function StoreCartPage() {
           taxRate: item.taxRate,
           metaJson: item.metaJson || undefined,
         })),
-        customerId: (!skipCustomer && customerId) ? customerId : undefined,
-        customerPhone: (!skipCustomer && customerPhone) ? customerPhone : undefined,
-        customerName: (!skipCustomer && customerName) ? customerName : undefined,
+        customerId: !skipCustomer && customerId ? customerId : undefined,
+        customerPhone: !skipCustomer && customerPhone ? customerPhone : undefined,
+        customerName: !skipCustomer && customerName ? customerName : undefined,
         discountTotal: discountTotal || 0,
       };
+    };
 
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        const idempotencyKey = crypto.randomUUID();
-        const paymentsQueued = normalizePaymentsForSale(payments, grandTotal);
-        await queueEvent('OFFLINE_CHECKOUT_COMPLETE', {
-          idempotencyKey,
-          createSale: saleData,
-          payments: paymentsQueued,
-          fulfillmentType: useCartStore.getState().fulfillmentType,
-        });
-        setShowPaymentModal(false);
+    const finishOfflineCheckout = async (message: string) => {
+      const saleData = buildSaleData();
+      const { grandTotal } = getTotal();
+      await queueOfflineCheckout(
+        saleData,
+        payments,
+        grandTotal,
+        useCartStore.getState().fulfillmentType
+      );
+      setShowPaymentModal(false);
+      try {
         await clearCart();
-        showNotification(
-          'Offline: bill queued. It will sync when you are back online (see header).',
-          'success',
-          6500
+      } catch (clearErr) {
+        console.error('[Cart] clearCart after offline checkout:', clearErr);
+      }
+      setCompletedSale({
+        saleNo: 'Queued (offline)',
+        grandTotal: Math.round(grandTotal),
+      });
+      setShowSuccessAnimation(true);
+      showNotification(message, 'success', 6500);
+    };
+    
+    try {
+      if (useCartStore.getState().items.length === 0) {
+        showNotification('Cart is empty', 'warning');
+        return;
+      }
+
+      const saleData = buildSaleData();
+      const { grandTotal } = getTotal();
+
+      if (isOfflineForCheckout()) {
+        await finishOfflineCheckout(
+          'Bill saved offline. It will sync automatically when internet is back.'
         );
-        window.dispatchEvent(new CustomEvent('pos-pending-sync-changed'));
         return;
       }
 
@@ -360,6 +377,17 @@ export default function StoreCartPage() {
       }
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
+
+      if (isCheckoutNetworkError(error) && useCartStore.getState().items.length > 0) {
+        try {
+          await finishOfflineCheckout(
+            'No connection — bill saved offline and will sync when you are back online.'
+          );
+          return;
+        } catch (queueErr) {
+          console.error('[Cart] Offline queue fallback failed:', queueErr);
+        }
+      }
       
       let errorMessage = 'Failed to process payment';
       
@@ -1010,6 +1038,11 @@ export default function StoreCartPage() {
             <BillSuccessAnimation
               saleNo={completedSale.saleNo}
               grandTotal={completedSale.grandTotal}
+              subtitle={
+                completedSale.saleNo.includes('offline')
+                  ? 'Saved offline — will sync when internet is back.'
+                  : 'Redirecting to POS...'
+              }
               onComplete={() => {
                 setShowSuccessAnimation(false);
                 setCompletedSale(null);

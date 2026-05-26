@@ -14,7 +14,6 @@ import NumPad from "@/components/NumPad";
 import { SkeletonProductCard } from "@/components/ui";
 import { normalizeBarcodeForLookup, normalizePaymentsForSale } from "@azela-pos/shared";
 import {
-  queueEvent,
   saveHeldCart,
   listHeldCarts,
   deleteHeldCart,
@@ -24,6 +23,11 @@ import {
   type HeldCartSnapshot,
   type LocalProduct,
 } from "@azela-pos/offline";
+import {
+  isCheckoutNetworkError,
+  isOfflineForCheckout,
+  queueOfflineCheckout,
+} from "@/lib/offlineCheckout";
 
 interface Product {
   id: string;
@@ -1049,27 +1053,28 @@ export default function StorePOSPage() {
 
       const clientGrandTotal = useCartStore.getState().getTotal().grandTotal;
 
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        const idempotencyKey = crypto.randomUUID();
-        const paymentsQueued = normalizePaymentsForSale(
+      const finishOfflineCheckout = async (message: string) => {
+        await queueOfflineCheckout(
+          saleData,
           [{ method, amount: clientGrandTotal }],
-          clientGrandTotal
+          clientGrandTotal,
+          useCartStore.getState().fulfillmentType
         );
-        await queueEvent("OFFLINE_CHECKOUT_COMPLETE", {
-          idempotencyKey,
-          createSale: saleData,
-          payments: paymentsQueued,
-          fulfillmentType: useCartStore.getState().fulfillmentType,
-        });
         await clearCart();
         await loadCart();
         setShowQuickCheckout(false);
-        showNotification(
-          "Offline: bill queued. It will sync when you are back online.",
-          "success",
-          6500
+        setCompletedSale({
+          saleNo: "Queued (offline)",
+          grandTotal: Math.round(clientGrandTotal),
+        });
+        setShowSuccessAnimation(true);
+        showNotification(message, "success", 6500);
+      };
+
+      if (isOfflineForCheckout()) {
+        await finishOfflineCheckout(
+          "Bill saved offline. It will sync automatically when internet is back."
         );
-        window.dispatchEvent(new CustomEvent("pos-pending-sync-changed"));
         return;
       }
 
@@ -1146,6 +1151,59 @@ export default function StorePOSPage() {
       }
     } catch (error: any) {
       console.error("[Quick Checkout] Payment error:", error);
+
+      if (
+        isCheckoutNetworkError(error) &&
+        useCartStore.getState().items.length > 0
+      ) {
+        try {
+          const {
+            items: cartItems,
+            customerId,
+            customerPhone,
+            customerName,
+            discountTotal,
+          } = useCartStore.getState();
+          const clientGrandTotal = useCartStore.getState().getTotal().grandTotal;
+          const saleDataFb = {
+            customerId: customerId || undefined,
+            customerPhone: customerPhone || undefined,
+            customerName: customerName || undefined,
+            discountTotal: discountTotal || 0,
+            items: cartItems.map((item) => ({
+              productId: item.productId,
+              qtyKg: item.qtyKg || undefined,
+              qtyPcs: item.qtyPcs || undefined,
+              rate: item.rate,
+              taxRate: item.taxRate,
+              metaJson: item.metaJson || undefined,
+            })),
+          };
+          await queueOfflineCheckout(
+            saleDataFb,
+            [{ method, amount: clientGrandTotal }],
+            clientGrandTotal,
+            useCartStore.getState().fulfillmentType
+          );
+          await clearCart();
+          await loadCart();
+          setShowQuickCheckout(false);
+          setCompletedSale({
+            saleNo: "Queued (offline)",
+            grandTotal: Math.round(clientGrandTotal),
+          });
+          setShowSuccessAnimation(true);
+          showNotification(
+            "No connection — bill saved offline and will sync when you are back online.",
+            "success",
+            6500
+          );
+          return;
+        } catch (queueErr) {
+          console.error("[Quick Checkout] Offline queue failed:", queueErr);
+        }
+      }
+
       const errorMessage =
         error.response?.data?.error || error.message || "Payment failed";
       showNotification(errorMessage, "error", 5000);
@@ -1923,6 +1981,11 @@ export default function StorePOSPage() {
         <BillSuccessAnimation
           saleNo={completedSale.saleNo}
           grandTotal={completedSale.grandTotal}
+          subtitle={
+            completedSale.saleNo.includes("offline")
+              ? "Saved offline — will sync when internet is back."
+              : undefined
+          }
           onComplete={() => {
             setShowSuccessAnimation(false);
             setCompletedSale(null);
