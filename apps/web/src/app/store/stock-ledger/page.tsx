@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
+import { defaultDateRangeLast30Days, localDateRangeToApiBounds } from '@/lib/dateRangeParams';
 
 interface StockLedgerEntry {
   id: string;
@@ -26,9 +27,10 @@ export default function StockLedgerPage() {
   const { user } = useAuthStore();
   const [entries, setEntries] = useState<StockLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const defaultRange = defaultDateRangeLast30Days();
   const [filters, setFilters] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: defaultRange.start,
+    endDate: defaultRange.end,
     type: '',
     reason: '',
     productId: '',
@@ -70,9 +72,10 @@ export default function StockLedgerPage() {
   const loadLedger = async () => {
     setLoading(true);
     try {
+      const bounds = localDateRangeToApiBounds(filters.startDate, filters.endDate);
       const params: any = {
-        startDate: filters.startDate,
-        endDate: filters.endDate,
+        startDate: bounds.startDate,
+        endDate: bounds.endDate,
       };
       if (filters.type) params.type = filters.type;
       if (filters.reason) params.reason = filters.reason;

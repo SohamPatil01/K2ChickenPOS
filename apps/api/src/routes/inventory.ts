@@ -646,11 +646,19 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       if (reason) where.reason = reason;
       if (productId) where.productId = productId;
       if (startDate && endDate) {
-        const start = new Date(startDate as string);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(endDate as string);
-        end.setHours(23, 59, 59, 999);
-        where.createdAt = { gte: start, lte: end };
+        const startStr = String(startDate).split('T')[0];
+        const endStr = String(endDate).split('T')[0];
+        if (String(startDate).includes('T') && String(endDate).includes('T')) {
+          where.createdAt = {
+            gte: new Date(startDate as string),
+            lte: new Date(endDate as string),
+          };
+        } else {
+          where.createdAt = {
+            gte: new Date(startStr + 'T00:00:00.000Z'),
+            lte: new Date(endStr + 'T23:59:59.999Z'),
+          };
+        }
       }
 
       const ledgers = await prisma.inventoryLedger.findMany({

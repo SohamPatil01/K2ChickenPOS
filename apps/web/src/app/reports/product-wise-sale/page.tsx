@@ -3,15 +3,15 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import { defaultDateRangeLast30Days } from '@/lib/dateRangeParams';
 import api from '@/lib/api';
 
 export default function ProductWiseSalePage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
-  const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  );
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const defaultRange = defaultDateRangeLast30Days();
+  const [startDate, setStartDate] = useState(defaultRange.start);
+  const [endDate, setEndDate] = useState(defaultRange.end);
 
   useEffect(() => {
     loadData();

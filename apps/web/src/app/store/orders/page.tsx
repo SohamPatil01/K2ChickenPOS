@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
@@ -10,6 +10,7 @@ import ThermalReceipt from "@/components/ThermalReceipt";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import { exportSalesCSV } from "@/lib/exportCSV";
 import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
+import { localDateRangeToApiBounds } from "@/lib/dateRangeParams";
 
 interface Sale {
   id: string;
@@ -74,16 +75,7 @@ export default function OrdersPage() {
       taxRate: number;
     }>,
   });
-  const [dateFilter, setDateFilter] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
-  });
-  const [statusFilter, setStatusFilter] = useState<string>("ALL"); // ALL, OPEN, PAID, VOID
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState<
-    string | undefined
-  >(undefined);
+  const [filters, setFilters] = useState<FilterCriteria | null>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -97,28 +89,11 @@ export default function OrdersPage() {
   } | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  // Memoize the filter change handler to prevent infinite loops
-  const handleFilterChange = useCallback((filters: FilterCriteria) => {
-    setDateFilter({
-      startDate: filters.dateRange.start,
-      endDate: filters.dateRange.end,
-    });
-    setStatusFilter(
-      filters.status && filters.status.trim() !== "" ? filters.status : "ALL"
-    );
-    setPaymentMethodFilter(
-      filters.paymentMethod && filters.paymentMethod.trim() !== ""
-        ? filters.paymentMethod
-        : undefined
-    );
+  const handleFilterChange = useCallback((next: FilterCriteria) => {
+    setFilters(next);
   }, []);
 
-  const displayedSales = useMemo(() => {
-    if (!paymentMethodFilter) return sales;
-    return sales.filter((s) =>
-      (s.payments || []).some((p) => p.method === paymentMethodFilter)
-    );
-  }, [sales, paymentMethodFilter]);
+  const loadSalesRef = useRef<() => Promise<void>>(async () => {});
 
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
@@ -180,81 +155,27 @@ export default function OrdersPage() {
     }
   }, [user, router]);
 
-  // Separate useEffect for loading data when filters change
-  useEffect(() => {
-    if (
-      !user ||
-      (user.role !== "OWNER" &&
-        user.role !== "MANAGER" &&
-        user.role !== "CASHIER")
-    ) {
-      return;
-    }
-
-    loadSales();
-    loadProducts();
-  }, [user, dateFilter.startDate, dateFilter.endDate, statusFilter]);
-
-  // Separate useEffect for event listeners (only set up once)
-  useEffect(() => {
-    if (
-      !user ||
-      (user.role !== "OWNER" &&
-        user.role !== "MANAGER" &&
-        user.role !== "CASHIER")
-    ) {
-      return;
-    }
-
-    // Listen for sale events to auto-refresh
-    const handleSaleCreated = () => {
-      console.log("[Orders Page] Sale created event received, refreshing...");
-      loadSales();
-    };
-
-    const handleSaleUpdated = () => {
-      console.log("[Orders Page] Sale updated event received, refreshing...");
-      loadSales();
-    };
-
-    const handleSaleDeleted = () => {
-      console.log("[Orders Page] Sale deleted event received, refreshing...");
-      loadSales();
-    };
-
-    window.addEventListener("sale-created", handleSaleCreated);
-    window.addEventListener("sale-updated", handleSaleUpdated);
-    window.addEventListener("sale-deleted", handleSaleDeleted);
-
-    // Periodic refresh as fallback (every 5 minutes)
-    const refreshInterval = setInterval(() => {
-      loadSales();
-    }, 5 * 60 * 1000);
-
-    return () => {
-      window.removeEventListener("sale-created", handleSaleCreated);
-      window.removeEventListener("sale-updated", handleSaleUpdated);
-      window.removeEventListener("sale-deleted", handleSaleDeleted);
-      clearInterval(refreshInterval);
-    };
-  }, [user]);
-
-  const loadSales = async () => {
+  const loadSales = useCallback(async () => {
+    if (!filters) return;
     setLoading(true);
     try {
-      const startDate = new Date(dateFilter.startDate);
-      startDate.setHours(0, 0, 0, 0);
-      const endDate = new Date(dateFilter.endDate);
-      endDate.setHours(23, 59, 59, 999);
+      const bounds = localDateRangeToApiBounds(
+        filters.dateRange.start,
+        filters.dateRange.end
+      );
 
-      const params: any = {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+      const params: Record<string, string> = {
+        startDate: bounds.startDate,
+        endDate: bounds.endDate,
+        businessDayStart: bounds.businessDayStart,
+        businessDayEnd: bounds.businessDayEnd,
       };
 
-      // Add status filter if not 'ALL'
-      if (statusFilter !== "ALL") {
-        params.status = statusFilter;
+      if (filters.status && filters.status.trim() !== "") {
+        params.status = filters.status;
+      }
+      if (filters.paymentMethod && filters.paymentMethod.trim() !== "") {
+        params.paymentMethod = filters.paymentMethod;
       }
 
       const response = await api.get("/api/v1/sales", { params });
@@ -265,16 +186,79 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters, showNotification]);
 
-  const loadProducts = async () => {
+  loadSalesRef.current = loadSales;
+
+  const loadProducts = useCallback(async () => {
     try {
       const response = await api.get("/api/v1/products");
       setProducts(response.data || []);
     } catch (error) {
       console.error("Failed to load products:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !user ||
+      (user.role !== "OWNER" &&
+        user.role !== "MANAGER" &&
+        user.role !== "CASHIER")
+    ) {
+      return;
+    }
+    if (!filters) return;
+    loadSales();
+  }, [user, filters, loadSales]);
+
+  useEffect(() => {
+    if (
+      !user ||
+      (user.role !== "OWNER" &&
+        user.role !== "MANAGER" &&
+        user.role !== "CASHIER")
+    ) {
+      return;
+    }
+    loadProducts();
+  }, [user, loadProducts]);
+
+  useEffect(() => {
+    if (
+      !user ||
+      (user.role !== "OWNER" &&
+        user.role !== "MANAGER" &&
+        user.role !== "CASHIER")
+    ) {
+      return;
+    }
+
+    const handleSaleCreated = () => {
+      loadSalesRef.current();
+    };
+    const handleSaleUpdated = () => {
+      loadSalesRef.current();
+    };
+    const handleSaleDeleted = () => {
+      loadSalesRef.current();
+    };
+
+    window.addEventListener("sale-created", handleSaleCreated);
+    window.addEventListener("sale-updated", handleSaleUpdated);
+    window.addEventListener("sale-deleted", handleSaleDeleted);
+
+    const refreshInterval = setInterval(() => {
+      loadSalesRef.current();
+    }, 5 * 60 * 1000);
+
+    return () => {
+      window.removeEventListener("sale-created", handleSaleCreated);
+      window.removeEventListener("sale-updated", handleSaleUpdated);
+      window.removeEventListener("sale-deleted", handleSaleDeleted);
+      clearInterval(refreshInterval);
+    };
+  }, [user]);
 
   const openEditModal = (sale: Sale) => {
     setEditingSale(sale);
@@ -554,7 +538,7 @@ export default function OrdersPage() {
             Orders
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            {statusFilter === "OPEN"
+            {filters?.status === "OPEN"
               ? "View and complete pending orders"
               : "View and edit all orders"}
           </p>
@@ -563,12 +547,12 @@ export default function OrdersPage() {
           <button
             onClick={() =>
               exportSalesCSV(
-                displayedSales,
+                sales,
                 `orders-${new Date().toISOString().split("T")[0]}.csv`
               )
             }
             className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
-            disabled={displayedSales.length === 0}
+            disabled={sales.length === 0}
           >
             📊 Export CSV
           </button>
@@ -592,7 +576,7 @@ export default function OrdersPage() {
       {/* Sales List */}
       <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
         <div className="flex-1 overflow-y-auto min-h-0">
-          {displayedSales.length === 0 ? (
+          {sales.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400">
                 {sales.length === 0
@@ -602,7 +586,7 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {displayedSales.map((sale) => {
+              {sales.map((sale) => {
                 return (
                   <div
                     key={sale.id}

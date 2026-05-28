@@ -51,6 +51,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const status = (request.query as any).status;
       const startDate = (request.query as any).startDate;
       const endDate = (request.query as any).endDate;
+      const businessDayStart = (request.query as any).businessDayStart;
+      const businessDayEnd = (request.query as any).businessDayEnd;
+      const paymentMethod = (request.query as any).paymentMethod;
 
       // Try to get storeId from authenticated user, fallback to default store
       let storeId = '';
@@ -115,29 +118,50 @@ export async function saleRoutes(fastify: FastifyInstance) {
       if (status) {
         where.status = status;
       }
+      if (paymentMethod) {
+        where.payments = { some: { method: String(paymentMethod).toUpperCase() } };
+      }
       if (startDate || endDate) {
-        where.createdAt = {};
-        if (startDate) {
-          // Parse as UTC to avoid timezone issues
-          const start = new Date(startDate);
-          // If it's an ISO string without time, treat as UTC midnight
-          if (startDate.includes('T')) {
-            where.createdAt.gte = start;
-          } else {
-            // Date string like "2025-01-06" - treat as UTC
-            where.createdAt.gte = new Date(startDate + 'T00:00:00.000Z');
+        const parseBound = (value: string, endOfDay: boolean) => {
+          if (value.includes('T')) {
+            return new Date(value);
           }
+          return new Date(value + (endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
+        };
+
+        const createdStart = startDate ? parseBound(String(startDate), false) : undefined;
+        const createdEnd = endDate ? parseBound(String(endDate), true) : undefined;
+
+        const bStartYmd = businessDayStart
+          ? String(businessDayStart).split('T')[0]
+          : startDate
+            ? String(startDate).split('T')[0]
+            : undefined;
+        const bEndYmd = businessDayEnd
+          ? String(businessDayEnd).split('T')[0]
+          : endDate
+            ? String(endDate).split('T')[0]
+            : undefined;
+
+        const dateOr: any[] = [];
+        if (createdStart || createdEnd) {
+          const createdAt: any = {};
+          if (createdStart) createdAt.gte = createdStart;
+          if (createdEnd) createdAt.lte = createdEnd;
+          dateOr.push({ createdAt });
         }
-        if (endDate) {
-          // Parse as UTC to avoid timezone issues
-          const end = new Date(endDate);
-          // If it's an ISO string without time, treat as UTC end of day
-          if (endDate.includes('T')) {
-            where.createdAt.lte = end;
-          } else {
-            // Date string like "2025-01-06" - treat as UTC end of day
-            where.createdAt.lte = new Date(endDate + 'T23:59:59.999Z');
-          }
+        if (bStartYmd && bEndYmd) {
+          dateOr.push({
+            businessDate: {
+              gte: new Date(bStartYmd + 'T00:00:00.000Z'),
+              lte: new Date(bEndYmd + 'T23:59:59.999Z'),
+            },
+          });
+        }
+        if (dateOr.length === 1) {
+          Object.assign(where, dateOr[0]);
+        } else if (dateOr.length > 1) {
+          where.OR = dateOr;
         }
       }
 

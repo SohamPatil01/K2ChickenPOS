@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { format, subDays } from 'date-fns';
 
 interface ReportLayoutProps {
   title: string;
@@ -22,9 +23,9 @@ export default function ReportLayout({
 }: ReportLayoutProps) {
   const router = useRouter();
   const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    format(subDays(new Date(), 30), 'yyyy-MM-dd')
   );
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   const handleDateChange = (newStartDate?: string, newEndDate?: string) => {
     const effectiveStartDate = newStartDate !== undefined ? newStartDate : startDate;
@@ -34,14 +35,6 @@ export default function ReportLayout({
       onDateRangeChange(effectiveStartDate, effectiveEndDate);
     }
   };
-
-  useEffect(() => {
-    if (dateRange && onDateRangeChange) {
-      // Initial load with default dates
-      onDateRangeChange(startDate, endDate);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="max-w-7xl mx-auto">

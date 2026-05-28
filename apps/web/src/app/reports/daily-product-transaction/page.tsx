@@ -3,6 +3,7 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect, Fragment } from 'react';
+import { defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
 import api from '@/lib/api';
 
 interface DailyProductRow {
@@ -33,10 +34,9 @@ interface ReportPayload {
 export default function DailyProductTransactionPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportPayload | null>(null);
-  const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  );
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const defaultRange = defaultDateRangeLast7Days();
+  const [startDate, setStartDate] = useState(defaultRange.start);
+  const [endDate, setEndDate] = useState(defaultRange.end);
 
   useEffect(() => {
     loadData();

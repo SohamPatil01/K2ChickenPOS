@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   format,
   subDays,
@@ -9,6 +9,7 @@ import {
   startOfWeek,
   endOfWeek,
 } from "date-fns";
+import { defaultDateRangeLast30Days } from "@/lib/dateRangeParams";
 
 export interface FilterCriteria {
   dateRange: {
@@ -44,6 +45,11 @@ interface FilterSystemProps {
   storageKey?: string;
 }
 
+function buildDefaultFilters(): FilterCriteria {
+  const { start, end } = defaultDateRangeLast30Days();
+  return { dateRange: { start, end } };
+}
+
 export const FilterSystem: React.FC<FilterSystemProps> = ({
   onFilterChange,
   availableProducts = [],
@@ -57,12 +63,9 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
   showAmountFilter = false,
   storageKey = "report_filters",
 }) => {
-  const [filters, setFilters] = useState<FilterCriteria>({
-    dateRange: {
-      start: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-      end: format(new Date(), "yyyy-MM-dd"),
-    },
-  });
+  const [filters, setFilters] = useState<FilterCriteria>(buildDefaultFilters);
+  const onFilterChangeRef = useRef(onFilterChange);
+  onFilterChangeRef.current = onFilterChange;
   const [presets, setPresets] = useState<FilterPreset[]>([]);
   const [showSavePreset, setShowSavePreset] = useState(false);
   const [presetName, setPresetName] = useState("");
@@ -80,10 +83,9 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
     }
   }, [storageKey]);
 
-  // Apply filters
   useEffect(() => {
-    onFilterChange(filters);
-  }, [filters, onFilterChange]);
+    onFilterChangeRef.current(filters);
+  }, [filters]);
 
   const savePresets = (newPresets: FilterPreset[]) => {
     setPresets(newPresets);
@@ -104,7 +106,7 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
         end = subDays(today, 1);
         break;
       case "last7days":
-        start = subDays(today, 7);
+        start = subDays(today, 6);
         break;
       case "last30days":
         start = subDays(today, 30);
@@ -159,12 +161,7 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
   };
 
   const handleClearFilters = () => {
-    setFilters({
-      dateRange: {
-        start: format(subDays(new Date(), 30), "yyyy-MM-dd"),
-        end: format(new Date(), "yyyy-MM-dd"),
-      },
-    });
+    setFilters(buildDefaultFilters());
   };
 
   const activeFilterCount = Object.keys(filters).filter((key) => {
