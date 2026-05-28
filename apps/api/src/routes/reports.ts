@@ -58,6 +58,19 @@ function saleDateKey(sale: { businessDate?: Date | null; createdAt: Date }): str
   return d.toISOString().split('T')[0];
 }
 
+/** Reports count paid sales plus open credit bills; orders/dashboard stay separate. */
+function reportableSalesStatusWhere() {
+  return {
+    OR: [
+      { status: 'PAID' },
+      {
+        status: 'OPEN',
+        payments: { some: { method: 'CREDIT' } },
+      },
+    ],
+  };
+}
+
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
   fastify.get('/stock', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
@@ -202,7 +215,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: {
         storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        status: 'PAID',
+        ...reportableSalesStatusWhere(),
         createdAt: dateFilter,
       },
       include: {
@@ -295,7 +308,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-          status: 'PAID',
+          ...reportableSalesStatusWhere(),
           createdAt: dateFilter,
         },
         select: {
@@ -408,7 +421,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: {
         storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        status: 'PAID',
+        ...reportableSalesStatusWhere(),
         createdAt: dateFilter,
       },
       include: {
@@ -502,7 +515,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: {
         storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        status: 'PAID',
+        ...reportableSalesStatusWhere(),
         createdAt: dateFilter,
       },
       include: {
@@ -594,7 +607,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: {
         storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        status: 'PAID',
+        ...reportableSalesStatusWhere(),
         createdAt: dateFilter,
       },
       include: {
@@ -787,7 +800,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: {
         storeId: { in: storeIds },
-        status: 'PAID',
+        ...reportableSalesStatusWhere(),
         createdAt: dateFilter,
       },
       include: {
@@ -864,7 +877,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       prisma.sale.findMany({
         where: {
           storeId: userStoreId,
-          status: 'PAID',
+          ...reportableSalesStatusWhere(),
           createdAt: dateFilter,
         },
         include: {
