@@ -18,6 +18,7 @@ import {
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
 import { normalizePaymentsForSale } from '@azela-pos/shared';
+import { shouldTreatDuplicateCreditPayAsSuccess } from '@/lib/checkoutPayRecovery';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -333,7 +334,15 @@ export default function StoreCartPage() {
       const normalizedPayments = normalizePaymentsForSale(payments, sale.grandTotal);
       const paymentData = { payments: normalizedPayments };
 
-      await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+      try {
+        await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+      } catch (payErr: any) {
+        if (!shouldTreatDuplicateCreditPayAsSuccess(payErr, normalizedPayments)) {
+          throw payErr;
+        }
+        console.warn('[Cart] Credit bill already paid on server; showing success');
+      }
+
       const fulfillType = useCartStore.getState().fulfillmentType;
       // Only create a delivery row for home delivery (customer + delivery). Pickup / walk-in stays out of Delivery section.
       const isHomeDelivery = fulfillType === 'DELIVERY' && sale.customerId;

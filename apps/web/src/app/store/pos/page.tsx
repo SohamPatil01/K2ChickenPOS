@@ -28,6 +28,7 @@ import {
   isOfflineForCheckout,
   queueOfflineCheckout,
 } from "@/lib/offlineCheckout";
+import { shouldTreatDuplicateCreditPayAsSuccess } from "@/lib/checkoutPayRecovery";
 
 interface Product {
   id: string;
@@ -1104,7 +1105,15 @@ export default function StorePOSPage() {
         ),
       };
 
-      await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+      try {
+        await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+      } catch (payErr: any) {
+        if (!shouldTreatDuplicateCreditPayAsSuccess(payErr, paymentData.payments || [])) {
+          throw payErr;
+        }
+        console.warn("[POS] Credit bill already paid on server; showing success");
+      }
+
       const fulfillType = useCartStore.getState().fulfillmentType;
       const isHomeDelivery = fulfillType === "DELIVERY" && sale.customerId;
       if (isHomeDelivery) {

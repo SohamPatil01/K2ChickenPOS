@@ -16,6 +16,32 @@ async function loadProductUnitTypes(productIds) {
   return new Map(rows.map((r) => [r.id, r.unitType]));
 }
 
+/** CREDIT is a promise to pay — only non-credit amounts reduce the balance owed. */
+function sumPaymentAmounts(paymentList: Array<{ method?: string; amount?: number }>) {
+  let actual = 0;
+  let credit = 0;
+  for (const p of paymentList || []) {
+    const amt = Number(p.amount) || 0;
+    if (String(p.method || '').toUpperCase() === 'CREDIT') {
+      credit += amt;
+    } else {
+      actual += amt;
+    }
+  }
+  return { actual: Math.round(actual), credit: Math.round(credit) };
+}
+
+async function fetchSaleForPayResponse(saleId: string) {
+  return prisma.sale.findUnique({
+    where: { id: saleId },
+    include: {
+      items: { include: { product: true } },
+      payments: true,
+      customer: true,
+    },
+  });
+}
+
 export async function saleRoutes(fastify: FastifyInstance) {
 
   // Get sales list
@@ -753,8 +779,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Get existing payments to check if it's a credit order
       const existingPayments = sale.payments || [];
       const hasCreditPayment = existingPayments.some((p) => p.method === 'CREDIT');
-      const existingTotalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
-      const pendingAmount = sale.grandTotal - existingTotalPaid;
 
       // Allow payment if:
       // 1. Sale is OPEN, OR
@@ -793,55 +817,78 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const allExistingPayments = existingPayments.length > 0
         ? existingPayments
         : await prisma.payment.findMany({ where: { saleId: id } });
-      const currentTotalPaid = allExistingPayments.reduce((sum, p) => sum + p.amount, 0);
 
-      const newPaymentsTotal = payments.reduce((sum: any, p) => sum + p.amount, 0);
-      const totalPaidAfter = currentTotalPaid + newPaymentsTotal;
-
-      // Round amounts for comparison
-      const roundedTotalPaidAfter = Math.round(totalPaidAfter);
+      const existingSums = sumPaymentAmounts(allExistingPayments);
+      const incomingSums = sumPaymentAmounts(payments);
       const roundedGrandTotal = Math.round(sale.grandTotal);
 
-      // Check if any NEW payment is credit
-      const hasNewCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
+      const newActualTotal = existingSums.actual + incomingSums.actual;
+      const newCreditTotal = existingSums.credit + incomingSums.credit;
+      const newPaymentsTotal = payments.reduce(
+        (sum: any, p) => sum + (Number(p.amount) || 0),
+        0
+      );
 
-      // For OPEN orders or credit orders (existing or new), allow partial payments
-      // For credit orders, allow payments to pay off credit balance
-      if (sale.status === 'OPEN' || hasCreditPayment || hasNewCreditPayment) {
-        // Allow partial payments for OPEN orders or credit orders
-        if (roundedTotalPaidAfter > roundedGrandTotal + 0.5) {
-          // Double-submit / retry: first /pay succeeded; second would overpay — return success (idempotent)
-          const roundedExistingPaid = Math.round(currentTotalPaid);
-          if (newPaymentsTotal > 0 && roundedExistingPaid >= roundedGrandTotal - 0.5) {
-            console.warn('[Payment API] Duplicate pay ignored; sale already fully paid:', id);
-            const freshSale = await prisma.sale.findUnique({
-              where: { id },
-              include: {
-                items: { include: { product: true } },
-                payments: true,
-                customer: true,
-              },
-            });
-            if (freshSale) {
-              return freshSale;
-            }
+      const hasNewCreditPayment = payments.some((p: any) => p.method === 'CREDIT');
+      const hasAnyCreditPayment = hasCreditPayment || hasNewCreditPayment;
+
+      const returnExistingSaleIfPaid = async (reason: string) => {
+        console.warn(`[Payment API] ${reason}:`, id);
+        const freshSale = await fetchSaleForPayResponse(id);
+        if (freshSale) {
+          return freshSale;
+        }
+        return null;
+      };
+
+      if (sale.status === 'OPEN' || hasAnyCreditPayment) {
+        if (newActualTotal > roundedGrandTotal + 0.5) {
+          const idempotent =
+            incomingSums.actual > 0 && existingSums.actual >= roundedGrandTotal - 0.5;
+          if (idempotent) {
+            const fresh = await returnExistingSaleIfPaid('Duplicate actual payment ignored');
+            if (fresh) return fresh;
           }
           reply.code(400).send({
             error: 'Payment amount exceeds remaining balance',
-            details: `Total paid: ₹${roundedTotalPaidAfter}, Grand total: ₹${roundedGrandTotal}`
+            details: `Actual paid: ₹${newActualTotal}, Grand total: ₹${roundedGrandTotal}`,
+          });
+          return;
+        }
+
+        if (
+          incomingSums.credit > 0 &&
+          incomingSums.actual === 0 &&
+          existingSums.credit >= roundedGrandTotal - 0.5
+        ) {
+          const fresh = await returnExistingSaleIfPaid('Duplicate credit payment ignored');
+          if (fresh) return fresh;
+        }
+
+        if (newCreditTotal > roundedGrandTotal + 0.5) {
+          if (existingSums.credit >= roundedGrandTotal - 0.5) {
+            const fresh = await returnExistingSaleIfPaid(
+              'Duplicate credit payment ignored (over credit)'
+            );
+            if (fresh) return fresh;
+          }
+          reply.code(400).send({
+            error: 'Credit amount exceeds bill total',
+            details: `Credit recorded: ₹${newCreditTotal}, Grand total: ₹${roundedGrandTotal}`,
           });
           return;
         }
       } else {
-        // For new sales (non-credit, non-open), validate amount matches
         if (Math.abs(newPaymentsTotal - roundedGrandTotal) > 0.5) {
           reply.code(400).send({ error: 'Payment amount mismatch' });
           return;
         }
       }
 
-      // Completion-only: credit order already fully paid, client sends amount 0 just to update status to PAID. Skip creating a 0-amount payment to avoid DB/validation issues.
-      const isCompletionOnly = newPaymentsTotal === 0 && currentTotalPaid >= roundedGrandTotal - 0.5;
+      const isCompletionOnly =
+        newPaymentsTotal === 0 &&
+        (existingSums.actual >= roundedGrandTotal - 0.5 ||
+          (hasCreditPayment && existingSums.credit >= roundedGrandTotal - 0.5));
 
       // Create payments - ensure method is valid enum value (skip when completion-only with no positive amounts)
       const validPaymentMethods: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
@@ -875,28 +922,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       const paymentsToCreate = paymentData.filter((p) => p.amount > 0);
 
-      // Update sale status (computed before DB write; applied inside transaction with payments)
-      // Credit orders should always remain OPEN, even when fully paid
-      // This allows tracking of credit sales separately
-      let saleStatus = sale.status; // Keep current status initially
+      let saleStatus = sale.status;
 
-      // Check if order has any CREDIT payment (existing or new)
-      const hasAnyCreditPayment = hasCreditPayment || hasNewCreditPayment;
+      const isSettledWithActual = newActualTotal >= roundedGrandTotal - 0.5;
+      const isCreditOnlyBooked =
+        hasAnyCreditPayment &&
+        newActualTotal < roundedGrandTotal - 0.5 &&
+        newCreditTotal >= roundedGrandTotal - 0.5;
 
-      if (roundedTotalPaidAfter >= roundedGrandTotal - 0.5) {
-        // Fully paid
-        if (hasAnyCreditPayment && !isCompletionOnly) {
-          // Credit orders stay OPEN when fully paid, unless this is an explicit "complete" (0 amount)
-          saleStatus = 'OPEN';
-        } else {
-          // Regular order or completion of already-paid open order - mark as PAID
-          saleStatus = 'PAID';
-        }
-      } else {
-        // Still has pending amount
-        if (hasAnyCreditPayment || sale.status === 'OPEN') {
-          saleStatus = 'OPEN'; // Keep as OPEN if credit order or was already OPEN
-        }
+      if (isSettledWithActual || isCompletionOnly) {
+        saleStatus = 'PAID';
+      } else if (isCreditOnlyBooked || sale.status === 'OPEN') {
+        saleStatus = 'OPEN';
       }
 
       const updatedSale = await prisma.$transaction(async (tx) => {

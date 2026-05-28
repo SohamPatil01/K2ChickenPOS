@@ -32,6 +32,13 @@ export default function CartPaymentModal({
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([]);
   const amountInputRef = useRef<HTMLInputElement>(null);
+  const payingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isProcessing) {
+      payingRef.current = false;
+    }
+  }, [isProcessing]);
 
   useEffect(() => {
     setAmountPaid(grandTotal.toString());
@@ -50,6 +57,9 @@ export default function CartPaymentModal({
   ];
 
   const handlePayment = useCallback(() => {
+    if (isProcessing || payingRef.current) return;
+    payingRef.current = true;
+
     if (isSplitPayment) {
       if (Math.abs(splitTotal - grandTotal) > 0.01) {
         return;
@@ -65,6 +75,7 @@ export default function CartPaymentModal({
       ]);
     }
   }, [
+    isProcessing,
     isSplitPayment,
     splitTotal,
     grandTotal,

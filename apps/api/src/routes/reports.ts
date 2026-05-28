@@ -52,6 +52,12 @@ function getDateRange(startDate?: string, endDate?: string) {
   }
 }
 
+/** Prefer businessDate when set (POS business day), else sale createdAt (UTC yyyy-MM-dd). */
+function saleDateKey(sale: { businessDate?: Date | null; createdAt: Date }): string {
+  const d = sale.businessDate ? new Date(sale.businessDate) : new Date(sale.createdAt);
+  return d.toISOString().split('T')[0];
+}
+
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
   fastify.get('/stock', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
@@ -246,6 +252,117 @@ export async function reportRoutes(fastify: FastifyInstance) {
     } catch (error: any) {
       console.error('Product-wise sale report error:', error);
       reply.code(500).send({ error: 'Failed to generate product-wise sale report', details: error.message });
+    }
+  });
+
+  // Daily product transaction totals (date × product)
+  fastify.get('/daily-product-transaction', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
+
+      if (!user.storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+
+      const userStore = await prisma.store.findUnique({
+        where: { id: user.storeId },
+        select: { id: true, type: true, parentOwnerStoreId: true },
+      });
+
+      if (!userStore) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      let storeIds: string[] = [queryStoreId || user.storeId];
+      if (userStore.type === 'OWNER' && (!queryStoreId || queryStoreId === 'all')) {
+        const franchises = await prisma.store.findMany({
+          where: {
+            type: 'FRANCHISE',
+            parentOwnerStoreId: userStore.id,
+          },
+          select: { id: true },
+        });
+        storeIds = [userStore.id, ...franchises.map(f => f.id)];
+      }
+
+      const dateFilter = getDateRange(startDate, endDate);
+      const rangeStartKey = (startDate || dateFilter.gte.toISOString().split('T')[0]).split('T')[0];
+      const rangeEndKey = (endDate || dateFilter.lte.toISOString().split('T')[0]).split('T')[0];
+
+      const sales = await prisma.sale.findMany({
+        where: {
+          storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+          status: 'PAID',
+          createdAt: dateFilter,
+        },
+        select: {
+          id: true,
+          businessDate: true,
+          createdAt: true,
+          items: {
+            include: {
+              product: {
+                include: { category: true },
+              },
+            },
+          },
+        },
+      });
+
+      const stats: Record<string, any> = {};
+
+      for (const sale of sales) {
+        const dateKey = saleDateKey(sale);
+        if (dateKey < rangeStartKey || dateKey > rangeEndKey) continue;
+
+        for (const item of sale.items) {
+          const key = `${dateKey}:${item.productId}`;
+          if (!stats[key]) {
+            stats[key] = {
+              date: dateKey,
+              productId: item.productId,
+              productName: item.product.name,
+              sku: item.product.sku,
+              category: item.product.category?.name || '',
+              unitType: item.product.unitType,
+              qtyKg: 0,
+              qtyPcs: 0,
+              revenue: 0,
+              lineCount: 0,
+            };
+          }
+          stats[key].qtyKg = Math.round((stats[key].qtyKg + (item.qtyKg || 0)) * 100) / 100;
+          stats[key].qtyPcs += item.qtyPcs || 0;
+          stats[key].revenue = Math.round((stats[key].revenue + item.lineTotal) * 1000) / 1000;
+          stats[key].lineCount += 1;
+        }
+      }
+
+      const rows = Object.values(stats).sort((a: any, b: any) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return b.revenue - a.revenue;
+      });
+
+      const uniqueDays = new Set(rows.map((r: any) => r.date));
+      const summary = {
+        totalRevenue: Math.round(rows.reduce((s: number, r: any) => s + r.revenue, 0) * 1000) / 1000,
+        totalQtyKg: Math.round(rows.reduce((s: number, r: any) => s + r.qtyKg, 0) * 100) / 100,
+        totalQtyPcs: rows.reduce((s: number, r: any) => s + r.qtyPcs, 0),
+        productDayCount: rows.length,
+        daysCount: uniqueDays.size,
+      };
+
+      return {
+        period: { startDate: rangeStartKey, endDate: rangeEndKey },
+        summary,
+        rows,
+      };
+    } catch (error: any) {
+      console.error('Daily product transaction report error:', error);
+      reply.code(500).send({ error: 'Failed to generate daily product transaction report', details: error.message });
     }
   });
 
