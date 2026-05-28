@@ -10,6 +10,46 @@ const prisma = globalForPrisma.prisma ?? new PrismaClient({
 });
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
+const RLS_PUBLIC_TABLES = [
+  'Store', 'User', 'Customer', 'CustomerAddress', 'Product', 'Category',
+  'StoreProductPrice', 'InventoryLedger', 'Sale', 'SaleItem', 'Payment', 'Shift',
+  'ScaleBarcodeConfig', 'PurchaseOrder', 'PurchaseOrderItem', 'Dispatch', 'DispatchItem',
+  'GRN', 'DeliveryOrder', 'DeliveryEvent', 'AuditLog', 'SyncEvent', 'FranchiseConfig',
+  'PricingPlan', 'PricingRule', 'PricingOverride', 'ProductMaster', 'Supplier',
+  'CentralPurchaseOrder', 'CentralPOItem', 'InwardStock', 'StockAllocation',
+  'RoyaltyInvoice', 'RoyaltyLedger', 'ComplianceChecklistTemplate', 'ComplianceRecord',
+  'HQAlert', 'AlertRule', 'FranchiseHealthScore', 'YieldIntelligence',
+  'ReplenishmentRequest', 'DiscountOverride', 'DailyClosing', 'LoyaltyTransaction',
+];
+
+function isBackupAdminRequest(request: any): boolean {
+  const backupSecret = process.env.BACKUP_SECRET;
+  const providedSecret =
+    (request.headers['x-backup-secret'] as string) || (request.query as any).secret;
+  const vercelCronHeader =
+    request.headers['x-vercel-cron'] ||
+    request.headers['X-Vercel-Cron'] ||
+    request.headers['X-VERCEL-CRON'];
+  const isVercelCron =
+    vercelCronHeader === '1' ||
+    vercelCronHeader === 'true' ||
+    vercelCronHeader === 'True' ||
+    !!vercelCronHeader;
+  const userAgent = (
+    request.headers['user-agent'] ||
+    request.headers['User-Agent'] ||
+    ''
+  ).toLowerCase();
+  const isVercelUserAgent =
+    userAgent.includes('vercel') || userAgent.includes('vercel-cron');
+  return (
+    isVercelCron ||
+    isVercelUserAgent ||
+    (backupSecret && providedSecret === backupSecret) ||
+    !backupSecret
+  );
+}
+
 interface BackupResponse {
   success: boolean;
   message: string;
@@ -415,6 +455,76 @@ export async function backupRoutes(fastify: FastifyInstance) {
         success: false,
         message: 'Failed to list backups',
         error: error.message
+      };
+    }
+  });
+
+  /**
+   * POST /api/v1/backup/enable-rls
+   * Enable RLS on public app tables (DDL only — no data deleted or modified).
+   */
+  fastify.post('/enable-rls', async (request, reply) => {
+    try {
+      if (!isBackupAdminRequest(request)) {
+        reply.status(401);
+        return {
+          success: false,
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const [customerCountBefore, saleCountBefore] = await Promise.all([
+        prisma.customer.count(),
+        prisma.sale.count(),
+      ]);
+
+      const enabled: string[] = [];
+      for (const table of RLS_PUBLIC_TABLES) {
+        await prisma.$executeRawUnsafe(
+          `ALTER TABLE IF EXISTS public."${table}" ENABLE ROW LEVEL SECURITY`
+        );
+        enabled.push(table);
+      }
+
+      const rlsCheck: { relname: string; relrowsecurity: boolean }[] =
+        await prisma.$queryRawUnsafe(`
+          SELECT c.relname, c.relrowsecurity
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'public'
+            AND c.relname = 'PurchaseOrderItem'
+        `);
+
+      const [customerCountAfter, saleCountAfter] = await Promise.all([
+        prisma.customer.count(),
+        prisma.sale.count(),
+      ]);
+
+      return {
+        success: true,
+        message: 'Row level security enabled on public tables (no data modified)',
+        timestamp: new Date().toISOString(),
+        tablesEnabled: enabled.length,
+        purchaseOrderItemRls: rlsCheck[0]?.relrowsecurity === true,
+        dataIntegrity: {
+          customersBefore: customerCountBefore,
+          customersAfter: customerCountAfter,
+          salesBefore: saleCountBefore,
+          salesAfter: saleCountAfter,
+          unchanged:
+            customerCountBefore === customerCountAfter &&
+            saleCountBefore === saleCountAfter,
+        },
+      };
+    } catch (error: any) {
+      fastify.log.error('[Backup] enable-rls failed:', error);
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Failed to enable RLS',
+        timestamp: new Date().toISOString(),
+        error: error.message,
       };
     }
   });
