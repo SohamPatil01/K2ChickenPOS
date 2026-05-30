@@ -129,39 +129,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
           return new Date(value + (endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
         };
 
-        const createdStart = startDate ? parseBound(String(startDate), false) : undefined;
-        const createdEnd = endDate ? parseBound(String(endDate), true) : undefined;
-
-        const bStartYmd = businessDayStart
-          ? String(businessDayStart).split('T')[0]
-          : startDate
-            ? String(startDate).split('T')[0]
-            : undefined;
-        const bEndYmd = businessDayEnd
-          ? String(businessDayEnd).split('T')[0]
-          : endDate
-            ? String(endDate).split('T')[0]
-            : undefined;
-
-        const dateOr: any[] = [];
-        if (createdStart || createdEnd) {
-          const createdAt: any = {};
-          if (createdStart) createdAt.gte = createdStart;
-          if (createdEnd) createdAt.lte = createdEnd;
-          dateOr.push({ createdAt });
+        where.createdAt = {};
+        if (startDate) {
+          where.createdAt.gte = parseBound(String(startDate), false);
         }
-        if (bStartYmd && bEndYmd) {
-          dateOr.push({
-            businessDate: {
-              gte: new Date(bStartYmd + 'T00:00:00.000Z'),
-              lte: new Date(bEndYmd + 'T23:59:59.999Z'),
-            },
-          });
-        }
-        if (dateOr.length === 1) {
-          Object.assign(where, dateOr[0]);
-        } else if (dateOr.length > 1) {
-          where.OR = dateOr;
+        if (endDate) {
+          where.createdAt.lte = parseBound(String(endDate), true);
         }
       }
 

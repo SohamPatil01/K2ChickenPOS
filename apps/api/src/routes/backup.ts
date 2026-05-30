@@ -480,12 +480,35 @@ export async function backupRoutes(fastify: FastifyInstance) {
       ]);
 
       const enabled: string[] = [];
+      const policiesCreated: string[] = [];
       for (const table of RLS_PUBLIC_TABLES) {
         await prisma.$executeRawUnsafe(
           `ALTER TABLE IF EXISTS public."${table}" ENABLE ROW LEVEL SECURITY`
         );
         enabled.push(table);
+
+        // Prisma connects as postgres — allow full access so API/reports keep working
+        for (const role of ['postgres', 'service_role']) {
+          const policyName = `prisma_${role}_all_access`;
+          await prisma.$executeRawUnsafe(`
+            DO $$ BEGIN
+              CREATE POLICY "${policyName}" ON public."${table}"
+                FOR ALL TO ${role} USING (true) WITH CHECK (true);
+            EXCEPTION WHEN duplicate_object THEN NULL;
+            END $$;
+          `);
+          policiesCreated.push(`${table}:${role}`);
+        }
       }
+
+      // Verify Prisma can still read sales with relations (reports/orders depend on this)
+      const saleSample = await prisma.sale.findFirst({
+        include: {
+          items: { include: { product: { include: { category: true } } } },
+          payments: true,
+          customer: true,
+        },
+      });
 
       const rlsCheck: { relname: string; relrowsecurity: boolean }[] =
         await prisma.$queryRawUnsafe(`
@@ -506,6 +529,11 @@ export async function backupRoutes(fastify: FastifyInstance) {
         message: 'Row level security enabled on public tables (no data modified)',
         timestamp: new Date().toISOString(),
         tablesEnabled: enabled.length,
+        policiesCreated: policiesCreated.length,
+        prismaReadCheck: {
+          saleFound: !!saleSample,
+          itemCount: saleSample?.items?.length ?? 0,
+        },
         purchaseOrderItemRls: rlsCheck[0]?.relrowsecurity === true,
         dataIntegrity: {
           customersBefore: customerCountBefore,

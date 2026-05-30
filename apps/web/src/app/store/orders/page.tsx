@@ -10,7 +10,7 @@ import ThermalReceipt from "@/components/ThermalReceipt";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import { exportSalesCSV } from "@/lib/exportCSV";
 import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
-import { localDateRangeToApiBounds } from "@/lib/dateRangeParams";
+import { localDateRangeToApiBounds, buildDefaultFilterCriteria } from "@/lib/dateRangeParams";
 
 interface Sale {
   id: string;
@@ -75,7 +75,7 @@ export default function OrdersPage() {
       taxRate: number;
     }>,
   });
-  const [filters, setFilters] = useState<FilterCriteria | null>(null);
+  const [filters, setFilters] = useState<FilterCriteria>(buildDefaultFilterCriteria);
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -156,7 +156,6 @@ export default function OrdersPage() {
   }, [user, router]);
 
   const loadSales = useCallback(async () => {
-    if (!filters) return;
     setLoading(true);
     try {
       const bounds = localDateRangeToApiBounds(
@@ -208,7 +207,6 @@ export default function OrdersPage() {
     ) {
       return;
     }
-    if (!filters) return;
     loadSales();
   }, [user, filters, loadSales]);
 
@@ -509,12 +507,8 @@ export default function OrdersPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-500 dark:text-gray-400">Loading orders...</p>
-      </div>
-    );
+  if (!user) {
+    return null;
   }
 
   return (
@@ -576,7 +570,11 @@ export default function OrdersPage() {
       {/* Sales List */}
       <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
         <div className="flex-1 overflow-y-auto min-h-0">
-          {sales.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 dark:text-gray-400">Loading orders...</p>
+            </div>
+          ) : sales.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-gray-400">
                 {sales.length === 0

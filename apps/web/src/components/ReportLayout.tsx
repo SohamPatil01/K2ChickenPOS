@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, subDays } from 'date-fns';
 
 interface ReportLayoutProps {
@@ -35,6 +35,13 @@ export default function ReportLayout({
       onDateRangeChange(effectiveStartDate, effectiveEndDate);
     }
   };
+
+  useEffect(() => {
+    if (dateRange && onDateRangeChange) {
+      onDateRangeChange(startDate, endDate);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="max-w-7xl mx-auto">

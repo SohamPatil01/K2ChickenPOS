@@ -38,3 +38,10 @@ export function defaultDateRangeLast7Days() {
 export function todayLocalYmd(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
+
+export function buildDefaultFilterCriteria() {
+  const { start, end } = defaultDateRangeLast30Days();
+  return {
+    dateRange: { start, end },
+  };
+}

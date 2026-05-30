@@ -71,6 +71,13 @@ function reportableSalesStatusWhere() {
   };
 }
 
+function reportSalesWhere(storeId: any, dateFilter: { gte: Date; lte: Date }) {
+  return {
+    storeId,
+    AND: [reportableSalesStatusWhere(), { createdAt: dateFilter }],
+  };
+}
+
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
   fastify.get('/stock', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
@@ -157,7 +164,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         name: product.name,
         sku: product.sku,
         plu: product.plu,
-        category: product.category.name,
+        category: product.category?.name || '',
         unitType: product.unitType,
         currentStock: currentStock > 0 ? currentStock : 0,
         price: product.storeProductPrices[0]?.pricePerUnit || 0,
@@ -213,11 +220,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
     console.log('[Product-wise Report] Store IDs:', storeIds);
 
     const sales = await prisma.sale.findMany({
-      where: {
-        storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        ...reportableSalesStatusWhere(),
-        createdAt: dateFilter,
-      },
+      where: reportSalesWhere(
+        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+        dateFilter
+      ),
       include: {
         items: {
           include: {
@@ -243,7 +249,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
             productId: item.productId,
             productName: item.product.name,
             sku: item.product.sku,
-            category: item.product.category.name,
+            category: item.product.category?.name || '',
             unitType: item.product.unitType,
             qtyKg: 0,
             qtyPcs: 0,
@@ -306,11 +312,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
       const rangeEndKey = (endDate || dateFilter.lte.toISOString().split('T')[0]).split('T')[0];
 
       const sales = await prisma.sale.findMany({
-        where: {
-          storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-          ...reportableSalesStatusWhere(),
-          createdAt: dateFilter,
-        },
+        where: reportSalesWhere(
+          storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+          dateFilter
+        ),
         select: {
           id: true,
           businessDate: true,
@@ -419,11 +424,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
     console.log('[Bill-wise Report] Date filter:', dateFilter);
 
     const sales = await prisma.sale.findMany({
-      where: {
-        storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        ...reportableSalesStatusWhere(),
-        createdAt: dateFilter,
-      },
+      where: reportSalesWhere(
+        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+        dateFilter
+      ),
       include: {
         customer: true,
         items: {
@@ -513,11 +517,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
     console.log('[Sales Register Summary] Date filter:', dateFilter);
 
     const sales = await prisma.sale.findMany({
-      where: {
-        storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        ...reportableSalesStatusWhere(),
-        createdAt: dateFilter,
-      },
+      where: reportSalesWhere(
+        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+        dateFilter
+      ),
       include: {
         payments: true,
       },
@@ -605,11 +608,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const dateFilter = getDateRange(startDate, endDate);
 
     const sales = await prisma.sale.findMany({
-      where: {
-        storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        ...reportableSalesStatusWhere(),
-        createdAt: dateFilter,
-      },
+      where: reportSalesWhere(
+        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+        dateFilter
+      ),
       include: {
         customer: true,
         items: {
@@ -798,11 +800,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }
 
     const sales = await prisma.sale.findMany({
-      where: {
-        storeId: { in: storeIds },
-        ...reportableSalesStatusWhere(),
-        createdAt: dateFilter,
-      },
+      where: reportSalesWhere({ in: storeIds }, dateFilter),
       include: {
         items: {
           include: {
@@ -875,11 +873,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
     const [sales, products, customers, inventoryMovements] = await Promise.all([
       prisma.sale.findMany({
-        where: {
-          storeId: userStoreId,
-          ...reportableSalesStatusWhere(),
-          createdAt: dateFilter,
-        },
+        where: reportSalesWhere(userStoreId, dateFilter),
         include: {
           items: true,
           payments: true,
