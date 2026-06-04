@@ -11,51 +11,78 @@ interface QueryParams {
   categoryId?: string;
 }
 
-function getDateRange(startDate?: string, endDate?: string) {
-  if (startDate && endDate) {
-    // Ensure dates are in YYYY-MM-DD format
-    const startDateStr = startDate.split('T')[0]; // Handle ISO strings
-    const endDateStr = endDate.split('T')[0];
-    
-    const start = new Date(startDateStr + 'T00:00:00.000Z');
-    const end = new Date(endDateStr + 'T23:59:59.999Z');
-    
-    // Validate dates
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      console.error('Invalid date range:', { startDate, endDate, startDateStr, endDateStr });
-      // Fallback to default range
-      const endDefault = new Date();
-      endDefault.setUTCHours(23, 59, 59, 999);
-      const startDefault = new Date();
-      startDefault.setUTCDate(startDefault.getUTCDate() - 30);
-      startDefault.setUTCHours(0, 0, 0, 0);
-      return {
-        gte: startDefault,
-        lte: endDefault,
-      };
-    }
-    
-    return {
-      gte: start,
-      lte: end,
-    };
-  } else {
-    const end = new Date();
-    end.setUTCHours(23, 59, 59, 999);
-    const start = new Date();
-    start.setUTCDate(start.getUTCDate() - 30);
-    start.setUTCHours(0, 0, 0, 0);
-    return {
-      gte: start,
-      lte: end,
-    };
-  }
+/** Store timezone for report date boundaries (India). */
+const REPORT_TZ = '+05:30';
+const REPORT_TZ_IANA = 'Asia/Kolkata';
+
+function ymdInReportTz(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: REPORT_TZ_IANA });
 }
 
-/** Prefer businessDate when set (POS business day), else sale createdAt (UTC yyyy-MM-dd). */
+function getReportDateRange(startDate?: string, endDate?: string) {
+  if (startDate && endDate) {
+    if (String(startDate).includes('T') && String(endDate).includes('T')) {
+      return {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
+    }
+    const startStr = String(startDate).split('T')[0];
+    const endStr = String(endDate).split('T')[0];
+    if (isNaN(new Date(`${startStr}T00:00:00.000${REPORT_TZ}`).getTime())) {
+      const endDefault = new Date();
+      const startDefault = new Date();
+      startDefault.setDate(startDefault.getDate() - 30);
+      return {
+        gte: new Date(`${ymdInReportTz(startDefault)}T00:00:00.000${REPORT_TZ}`),
+        lte: new Date(`${ymdInReportTz(endDefault)}T23:59:59.999${REPORT_TZ}`),
+      };
+    }
+    return {
+      gte: new Date(`${startStr}T00:00:00.000${REPORT_TZ}`),
+      lte: new Date(`${endStr}T23:59:59.999${REPORT_TZ}`),
+    };
+  }
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+  return {
+    gte: new Date(`${ymdInReportTz(start)}T00:00:00.000${REPORT_TZ}`),
+    lte: new Date(`${ymdInReportTz(end)}T23:59:59.999${REPORT_TZ}`),
+  };
+}
+
+function getDateRange(startDate?: string, endDate?: string) {
+  return getReportDateRange(startDate, endDate);
+}
+
+async function resolveReportStoreIds(user: any, queryStoreId?: string) {
+  const userStore = await prisma.store.findUnique({
+    where: { id: user.storeId },
+    select: { id: true, type: true, parentOwnerStoreId: true },
+  });
+  if (!userStore) return null;
+
+  let storeIds: string[] = [queryStoreId || user.storeId];
+  if (userStore.type === 'OWNER' && (!queryStoreId || queryStoreId === 'all')) {
+    const franchises = await prisma.store.findMany({
+      where: {
+        type: 'FRANCHISE',
+        parentOwnerStoreId: userStore.id,
+      },
+      select: { id: true },
+    });
+    storeIds = [userStore.id, ...franchises.map((f) => f.id)];
+  }
+
+  const storeIdWhere = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+  return { userStore, storeIds, storeIdWhere };
+}
+
+/** Prefer businessDate when set (POS business day), else sale createdAt, in store TZ. */
 function saleDateKey(sale: { businessDate?: Date | null; createdAt: Date }): string {
   const d = sale.businessDate ? new Date(sale.businessDate) : new Date(sale.createdAt);
-  return d.toISOString().split('T')[0];
+  return ymdInReportTz(d);
 }
 
 /** Reports count paid sales plus open credit bills; orders/dashboard stay separate. */
@@ -71,10 +98,30 @@ function reportableSalesStatusWhere() {
   };
 }
 
-function reportSalesWhere(storeId: any, dateFilter: { gte: Date; lte: Date }) {
+/** Match sales by createdAt or businessDate (POS day), PAID + credit OPEN bills. */
+function reportSalesWhere(storeId: any, startDate?: string, endDate?: string) {
+  const dateFilter = getReportDateRange(startDate, endDate);
+  const startYmd = (startDate || '').split('T')[0];
+  const endYmd = (endDate || '').split('T')[0];
+
+  const dateCondition =
+    startYmd.length === 10 && endYmd.length === 10
+      ? {
+          OR: [
+            { createdAt: dateFilter },
+            {
+              businessDate: {
+                gte: new Date(`${startYmd}T00:00:00.000${REPORT_TZ}`),
+                lte: new Date(`${endYmd}T23:59:59.999${REPORT_TZ}`),
+              },
+            },
+          ],
+        }
+      : { createdAt: dateFilter };
+
   return {
     storeId,
-    AND: [reportableSalesStatusWhere(), { createdAt: dateFilter }],
+    AND: [reportableSalesStatusWhere(), dateCondition],
   };
 }
 
@@ -215,14 +262,15 @@ export async function reportRoutes(fastify: FastifyInstance) {
         console.log('[Product-wise Report] Owner store - including franchises:', storeIds);
       }
 
-    const dateFilter = getDateRange(startDate, endDate);
+    const dateFilter = getReportDateRange(startDate, endDate);
     console.log('[Product-wise Report] Date filter:', dateFilter);
     console.log('[Product-wise Report] Store IDs:', storeIds);
 
     const sales = await prisma.sale.findMany({
       where: reportSalesWhere(
         storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        dateFilter
+        startDate,
+        endDate
       ),
       include: {
         items: {
@@ -243,6 +291,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
     for (const sale of sales) {
       for (const item of sale.items) {
+        if (!item.product) continue;
         const key = item.productId;
         if (!productStats[key]) {
           productStats[key] = {
@@ -307,14 +356,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
         storeIds = [userStore.id, ...franchises.map(f => f.id)];
       }
 
-      const dateFilter = getDateRange(startDate, endDate);
-      const rangeStartKey = (startDate || dateFilter.gte.toISOString().split('T')[0]).split('T')[0];
-      const rangeEndKey = (endDate || dateFilter.lte.toISOString().split('T')[0]).split('T')[0];
-
       const sales = await prisma.sale.findMany({
         where: reportSalesWhere(
           storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-          dateFilter
+          startDate,
+          endDate
         ),
         select: {
           id: true,
@@ -334,9 +380,9 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
       for (const sale of sales) {
         const dateKey = saleDateKey(sale);
-        if (dateKey < rangeStartKey || dateKey > rangeEndKey) continue;
 
         for (const item of sale.items) {
+          if (!item.product) continue;
           const key = `${dateKey}:${item.productId}`;
           if (!stats[key]) {
             stats[key] = {
@@ -426,7 +472,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: reportSalesWhere(
         storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        dateFilter
+        startDate,
+        endDate
       ),
       include: {
         customer: true,
@@ -462,14 +509,16 @@ export async function reportRoutes(fastify: FastifyInstance) {
         amount: p.amount,
       })),
       createdBy: sale.createdBy.name,
-      items: sale.items.map((item: any) => ({
-        productName: item.product.name,
-        sku: item.product.sku,
-        qtyKg: item.qtyKg,
-        qtyPcs: item.qtyPcs,
-        rate: item.rate,
-        lineTotal: item.lineTotal,
-      })),
+      items: sale.items
+        .filter((item: any) => item.product)
+        .map((item: any) => ({
+          productName: item.product.name,
+          sku: item.product.sku,
+          qtyKg: item.qtyKg,
+          qtyPcs: item.qtyPcs,
+          rate: item.rate,
+          lineTotal: item.lineTotal,
+        })),
     }));
     } catch (error: any) {
       console.error('Bill-wise sale report error:', error);
@@ -519,7 +568,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: reportSalesWhere(
         storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        dateFilter
+        startDate,
+        endDate
       ),
       include: {
         payments: true,
@@ -610,7 +660,8 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const sales = await prisma.sale.findMany({
       where: reportSalesWhere(
         storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        dateFilter
+        startDate,
+        endDate
       ),
       include: {
         customer: true,
@@ -800,7 +851,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }
 
     const sales = await prisma.sale.findMany({
-      where: reportSalesWhere({ in: storeIds }, dateFilter),
+      where: reportSalesWhere({ in: storeIds }, startDate, endDate),
       include: {
         items: {
           include: {
@@ -814,6 +865,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
     for (const sale of sales) {
       for (const item of sale.items) {
+        if (!item.product) continue;
         const sku = item.product.sku;
         if (!skuStats[sku]) {
           skuStats[sku] = {
@@ -854,26 +906,20 @@ export async function reportRoutes(fastify: FastifyInstance) {
     try {
       const user = getUser(request);
       const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-      const userStoreId = queryStoreId || user.storeId;
-      
-      // Get user's store
-      const userStore = await prisma.store.findUnique({
-        where: { id: user.storeId },
-        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-      });
 
-      if (!userStore) {
+      const resolved = await resolveReportStoreIds(user, queryStoreId);
+      if (!resolved) {
         reply.code(404).send({ error: 'Store not found' });
         return;
       }
-
+      const { userStore, storeIdWhere } = resolved;
       const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
 
-    const dateFilter = getDateRange(startDate, endDate);
+    const dateFilter = getReportDateRange(startDate, endDate);
 
     const [sales, products, customers, inventoryMovements] = await Promise.all([
       prisma.sale.findMany({
-        where: reportSalesWhere(userStoreId, dateFilter),
+        where: reportSalesWhere(storeIdWhere, startDate, endDate),
         include: {
           items: true,
           payments: true,
@@ -887,12 +933,12 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }),
       prisma.customer.count({
         where: {
-          storeId: userStoreId,
+          storeId: storeIdWhere,
         },
       }),
       prisma.inventoryLedger.count({
         where: {
-          storeId: userStoreId,
+          storeId: storeIdWhere,
           createdAt: dateFilter,
         },
       }),
