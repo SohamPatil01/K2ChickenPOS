@@ -356,6 +356,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
         storeIds = [userStore.id, ...franchises.map(f => f.id)];
       }
 
+      const dateFilter = getReportDateRange(startDate, endDate);
+      const rangeStartKey = (startDate || ymdInReportTz(dateFilter.gte)).split('T')[0];
+      const rangeEndKey = (endDate || ymdInReportTz(dateFilter.lte)).split('T')[0];
+
       const sales = await prisma.sale.findMany({
         where: reportSalesWhere(
           storeIds.length > 1 ? { in: storeIds } : storeIds[0],
