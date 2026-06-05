@@ -471,6 +471,47 @@ export async function reportRoutes(fastify: FastifyInstance) {
         return b.revenue - a.revenue;
       });
 
+      const dailyTotalsMap: Record<
+        string,
+        {
+          date: string;
+          revenue: number;
+          chickenRevenue: number;
+          masaleRevenue: number;
+          qtyKg: number;
+          qtyPcs: number;
+          masaleQtyPcs: number;
+        }
+      > = {};
+
+      for (const row of rows) {
+        if (!dailyTotalsMap[row.date]) {
+          dailyTotalsMap[row.date] = {
+            date: row.date,
+            revenue: 0,
+            chickenRevenue: 0,
+            masaleRevenue: 0,
+            qtyKg: 0,
+            qtyPcs: 0,
+            masaleQtyPcs: 0,
+          };
+        }
+        const day = dailyTotalsMap[row.date];
+        day.revenue = Math.round((day.revenue + row.revenue) * 1000) / 1000;
+        day.qtyKg = Math.round((day.qtyKg + row.qtyKg) * 100) / 100;
+        day.qtyPcs += row.qtyPcs || 0;
+        if (row.isMasale) {
+          day.masaleRevenue = Math.round((day.masaleRevenue + row.revenue) * 1000) / 1000;
+          day.masaleQtyPcs += row.qtyPcs || 0;
+        } else {
+          day.chickenRevenue = Math.round((day.chickenRevenue + row.revenue) * 1000) / 1000;
+        }
+      }
+
+      const dailyTotals = Object.values(dailyTotalsMap).sort((a, b) =>
+        b.date.localeCompare(a.date)
+      );
+
       const uniqueDays = new Set(rows.map((r: any) => r.date));
       const masaleSplit = masaleSplitFromRows(rows);
       const summary = {
@@ -491,6 +532,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       return {
         period: { startDate: rangeStartKey, endDate: rangeEndKey },
         summary,
+        dailyTotals,
         masaleByDate,
         rows,
       };

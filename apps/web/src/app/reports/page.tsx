@@ -39,7 +39,7 @@ export default function ReportsPage() {
   const reportItems: ReportItem[] = [
     { id: 'stock', label: 'Stock', path: '/reports/stock' },
     { id: 'product-wise-sale', label: 'Product Wise Sale', path: '/reports/product-wise-sale' },
-    { id: 'daily-product-transaction', label: 'Daily Product Transaction', path: '/reports/daily-product-transaction' },
+    { id: 'daily-product-transaction', label: 'Daily Sales Summary', path: '/reports/daily-product-transaction' },
     { id: 'range-master', label: 'Range Master', path: '/reports/range-master' },
     { id: 'article-wise-sale', label: 'Artical Wise Sale', path: '/reports/article-wise-sale' },
     { id: 'bill-wise-sale', label: 'Bill Wise Sale', path: '/reports/bill-wise-sale' },

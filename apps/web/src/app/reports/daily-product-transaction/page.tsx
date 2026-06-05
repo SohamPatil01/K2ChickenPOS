@@ -2,31 +2,34 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
-import { MasaleTypeBadge, ReportMasaleSummary } from '@/components/ReportMasaleSummary';
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
 import {
-  downloadReportTable,
+  downloadStyledReportBundle,
   formatCurrency,
-  formatDisplayDate,
   formatReportPeriod,
   type ExportRow,
 } from '@/lib/reportExport';
-import { masaleSplitFromRows } from '@azela-pos/shared';
 import api from '@/lib/api';
+
+interface DailyTotal {
+  date: string;
+  revenue: number;
+  chickenRevenue: number;
+  masaleRevenue: number;
+  qtyKg: number;
+  qtyPcs: number;
+  masaleQtyPcs: number;
+}
 
 interface DailyProductRow {
   date: string;
   productId: string;
   productName: string;
-  sku: string;
-  category: string;
-  unitType: string;
   isMasale?: boolean;
   qtyKg: number;
   qtyPcs: number;
   revenue: number;
-  lineCount: number;
 }
 
 interface ReportPayload {
@@ -35,21 +38,29 @@ interface ReportPayload {
     totalRevenue: number;
     totalQtyKg: number;
     totalQtyPcs: number;
-    productDayCount: number;
     daysCount: number;
     masaleRevenue?: number;
-    masaleQtyKg?: number;
     masaleQtyPcs?: number;
-    masaleLineCount?: number;
     otherRevenue?: number;
   };
-  masaleByDate?: Record<string, { revenue: number; qtyKg: number; qtyPcs: number; lineCount: number }>;
+  dailyTotals: DailyTotal[];
   rows: DailyProductRow[];
+}
+
+function formatDayLabel(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 export default function DailyProductTransactionPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportPayload | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const defaultRange = defaultDateRangeLast7Days();
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
@@ -83,97 +94,66 @@ export default function DailyProductTransactionPage() {
     loadData(start, end);
   };
 
-  const rows = data?.rows || [];
-  const masaleByDate = data?.masaleByDate || {};
-  const masaleSplit = masaleSplitFromRows(rows);
+  const dailyTotals = data?.dailyTotals || [];
+  const summary = data?.summary;
+  const detailRows = data?.rows || [];
 
   const handleExport = () => {
-    if (!data) return;
-    const exportRows: ExportRow[] = [];
-    let lastDate = '';
-    for (const item of rows) {
-      if (item.date !== lastDate) {
-        lastDate = item.date;
-        exportRows.push({ kind: 'section', label: formatDisplayDate(item.date) });
-      }
-      exportRows.push({
-        kind: 'data',
-        cells: [
-          item.date,
-          item.isMasale ? 'Masale' : 'Chicken',
-          item.productName,
-          item.sku,
-          item.category,
-          item.qtyKg > 0 ? item.qtyKg.toFixed(2) : '—',
-          item.qtyPcs > 0 ? item.qtyPcs : '—',
-          formatCurrency(item.revenue),
-          item.lineCount,
-        ],
-      });
-    }
+    if (!data || !summary) return;
 
-    const datesWithMasale = [...new Set(rows.filter((r) => r.isMasale).map((r) => r.date))];
-    for (const date of datesWithMasale) {
-      const dayMasale = masaleByDate[date];
-      if (!dayMasale) continue;
-      exportRows.push({
-        kind: 'data',
-        bold: true,
-        cells: [
-          date,
-          'Masale total',
-          '',
-          '',
-          '',
-          dayMasale.qtyKg > 0 ? dayMasale.qtyKg.toFixed(2) : '—',
-          dayMasale.qtyPcs > 0 ? dayMasale.qtyPcs : '—',
-          formatCurrency(dayMasale.revenue),
-          dayMasale.lineCount,
-        ],
-      });
-    }
+    const dailyRows: ExportRow[] = dailyTotals.map((day) => ({
+      kind: 'data' as const,
+      cells: [
+        formatDayLabel(day.date),
+        formatCurrency(day.chickenRevenue),
+        formatCurrency(day.masaleRevenue),
+        formatCurrency(day.revenue),
+        day.qtyKg > 0 ? day.qtyKg.toFixed(2) : '-',
+        day.masaleQtyPcs > 0 ? day.masaleQtyPcs : '-',
+      ],
+    }));
 
-    downloadReportTable(
-      'Daily Product Transaction Report',
-      `daily-product-transaction-${startDate}-to-${endDate}`,
-      {
-        period: formatReportPeriod(startDate, endDate),
-        summary: [
-          { label: 'Days with sales', value: String(data.summary.daysCount) },
-          { label: 'Total Revenue', value: formatCurrency(data.summary.totalRevenue) },
-          { label: 'Masale Revenue', value: formatCurrency(data.summary.masaleRevenue ?? masaleSplit.masaleRevenue) },
-          {
-            label: 'Masale Qty (PCS)',
-            value: String(data.summary.masaleQtyPcs ?? masaleSplit.masaleQtyPcs),
-          },
-          {
-            label: 'Chicken / Other Revenue',
-            value: formatCurrency(data.summary.otherRevenue ?? masaleSplit.otherRevenue),
-          },
-        ],
-        headers: ['Date', 'Type', 'Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Lines'],
-        columnAlign: ['left', 'left', 'left', 'left', 'left', 'right', 'right', 'right', 'right'],
-        rows: exportRows,
-      }
-    );
-  };
+    dailyRows.push({
+      kind: 'data',
+      bold: true,
+      cells: [
+        'GRAND TOTAL',
+        formatCurrency(summary.otherRevenue ?? dailyTotals.reduce((s, d) => s + d.chickenRevenue, 0)),
+        formatCurrency(summary.masaleRevenue ?? dailyTotals.reduce((s, d) => s + d.masaleRevenue, 0)),
+        formatCurrency(summary.totalRevenue),
+        summary.totalQtyKg.toFixed(2),
+        String(summary.masaleQtyPcs ?? dailyTotals.reduce((s, d) => s + d.masaleQtyPcs, 0)),
+      ],
+    });
 
-  const formatDate = (ymd: string) => {
-    const [y, m, d] = ymd.split('-').map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
+    downloadStyledReportBundle({
+      title: 'Daily Sales Summary',
+      filename: `daily-sales-summary-${startDate}-to-${endDate}`,
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Trading Days', value: String(summary.daysCount) },
+        { label: 'Total Sales', value: formatCurrency(summary.totalRevenue) },
+        {
+          label: 'Chicken / Meat Sales',
+          value: formatCurrency(summary.otherRevenue ?? 0),
+        },
+        { label: 'Masale Sales', value: formatCurrency(summary.masaleRevenue ?? 0) },
+      ],
+      tables: [
+        {
+          title: 'Day-wise Sales',
+          headers: ['Date', 'Chicken / Meat', 'Masale', 'Day Total', 'Qty (KG)', 'Masale (PCS)'],
+          columnAlign: ['left', 'right', 'right', 'right', 'right', 'right'],
+          rows: dailyRows,
+        },
+      ],
     });
   };
-
-  let lastDate = '';
 
   return (
     <Layout>
       <ReportLayout
-        title="Daily Product Transaction Report"
+        title="Daily Sales Summary"
         dateRange={true}
         onDateRangeChange={handleDateChange}
         exportable={true}
@@ -181,146 +161,162 @@ export default function DailyProductTransactionPage() {
       >
         {loading ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading data...</div>
-        ) : !data || rows.length === 0 ? (
+        ) : !data || dailyTotals.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            No transaction data for the selected period.
+            No sales data for the selected period.
           </div>
         ) : (
           <>
-            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+              Day-wise totals for accounting review. Export sends a clean summary suitable for your CA.
+            </p>
+
+            <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Days with sales</div>
-                  <div className="text-2xl font-bold dark:text-white">{data.summary.daysCount}</div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Trading days
+                  </div>
+                  <div className="text-2xl font-bold dark:text-white">{summary!.daysCount}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Product-day rows</div>
-                  <div className="text-2xl font-bold dark:text-white">{data.summary.productDayCount}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Qty (KG / PCS)</div>
-                  <div className="text-lg font-bold dark:text-white">
-                    {data.summary.totalQtyKg.toFixed(2)} / {data.summary.totalQtyPcs}
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Total sales
+                  </div>
+                  <div className="text-2xl font-bold dark:text-white">
+                    ₹{summary!.totalRevenue.toFixed(2)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Revenue</div>
-                  <div className="text-2xl font-bold dark:text-white">
-                    ₹{data.summary.totalRevenue.toFixed(2)}
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Chicken / meat
+                  </div>
+                  <div className="text-xl font-bold dark:text-white">
+                    ₹{(summary!.otherRevenue ?? 0).toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Masale
+                  </div>
+                  <div className="text-xl font-bold text-brand-700 dark:text-brand-300">
+                    ₹{(summary!.masaleRevenue ?? 0).toFixed(2)}
                   </div>
                 </div>
               </div>
-              <ReportMasaleSummary
-                masaleRevenue={data.summary.masaleRevenue ?? masaleSplit.masaleRevenue}
-                masaleQtyPcs={data.summary.masaleQtyPcs ?? masaleSplit.masaleQtyPcs}
-                masaleQtyKg={data.summary.masaleQtyKg ?? masaleSplit.masaleQtyKg}
-                masaleLineCount={data.summary.masaleLineCount ?? masaleSplit.masaleLineCount}
-                otherRevenue={data.summary.otherRevenue ?? masaleSplit.otherRevenue}
-              />
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <div className="overflow-x-auto mb-6">
+              <h2 className="text-lg font-semibold mb-3 dark:text-white">Day-wise totals</h2>
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <thead className="bg-gray-100 dark:bg-gray-900/60">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Date
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Type
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Chicken / Meat
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Product
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Masale
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      SKU
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Day total
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Category
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Qty (KG)
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Qty (PCS)
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Revenue
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Lines
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Masale (PCS)
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {rows.map((item, idx) => {
-                    const showDateHeader = item.date !== lastDate;
-                    const nextRow = rows[idx + 1];
-                    const isLastRowForDate = !nextRow || nextRow.date !== item.date;
-                    const dayMasale = masaleByDate[item.date];
-                    if (showDateHeader) lastDate = item.date;
-
-                    return (
-                      <Fragment key={`${item.date}-${item.productId}`}>
-                        {showDateHeader && (
-                          <tr className="bg-brand-50/60 dark:bg-brand-900/20">
-                            <td
-                              colSpan={9}
-                              className="px-4 py-2 text-sm font-semibold text-brand-800 dark:text-brand-200"
-                            >
-                              {formatDate(item.date)}
-                            </td>
-                          </tr>
-                        )}
-                        <tr
-                          className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${item.isMasale ? 'bg-brand-50/20 dark:bg-brand-900/10' : ''}`}
-                        >
-                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{item.date}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <MasaleTypeBadge isMasale={item.isMasale} />
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
-                            {item.productName}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{item.sku}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{item.category}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                            {item.qtyKg > 0 ? item.qtyKg.toFixed(2) : '—'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
-                            {item.qtyPcs > 0 ? item.qtyPcs : '—'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            ₹{item.revenue.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400">
-                            {item.lineCount}
-                          </td>
-                        </tr>
-                        {isLastRowForDate && dayMasale && dayMasale.revenue > 0 && (
-                          <tr className="bg-brand-100/50 dark:bg-brand-900/30">
-                            <td colSpan={5} className="px-4 py-2 text-sm font-semibold text-brand-800 dark:text-brand-200">
-                              Masale total — {formatDate(item.date)}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right font-semibold text-brand-800 dark:text-brand-200">
-                              {dayMasale.qtyKg > 0 ? dayMasale.qtyKg.toFixed(2) : '—'}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right font-semibold text-brand-800 dark:text-brand-200">
-                              {dayMasale.qtyPcs > 0 ? dayMasale.qtyPcs : '—'}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right font-bold text-brand-800 dark:text-brand-200">
-                              ₹{dayMasale.revenue.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right font-semibold text-brand-800 dark:text-brand-200">
-                              {dayMasale.lineCount}
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
+                  {dailyTotals.map((day) => (
+                    <tr key={day.date} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                        {formatDayLabel(day.date)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        ₹{day.chickenRevenue.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-brand-700 dark:text-brand-300">
+                        {day.masaleRevenue > 0 ? `₹${day.masaleRevenue.toFixed(2)}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
+                        ₹{day.revenue.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+                        {day.qtyKg > 0 ? day.qtyKg.toFixed(2) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+                        {day.masaleQtyPcs > 0 ? day.masaleQtyPcs : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100 dark:bg-gray-900/50 font-semibold">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">Grand total</td>
+                    <td className="px-4 py-3 text-sm text-right dark:text-white">
+                      ₹{(summary!.otherRevenue ?? 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right text-brand-700 dark:text-brand-300">
+                      ₹{(summary!.masaleRevenue ?? 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right dark:text-white">
+                      ₹{summary!.totalRevenue.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right dark:text-white">
+                      {summary!.totalQtyKg.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right dark:text-white">
+                      {summary!.masaleQtyPcs ?? 0}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowDetail((v) => !v)}
+                className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              >
+                {showDetail ? 'Hide product detail' : 'Show product detail (optional)'}
+              </button>
+
+              {showDetail && (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {detailRows.map((row) => (
+                        <tr key={`${row.date}-${row.productId}`}>
+                          <td className="px-3 py-2 text-gray-500">{row.date}</td>
+                          <td className="px-3 py-2 text-gray-900 dark:text-white">{row.productName}</td>
+                          <td className="px-3 py-2 text-gray-500">{row.isMasale ? 'Masale' : 'Chicken'}</td>
+                          <td className="px-3 py-2 text-right text-gray-600">
+                            {row.qtyKg > 0
+                              ? `${row.qtyKg.toFixed(2)} KG`
+                              : row.qtyPcs > 0
+                                ? `${row.qtyPcs} PCS`
+                                : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-medium">₹{row.revenue.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}
