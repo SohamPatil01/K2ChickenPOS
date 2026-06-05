@@ -94,3 +94,9 @@ SELECT
         AND indexname = 'Sale_storeId_businessDate_idx'
     );
 
+
+
+-- Extend PaymentMethod enum for credit/online checkout (safe: ADD VALUE only)
+ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'CREDIT';
+ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'ONLINE';
+

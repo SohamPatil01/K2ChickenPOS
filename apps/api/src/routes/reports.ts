@@ -105,13 +105,23 @@ async function fetchReportableSales(
   query: { include?: any; select?: any; orderBy?: any } = {}
 ) {
   const base = reportSalesDateWhere(storeId, startDate, endDate);
-  const [paidSales, openCreditSales] = await Promise.all([
-    prisma.sale.findMany({ ...query, where: { ...base, status: 'PAID' } }),
-    prisma.sale.findMany({
+  const paidSales = await prisma.sale.findMany({ ...query, where: { ...base, status: 'PAID' } });
+
+  let openCreditSales: any[] = [];
+  try {
+    openCreditSales = await prisma.sale.findMany({
       ...query,
       where: { ...base, status: 'OPEN', payments: { some: { method: 'CREDIT' } } },
-    }),
-  ]);
+    });
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    // Production DB may lack CREDIT on PaymentMethod enum until migration is applied
+    if (msg.includes('PaymentMethod') || msg.includes('CREDIT') || msg.includes('22P02')) {
+      console.warn('[Reports] CREDIT not in PaymentMethod enum; returning PAID sales only');
+    } else {
+      throw err;
+    }
+  }
 
   const byId = new Map<string, any>();
   for (const sale of [...paidSales, ...openCreditSales]) {

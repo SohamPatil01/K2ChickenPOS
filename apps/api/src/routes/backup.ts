@@ -556,6 +556,59 @@ export async function backupRoutes(fastify: FastifyInstance) {
       };
     }
   });
+
+  /**
+   * POST /api/v1/backup/apply-payment-method-enum
+   * Add CREDIT + ONLINE to PaymentMethod enum (DDL only — no data deleted).
+   */
+  fastify.post('/apply-payment-method-enum', async (request, reply) => {
+    try {
+      if (!isBackupAdminRequest(request)) {
+        reply.status(401);
+        return {
+          success: false,
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      await prisma.$executeRawUnsafe(
+        `ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'CREDIT'`
+      );
+      await prisma.$executeRawUnsafe(
+        `ALTER TYPE "PaymentMethod" ADD VALUE IF NOT EXISTS 'ONLINE'`
+      );
+
+      const enumValues: { enumlabel: string }[] = await prisma.$queryRawUnsafe(`
+        SELECT e.enumlabel
+        FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'PaymentMethod'
+        ORDER BY e.enumsortorder
+      `);
+
+      const creditQueryCheck = await prisma.payment.count({
+        where: { method: 'CREDIT' },
+      });
+
+      return {
+        success: true,
+        message: 'PaymentMethod enum extended with CREDIT and ONLINE',
+        timestamp: new Date().toISOString(),
+        enumValues: enumValues.map((r) => r.enumlabel),
+        creditPaymentCount: creditQueryCheck,
+      };
+    } catch (error: any) {
+      fastify.log.error('[Backup] apply-payment-method-enum failed:', error);
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Failed to apply PaymentMethod enum migration',
+        timestamp: new Date().toISOString(),
+        error: error.message,
+      };
+    }
+  });
 }
 
 /**
