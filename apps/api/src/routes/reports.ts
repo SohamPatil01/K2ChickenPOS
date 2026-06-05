@@ -85,44 +85,47 @@ function saleDateKey(sale: { businessDate?: Date | null; createdAt: Date }): str
   return ymdInReportTz(d);
 }
 
-/** Reports count paid sales plus open credit bills; orders/dashboard stay separate. */
-function reportableSalesStatusWhere() {
+/** Date + store filter only (flat OR — matches analytics queries). */
+function reportSalesDateWhere(storeId: any, startDate?: string, endDate?: string) {
+  const dateFilter = getReportDateRange(startDate, endDate);
   return {
+    storeId,
     OR: [
-      { status: 'PAID' },
-      {
-        status: 'OPEN',
-        payments: { some: { method: 'CREDIT' } },
-      },
+      { createdAt: { gte: dateFilter.gte, lte: dateFilter.lte } },
+      { businessDate: { gte: dateFilter.gte, lte: dateFilter.lte } },
     ],
   };
 }
 
-/** Match sales by createdAt or businessDate (POS day), PAID + credit OPEN bills. */
-function reportSalesWhere(storeId: any, startDate?: string, endDate?: string) {
-  const dateFilter = getReportDateRange(startDate, endDate);
-  const startYmd = (startDate || '').split('T')[0];
-  const endYmd = (endDate || '').split('T')[0];
+/** PAID sales + OPEN credit bills in range (two simple queries, merged). */
+async function fetchReportableSales(
+  storeId: any,
+  startDate: string | undefined,
+  endDate: string | undefined,
+  query: { include?: any; select?: any; orderBy?: any } = {}
+) {
+  const base = reportSalesDateWhere(storeId, startDate, endDate);
+  const [paidSales, openCreditSales] = await Promise.all([
+    prisma.sale.findMany({ ...query, where: { ...base, status: 'PAID' } }),
+    prisma.sale.findMany({
+      ...query,
+      where: { ...base, status: 'OPEN', payments: { some: { method: 'CREDIT' } } },
+    }),
+  ]);
 
-  const dateCondition =
-    startYmd.length === 10 && endYmd.length === 10
-      ? {
-          OR: [
-            { createdAt: dateFilter },
-            {
-              businessDate: {
-                gte: new Date(`${startYmd}T00:00:00.000${REPORT_TZ}`),
-                lte: new Date(`${endYmd}T23:59:59.999${REPORT_TZ}`),
-              },
-            },
-          ],
-        }
-      : { createdAt: dateFilter };
+  const byId = new Map<string, any>();
+  for (const sale of [...paidSales, ...openCreditSales]) {
+    byId.set(sale.id, sale);
+  }
 
-  return {
-    storeId,
-    AND: [reportableSalesStatusWhere(), dateCondition],
-  };
+  let merged = [...byId.values()];
+  const order = query.orderBy?.createdAt;
+  if (order === 'desc') {
+    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } else if (order === 'asc') {
+    merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+  return merged;
 }
 
 export async function reportRoutes(fastify: FastifyInstance) {
@@ -266,24 +269,24 @@ export async function reportRoutes(fastify: FastifyInstance) {
     console.log('[Product-wise Report] Date filter:', dateFilter);
     console.log('[Product-wise Report] Store IDs:', storeIds);
 
-    const sales = await prisma.sale.findMany({
-      where: reportSalesWhere(
-        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        startDate,
-        endDate
-      ),
-      include: {
-        items: {
-          include: {
-            product: {
-              include: {
-                category: true,
+    const sales = await fetchReportableSales(
+      storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+      startDate,
+      endDate,
+      {
+        include: {
+          items: {
+            include: {
+              product: {
+                include: {
+                  category: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      }
+    );
     
     console.log(`Found ${sales.length} sales for product-wise report`);
 
@@ -360,25 +363,25 @@ export async function reportRoutes(fastify: FastifyInstance) {
       const rangeStartKey = (startDate || ymdInReportTz(dateFilter.gte)).split('T')[0];
       const rangeEndKey = (endDate || ymdInReportTz(dateFilter.lte)).split('T')[0];
 
-      const sales = await prisma.sale.findMany({
-        where: reportSalesWhere(
-          storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-          startDate,
-          endDate
-        ),
-        select: {
-          id: true,
-          businessDate: true,
-          createdAt: true,
-          items: {
-            include: {
-              product: {
-                include: { category: true },
+      const sales = await fetchReportableSales(
+        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+        startDate,
+        endDate,
+        {
+          select: {
+            id: true,
+            businessDate: true,
+            createdAt: true,
+            items: {
+              include: {
+                product: {
+                  include: { category: true },
+                },
               },
             },
           },
-        },
-      });
+        }
+      );
 
       const stats: Record<string, any> = {};
 
@@ -473,29 +476,29 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const dateFilter = getDateRange(startDate, endDate);
     console.log('[Bill-wise Report] Date filter:', dateFilter);
 
-    const sales = await prisma.sale.findMany({
-      where: reportSalesWhere(
-        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        startDate,
-        endDate
-      ),
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true,
+    const sales = await fetchReportableSales(
+      storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+      startDate,
+      endDate,
+      {
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          payments: true,
+          createdBy: {
+            select: {
+              name: true,
+              role: true,
+            },
           },
         },
-        payments: true,
-        createdBy: {
-          select: {
-            name: true,
-            role: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }
+    );
 
     return sales.map((sale) => ({
       saleId: sale.id,
@@ -569,16 +572,16 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const dateFilter = getDateRange(startDate, endDate);
     console.log('[Sales Register Summary] Date filter:', dateFilter);
 
-    const sales = await prisma.sale.findMany({
-      where: reportSalesWhere(
-        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        startDate,
-        endDate
-      ),
-      include: {
-        payments: true,
-      },
-    });
+    const sales = await fetchReportableSales(
+      storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+      startDate,
+      endDate,
+      {
+        include: {
+          payments: true,
+        },
+      }
+    );
 
     const paymentStats: Record<string, { method: string; count: number; total: number }> = {};
 
@@ -661,24 +664,24 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
     const dateFilter = getDateRange(startDate, endDate);
 
-    const sales = await prisma.sale.findMany({
-      where: reportSalesWhere(
-        storeIds.length > 1 ? { in: storeIds } : storeIds[0],
-        startDate,
-        endDate
-      ),
-      include: {
-        customer: true,
-        items: {
-          include: {
-            product: true,
+    const sales = await fetchReportableSales(
+      storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+      startDate,
+      endDate,
+      {
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: true,
+            },
           },
+          payments: true,
+          createdBy: true,
         },
-        payments: true,
-        createdBy: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        orderBy: { createdAt: 'asc' },
+      }
+    );
 
     return sales.map((sale) => ({
       date: sale.createdAt,
@@ -854,8 +857,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         storeIds = await getStoreIdsForOwner(ownerStoreId, queryStoreId);
       }
 
-    const sales = await prisma.sale.findMany({
-      where: reportSalesWhere({ in: storeIds }, startDate, endDate),
+    const sales = await fetchReportableSales({ in: storeIds }, startDate, endDate, {
       include: {
         items: {
           include: {
@@ -922,8 +924,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const dateFilter = getReportDateRange(startDate, endDate);
 
     const [sales, products, customers, inventoryMovements] = await Promise.all([
-      prisma.sale.findMany({
-        where: reportSalesWhere(storeIdWhere, startDate, endDate),
+      fetchReportableSales(storeIdWhere, startDate, endDate, {
         include: {
           items: true,
           payments: true,
