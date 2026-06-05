@@ -32,6 +32,7 @@ export default function StoreCartPage() {
   const customerId = useCartStore((state) => state.customerId);
   const customerPhone = useCartStore((state) => state.customerPhone);
   const customerName = useCartStore((state) => state.customerName);
+  const customerArea = useCartStore((state) => state.customerArea);
   const setCustomer = useCartStore((state) => state.setCustomer);
   const discountTotal = useCartStore((state) => state.discountTotal);
   const discountType = useCartStore((state) => state.discountType);
@@ -53,6 +54,7 @@ export default function StoreCartPage() {
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
   const [tempCustomerPhone, setTempCustomerPhone] = useState(customerPhone || '');
   const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
+  const [tempCustomerArea, setTempCustomerArea] = useState(customerArea || '');
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -83,7 +85,7 @@ export default function StoreCartPage() {
         recognition.onresult = (event: any) => {
           const transcript = event.results[0][0].transcript.trim();
           setTempCustomerName(transcript);
-          setCustomer(customerId, tempCustomerPhone || null, transcript || null);
+          setCustomer(customerId, tempCustomerPhone || null, transcript || null, tempCustomerArea || null);
           setIsListening(false);
           showNotification('Name captured: ' + transcript, 'success');
         };
@@ -117,7 +119,8 @@ export default function StoreCartPage() {
   useEffect(() => {
     setTempCustomerPhone(customerPhone || '');
     setTempCustomerName(customerName || '');
-  }, [customerPhone, customerName]);
+    setTempCustomerArea(customerArea || '');
+  }, [customerPhone, customerName, customerArea]);
 
   const loadAllCustomers = async () => {
     try {
@@ -138,9 +141,10 @@ export default function StoreCartPage() {
     try {
       const response = await api.get(`/api/v1/customers?phone=${phone}`);
       if (response.data) {
-        setCustomer(response.data.id, response.data.phone, response.data.name || null);
+        setCustomer(response.data.id, response.data.phone, response.data.name || null, response.data.area || null);
         setTempCustomerPhone(response.data.phone);
         setTempCustomerName(response.data.name || '');
+        setTempCustomerArea(response.data.area || '');
         setCustomerSearchResults([]);
       } else {
         const searchRes = await api.get('/api/v1/customers', { params: { q: phone } });
@@ -154,9 +158,10 @@ export default function StoreCartPage() {
     }
   };
 
-  const createOrUpdateCustomer = async (phone: string, name: string) => {
+  const createOrUpdateCustomer = async (phone: string, name: string, area?: string) => {
     const trimmedPhone = phone ? phone.trim() : '';
     const fullName = name ? name.trim() : '';
+    const fullArea = (area ?? useCartStore.getState().customerArea ?? '').trim();
     
     if (!trimmedPhone || trimmedPhone.length < 10) {
       showNotification('Phone number must be at least 10 characters', 'warning');
@@ -173,11 +178,13 @@ export default function StoreCartPage() {
           const response = await api.put(`/api/v1/customers/${customerId}`, {
             phone: trimmedPhone,
             name: fullName,
+            area: fullArea || undefined,
           });
           if (response.data) {
-            setCustomer(response.data.id, response.data.phone, response.data.name);
+            setCustomer(response.data.id, response.data.phone, response.data.name, response.data.area || null);
             setTempCustomerPhone(response.data.phone);
             setTempCustomerName(response.data.name);
+            setTempCustomerArea(response.data.area || '');
             showNotification('Customer updated successfully', 'success');
             setShowCustomerSection(false); // Auto-collapse after success
           }
@@ -199,11 +206,13 @@ export default function StoreCartPage() {
         const response = await api.post('/api/v1/customers', {
           phone: trimmedPhone,
           name: fullName,
+          area: fullArea || undefined,
         });
         if (response.data) {
-          setCustomer(response.data.id, response.data.phone, response.data.name);
+          setCustomer(response.data.id, response.data.phone, response.data.name, response.data.area || null);
           setTempCustomerPhone(response.data.phone);
           setTempCustomerName(response.data.name);
+          setTempCustomerArea(response.data.area || '');
           showNotification('Customer added successfully', 'success');
           setShowCustomerSection(false); // Auto-collapse after success
         }
@@ -251,7 +260,7 @@ export default function StoreCartPage() {
     setIsProcessingPayment(true);
 
     const buildSaleData = () => {
-      const { items, customerId, customerPhone, customerName, discountTotal } =
+      const { items, customerId, customerPhone, customerName, customerArea, discountTotal } =
         useCartStore.getState();
       return {
         items: items.map((item) => ({
@@ -265,6 +274,7 @@ export default function StoreCartPage() {
         customerId: !skipCustomer && customerId ? customerId : undefined,
         customerPhone: !skipCustomer && customerPhone ? customerPhone : undefined,
         customerName: !skipCustomer && customerName ? customerName : undefined,
+        customerArea: !skipCustomer && customerArea ? customerArea : undefined,
         discountTotal: discountTotal || 0,
       };
     };
@@ -522,7 +532,7 @@ export default function StoreCartPage() {
                       <button
                         onClick={() => {
                           setSkipCustomer(true);
-                          setCustomer(null, null, null);
+                          setCustomer(null, null, null, null);
                         }}
                         className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
                       >
@@ -548,10 +558,11 @@ export default function StoreCartPage() {
                     Walk-in customer • No customer info will be saved
                   </div>
                 )}
-                {customerName && customerPhone && !showCustomerSection && (
+                    {customerName && customerPhone && !showCustomerSection && (
                   <div className="mt-2 flex items-center justify-between px-3 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
                     <span className="font-medium text-brand-700 dark:text-brand-300">
                       {customerName} • {customerPhone}
+                      {customerArea ? ` • ${customerArea}` : ''}
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -562,9 +573,10 @@ export default function StoreCartPage() {
                       </button>
                       <button
                         onClick={() => {
-                          setCustomer(null, null, null);
+                          setCustomer(null, null, null, null);
                           setTempCustomerPhone('');
                           setTempCustomerName('');
+                          setTempCustomerArea('');
                           setShowCustomerSection(true);
                           setSkipCustomer(false);
                         }}
@@ -621,7 +633,7 @@ export default function StoreCartPage() {
                         onChange={(e) => {
                           const newName = e.target.value;
                           setTempCustomerName(newName);
-                          setCustomer(customerId, tempCustomerPhone || null, newName || null);
+                          setCustomer(customerId, tempCustomerPhone || null, newName || null, tempCustomerArea || null);
                           if (newName.length >= 1) {
                             const filtered = allCustomers.filter((c: any) => 
                               c.name.toLowerCase().startsWith(newName.toLowerCase())
@@ -715,19 +727,47 @@ export default function StoreCartPage() {
                             key={customer.id}
                             type="button"
                             onClick={() => {
-                              setCustomer(customer.id, customer.phone, customer.name);
+                              setCustomer(customer.id, customer.phone, customer.name, customer.area || null);
                               setTempCustomerPhone(customer.phone);
                               setTempCustomerName(customer.name);
+                              setTempCustomerArea(customer.area || '');
                               setShowNameDropdown(false);
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
                             <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {customer.phone}
+                              {customer.area ? ` • ${customer.area}` : ''}
+                            </div>
                           </button>
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Area / Locality
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Kothrud, Baner"
+                      value={tempCustomerArea}
+                      onChange={(e) => {
+                        const newArea = e.target.value;
+                        setTempCustomerArea(newArea);
+                        setCustomer(customerId, tempCustomerPhone || null, tempCustomerName || null, newArea || null);
+                      }}
+                      onBlur={() => {
+                        const currentPhone = tempCustomerPhone.trim();
+                        const currentName = tempCustomerName.trim();
+                        if (currentPhone.length >= 10 && currentName.length > 0) {
+                          createOrUpdateCustomer(currentPhone, currentName, tempCustomerArea);
+                        }
+                      }}
+                      className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
                   </div>
                 </div>
 
@@ -735,6 +775,7 @@ export default function StoreCartPage() {
                   <div className="mt-4 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                     <p className="text-sm text-brand-700 dark:text-brand-300">
                       <span className="font-medium">Billing to:</span> {customerName} ({customerPhone})
+                      {customerArea ? ` — ${customerArea}` : ''}
                     </p>
                   </div>
                 )}
@@ -1089,7 +1130,7 @@ export default function StoreCartPage() {
           value={tempCustomerPhone}
           onChange={(value) => {
             setTempCustomerPhone(value);
-            setCustomer(null, value || null, tempCustomerName || null);
+            setCustomer(null, value || null, tempCustomerName || null, tempCustomerArea || null);
             if (value && value.length >= 6) {
               searchCustomers(value);
             }
@@ -1116,7 +1157,7 @@ export default function StoreCartPage() {
           value={tempCustomerName}
           onChange={(value) => {
             setTempCustomerName(value);
-            setCustomer(customerId, tempCustomerPhone || null, value || null);
+            setCustomer(customerId, tempCustomerPhone || null, value || null, tempCustomerArea || null);
             if (value && value.length >= 1) {
               const filtered = allCustomers.filter((c: any) => 
                 c.name.toLowerCase().startsWith(value.toLowerCase())

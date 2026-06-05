@@ -262,6 +262,7 @@ model Customer {
   store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   name          String
   phone         String
+  area          String?
   email         String?
   loyaltyPoints Float    @default(0)
   loyaltyTier   String   @default("BRONZE") // BRONZE, SILVER, GOLD, PLATINUM

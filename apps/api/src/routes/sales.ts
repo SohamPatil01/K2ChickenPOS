@@ -369,11 +369,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
               phone: data.customerPhone,
             },
           },
-          update: {},
+          update: {
+            name: (data as any).customerName || undefined,
+            ...((data as any).customerArea !== undefined
+              ? { area: (data as any).customerArea || null }
+              : {}),
+          },
           create: {
             storeId,
             phone: data.customerPhone,
             name: (data as any).customerName || 'Customer',
+            area: (data as any).customerArea || null,
           },
         });
         customerId = customer.id;

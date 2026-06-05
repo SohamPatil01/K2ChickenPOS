@@ -14,6 +14,7 @@ export const refreshTokenSchema = z.object({
 export const customerSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(10),
+  area: z.string().optional(),
   email: z.string().email().optional(),
 });
 

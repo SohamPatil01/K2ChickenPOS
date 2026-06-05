@@ -10,6 +10,7 @@ interface Sale {
     id: string;
     name: string;
     phone: string;
+    area?: string | null;
   } | null;
   status: string;
   subTotal: number;
@@ -240,6 +241,19 @@ export default function ThermalReceipt({
               <span>Phone:</span>
               <span>{sale.customer.phone}</span>
             </div>
+            {sale.customer.area && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "4px",
+                  fontSize: "11px",
+                }}
+              >
+                <span>Area:</span>
+                <span>{sale.customer.area}</span>
+              </div>
+            )}
           </>
         )}
       </div>

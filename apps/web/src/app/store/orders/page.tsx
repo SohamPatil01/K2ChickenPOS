@@ -6,7 +6,8 @@ import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
 import { useNotificationStore } from "@/store/notification";
 import { useReactToPrint } from "react-to-print";
-import ThermalReceipt from "@/components/ThermalReceipt";
+import CustomerBill from "@/components/CustomerBill";
+import { downloadCustomerBill } from "@/lib/customerBill";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import { exportSalesCSV } from "@/lib/exportCSV";
 import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
@@ -19,6 +20,7 @@ interface Sale {
     id: string;
     name: string;
     phone: string;
+    area?: string | null;
   } | null;
   status: string;
   subTotal: number;
@@ -88,6 +90,12 @@ export default function OrdersPage() {
     grandTotal: number;
   } | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const [billForPrint, setBillForPrint] = useState<Sale | null>(null);
+
+  const storeBillInfo = {
+    name: user?.store?.name || "K2 Chicken",
+    phone: "8484978622",
+  };
 
   const handleFilterChange = useCallback((next: FilterCriteria) => {
     setFilters(next);
@@ -97,44 +105,38 @@ export default function OrdersPage() {
 
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
-    documentTitle: `Bill-${selectedSale?.saleNo || "Receipt"}`,
-    onBeforeGetContent: async () => {
-      // Wait a bit to ensure barcodes are rendered
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    },
+    documentTitle: `Bill-${billForPrint?.saleNo || selectedSale?.saleNo || "Receipt"}`,
+    onAfterPrint: () => setBillForPrint(null),
     pageStyle: `
       @page {
-        size: 58mm auto;
-        margin: 0;
+        size: A4;
+        margin: 12mm;
       }
       @media print {
-        * {
-          visibility: hidden;
-        }
-        .thermal-receipt-container,
-        .thermal-receipt-container * {
-          visibility: visible !important;
-        }
-        .thermal-receipt-container {
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 58mm !important;
-          max-width: 58mm !important;
-        }
-        .thermal-receipt {
-          width: 58mm !important;
-          max-width: 58mm !important;
-          margin: 0 !important;
-          padding: 6px !important;
-        }
         body {
           margin: 0;
           padding: 0;
+          background: white;
+        }
+        .customer-bill-print-root {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
         }
       }
     `,
   });
+
+  const triggerPrintBill = (sale: Sale) => {
+    setBillForPrint(sale);
+    setTimeout(() => handlePrint(), 150);
+  };
+
+  const triggerDownloadBill = (sale: Sale) => {
+    downloadCustomerBill(sale, storeBillInfo);
+    showNotification(`Bill ${sale.saleNo} downloaded`, "success");
+  };
 
   // Separate useEffect for auth check (no dependencies that change)
   useEffect(() => {
@@ -653,6 +655,28 @@ export default function OrdersPage() {
                             Edit
                           </button>
                         )}
+                        {(sale.status === "PAID" || sale.status === "OPEN") && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerPrintBill(sale);
+                            }}
+                            className="px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm transition-colors touch-target font-medium"
+                          >
+                            Print
+                          </button>
+                        )}
+                        {(sale.status === "PAID" || sale.status === "OPEN") && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerDownloadBill(sale);
+                            }}
+                            className="px-3 sm:px-4 py-2 bg-indigo-500 text-white rounded-md hover:bg-indigo-600 text-sm transition-colors touch-target font-medium"
+                          >
+                            Download
+                          </button>
+                        )}
                         {sale.status === "OPEN" && (
                           <button
                             onClick={(e) => {
@@ -727,6 +751,12 @@ export default function OrdersPage() {
                     <p className="text-sm dark:text-white mt-1">
                       <span className="font-medium">Phone:</span>{" "}
                       {selectedSale.customer.phone}
+                    </p>
+                  )}
+                  {selectedSale.customer?.area && (
+                    <p className="text-sm dark:text-white mt-1">
+                      <span className="font-medium">Area:</span>{" "}
+                      {selectedSale.customer.area}
                     </p>
                   )}
                   <p className="text-sm dark:text-white mt-1">
@@ -860,7 +890,7 @@ export default function OrdersPage() {
                 </button>
               )}
               <button
-                onClick={handlePrint}
+                onClick={() => triggerPrintBill(selectedSale)}
                 className="px-4 py-2.5 sm:py-3 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-all touch-target flex items-center justify-center gap-2"
               >
                 <svg
@@ -879,6 +909,15 @@ export default function OrdersPage() {
                 Print Bill
               </button>
               <button
+                onClick={() => triggerDownloadBill(selectedSale)}
+                className="px-4 py-2.5 sm:py-3 bg-indigo-500 text-white rounded-lg font-semibold hover:bg-indigo-600 transition-all touch-target flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+              <button
                 onClick={() => setSelectedSale(null)}
                 className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"
               >
@@ -889,22 +928,21 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Receipt for Printing - Hidden but accessible */}
-      {selectedSale && (
+      {/* Bill for printing — hidden off-screen */}
+      {(billForPrint || selectedSale) && (
         <div
           ref={receiptRef}
-          className="thermal-receipt-container"
+          className="customer-bill-print-root"
           style={{
             position: "absolute",
             left: "-9999px",
             top: 0,
-            width: "80mm",
-            maxWidth: "80mm",
+            width: "210mm",
           }}
         >
-          <ThermalReceipt
-            sale={selectedSale}
-            storeName={user?.store?.name || "K2 Chicken POS"}
+          <CustomerBill
+            sale={(billForPrint || selectedSale)!}
+            store={storeBillInfo}
           />
         </div>
       )}

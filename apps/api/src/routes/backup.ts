@@ -609,6 +609,42 @@ export async function backupRoutes(fastify: FastifyInstance) {
       };
     }
   });
+
+  /**
+   * POST /api/v1/backup/apply-customer-area-column
+   * Add optional area column to Customer table.
+   */
+  fastify.post('/apply-customer-area-column', async (request, reply) => {
+    try {
+      if (!isBackupAdminRequest(request)) {
+        reply.status(401);
+        return {
+          success: false,
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "area" TEXT`
+      );
+
+      return {
+        success: true,
+        message: 'Customer.area column added',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      fastify.log.error('[Backup] apply-customer-area-column failed:', error);
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Failed to apply Customer.area migration',
+        timestamp: new Date().toISOString(),
+        error: error.message,
+      };
+    }
+  });
 }
 
 /**

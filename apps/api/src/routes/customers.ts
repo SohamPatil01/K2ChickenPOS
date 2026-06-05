@@ -164,12 +164,14 @@ export async function customerRoutes(fastify: FastifyInstance) {
       update: {
         name: data.name,
         email: data.email,
+        ...(data.area !== undefined ? { area: data.area || null } : {}),
       },
       create: {
         storeId,
         name: data.name,
         phone: data.phone,
         email: data.email,
+        area: data.area || null,
       },
       include: {
         addresses: true,
@@ -223,6 +225,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
       if (body.email !== undefined && body.email !== null && body.email !== '') {
         data.email = String(body.email).trim();
       }
+      if (body.area !== undefined) {
+        data.area = body.area ? String(body.area).trim() : undefined;
+      }
       
       console.log('Validating customer data:', { name: data.name, nameLength: data.name.length, phone: data.phone, phoneLength: data.phone.length });
       const validatedData = customerSchema.parse(data);
@@ -265,6 +270,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
       };
       if (validatedData.email !== undefined) {
         updateData.email = validatedData.email;
+      }
+      if (validatedData.area !== undefined) {
+        updateData.area = validatedData.area || null;
       }
 
       const customer = await prisma.customer.update({
@@ -612,10 +620,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
         // Remaining balance = grandTotal - actual payments (credit doesn't count as payment)
         const remainingBalance = sale.grandTotal - totalPaidActual;
         
-        // Include orders that:
-        // 1. Have remaining balance > 0, OR
-        // 2. Have CREDIT payment method (show credit orders even if fully paid with actual payments)
-        if (remainingBalance <= 0 && !hasCreditPayment) continue;
+        // Skip fully settled orders — actual payments cover the bill total
+        if (remainingBalance <= 0.01) continue;
         
         // For display: if it's a credit order, show remaining balance (credit doesn't reduce it)
         const displayPending = hasCreditPayment ? remainingBalance : Math.max(0, remainingBalance);
@@ -688,7 +694,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           ...customer,
           totalPending: Math.round(customer.totalPending * 100) / 100,
         }))
-        .filter((c) => c.orderCount > 0) // Include all customers with credit orders, even if fully paid
+        .filter((c) => c.orderCount > 0 && c.totalPending > 0.01)
         .sort((a, b) => {
           // Sort walk-in credit last
           if (a.id === 'WALK_IN_CREDIT') return 1;

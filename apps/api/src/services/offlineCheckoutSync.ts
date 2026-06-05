@@ -10,7 +10,10 @@ import { quantitiesForInventoryDeduction } from '../utils/saleItemLedger.js';
 
 const offlinePayloadSchema = z.object({
   idempotencyKey: z.string().min(8),
-  createSale: createSaleSchema.extend({ customerName: z.string().optional() }),
+  createSale: createSaleSchema.extend({
+    customerName: z.string().optional(),
+    customerArea: z.string().optional(),
+  }),
   payments: z.array(paymentSchema).min(1),
   fulfillmentType: z.enum(['PICKUP', 'DELIVERY']).optional(),
 });
@@ -84,11 +87,15 @@ export async function applyOfflineCheckoutFromSync(
           phone: cs.customerPhone,
         },
       },
-      update: {},
+      update: {
+        name: cs.customerName || undefined,
+        ...(cs.customerArea !== undefined ? { area: cs.customerArea || null } : {}),
+      },
       create: {
         storeId,
         phone: cs.customerPhone,
         name: cs.customerName || 'Customer',
+        area: cs.customerArea || null,
       },
     });
     customerId = customer.id;

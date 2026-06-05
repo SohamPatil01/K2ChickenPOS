@@ -168,10 +168,10 @@ export default function PendingPaymentsPage() {
         for (const order of ordersToPay) {
           if (remainingAmount <= 0) break;
 
-          // Use remainingBalance if available (for credit orders), otherwise use pending
-          const orderRemaining = order.remainingBalance !== undefined 
-            ? order.remainingBalance 
+          const orderRemaining = order.remainingBalance !== undefined
+            ? order.remainingBalance
             : order.pending;
+          if (orderRemaining <= 0.01) continue;
           const paymentForThisOrder = Math.min(remainingAmount, orderRemaining);
           
           // Calculate if this order will be fully paid

@@ -43,6 +43,7 @@ interface CartState {
   customerId: string | null;
   customerPhone: string | null;
   customerName: string | null;
+  customerArea: string | null;
   discountTotal: number;
   discountType: 'amount' | 'percentage';
   discountPercentage: number;
@@ -51,7 +52,7 @@ interface CartState {
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
-  setCustomer: (customerId: string | null, phone: string | null, name?: string | null) => void;
+  setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
   setDiscount: (amount: number) => void;
   setDiscountType: (type: 'amount' | 'percentage') => void;
   setDiscountPercentage: (percentage: number) => void;
@@ -65,6 +66,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerId: null,
   customerPhone: null,
   customerName: null,
+  customerArea: null,
   discountTotal: 0,
   discountType: 'amount',
   discountPercentage: 0,
@@ -146,16 +148,18 @@ export const useCartStore = create<CartState>((set, get) => ({
     const items = await offlineDB.cart.toArray();
     set({ items });
   },
-  setCustomer: (customerId, customerPhone, customerName) => {
-    // Ensure name is preserved as string, not null/undefined
+  setCustomer: (customerId, customerPhone, customerName, customerArea) => {
     const name = customerName ? String(customerName) : null;
-    console.log('[Cart Store] setCustomer called:', { customerId, customerPhone, customerName: name });
-    // Walk-in (no customer) orders go as pickup only
+    const areaUpdate =
+      customerArea !== undefined
+        ? { customerArea: customerArea ? String(customerArea).trim() || null : null }
+        : {};
+    console.log('[Cart Store] setCustomer called:', { customerId, customerPhone, customerName: name, customerArea });
     if (!customerId) {
-      set({ customerId, customerPhone, customerName: name, fulfillmentType: 'PICKUP' });
+      set({ customerId, customerPhone, customerName: name, ...areaUpdate, fulfillmentType: 'PICKUP' });
       return;
     }
-    set({ customerId, customerPhone, customerName: name });
+    set({ customerId, customerPhone, customerName: name, ...areaUpdate });
   },
   setDiscount: (discountTotal) => {
     set({ discountTotal });
@@ -182,7 +186,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
   clearCart: async () => {
     await offlineDB.cart.clear();
-    set({ items: [], customerId: null, customerPhone: null, customerName: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP' });
+    set({ items: [], customerId: null, customerPhone: null, customerName: null, customerArea: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP' });
   },
   getTotal: () => {
     const { items, discountTotal, discountType, discountPercentage } = get();
