@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
 import {
-  downloadStyledReport,
+  downloadStyledReportBundle,
   formatCurrency,
   formatDisplayDate,
 } from '@/lib/reportExport';
@@ -32,7 +32,7 @@ export default function PendingReportPage() {
 
   const handleExport = () => {
     if (!data) return;
-    downloadStyledReport({
+    downloadStyledReportBundle({
       title: 'Pending Report',
       filename: `pending-report-${new Date().toISOString().split('T')[0]}`,
       summary: [

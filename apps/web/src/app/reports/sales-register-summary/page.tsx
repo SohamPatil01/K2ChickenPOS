@@ -5,7 +5,7 @@ import ReportLayout from '@/components/ReportLayout';
 import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
-  downloadStyledReport,
+  downloadStyledReportBundle,
   formatCurrency,
   formatReportPeriod,
 } from '@/lib/reportExport';
@@ -48,7 +48,7 @@ export default function SalesRegisterSummaryPage() {
 
   const handleExport = () => {
     if (!data) return;
-    downloadStyledReport({
+    downloadStyledReportBundle({
       title: 'Sales Register Summary',
       filename: `sales-register-summary-${startDate}-to-${endDate}`,
       period: formatReportPeriod(startDate, endDate),

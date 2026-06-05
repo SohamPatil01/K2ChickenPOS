@@ -25,17 +25,31 @@ const BRAND = '#FF6A00';
 const BRAND_LIGHT = '#FFF0E6';
 const BRAND_DARK = '#7A2E00';
 
-function escapeHtml(value: unknown): string {
+/** Excel-safe text: ASCII currency, no special dashes. */
+function excelText(value: unknown): string {
   return String(value ?? '')
+    .replace(/₹/g, 'Rs ')
+    .replace(/–/g, '-')
+    .replace(/—/g, '-');
+}
+
+function escapeHtml(value: unknown): string {
+  return excelText(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
 
+function csvEscape(value: unknown): string {
+  const s = excelText(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
 export function formatReportPeriod(start?: string, end?: string): string | undefined {
   if (!start && !end) return undefined;
-  if (start && end) return `${formatDisplayDate(start)} – ${formatDisplayDate(end)}`;
+  if (start && end) return `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`;
   return start ? formatDisplayDate(start) : formatDisplayDate(end!);
 }
 
@@ -57,7 +71,7 @@ export function formatDisplayDate(value: string | Date): string {
 
 export function formatCurrency(amount: number | null | undefined): string {
   const n = Number(amount) || 0;
-  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `Rs ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function alignStyle(align?: CellAlign): string {
@@ -66,21 +80,19 @@ function alignStyle(align?: CellAlign): string {
   return 'text-align:left;';
 }
 
+/** Summary as a simple Excel-friendly table (no nested divs / border-radius). */
 function renderSummary(summary: { label: string; value: string }[]): string {
   if (!summary.length) return '';
-  const cards = summary
+  const rows = summary
     .map(
-      (item) => `
-        <td style="padding:12px 16px;background:${BRAND_LIGHT};border:1px solid #FFD5B3;border-radius:8px;vertical-align:top;">
-          <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${escapeHtml(item.label)}</div>
-          <div style="font-size:18px;font-weight:700;color:${BRAND_DARK};">${escapeHtml(item.value)}</div>
-        </td>`
+      (item) =>
+        `<tr>
+          <td style="padding:6px 10px;background:${BRAND_LIGHT};border:1px solid #FFD5B3;font-weight:600;">${escapeHtml(item.label)}</td>
+          <td style="padding:6px 10px;background:${BRAND_LIGHT};border:1px solid #FFD5B3;">${escapeHtml(item.value)}</td>
+        </tr>`
     )
     .join('');
-  return `
-    <table style="width:100%;border-collapse:separate;border-spacing:10px 0;margin:0 0 20px 0;">
-      <tr>${cards}</tr>
-    </table>`;
+  return `<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:16px;">${rows}</table>`;
 }
 
 function renderTable(table: ReportTable, tableIndex: number): string {
@@ -88,7 +100,7 @@ function renderTable(table: ReportTable, tableIndex: number): string {
   const headerCells = table.headers
     .map(
       (h, i) =>
-        `<th style="padding:10px 12px;background:${BRAND};color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border:1px solid #E65C00;${alignStyle(table.headerAlign?.[i] || table.columnAlign?.[i])}">${escapeHtml(h)}</th>`
+        `<th style="padding:8px 10px;background:${BRAND};color:#ffffff;font-weight:bold;border:1px solid #E65C00;${alignStyle(table.headerAlign?.[i] || table.columnAlign?.[i])}">${escapeHtml(h)}</th>`
     )
     .join('');
 
@@ -97,17 +109,17 @@ function renderTable(table: ReportTable, tableIndex: number): string {
       if (row.kind === 'section') {
         return `
           <tr>
-            <td colspan="${colCount}" style="padding:10px 12px;background:${BRAND_LIGHT};color:${BRAND_DARK};font-weight:700;font-size:13px;border:1px solid #FFD5B3;">
+            <td colspan="${colCount}" style="padding:8px 10px;background:${BRAND_LIGHT};color:${BRAND_DARK};font-weight:bold;border:1px solid #FFD5B3;">
               ${escapeHtml(row.label)}
             </td>
           </tr>`;
       }
 
-      const bg = rowIndex % 2 === 0 ? '#ffffff' : '#FAFAFA';
+      const bg = rowIndex % 2 === 0 ? '#ffffff' : '#f9fafb';
       const cells = row.cells
         .map((cell, i) => {
-          const isNum = typeof cell === 'number';
-          return `<td style="padding:8px 12px;border:1px solid #E5E7EB;background:${bg};font-size:12px;${alignStyle(table.columnAlign?.[i])}${row.bold ? 'font-weight:700;' : ''}${isNum ? 'mso-number-format:General;' : ''}">${escapeHtml(cell ?? '—')}</td>`;
+          const text = cell === null || cell === undefined || cell === '' ? '-' : cell;
+          return `<td style="padding:6px 10px;border:1px solid #d1d5db;background:${bg};${alignStyle(table.columnAlign?.[i])}${row.bold ? 'font-weight:bold;' : ''}">${escapeHtml(text)}</td>`;
         })
         .join('');
       return `<tr>${cells}</tr>`;
@@ -115,70 +127,144 @@ function renderTable(table: ReportTable, tableIndex: number): string {
     .join('');
 
   const titleBlock = table.title
-    ? `<h2 style="margin:24px 0 10px 0;font-size:15px;color:${BRAND_DARK};">${escapeHtml(table.title)}</h2>`
+    ? `<tr><td colspan="${colCount}" style="padding:10px 0 6px 0;font-size:14px;font-weight:bold;color:${BRAND_DARK};border:none;">${escapeHtml(table.title)}</td></tr>`
     : tableIndex > 0
-      ? '<div style="height:16px;"></div>'
+      ? `<tr><td colspan="${colCount}" style="height:12px;border:none;"></td></tr>`
       : '';
 
   return `
-    ${titleBlock}
-    <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+    <table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:12px;">
+      ${titleBlock ? `<tbody>${titleBlock}</tbody>` : ''}
       <thead><tr>${headerCells}</tr></thead>
-      <tbody>${bodyRows}</tbody>
+      <tbody>${bodyRows || `<tr><td colspan="${colCount}" style="padding:8px;">No data</td></tr>`}</tbody>
     </table>`;
 }
 
 function buildReportHtml(options: StyledReportOptions): string {
-  const generated = (options.generatedAt ?? new Date()).toLocaleString('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+  const generated = excelText(
+    (options.generatedAt ?? new Date()).toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+  );
 
   const metaRows = [
-    options.period ? `<tr><td style="color:#666;padding:2px 0;">Period</td><td style="padding:2px 0;font-weight:600;">${escapeHtml(options.period)}</td></tr>` : '',
-    `<tr><td style="color:#666;padding:2px 0;">Generated</td><td style="padding:2px 0;">${escapeHtml(generated)}</td></tr>`,
+    options.period
+      ? `<tr><td style="padding:4px 8px;color:#666;">Period</td><td style="padding:4px 8px;font-weight:bold;">${escapeHtml(options.period)}</td></tr>`
+      : '',
+    `<tr><td style="padding:4px 8px;color:#666;">Generated</td><td style="padding:4px 8px;">${escapeHtml(generated)}</td></tr>`,
   ].join('');
 
   const tablesHtml = options.tables.map((t, i) => renderTable(t, i)).join('');
 
   return `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
 <head>
   <meta charset="utf-8" />
-  <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-  <style>
-    body { font-family: Calibri, 'Segoe UI', Arial, sans-serif; color: #1f2937; margin: 24px; }
-    table { mso-displayed-decimal-separator: "."; mso-displayed-thousand-separator: ","; }
-  </style>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <!--[if gte mso 9]><xml>
+    <x:ExcelWorkbook>
+      <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+          <x:Name>Report</x:Name>
+          <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      </x:ExcelWorksheets>
+    </x:ExcelWorkbook>
+  </xml><![endif]-->
 </head>
 <body>
-  <div style="border-bottom:4px solid ${BRAND};padding-bottom:12px;margin-bottom:20px;">
-    <div style="font-size:11px;color:${BRAND};font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;">K2 Chicken POS</div>
-    <h1 style="margin:0;font-size:22px;color:${BRAND_DARK};">${escapeHtml(options.title)}</h1>
-    <table style="margin-top:10px;font-size:12px;border-collapse:collapse;">${metaRows}</table>
-  </div>
+  <table border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:16px;width:100%;">
+    <tr>
+      <td style="border-bottom:3px solid ${BRAND};padding-bottom:10px;">
+        <span style="font-size:11px;color:${BRAND};font-weight:bold;">K2 Chicken POS</span><br/>
+        <span style="font-size:20px;font-weight:bold;color:${BRAND_DARK};">${escapeHtml(options.title)}</span>
+        <table border="0" cellpadding="0" cellspacing="0" style="margin-top:8px;">${metaRows}</table>
+      </td>
+    </tr>
+  </table>
   ${renderSummary(options.summary || [])}
   ${tablesHtml}
-  <p style="margin-top:24px;font-size:10px;color:#9CA3AF;">Exported from K2 Chicken POS Reports</p>
+  <table border="0"><tr><td style="padding-top:16px;font-size:10px;color:#9ca3af;">Exported from K2 Chicken POS Reports</td></tr></table>
 </body>
 </html>`;
 }
 
-/** Download a styled Excel-compatible report (.xls) that matches on-screen layout. */
+function buildReportCsv(options: StyledReportOptions): string {
+  const lines: string[] = [];
+  lines.push(csvEscape('K2 Chicken POS'));
+  lines.push(csvEscape(options.title));
+  if (options.period) lines.push(`${csvEscape('Period')},${csvEscape(options.period)}`);
+  lines.push(
+    `${csvEscape('Generated')},${csvEscape(
+      (options.generatedAt ?? new Date()).toLocaleString('en-IN')
+    )}`
+  );
+  lines.push('');
+
+  for (const item of options.summary || []) {
+    lines.push(`${csvEscape(item.label)},${csvEscape(item.value)}`);
+  }
+  if ((options.summary || []).length) lines.push('');
+
+  for (const table of options.tables) {
+    if (table.title) {
+      lines.push(csvEscape(table.title));
+    }
+    lines.push(table.headers.map(csvEscape).join(','));
+    for (const row of table.rows) {
+      if (row.kind === 'section') {
+        lines.push(csvEscape(row.label));
+        continue;
+      }
+      lines.push(row.cells.map(csvEscape).join(','));
+    }
+    lines.push('');
+  }
+
+  return lines.join('\r\n');
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Revoke after the browser has time to start the download (immediate revoke causes blank files).
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 2000);
+}
+
+/** Download styled report as .xls (Excel HTML) — opens in Excel and browsers. */
 export function downloadStyledReport(options: StyledReportOptions): void {
+  const base = options.filename.replace(/\.(xls|xlsx|csv|html)$/i, '');
   const html = buildReportHtml(options);
   const blob = new Blob(['\ufeff', html], {
     type: 'application/vnd.ms-excel;charset=utf-8',
   });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = options.filename.endsWith('.xls') ? options.filename : `${options.filename}.xls`;
-  a.click();
-  window.URL.revokeObjectURL(url);
+  triggerDownload(blob, `${base}.xls`);
 }
 
-/** Simple single-table helper. */
+/** Download plain CSV (most compatible with Excel / Google Sheets). */
+export function downloadReportCsv(options: StyledReportOptions): void {
+  const base = options.filename.replace(/\.(xls|xlsx|csv|html)$/i, '');
+  const csv = buildReportCsv(options);
+  const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
+  triggerDownload(blob, `${base}.csv`);
+}
+
+/** Download both .xls (styled) and .csv (reliable) exports. */
+export function downloadStyledReportBundle(options: StyledReportOptions): void {
+  downloadStyledReport(options);
+  window.setTimeout(() => downloadReportCsv(options), 400);
+}
+
+/** Simple single-table helper — exports styled .xls + .csv. */
 export function downloadReportTable(
   title: string,
   filename: string,
@@ -192,7 +278,7 @@ export function downloadReportTable(
     tableTitle?: string;
   }
 ): void {
-  downloadStyledReport({
+  downloadStyledReportBundle({
     title,
     filename,
     period: opts.period,

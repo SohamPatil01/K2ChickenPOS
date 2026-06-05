@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
 import {
-  downloadStyledReport,
+  downloadStyledReportBundle,
   formatCurrency,
   formatDisplayDate,
 } from '@/lib/reportExport';
@@ -34,7 +34,7 @@ export default function MRNBalancePage() {
 
   const handleExport = () => {
     if (!data) return;
-    downloadStyledReport({
+    downloadStyledReportBundle({
       title: 'MRN & Balance Confirmation',
       filename: `mrn-balance-${new Date().toISOString().split('T')[0]}`,
       summary: [
