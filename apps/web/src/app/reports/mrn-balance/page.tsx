@@ -3,6 +3,11 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadStyledReport,
+  formatCurrency,
+  formatDisplayDate,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function MRNBalancePage() {
@@ -25,43 +30,52 @@ export default function MRNBalancePage() {
     }
   };
 
+  const totalBalanceValue = data?.balanceConfirmation.reduce((sum: number, item: any) => sum + item.value, 0) || 0;
+
   const handleExport = () => {
     if (!data) return;
-    const csv = [
-      ['MRN & Balance Confirmation Report'],
-      ['', ''],
-      ['MRN List'],
-      ['GRN ID', 'Dispatch No', 'PO No', 'Received At', 'Received By', 'Status'],
-      ...data.mrnList.map((mrn: any) => [
-        mrn.grnId,
-        mrn.dispatchNo,
-        mrn.poNo,
-        new Date(mrn.receivedAt).toLocaleDateString(),
-        mrn.receivedBy,
-        mrn.status,
-      ]),
-      ['', ''],
-      ['Balance Confirmation'],
-      ['SKU', 'Product Name', 'Balance', 'Unit', 'Price', 'Value'],
-      ...data.balanceConfirmation.map((item: any) => [
-        item.sku,
-        item.name,
-        item.balance,
-        item.unitType,
-        item.price,
-        item.value,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mrn-balance-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    downloadStyledReport({
+      title: 'MRN & Balance Confirmation',
+      filename: `mrn-balance-${new Date().toISOString().split('T')[0]}`,
+      summary: [
+        { label: 'Total MRNs', value: String(data.mrnList.length) },
+        { label: 'Total Balance Value', value: formatCurrency(totalBalanceValue) },
+      ],
+      tables: [
+        {
+          title: 'MRN List',
+          headers: ['Dispatch No', 'PO No', 'Received At', 'Received By', 'Status'],
+          columnAlign: ['left', 'left', 'left', 'left', 'left'],
+          rows: data.mrnList.map((mrn: any) => ({
+            kind: 'data' as const,
+            cells: [
+              mrn.dispatchNo,
+              mrn.poNo,
+              formatDisplayDate(mrn.receivedAt),
+              mrn.receivedBy,
+              mrn.status,
+            ],
+          })),
+        },
+        {
+          title: 'Balance Confirmation',
+          headers: ['SKU', 'Product Name', 'Balance', 'Unit', 'Price', 'Value'],
+          columnAlign: ['left', 'left', 'right', 'left', 'right', 'right'],
+          rows: data.balanceConfirmation.map((item: any) => ({
+            kind: 'data' as const,
+            cells: [
+              item.sku,
+              item.name,
+              item.balance,
+              item.unitType,
+              formatCurrency(item.price),
+              formatCurrency(item.value),
+            ],
+          })),
+        },
+      ],
+    });
   };
-
-  const totalBalanceValue = data?.balanceConfirmation.reduce((sum: number, item: any) => sum + item.value, 0) || 0;
 
   return (
     <Layout>

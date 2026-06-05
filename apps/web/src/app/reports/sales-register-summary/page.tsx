@@ -3,6 +3,11 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadStyledReport,
+  formatCurrency,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function SalesRegisterSummaryPage() {
@@ -42,23 +47,38 @@ export default function SalesRegisterSummaryPage() {
 
   const handleExport = () => {
     if (!data) return;
-    const csv = [
-      ['Payment Method', 'Count', 'Total'],
-      ...data.paymentMethods.map((pm: any) => [pm.method, pm.count, pm.total]),
-      ['', '', ''],
-      ['Total Sales', data.summary.totalSales, ''],
-      ['Total Revenue', '', data.summary.totalRevenue],
-      ['Total Discount', '', data.summary.totalDiscount],
-      ['Total Tax', '', data.summary.totalTax],
-      ['Net Revenue', '', data.summary.netRevenue],
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sales-register-summary-${startDate}-to-${endDate}.csv`;
-    a.click();
+    downloadStyledReport({
+      title: 'Sales Register Summary',
+      filename: `sales-register-summary-${startDate}-to-${endDate}`,
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Total Sales', value: String(data.summary.totalSales) },
+        { label: 'Net Revenue', value: formatCurrency(data.summary.netRevenue) },
+      ],
+      tables: [
+        {
+          title: 'Payment Methods',
+          headers: ['Payment Method', 'Count', 'Total'],
+          columnAlign: ['left', 'right', 'right'],
+          rows: data.paymentMethods.map((pm: any) => ({
+            kind: 'data' as const,
+            cells: [pm.method, pm.count, formatCurrency(pm.total)],
+          })),
+        },
+        {
+          title: 'Totals',
+          headers: ['Metric', 'Amount'],
+          columnAlign: ['left', 'right'],
+          rows: [
+            { kind: 'data', cells: ['Total Sales', data.summary.totalSales], bold: true },
+            { kind: 'data', cells: ['Total Revenue', formatCurrency(data.summary.totalRevenue)] },
+            { kind: 'data', cells: ['Total Discount', formatCurrency(data.summary.totalDiscount)] },
+            { kind: 'data', cells: ['Total Tax', formatCurrency(data.summary.totalTax)] },
+            { kind: 'data', cells: ['Net Revenue', formatCurrency(data.summary.netRevenue)], bold: true },
+          ],
+        },
+      ],
+    });
   };
 
   return (

@@ -3,6 +3,12 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatCurrency,
+  formatDisplayDate,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function SalesSubRegisterPage() {
@@ -40,33 +46,35 @@ export default function SalesSubRegisterPage() {
     loadData(start, end);
   };
 
-  const handleExport = () => {
-    const csv = [
-      ['Date', 'Time', 'Sale No', 'Customer', 'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment', 'Cashier'],
-      ...data.map((item) => [
-        new Date(item.date).toLocaleDateString(),
-        item.time,
-        item.saleNo,
-        item.customer,
-        item.items,
-        item.subTotal,
-        item.discount,
-        item.tax,
-        item.total,
-        item.paymentMethod,
-        item.cashier,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sales-sub-register-${startDate}-to-${endDate}.csv`;
-    a.click();
-  };
-
   const totalRevenue = data.reduce((sum, item) => sum + item.total, 0);
+
+  const handleExport = () => {
+    downloadReportTable('Sales Sub Register', `sales-sub-register-${startDate}-to-${endDate}`, {
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Total Entries', value: String(data.length) },
+        { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+      ],
+      headers: ['Date', 'Time', 'Sale No', 'Customer', 'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment', 'Cashier'],
+      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right', 'right', 'left', 'left'],
+      rows: data.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          formatDisplayDate(item.date),
+          item.time,
+          item.saleNo,
+          item.customer,
+          item.items,
+          formatCurrency(item.subTotal),
+          formatCurrency(item.discount),
+          formatCurrency(item.tax),
+          formatCurrency(item.total),
+          item.paymentMethod,
+          item.cashier,
+        ],
+      })),
+    });
+  };
 
   return (
     <Layout>

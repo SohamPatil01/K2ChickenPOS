@@ -57,7 +57,7 @@ export default function ReportLayout({
             onClick={onExport}
             className="px-4 py-2 bg-primary-500 text-white rounded-md hover:bg-primary-600 text-sm sm:text-base whitespace-nowrap w-full sm:w-auto"
           >
-            Export
+            Export Excel
           </button>
         )}
       </div>

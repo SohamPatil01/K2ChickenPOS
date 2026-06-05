@@ -3,6 +3,12 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  downloadStyledReport,
+  formatCurrency,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function SummaryReportPage() {
@@ -51,33 +57,37 @@ export default function SummaryReportPage() {
 
   const handleExport = () => {
     if (!data) return;
-    const csv = [
-      ['Summary Report'],
-      ['Period', `${startDate} to ${endDate}`],
-      ['', ''],
-      ['Sales'],
-      ['Total Sales', data.sales.totalSales],
-      ['Total Revenue', data.sales.totalRevenue],
-      ['Total Items Sold', data.sales.totalItemsSold],
-      ['Avg Bill Value', data.sales.avgBillValue],
-      ['', ''],
-      ['Inventory'],
-      ['Total Products', data.inventory.totalProducts],
-      ['Total Movements', data.inventory.totalMovements],
-      ['', ''],
-      ['Customers'],
-      ['Total Customers', data.customers.totalCustomers],
-      ['', ''],
-      ['Payment Methods'],
-      ...Object.entries(data.payments).map(([method, amount]) => [method, amount]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `summary-report-${startDate}-to-${endDate}.csv`;
-    a.click();
+    downloadStyledReport({
+      title: 'Summary Report',
+      filename: `summary-report-${startDate}-to-${endDate}`,
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Total Sales', value: String(data.sales.totalSales) },
+        { label: 'Total Revenue', value: formatCurrency(data.sales.totalRevenue) },
+        { label: 'Items Sold', value: String(data.sales.totalItemsSold) },
+        { label: 'Avg Bill', value: formatCurrency(data.sales.avgBillValue) },
+      ],
+      tables: [
+        {
+          title: 'Inventory & Customers',
+          headers: ['Metric', 'Value'],
+          rows: [
+            { kind: 'data', cells: ['Total Products', data.inventory.totalProducts] },
+            { kind: 'data', cells: ['Inventory Movements', data.inventory.totalMovements] },
+            { kind: 'data', cells: ['Total Customers', data.customers.totalCustomers] },
+          ],
+        },
+        {
+          title: 'Payment Methods',
+          headers: ['Method', 'Amount'],
+          columnAlign: ['left', 'right'],
+          rows: Object.entries(data.payments).map(([method, amount]: [string, any]) => ({
+            kind: 'data' as const,
+            cells: [method, formatCurrency(amount)],
+          })),
+        },
+      ],
+    });
   };
 
   return (

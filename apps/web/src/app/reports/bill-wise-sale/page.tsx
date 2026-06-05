@@ -3,6 +3,12 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatCurrency,
+  formatDisplayDate,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function BillWiseSalePage() {
@@ -40,31 +46,37 @@ export default function BillWiseSalePage() {
     loadData(start, end);
   };
 
-  const handleExport = () => {
-    const csv = [
-      ['Sale No', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment Method'],
-      ...data.map((item) => [
-        item.saleNo,
-        new Date(item.date).toLocaleDateString(),
-        item.customerName,
-        item.itemsCount,
-        item.subTotal,
-        item.discount,
-        item.tax,
-        item.grandTotal,
-        item.payments.map((p: any) => `${p.method}: ₹${p.amount}`).join('; '),
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bill-wise-sale-${startDate}-to-${endDate}.csv`;
-    a.click();
-  };
-
   const totalRevenue = data.reduce((sum, item) => sum + item.grandTotal, 0);
+
+  const handleExport = () => {
+    downloadReportTable('Bill Wise Sale Report', `bill-wise-sale-${startDate}-to-${endDate}`, {
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Total Bills', value: String(data.length) },
+        { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+        {
+          label: 'Avg Bill Value',
+          value: formatCurrency(data.length ? totalRevenue / data.length : 0),
+        },
+      ],
+      headers: ['Sale No', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment'],
+      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right', 'right', 'left'],
+      rows: data.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          item.saleNo,
+          formatDisplayDate(item.date),
+          item.customerName,
+          item.itemsCount,
+          formatCurrency(item.subTotal),
+          formatCurrency(item.discount),
+          formatCurrency(item.tax),
+          formatCurrency(item.grandTotal),
+          item.payments.map((p: any) => p.method).join(', '),
+        ],
+      })),
+    });
+  };
 
   return (
     <Layout>

@@ -3,6 +3,12 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatCurrency,
+  formatDisplayDate,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function BillWiseSaleCancelPage() {
@@ -40,28 +46,34 @@ export default function BillWiseSaleCancelPage() {
     loadData(start, end);
   };
 
-  const handleExport = () => {
-    const csv = [
-      ['Sale No', 'Date', 'Customer', 'Original Total', 'Items', 'Cancelled By'],
-      ...data.map((item) => [
-        item.saleNo,
-        new Date(item.date).toLocaleDateString(),
-        item.customerName,
-        item.originalTotal,
-        item.itemsCount,
-        item.cancelledBy,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bill-wise-sale-cancel-${startDate}-to-${endDate}.csv`;
-    a.click();
-  };
-
   const totalCancelled = data.reduce((sum, item) => sum + item.originalTotal, 0);
+
+  const handleExport = () => {
+    downloadReportTable(
+      'Bill Wise Sale Cancel',
+      `bill-wise-sale-cancel-${startDate}-to-${endDate}`,
+      {
+        period: formatReportPeriod(startDate, endDate),
+        summary: [
+          { label: 'Cancelled Bills', value: String(data.length) },
+          { label: 'Total Cancelled Value', value: formatCurrency(totalCancelled) },
+        ],
+        headers: ['Sale No', 'Date', 'Customer', 'Original Total', 'Items', 'Cancelled By'],
+        columnAlign: ['left', 'left', 'left', 'right', 'right', 'left'],
+        rows: data.map((item) => ({
+          kind: 'data' as const,
+          cells: [
+            item.saleNo,
+            formatDisplayDate(item.date),
+            item.customerName,
+            formatCurrency(item.originalTotal),
+            item.itemsCount,
+            item.cancelledBy,
+          ],
+        })),
+      }
+    );
+  };
 
   return (
     <Layout>

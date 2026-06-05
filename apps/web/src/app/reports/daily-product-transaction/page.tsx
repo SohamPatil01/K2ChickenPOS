@@ -4,6 +4,13 @@ import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect, Fragment } from 'react';
 import { defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
+import {
+  downloadReportTable,
+  formatCurrency,
+  formatDisplayDate,
+  formatReportPeriod,
+  type ExportRow,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 interface DailyProductRow {
@@ -70,29 +77,48 @@ export default function DailyProductTransactionPage() {
   const rows = data?.rows || [];
 
   const handleExport = () => {
-    const csv = [
-      ['Date', 'Product', 'SKU', 'Category', 'Unit', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Line Items'],
-      ...rows.map((item) => [
-        item.date,
-        `"${item.productName.replace(/"/g, '""')}"`,
-        item.sku,
-        `"${(item.category || '').replace(/"/g, '""')}"`,
-        item.unitType,
-        item.qtyKg,
-        item.qtyPcs,
-        item.revenue,
-        item.lineCount,
-      ]),
-    ]
-      .map((row) => row.join(','))
-      .join('\n');
+    if (!data) return;
+    const exportRows: ExportRow[] = [];
+    let lastDate = '';
+    for (const item of rows) {
+      if (item.date !== lastDate) {
+        lastDate = item.date;
+        exportRows.push({ kind: 'section', label: formatDisplayDate(item.date) });
+      }
+      exportRows.push({
+        kind: 'data',
+        cells: [
+          item.date,
+          item.productName,
+          item.sku,
+          item.category,
+          item.qtyKg > 0 ? item.qtyKg.toFixed(2) : '—',
+          item.qtyPcs > 0 ? item.qtyPcs : '—',
+          formatCurrency(item.revenue),
+          item.lineCount,
+        ],
+      });
+    }
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `daily-product-transaction-${startDate}-to-${endDate}.csv`;
-    a.click();
+    downloadReportTable(
+      'Daily Product Transaction Report',
+      `daily-product-transaction-${startDate}-to-${endDate}`,
+      {
+        period: formatReportPeriod(startDate, endDate),
+        summary: [
+          { label: 'Days with sales', value: String(data.summary.daysCount) },
+          { label: 'Product-day rows', value: String(data.summary.productDayCount) },
+          {
+            label: 'Total Qty (KG / PCS)',
+            value: `${data.summary.totalQtyKg.toFixed(2)} / ${data.summary.totalQtyPcs}`,
+          },
+          { label: 'Total Revenue', value: formatCurrency(data.summary.totalRevenue) },
+        ],
+        headers: ['Date', 'Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Lines'],
+        columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right'],
+        rows: exportRows,
+      }
+    );
   };
 
   const formatDate = (ymd: string) => {

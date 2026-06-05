@@ -3,6 +3,11 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadStyledReport,
+  formatCurrency,
+  formatDisplayDate,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function PendingReportPage() {
@@ -27,44 +32,44 @@ export default function PendingReportPage() {
 
   const handleExport = () => {
     if (!data) return;
-    const csv = [
-      ['Pending Items Report'],
-      ['', ''],
-      ['Pending Purchase Orders'],
-      ['PO No', 'Status', 'Items Count', 'Created At'],
-      ...data.pendingPurchaseOrders.map((po: any) => [
-        po.poNo,
-        po.status,
-        po.itemsCount,
-        new Date(po.createdAt).toLocaleDateString(),
-      ]),
-      ['', ''],
-      ['Pending Deliveries'],
-      ['Sale No', 'Status', 'Amount', 'Created At'],
-      ...data.pendingDeliveries.map((d: any) => [
-        d.saleNo,
-        d.status,
-        d.amount,
-        new Date(d.createdAt).toLocaleDateString(),
-      ]),
-      ['', ''],
-      ['Open Sales'],
-      ['Sale No', 'Customer', 'Total', 'Items', 'Created At'],
-      ...data.openSales.map((s: any) => [
-        s.saleNo,
-        s.customer,
-        s.total,
-        s.itemsCount,
-        new Date(s.createdAt).toLocaleDateString(),
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pending-report-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    downloadStyledReport({
+      title: 'Pending Report',
+      filename: `pending-report-${new Date().toISOString().split('T')[0]}`,
+      summary: [
+        { label: 'Pending POs', value: String(data.pendingPurchaseOrders.length) },
+        { label: 'Pending Deliveries', value: String(data.pendingDeliveries.length) },
+        { label: 'Open Sales', value: String(data.openSales.length) },
+      ],
+      tables: [
+        {
+          title: 'Pending Purchase Orders',
+          headers: ['PO No', 'Status', 'Items Count', 'Created At'],
+          columnAlign: ['left', 'left', 'right', 'left'],
+          rows: data.pendingPurchaseOrders.map((po: any) => ({
+            kind: 'data' as const,
+            cells: [po.poNo, po.status, po.itemsCount, formatDisplayDate(po.createdAt)],
+          })),
+        },
+        {
+          title: 'Pending Deliveries',
+          headers: ['Sale No', 'Status', 'Amount', 'Created At'],
+          columnAlign: ['left', 'left', 'right', 'left'],
+          rows: data.pendingDeliveries.map((d: any) => ({
+            kind: 'data' as const,
+            cells: [d.saleNo, d.status, formatCurrency(d.amount), formatDisplayDate(d.createdAt)],
+          })),
+        },
+        {
+          title: 'Open Sales',
+          headers: ['Sale No', 'Customer', 'Total', 'Items', 'Created At'],
+          columnAlign: ['left', 'left', 'right', 'right', 'left'],
+          rows: data.openSales.map((s: any) => ({
+            kind: 'data' as const,
+            cells: [s.saleNo, s.customer, formatCurrency(s.total), s.itemsCount, formatDisplayDate(s.createdAt)],
+          })),
+        },
+      ],
+    });
   };
 
   return (

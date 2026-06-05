@@ -4,6 +4,11 @@ import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
 import { defaultDateRangeLast30Days } from '@/lib/dateRangeParams';
+import {
+  downloadReportTable,
+  formatCurrency,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function ProductWiseSalePage() {
@@ -47,30 +52,31 @@ export default function ProductWiseSalePage() {
     loadData(start, end);
   };
 
-  const handleExport = () => {
-    const csv = [
-      ['Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Total Qty', 'Revenue', 'Sales Count'],
-      ...data.map((item) => [
-        item.productName,
-        item.sku,
-        item.category,
-        item.qtyKg,
-        item.qtyPcs,
-        item.totalQty,
-        item.revenue,
-        item.salesCount,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `product-wise-sale-${startDate}-to-${endDate}.csv`;
-    a.click();
-  };
-
   const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+
+  const handleExport = () => {
+    downloadReportTable('Product Wise Sale Report', `product-wise-sale-${startDate}-to-${endDate}`, {
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Total Products Sold', value: String(data.length) },
+        { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+      ],
+      headers: ['Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count'],
+      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right'],
+      rows: data.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          item.productName,
+          item.sku,
+          item.category,
+          item.qtyKg.toFixed(2),
+          item.qtyPcs,
+          formatCurrency(item.revenue),
+          item.salesCount,
+        ],
+      })),
+    });
+  };
 
   return (
     <Layout>

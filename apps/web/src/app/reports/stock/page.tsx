@@ -3,6 +3,10 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatCurrency,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function StockReportPage() {
@@ -25,30 +29,35 @@ export default function StockReportPage() {
     }
   };
 
-  const handleExport = () => {
-    const csv = [
-      ['Product', 'SKU', 'PLU', 'Category', 'Current Stock', 'Unit', 'Price', 'Stock Value'],
-      ...stockData.map((item) => [
-        item.name,
-        item.sku,
-        item.plu,
-        item.category,
-        item.currentStock,
-        item.unitType,
-        item.price,
-        item.stockValue,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `stock-report-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
-
   const totalValue = stockData.reduce((sum, item) => sum + item.stockValue, 0);
+
+  const handleExport = () => {
+    downloadReportTable('Stock Report', `stock-report-${new Date().toISOString().split('T')[0]}`, {
+      summary: [
+        { label: 'Total Products', value: String(stockData.length) },
+        { label: 'Total Stock Value', value: formatCurrency(totalValue) },
+        {
+          label: 'Items in Stock',
+          value: String(stockData.filter((item) => item.currentStock > 0).length),
+        },
+      ],
+      headers: ['Product', 'SKU', 'PLU', 'Category', 'Current Stock', 'Unit', 'Price', 'Stock Value'],
+      columnAlign: ['left', 'left', 'left', 'left', 'right', 'left', 'right', 'right'],
+      rows: stockData.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          item.name,
+          item.sku,
+          item.plu,
+          item.category,
+          item.currentStock,
+          item.unitType,
+          formatCurrency(item.price),
+          formatCurrency(item.stockValue),
+        ],
+      })),
+    });
+  };
 
   return (
     <Layout>

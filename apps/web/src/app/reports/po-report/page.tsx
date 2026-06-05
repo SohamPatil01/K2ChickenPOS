@@ -3,6 +3,11 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatDisplayDate,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function POReportPage() {
@@ -41,26 +46,25 @@ export default function POReportPage() {
   };
 
   const handleExport = () => {
-    const csv = [
-      ['PO No', 'Date', 'Franchise Store', 'Owner Store', 'Status', 'Items', 'Has Dispatch', 'Has GRN'],
-      ...data.map((item) => [
-        item.poNo,
-        new Date(item.date).toLocaleDateString(),
-        item.franchiseStore,
-        item.ownerStore,
-        item.status,
-        item.itemsCount,
-        item.hasDispatch ? 'Yes' : 'No',
-        item.hasGRN ? 'Yes' : 'No',
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `po-report-${startDate}-to-${endDate}.csv`;
-    a.click();
+    downloadReportTable('PO Report', `po-report-${startDate}-to-${endDate}`, {
+      period: formatReportPeriod(startDate, endDate),
+      summary: [{ label: 'Total Purchase Orders', value: String(data.length) }],
+      headers: ['PO No', 'Date', 'Franchise Store', 'Owner Store', 'Status', 'Items', 'Dispatch', 'GRN'],
+      columnAlign: ['left', 'left', 'left', 'left', 'left', 'right', 'center', 'center'],
+      rows: data.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          item.poNo,
+          formatDisplayDate(item.date),
+          item.franchiseStore,
+          item.ownerStore,
+          item.status,
+          item.itemsCount,
+          item.hasDispatch ? 'Yes' : 'No',
+          item.hasGRN ? 'Yes' : 'No',
+        ],
+      })),
+    });
   };
 
   return (

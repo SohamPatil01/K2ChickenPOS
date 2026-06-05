@@ -3,6 +3,10 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatCurrency,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function RangeMasterPage() {
@@ -57,22 +61,20 @@ export default function RangeMasterPage() {
   };
 
   const handleExport = () => {
-    const csv = [
-      ['Category', 'Min Price', 'Max Price', 'Product Count'],
-      ...data.map((item) => [
-        item.category,
-        item.minPrice,
-        item.maxPrice,
-        item.productCount,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `range-master-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    downloadReportTable('Range Master', `range-master-${new Date().toISOString().split('T')[0]}`, {
+      summary: [{ label: 'Total Categories', value: String(data.length) }],
+      headers: ['Category', 'Min Price', 'Max Price', 'Product Count'],
+      columnAlign: ['left', 'right', 'right', 'right'],
+      rows: data.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          item.category,
+          formatCurrency(item.minPrice),
+          formatCurrency(item.maxPrice),
+          item.productCount,
+        ],
+      })),
+    });
   };
 
   return (

@@ -3,6 +3,11 @@
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
 import { useState, useEffect } from 'react';
+import {
+  downloadReportTable,
+  formatCurrency,
+  formatReportPeriod,
+} from '@/lib/reportExport';
 import api from '@/lib/api';
 
 export default function SKUWiseSalesPage() {
@@ -40,30 +45,32 @@ export default function SKUWiseSalesPage() {
     loadData(start, end);
   };
 
-  const handleExport = () => {
-    const csv = [
-      ['SKU', 'Product Name', 'PLU', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count', 'Avg Price'],
-      ...data.map((item) => [
-        item.sku,
-        item.productName,
-        item.plu,
-        item.qtyKg,
-        item.qtyPcs,
-        item.revenue,
-        item.salesCount,
-        item.avgPrice,
-      ]),
-    ].map((row) => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sku-wise-sales-${startDate}-to-${endDate}.csv`;
-    a.click();
-  };
-
   const totalRevenue = data.reduce((sum: number, item: any) => sum + item.revenue, 0);
+
+  const handleExport = () => {
+    downloadReportTable('SKU Wise Sales Report', `sku-wise-sales-${startDate}-to-${endDate}`, {
+      period: formatReportPeriod(startDate, endDate),
+      summary: [
+        { label: 'Total SKUs', value: String(data.length) },
+        { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+      ],
+      headers: ['SKU', 'Product Name', 'PLU', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count', 'Avg Price'],
+      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right', 'right'],
+      rows: data.map((item) => ({
+        kind: 'data' as const,
+        cells: [
+          item.sku,
+          item.productName,
+          item.plu,
+          item.qtyKg.toFixed(2),
+          item.qtyPcs,
+          formatCurrency(item.revenue),
+          item.salesCount,
+          formatCurrency(item.avgPrice),
+        ],
+      })),
+    });
+  };
 
   return (
     <Layout>
