@@ -1,1 +1,0 @@
-ERROR:  relation "public.alertrule" does not exist
