@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
   downloadReportTable,
@@ -47,6 +48,8 @@ export default function BillWiseSalePage() {
   };
 
   const totalRevenue = data.reduce((sum, item) => sum + item.grandTotal, 0);
+  const masaleRevenue = data.reduce((sum, item) => sum + (item.masaleRevenue || 0), 0);
+  const masaleQtyPcs = data.reduce((sum, item) => sum + (item.masaleQtyPcs || 0), 0);
 
   const handleExport = () => {
     downloadReportTable('Bill Wise Sale Report', `bill-wise-sale-${startDate}-to-${endDate}`, {
@@ -54,13 +57,11 @@ export default function BillWiseSalePage() {
       summary: [
         { label: 'Total Bills', value: String(data.length) },
         { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
-        {
-          label: 'Avg Bill Value',
-          value: formatCurrency(data.length ? totalRevenue / data.length : 0),
-        },
+        { label: 'Masale Revenue', value: formatCurrency(masaleRevenue) },
+        { label: 'Masale Qty (PCS)', value: String(masaleQtyPcs) },
       ],
-      headers: ['Sale No', 'Date', 'Customer', 'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment'],
-      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right', 'right', 'left'],
+      headers: ['Sale No', 'Date', 'Customer', 'Items', 'Masale Rev.', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment'],
+      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right', 'right', 'right', 'left'],
       rows: data.map((item) => ({
         kind: 'data' as const,
         cells: [
@@ -68,6 +69,7 @@ export default function BillWiseSalePage() {
           formatDisplayDate(item.date),
           item.customerName,
           item.itemsCount,
+          formatCurrency(item.masaleRevenue || 0),
           formatCurrency(item.subTotal),
           formatCurrency(item.discount),
           formatCurrency(item.tax),
@@ -108,6 +110,11 @@ export default function BillWiseSalePage() {
                   <div className="text-2xl font-bold">₹{(totalRevenue / data.length).toFixed(2)}</div>
                 </div>
               </div>
+              <ReportMasaleSummary
+                masaleRevenue={masaleRevenue}
+                masaleQtyPcs={masaleQtyPcs}
+                otherRevenue={Math.max(0, totalRevenue - masaleRevenue)}
+              />
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -117,6 +124,7 @@ export default function BillWiseSalePage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Masale</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discount</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax</th>
@@ -133,6 +141,9 @@ export default function BillWiseSalePage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.customerName}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.itemsCount}</td>
+                      <td className="px-6 py-4 text-sm text-brand-700 font-medium">
+                        {(item.masaleRevenue || 0) > 0 ? `₹${item.masaleRevenue.toFixed(2)}` : '—'}
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-500">₹{item.subTotal.toFixed(2)}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">₹{item.discount.toFixed(2)}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">₹{item.tax.toFixed(2)}</td>

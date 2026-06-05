@@ -2,12 +2,14 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { MasaleTypeBadge, ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
   downloadReportTable,
   formatCurrency,
   formatReportPeriod,
 } from '@/lib/reportExport';
+import { masaleSplitFromRows } from '@azela-pos/shared';
 import api from '@/lib/api';
 
 export default function ArticleWiseSalePage() {
@@ -47,6 +49,15 @@ export default function ArticleWiseSalePage() {
   };
 
   const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+  const masaleSplit = masaleSplitFromRows(
+    data.map((item) => ({
+      isMasale: item.isMasale,
+      revenue: item.revenue,
+      qtyKg: item.qtyKg,
+      qtyPcs: item.qtyPcs,
+      lineCount: item.salesCount,
+    }))
+  );
 
   const handleExport = () => {
     downloadReportTable('Article Wise Sale Report', `article-wise-sale-${startDate}-to-${endDate}`, {
@@ -54,12 +65,15 @@ export default function ArticleWiseSalePage() {
       summary: [
         { label: 'Total Articles', value: String(data.length) },
         { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+        { label: 'Masale Revenue', value: formatCurrency(masaleSplit.masaleRevenue) },
+        { label: 'Masale Qty (PCS)', value: String(masaleSplit.masaleQtyPcs) },
       ],
-      headers: ['Article', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count'],
-      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right'],
+      headers: ['Type', 'Article', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count'],
+      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right'],
       rows: data.map((item) => ({
         kind: 'data' as const,
         cells: [
+          item.isMasale ? 'Masale' : 'Chicken',
           item.productName,
           item.sku,
           item.category,
@@ -98,11 +112,17 @@ export default function ArticleWiseSalePage() {
                   <div className="text-2xl font-bold">₹{totalRevenue.toFixed(2)}</div>
                 </div>
               </div>
+              <ReportMasaleSummary
+                masaleRevenue={masaleSplit.masaleRevenue}
+                masaleQtyPcs={masaleSplit.masaleQtyPcs}
+                otherRevenue={masaleSplit.otherRevenue}
+              />
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Article</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
@@ -114,7 +134,8 @@ export default function ArticleWiseSalePage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {data.map((item) => (
-                    <tr key={item.productId}>
+                    <tr key={item.productId} className={item.isMasale ? 'bg-brand-50/30' : ''}>
+                      <td className="px-6 py-4 text-sm"><MasaleTypeBadge isMasale={item.isMasale} /></td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.productName}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.sku}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.category}</td>

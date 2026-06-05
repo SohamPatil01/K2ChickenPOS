@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
   downloadStyledReport,
@@ -54,6 +55,8 @@ export default function SalesRegisterSummaryPage() {
       summary: [
         { label: 'Total Sales', value: String(data.summary.totalSales) },
         { label: 'Net Revenue', value: formatCurrency(data.summary.netRevenue) },
+        { label: 'Masale Revenue', value: formatCurrency(data.summary.masaleRevenue || 0) },
+        { label: 'Masale Qty (PCS)', value: String(data.summary.masaleQtyPcs || 0) },
       ],
       tables: [
         {
@@ -75,6 +78,9 @@ export default function SalesRegisterSummaryPage() {
             { kind: 'data', cells: ['Total Discount', formatCurrency(data.summary.totalDiscount)] },
             { kind: 'data', cells: ['Total Tax', formatCurrency(data.summary.totalTax)] },
             { kind: 'data', cells: ['Net Revenue', formatCurrency(data.summary.netRevenue)], bold: true },
+            { kind: 'data', cells: ['Masale Revenue', formatCurrency(data.summary.masaleRevenue || 0)] },
+            { kind: 'data', cells: ['Masale Qty (PCS)', data.summary.masaleQtyPcs || 0] },
+            { kind: 'data', cells: ['Chicken / Other Revenue', formatCurrency(data.summary.otherRevenue || 0)] },
           ],
         },
       ],
@@ -113,6 +119,14 @@ export default function SalesRegisterSummaryPage() {
                 <div className="text-sm text-gray-600">Net Revenue</div>
                 <div className="text-2xl font-bold">₹{data.summary.netRevenue.toFixed(2)}</div>
               </div>
+            </div>
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <ReportMasaleSummary
+                masaleRevenue={data.summary.masaleRevenue}
+                masaleQtyPcs={data.summary.masaleQtyPcs}
+                masaleQtyKg={data.summary.masaleQtyKg}
+                otherRevenue={data.summary.otherRevenue}
+              />
             </div>
 
             <div className="mb-6">

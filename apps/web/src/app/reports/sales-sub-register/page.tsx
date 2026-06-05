@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
   downloadReportTable,
@@ -47,6 +48,7 @@ export default function SalesSubRegisterPage() {
   };
 
   const totalRevenue = data.reduce((sum, item) => sum + item.total, 0);
+  const masaleRevenue = data.reduce((sum, item) => sum + (item.masaleRevenue || 0), 0);
 
   const handleExport = () => {
     downloadReportTable('Sales Sub Register', `sales-sub-register-${startDate}-to-${endDate}`, {
@@ -54,9 +56,10 @@ export default function SalesSubRegisterPage() {
       summary: [
         { label: 'Total Entries', value: String(data.length) },
         { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+        { label: 'Masale Revenue', value: formatCurrency(masaleRevenue) },
       ],
-      headers: ['Date', 'Time', 'Sale No', 'Customer', 'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment', 'Cashier'],
-      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right', 'right', 'left', 'left'],
+      headers: ['Date', 'Time', 'Sale No', 'Customer', 'Items', 'Masale Rev.', 'Subtotal', 'Discount', 'Tax', 'Total', 'Payment', 'Cashier'],
+      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right', 'right', 'right', 'left', 'left'],
       rows: data.map((item) => ({
         kind: 'data' as const,
         cells: [
@@ -65,6 +68,7 @@ export default function SalesSubRegisterPage() {
           item.saleNo,
           item.customer,
           item.items,
+          formatCurrency(item.masaleRevenue || 0),
           formatCurrency(item.subTotal),
           formatCurrency(item.discount),
           formatCurrency(item.tax),
@@ -102,6 +106,7 @@ export default function SalesSubRegisterPage() {
                   <div className="text-2xl font-bold">₹{totalRevenue.toFixed(2)}</div>
                 </div>
               </div>
+              <ReportMasaleSummary masaleRevenue={masaleRevenue} otherRevenue={totalRevenue - masaleRevenue} />
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -112,6 +117,7 @@ export default function SalesSubRegisterPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale No</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Masale</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discount</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax</th>
@@ -130,6 +136,9 @@ export default function SalesSubRegisterPage() {
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.saleNo}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.customer}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">{item.items}</td>
+                      <td className="px-6 py-4 text-sm text-brand-700 font-medium">
+                        {(item.masaleRevenue || 0) > 0 ? `₹${item.masaleRevenue.toFixed(2)}` : '—'}
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-500">₹{item.subTotal.toFixed(2)}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">₹{item.discount.toFixed(2)}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">₹{item.tax.toFixed(2)}</td>

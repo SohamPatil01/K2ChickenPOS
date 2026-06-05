@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { MasaleTypeBadge, ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import { defaultDateRangeLast30Days } from '@/lib/dateRangeParams';
 import {
@@ -9,6 +10,7 @@ import {
   formatCurrency,
   formatReportPeriod,
 } from '@/lib/reportExport';
+import { masaleSplitFromRows } from '@azela-pos/shared';
 import api from '@/lib/api';
 
 export default function ProductWiseSalePage() {
@@ -53,6 +55,15 @@ export default function ProductWiseSalePage() {
   };
 
   const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0);
+  const masaleSplit = masaleSplitFromRows(
+    data.map((item) => ({
+      isMasale: item.isMasale,
+      revenue: item.revenue,
+      qtyKg: item.qtyKg,
+      qtyPcs: item.qtyPcs,
+      lineCount: item.salesCount,
+    }))
+  );
 
   const handleExport = () => {
     downloadReportTable('Product Wise Sale Report', `product-wise-sale-${startDate}-to-${endDate}`, {
@@ -60,12 +71,16 @@ export default function ProductWiseSalePage() {
       summary: [
         { label: 'Total Products Sold', value: String(data.length) },
         { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+        { label: 'Masale Revenue', value: formatCurrency(masaleSplit.masaleRevenue) },
+        { label: 'Masale Qty (PCS)', value: String(masaleSplit.masaleQtyPcs) },
+        { label: 'Chicken / Other Revenue', value: formatCurrency(masaleSplit.otherRevenue) },
       ],
-      headers: ['Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count'],
-      columnAlign: ['left', 'left', 'left', 'right', 'right', 'right', 'right'],
+      headers: ['Type', 'Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Sales Count'],
+      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right'],
       rows: data.map((item) => ({
         kind: 'data' as const,
         cells: [
+          item.isMasale ? 'Masale' : 'Chicken',
           item.productName,
           item.sku,
           item.category,
@@ -104,11 +119,18 @@ export default function ProductWiseSalePage() {
                   <div className="text-2xl font-bold dark:text-white">₹{totalRevenue.toFixed(2)}</div>
                 </div>
               </div>
+              <ReportMasaleSummary
+                masaleRevenue={masaleSplit.masaleRevenue}
+                masaleQtyPcs={masaleSplit.masaleQtyPcs}
+                masaleQtyKg={masaleSplit.masaleQtyKg}
+                otherRevenue={masaleSplit.otherRevenue}
+              />
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-900/50">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SKU</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
@@ -120,7 +142,8 @@ export default function ProductWiseSalePage() {
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {data.map((item, idx) => (
-                    <tr key={item.productId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <tr key={item.productId} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${item.isMasale ? 'bg-brand-50/20 dark:bg-brand-900/10' : ''}`}>
+                      <td className="px-6 py-4 text-sm"><MasaleTypeBadge isMasale={item.isMasale} /></td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{item.productName}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{item.sku}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{item.category}</td>

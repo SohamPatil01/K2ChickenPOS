@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { MasaleTypeBadge } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
   downloadReportTable,
@@ -30,22 +31,23 @@ export default function StockReportPage() {
   };
 
   const totalValue = stockData.reduce((sum, item) => sum + item.stockValue, 0);
+  const masaleStock = stockData.filter((item) => item.isMasale);
+  const masaleStockValue = masaleStock.reduce((sum, item) => sum + item.stockValue, 0);
 
   const handleExport = () => {
     downloadReportTable('Stock Report', `stock-report-${new Date().toISOString().split('T')[0]}`, {
       summary: [
         { label: 'Total Products', value: String(stockData.length) },
         { label: 'Total Stock Value', value: formatCurrency(totalValue) },
-        {
-          label: 'Items in Stock',
-          value: String(stockData.filter((item) => item.currentStock > 0).length),
-        },
+        { label: 'Masale Products', value: String(masaleStock.length) },
+        { label: 'Masale Stock Value', value: formatCurrency(masaleStockValue) },
       ],
-      headers: ['Product', 'SKU', 'PLU', 'Category', 'Current Stock', 'Unit', 'Price', 'Stock Value'],
-      columnAlign: ['left', 'left', 'left', 'left', 'right', 'left', 'right', 'right'],
+      headers: ['Type', 'Product', 'SKU', 'PLU', 'Category', 'Current Stock', 'Unit', 'Price', 'Stock Value'],
+      columnAlign: ['left', 'left', 'left', 'left', 'left', 'right', 'left', 'right', 'right'],
       rows: stockData.map((item) => ({
         kind: 'data' as const,
         cells: [
+          item.isMasale ? 'Masale' : 'Chicken',
           item.name,
           item.sku,
           item.plu,
@@ -92,11 +94,22 @@ export default function StockReportPage() {
                   </div>
                 </div>
               </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Masale Products</div>
+                  <div className="text-xl font-bold text-brand-700 dark:text-brand-300">{masaleStock.length}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Masale Stock Value</div>
+                  <div className="text-xl font-bold text-brand-700 dark:text-brand-300">₹{masaleStockValue.toFixed(2)}</div>
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-900/50">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SKU</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">PLU</th>
@@ -112,9 +125,10 @@ export default function StockReportPage() {
                     <tr 
                       key={item.productId} 
                       className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
-                        item.currentStock === 0 ? 'dark:bg-red-900/10' : ''
+                        item.isMasale ? 'bg-brand-50/20 dark:bg-brand-900/10' : item.currentStock === 0 ? 'dark:bg-red-900/10' : ''
                       }`}
                     >
+                      <td className="px-6 py-4 text-sm"><MasaleTypeBadge isMasale={item.isMasale} /></td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{item.name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{item.sku}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{item.plu}</td>

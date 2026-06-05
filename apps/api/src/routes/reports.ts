@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { addToMasaleSplit, emptyMasaleSplit, isMasaleProduct, masaleSplitFromRows } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
 
 interface QueryParams {
@@ -138,6 +139,31 @@ async function fetchReportableSales(
   return merged;
 }
 
+function itemMasaleFlag(item: {
+  product?: { name?: string; category?: { name?: string } | null } | null;
+  category?: string;
+  productName?: string;
+}): boolean {
+  return isMasaleProduct(
+    item.product?.category?.name ?? item.category,
+    item.product?.name ?? item.productName
+  );
+}
+
+function masaleTotalsFromSaleItems(items: any[]) {
+  const totals = emptyMasaleSplit();
+  for (const item of items || []) {
+    if (!item) continue;
+    addToMasaleSplit(totals, {
+      isMasale: itemMasaleFlag(item),
+      revenue: item.lineTotal || 0,
+      qtyKg: item.qtyKg || 0,
+      qtyPcs: item.qtyPcs || 0,
+    });
+  }
+  return totals;
+}
+
 export async function reportRoutes(fastify: FastifyInstance) {
   // Stock Report
   fastify.get('/stock', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
@@ -226,6 +252,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         plu: product.plu,
         category: product.category?.name || '',
         unitType: product.unitType,
+        isMasale: isMasaleProduct(product.category?.name, product.name),
         currentStock: currentStock > 0 ? currentStock : 0,
         price: product.storeProductPrices[0]?.pricePerUnit || 0,
         stockValue: (currentStock > 0 ? currentStock : 0) * (product.storeProductPrices[0]?.pricePerUnit || 0),
@@ -313,6 +340,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
             sku: item.product.sku,
             category: item.product.category?.name || '',
             unitType: item.product.unitType,
+            isMasale: isMasaleProduct(item.product.category?.name, item.product.name),
             qtyKg: 0,
             qtyPcs: 0,
             totalQty: 0,
@@ -394,12 +422,14 @@ export async function reportRoutes(fastify: FastifyInstance) {
       );
 
       const stats: Record<string, any> = {};
+      const masaleByDate: Record<string, { revenue: number; qtyKg: number; qtyPcs: number; lineCount: number }> = {};
 
       for (const sale of sales) {
         const dateKey = saleDateKey(sale);
 
         for (const item of sale.items) {
           if (!item.product) continue;
+          const isMasale = isMasaleProduct(item.product.category?.name, item.product.name);
           const key = `${dateKey}:${item.productId}`;
           if (!stats[key]) {
             stats[key] = {
@@ -409,6 +439,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
               sku: item.product.sku,
               category: item.product.category?.name || '',
               unitType: item.product.unitType,
+              isMasale,
               qtyKg: 0,
               qtyPcs: 0,
               revenue: 0,
@@ -419,26 +450,48 @@ export async function reportRoutes(fastify: FastifyInstance) {
           stats[key].qtyPcs += item.qtyPcs || 0;
           stats[key].revenue = Math.round((stats[key].revenue + item.lineTotal) * 1000) / 1000;
           stats[key].lineCount += 1;
+
+          if (isMasale) {
+            if (!masaleByDate[dateKey]) {
+              masaleByDate[dateKey] = { revenue: 0, qtyKg: 0, qtyPcs: 0, lineCount: 0 };
+            }
+            masaleByDate[dateKey].revenue =
+              Math.round((masaleByDate[dateKey].revenue + item.lineTotal) * 1000) / 1000;
+            masaleByDate[dateKey].qtyKg =
+              Math.round((masaleByDate[dateKey].qtyKg + (item.qtyKg || 0)) * 100) / 100;
+            masaleByDate[dateKey].qtyPcs += item.qtyPcs || 0;
+            masaleByDate[dateKey].lineCount += 1;
+          }
         }
       }
 
       const rows = Object.values(stats).sort((a: any, b: any) => {
         if (a.date !== b.date) return b.date.localeCompare(a.date);
+        if (a.isMasale !== b.isMasale) return a.isMasale ? 1 : -1;
         return b.revenue - a.revenue;
       });
 
       const uniqueDays = new Set(rows.map((r: any) => r.date));
+      const masaleSplit = masaleSplitFromRows(rows);
       const summary = {
         totalRevenue: Math.round(rows.reduce((s: number, r: any) => s + r.revenue, 0) * 1000) / 1000,
         totalQtyKg: Math.round(rows.reduce((s: number, r: any) => s + r.qtyKg, 0) * 100) / 100,
         totalQtyPcs: rows.reduce((s: number, r: any) => s + r.qtyPcs, 0),
         productDayCount: rows.length,
         daysCount: uniqueDays.size,
+        masaleRevenue: masaleSplit.masaleRevenue,
+        masaleQtyKg: masaleSplit.masaleQtyKg,
+        masaleQtyPcs: masaleSplit.masaleQtyPcs,
+        masaleLineCount: masaleSplit.masaleLineCount,
+        otherRevenue: masaleSplit.otherRevenue,
+        otherQtyKg: masaleSplit.otherQtyKg,
+        otherQtyPcs: masaleSplit.otherQtyPcs,
       };
 
       return {
         period: { startDate: rangeStartKey, endDate: rangeEndKey },
         summary,
+        masaleByDate,
         rows,
       };
     } catch (error: any) {
@@ -493,24 +546,26 @@ export async function reportRoutes(fastify: FastifyInstance) {
       {
         include: {
           customer: true,
-          items: {
-            include: {
-              product: true,
-            },
-          },
-          payments: true,
-          createdBy: {
-            select: {
-              name: true,
-              role: true,
-            },
+        items: {
+          include: {
+            product: { include: { category: true } },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        payments: true,
+        createdBy: {
+          select: {
+            name: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
       }
     );
 
-    return sales.map((sale) => ({
+    return sales.map((sale) => {
+      const masale = masaleTotalsFromSaleItems(sale.items);
+      return {
       saleId: sale.id,
       saleNo: sale.saleNo,
       date: sale.createdAt,
@@ -521,6 +576,9 @@ export async function reportRoutes(fastify: FastifyInstance) {
       discount: sale.discountTotal,
       tax: sale.taxTotal,
       grandTotal: sale.grandTotal,
+      masaleRevenue: masale.masaleRevenue,
+      masaleQtyPcs: masale.masaleQtyPcs,
+      masaleQtyKg: masale.masaleQtyKg,
       payments: sale.payments.map((p: any) => ({
         method: p.method,
         amount: p.amount,
@@ -531,12 +589,14 @@ export async function reportRoutes(fastify: FastifyInstance) {
         .map((item: any) => ({
           productName: item.product.name,
           sku: item.product.sku,
+          isMasale: isMasaleProduct(item.product.category?.name, item.product.name),
           qtyKg: item.qtyKg,
           qtyPcs: item.qtyPcs,
           rate: item.rate,
           lineTotal: item.lineTotal,
         })),
-    }));
+    };
+    });
     } catch (error: any) {
       console.error('Bill-wise sale report error:', error);
       reply.code(500).send({ error: 'Failed to generate bill-wise sale report', details: error.message });
@@ -589,13 +649,35 @@ export async function reportRoutes(fastify: FastifyInstance) {
       {
         include: {
           payments: true,
+          items: {
+            include: {
+              product: { include: { category: true } },
+            },
+          },
         },
       }
     );
 
     const paymentStats: Record<string, { method: string; count: number; total: number }> = {};
+    const masaleTotals = emptyMasaleSplit();
 
     for (const sale of sales) {
+      const saleMasale = masaleTotalsFromSaleItems(sale.items);
+      addToMasaleSplit(masaleTotals, {
+        isMasale: true,
+        revenue: saleMasale.masaleRevenue,
+        qtyKg: saleMasale.masaleQtyKg,
+        qtyPcs: saleMasale.masaleQtyPcs,
+        lines: saleMasale.masaleLineCount,
+      });
+      addToMasaleSplit(masaleTotals, {
+        isMasale: false,
+        revenue: saleMasale.otherRevenue,
+        qtyKg: saleMasale.otherQtyKg,
+        qtyPcs: saleMasale.otherQtyPcs,
+        lines: 0,
+      });
+
       for (const payment of sale.payments) {
         if (!paymentStats[payment.method]) {
           paymentStats[payment.method] = {
@@ -627,6 +709,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
         totalDiscount,
         totalTax,
         netRevenue: totalRevenue - totalDiscount,
+        masaleRevenue: masaleTotals.masaleRevenue,
+        masaleQtyKg: masaleTotals.masaleQtyKg,
+        masaleQtyPcs: masaleTotals.masaleQtyPcs,
+        masaleLineCount: masaleTotals.masaleLineCount,
+        otherRevenue: masaleTotals.otherRevenue,
       },
       paymentMethods: Object.values(paymentStats),
     };
@@ -681,19 +768,21 @@ export async function reportRoutes(fastify: FastifyInstance) {
       {
         include: {
           customer: true,
-          items: {
-            include: {
-              product: true,
-            },
+        items: {
+          include: {
+            product: { include: { category: true } },
           },
-          payments: true,
-          createdBy: true,
         },
-        orderBy: { createdAt: 'asc' },
+        payments: true,
+        createdBy: true,
+      },
+      orderBy: { createdAt: 'asc' },
       }
     );
 
-    return sales.map((sale) => ({
+    return sales.map((sale) => {
+      const masale = masaleTotalsFromSaleItems(sale.items);
+      return {
       date: sale.createdAt,
       saleNo: sale.saleNo,
       time: sale.createdAt.toLocaleTimeString(),
@@ -703,9 +792,12 @@ export async function reportRoutes(fastify: FastifyInstance) {
       discount: sale.discountTotal,
       tax: sale.taxTotal,
       total: sale.grandTotal,
+      masaleRevenue: masale.masaleRevenue,
+      masaleQtyPcs: masale.masaleQtyPcs,
       paymentMethod: sale.payments.map((p: any) => p.method).join(', '),
       cashier: sale.createdBy.name,
-    }));
+    };
+    });
     } catch (error: any) {
       console.error('Sales sub register error:', error);
       reply.code(500).send({ error: 'Failed to generate sales sub register', details: error.message });
@@ -871,7 +963,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       include: {
         items: {
           include: {
-            product: true,
+            product: { include: { category: true } },
           },
         },
       },
@@ -888,6 +980,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
             sku: sku,
             productName: item.product.name,
             plu: item.product.plu,
+            isMasale: isMasaleProduct(item.product.category?.name, item.product.name),
             qtyKg: 0,
             qtyPcs: 0,
             revenue: 0,
@@ -936,7 +1029,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const [sales, products, customers, inventoryMovements] = await Promise.all([
       fetchReportableSales(storeIdWhere, startDate, endDate, {
         include: {
-          items: true,
+          items: {
+            include: {
+              product: { include: { category: true } },
+            },
+          },
           payments: true,
         },
       }),
@@ -963,6 +1060,24 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const totalRevenue = Math.round(sales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
     const totalItemsSold = sales.reduce((sum: any, s: any) => sum + s.items.length, 0);
     const avgBillValue = sales.length > 0 ? Math.round((totalRevenue / sales.length) * 1000) / 1000 : 0;
+    const masaleTotals = emptyMasaleSplit();
+    for (const sale of sales) {
+      const split = masaleTotalsFromSaleItems(sale.items);
+      addToMasaleSplit(masaleTotals, {
+        isMasale: true,
+        revenue: split.masaleRevenue,
+        qtyKg: split.masaleQtyKg,
+        qtyPcs: split.masaleQtyPcs,
+        lines: split.masaleLineCount,
+      });
+      addToMasaleSplit(masaleTotals, {
+        isMasale: false,
+        revenue: split.otherRevenue,
+        qtyKg: split.otherQtyKg,
+        qtyPcs: split.otherQtyPcs,
+        lines: 0,
+      });
+    }
 
     const paymentBreakdown: Record<string, number> = {};
     sales.forEach((sale) => {
@@ -981,6 +1096,11 @@ export async function reportRoutes(fastify: FastifyInstance) {
         totalRevenue,
         totalItemsSold,
         avgBillValue,
+        masaleRevenue: masaleTotals.masaleRevenue,
+        masaleQtyKg: masaleTotals.masaleQtyKg,
+        masaleQtyPcs: masaleTotals.masaleQtyPcs,
+        masaleLineCount: masaleTotals.masaleLineCount,
+        otherRevenue: masaleTotals.otherRevenue,
       },
       inventory: {
         totalProducts: products,

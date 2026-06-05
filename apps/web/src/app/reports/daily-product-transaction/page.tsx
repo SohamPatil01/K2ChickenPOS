@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { MasaleTypeBadge, ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect, Fragment } from 'react';
 import { defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
 import {
@@ -11,6 +12,7 @@ import {
   formatReportPeriod,
   type ExportRow,
 } from '@/lib/reportExport';
+import { masaleSplitFromRows } from '@azela-pos/shared';
 import api from '@/lib/api';
 
 interface DailyProductRow {
@@ -20,6 +22,7 @@ interface DailyProductRow {
   sku: string;
   category: string;
   unitType: string;
+  isMasale?: boolean;
   qtyKg: number;
   qtyPcs: number;
   revenue: number;
@@ -34,7 +37,13 @@ interface ReportPayload {
     totalQtyPcs: number;
     productDayCount: number;
     daysCount: number;
+    masaleRevenue?: number;
+    masaleQtyKg?: number;
+    masaleQtyPcs?: number;
+    masaleLineCount?: number;
+    otherRevenue?: number;
   };
+  masaleByDate?: Record<string, { revenue: number; qtyKg: number; qtyPcs: number; lineCount: number }>;
   rows: DailyProductRow[];
 }
 
@@ -75,6 +84,8 @@ export default function DailyProductTransactionPage() {
   };
 
   const rows = data?.rows || [];
+  const masaleByDate = data?.masaleByDate || {};
+  const masaleSplit = masaleSplitFromRows(rows);
 
   const handleExport = () => {
     if (!data) return;
@@ -89,6 +100,7 @@ export default function DailyProductTransactionPage() {
         kind: 'data',
         cells: [
           item.date,
+          item.isMasale ? 'Masale' : 'Chicken',
           item.productName,
           item.sku,
           item.category,
@@ -100,6 +112,27 @@ export default function DailyProductTransactionPage() {
       });
     }
 
+    const datesWithMasale = [...new Set(rows.filter((r) => r.isMasale).map((r) => r.date))];
+    for (const date of datesWithMasale) {
+      const dayMasale = masaleByDate[date];
+      if (!dayMasale) continue;
+      exportRows.push({
+        kind: 'data',
+        bold: true,
+        cells: [
+          date,
+          'Masale total',
+          '',
+          '',
+          '',
+          dayMasale.qtyKg > 0 ? dayMasale.qtyKg.toFixed(2) : '—',
+          dayMasale.qtyPcs > 0 ? dayMasale.qtyPcs : '—',
+          formatCurrency(dayMasale.revenue),
+          dayMasale.lineCount,
+        ],
+      });
+    }
+
     downloadReportTable(
       'Daily Product Transaction Report',
       `daily-product-transaction-${startDate}-to-${endDate}`,
@@ -107,15 +140,19 @@ export default function DailyProductTransactionPage() {
         period: formatReportPeriod(startDate, endDate),
         summary: [
           { label: 'Days with sales', value: String(data.summary.daysCount) },
-          { label: 'Product-day rows', value: String(data.summary.productDayCount) },
-          {
-            label: 'Total Qty (KG / PCS)',
-            value: `${data.summary.totalQtyKg.toFixed(2)} / ${data.summary.totalQtyPcs}`,
-          },
           { label: 'Total Revenue', value: formatCurrency(data.summary.totalRevenue) },
+          { label: 'Masale Revenue', value: formatCurrency(data.summary.masaleRevenue ?? masaleSplit.masaleRevenue) },
+          {
+            label: 'Masale Qty (PCS)',
+            value: String(data.summary.masaleQtyPcs ?? masaleSplit.masaleQtyPcs),
+          },
+          {
+            label: 'Chicken / Other Revenue',
+            value: formatCurrency(data.summary.otherRevenue ?? masaleSplit.otherRevenue),
+          },
         ],
-        headers: ['Date', 'Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Lines'],
-        columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right'],
+        headers: ['Date', 'Type', 'Product', 'SKU', 'Category', 'Qty (KG)', 'Qty (PCS)', 'Revenue', 'Lines'],
+        columnAlign: ['left', 'left', 'left', 'left', 'left', 'right', 'right', 'right', 'right'],
         rows: exportRows,
       }
     );
@@ -173,6 +210,13 @@ export default function DailyProductTransactionPage() {
                   </div>
                 </div>
               </div>
+              <ReportMasaleSummary
+                masaleRevenue={data.summary.masaleRevenue ?? masaleSplit.masaleRevenue}
+                masaleQtyPcs={data.summary.masaleQtyPcs ?? masaleSplit.masaleQtyPcs}
+                masaleQtyKg={data.summary.masaleQtyKg ?? masaleSplit.masaleQtyKg}
+                masaleLineCount={data.summary.masaleLineCount ?? masaleSplit.masaleLineCount}
+                otherRevenue={data.summary.otherRevenue ?? masaleSplit.otherRevenue}
+              />
             </div>
 
             <div className="overflow-x-auto">
@@ -181,6 +225,9 @@ export default function DailyProductTransactionPage() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                      Type
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Product
@@ -206,23 +253,32 @@ export default function DailyProductTransactionPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {rows.map((item) => {
+                  {rows.map((item, idx) => {
                     const showDateHeader = item.date !== lastDate;
-                    lastDate = item.date;
+                    const nextRow = rows[idx + 1];
+                    const isLastRowForDate = !nextRow || nextRow.date !== item.date;
+                    const dayMasale = masaleByDate[item.date];
+                    if (showDateHeader) lastDate = item.date;
+
                     return (
                       <Fragment key={`${item.date}-${item.productId}`}>
                         {showDateHeader && (
                           <tr className="bg-brand-50/60 dark:bg-brand-900/20">
                             <td
-                              colSpan={8}
+                              colSpan={9}
                               className="px-4 py-2 text-sm font-semibold text-brand-800 dark:text-brand-200"
                             >
                               {formatDate(item.date)}
                             </td>
                           </tr>
                         )}
-                        <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <tr
+                          className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${item.isMasale ? 'bg-brand-50/20 dark:bg-brand-900/10' : ''}`}
+                        >
                           <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{item.date}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <MasaleTypeBadge isMasale={item.isMasale} />
+                          </td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                             {item.productName}
                           </td>
@@ -241,6 +297,25 @@ export default function DailyProductTransactionPage() {
                             {item.lineCount}
                           </td>
                         </tr>
+                        {isLastRowForDate && dayMasale && dayMasale.revenue > 0 && (
+                          <tr className="bg-brand-100/50 dark:bg-brand-900/30">
+                            <td colSpan={5} className="px-4 py-2 text-sm font-semibold text-brand-800 dark:text-brand-200">
+                              Masale total — {formatDate(item.date)}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-semibold text-brand-800 dark:text-brand-200">
+                              {dayMasale.qtyKg > 0 ? dayMasale.qtyKg.toFixed(2) : '—'}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-semibold text-brand-800 dark:text-brand-200">
+                              {dayMasale.qtyPcs > 0 ? dayMasale.qtyPcs : '—'}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-bold text-brand-800 dark:text-brand-200">
+                              ₹{dayMasale.revenue.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-semibold text-brand-800 dark:text-brand-200">
+                              {dayMasale.lineCount}
+                            </td>
+                          </tr>
+                        )}
                       </Fragment>
                     );
                   })}

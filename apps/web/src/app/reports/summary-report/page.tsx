@@ -2,6 +2,7 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
 import {
   downloadReportTable,
@@ -64,8 +65,8 @@ export default function SummaryReportPage() {
       summary: [
         { label: 'Total Sales', value: String(data.sales.totalSales) },
         { label: 'Total Revenue', value: formatCurrency(data.sales.totalRevenue) },
-        { label: 'Items Sold', value: String(data.sales.totalItemsSold) },
-        { label: 'Avg Bill', value: formatCurrency(data.sales.avgBillValue) },
+        { label: 'Masale Revenue', value: formatCurrency(data.sales.masaleRevenue || 0) },
+        { label: 'Masale Qty (PCS)', value: String(data.sales.masaleQtyPcs || 0) },
       ],
       tables: [
         {
@@ -75,6 +76,9 @@ export default function SummaryReportPage() {
             { kind: 'data', cells: ['Total Products', data.inventory.totalProducts] },
             { kind: 'data', cells: ['Inventory Movements', data.inventory.totalMovements] },
             { kind: 'data', cells: ['Total Customers', data.customers.totalCustomers] },
+            { kind: 'data', cells: ['Masale Revenue', formatCurrency(data.sales.masaleRevenue || 0)] },
+            { kind: 'data', cells: ['Masale Qty (PCS)', data.sales.masaleQtyPcs || 0] },
+            { kind: 'data', cells: ['Chicken / Other Revenue', formatCurrency(data.sales.otherRevenue || 0)] },
           ],
         },
         {
@@ -122,6 +126,16 @@ export default function SummaryReportPage() {
                 <div className="text-sm text-gray-600">Avg Bill</div>
                 <div className="text-2xl font-bold">₹{data.sales.avgBillValue.toFixed(2)}</div>
               </div>
+            </div>
+
+            <div className="p-4 bg-brand-50/50 rounded-lg">
+              <ReportMasaleSummary
+                masaleRevenue={data.sales.masaleRevenue}
+                masaleQtyPcs={data.sales.masaleQtyPcs}
+                masaleQtyKg={data.sales.masaleQtyKg}
+                masaleLineCount={data.sales.masaleLineCount}
+                otherRevenue={data.sales.otherRevenue}
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
