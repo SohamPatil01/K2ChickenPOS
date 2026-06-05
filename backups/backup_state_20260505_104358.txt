@@ -1,0 +1,11 @@
+Backup run: 2026-05-05 (local)
+
+1. Git bundle (full repo refs)
+   File: backups/k2chickenpos-repo-20260505_104358.bundle
+   Restore clone: git clone k2chickenpos-repo-20260505_104358.bundle <dir>
+
+2. PostgreSQL full dump
+   SKIPPED: DATABASE_URL localhost connection failed (PostgreSQL not running or DB unreachable).
+   When Postgres is available, run from repo root:
+   ./scripts/backup-localhost.sh
+   (loads DATABASE_URL from .env if it points at localhost)

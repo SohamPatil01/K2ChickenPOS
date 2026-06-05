@@ -7,6 +7,7 @@ import {
 } from '@azela-pos/shared';
 import { z } from 'zod';
 import { quantitiesForInventoryDeduction } from '../utils/saleItemLedger.js';
+import { upsertCustomerArea } from '../utils/customerArea.js';
 
 const offlinePayloadSchema = z.object({
   idempotencyKey: z.string().min(8),
@@ -89,16 +90,19 @@ export async function applyOfflineCheckoutFromSync(
       },
       update: {
         name: cs.customerName || undefined,
-        ...(cs.customerArea !== undefined ? { area: cs.customerArea || null } : {}),
       },
       create: {
         storeId,
         phone: cs.customerPhone,
         name: cs.customerName || 'Customer',
-        area: cs.customerArea || null,
       },
     });
     customerId = customer.id;
+    if (cs.customerArea !== undefined) {
+      await upsertCustomerArea(prisma, customer.id, cs.customerArea);
+    }
+  } else if (customerId && cs.customerArea !== undefined) {
+    await upsertCustomerArea(prisma, customerId, cs.customerArea);
   }
 
   let subTotal = 0;

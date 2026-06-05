@@ -5,6 +5,11 @@ import { createSaleSchema, paySaleSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction } from '../utils/saleItemLedger.js';
+import {
+  customerWithAreaInclude,
+  enrichSaleCustomer,
+  upsertCustomerArea,
+} from '../utils/customerArea.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -37,9 +42,10 @@ async function fetchSaleForPayResponse(saleId: string) {
     include: {
       items: { include: { product: true } },
       payments: true,
-      customer: true,
+      customer: customerWithAreaInclude,
     },
   });
+  return sale ? enrichSaleCustomer(sale) : null;
 }
 
 export async function saleRoutes(fastify: FastifyInstance) {
@@ -158,7 +164,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
               product: true
             }
           },
-          customer: true,
+          customer: customerWithAreaInclude,
           payments: true,
           store: {
             select: {
@@ -183,7 +189,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         take: limit,
       });
 
-      return sales;
+      return sales.map(enrichSaleCustomer);
     } catch (error: any) {
       console.error('Failed to get sales:', error);
       reply.code(500).send({
@@ -283,7 +289,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
         include: {
           items: { include: { product: true } },
-          customer: true,
+          customer: customerWithAreaInclude,
         },
         orderBy: { createdAt: 'desc' },
         take: 10,
@@ -371,18 +377,19 @@ export async function saleRoutes(fastify: FastifyInstance) {
           },
           update: {
             name: (data as any).customerName || undefined,
-            ...((data as any).customerArea !== undefined
-              ? { area: (data as any).customerArea || null }
-              : {}),
           },
           create: {
             storeId,
             phone: data.customerPhone,
             name: (data as any).customerName || 'Customer',
-            area: (data as any).customerArea || null,
           },
         });
         customerId = customer.id;
+        if ((data as any).customerArea !== undefined) {
+          await upsertCustomerArea(prisma, customer.id, (data as any).customerArea);
+        }
+      } else if (customerId && (data as any).customerArea !== undefined) {
+        await upsertCustomerArea(prisma, customerId, (data as any).customerArea);
       }
 
       // Generate sale number - retry if duplicate
@@ -609,7 +616,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           items: {
             include: { product: true },
           },
-          customer: true,
+          customer: customerWithAreaInclude,
         },
       });
 
@@ -645,7 +652,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return sale;
+      return enrichSaleCustomer(sale);
     } catch (error: any) {
       console.error('Failed to create sale:', error);
       console.error('Error stack:', error.stack);
@@ -957,7 +964,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           include: {
             items: { include: { product: true } },
             payments: true,
-            customer: true,
+            customer: customerWithAreaInclude,
           },
         });
       });
@@ -1071,7 +1078,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.warn('Failed to create audit log (non-critical):', auditError);
       }
 
-      return updatedSale;
+      return enrichSaleCustomer(updatedSale);
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         reply.code(400).send({
@@ -1254,7 +1261,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return updatedSale;
+      return enrichSaleCustomer(updatedSale);
     } catch (error: any) {
       console.error('Failed to void sale:', error);
       reply.code(500).send({ error: 'Failed to void sale', details: error.message });
@@ -1320,7 +1327,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    return updatedSale;
+    return enrichSaleCustomer(updatedSale);
   });
 
   // Update sale (for editing orders)
@@ -1470,7 +1477,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           items: {
             include: { product: true },
           },
-          customer: true,
+          customer: customerWithAreaInclude,
           payments: true,
         },
       });
@@ -1487,7 +1494,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return updatedSale;
+      return enrichSaleCustomer(updatedSale);
     } catch (error: any) {
       console.error('Failed to update sale:', error);
       reply.code(500).send({

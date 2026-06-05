@@ -3,6 +3,11 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { customerSchema, customerAddressSchema } from '@azela-pos/shared';
 import { requireRole, getUser } from '../utils/auth.js';
+import {
+  customerAreaAddressInclude,
+  upsertCustomerArea,
+  withCustomerArea,
+} from '../utils/customerArea.js';
 
 interface QueryParams {
   phone?: string;
@@ -45,6 +50,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           OR: orClause,
         },
         include: {
+          addresses: customerAreaAddressInclude,
           _count: {
             select: { sales: true, addresses: true },
           },
@@ -52,7 +58,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         orderBy: [{ name: 'asc' }, { phone: 'asc' }],
         take: 30,
       });
-      return matches;
+      return matches.map((c) => withCustomerArea(c));
     }
 
     if (phone) {
@@ -64,7 +70,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           },
         },
         include: {
-          addresses: true,
+          addresses: customerAreaAddressInclude,
           sales: {
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -77,7 +83,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return customer || null;
+      return customer ? withCustomerArea(customer) : null;
     }
 
     const [customers, total] = await Promise.all([
@@ -118,7 +124,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
         include: {
-          addresses: true,
+          addresses: customerAreaAddressInclude,
           sales: {
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -136,7 +142,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      return customer;
+      return withCustomerArea(customer);
     } catch (error: any) {
       console.error('Failed to get customer:', error);
       reply.code(500).send({ error: 'Failed to get customer' });
@@ -164,21 +170,28 @@ export async function customerRoutes(fastify: FastifyInstance) {
       update: {
         name: data.name,
         email: data.email,
-        ...(data.area !== undefined ? { area: data.area || null } : {}),
       },
       create: {
         storeId,
         name: data.name,
         phone: data.phone,
         email: data.email,
-        area: data.area || null,
       },
       include: {
-        addresses: true,
+        addresses: customerAreaAddressInclude,
       },
     });
 
-    return customer;
+    if (data.area !== undefined) {
+      await upsertCustomerArea(prisma, customer.id, data.area);
+      const refreshed = await prisma.customer.findUnique({
+        where: { id: customer.id },
+        include: { addresses: customerAreaAddressInclude },
+      });
+      return withCustomerArea(refreshed);
+    }
+
+    return withCustomerArea(customer);
   });
 
   fastify.put('/:customerId', async (request: any, reply: FastifyReply) => {
@@ -271,15 +284,12 @@ export async function customerRoutes(fastify: FastifyInstance) {
       if (validatedData.email !== undefined) {
         updateData.email = validatedData.email;
       }
-      if (validatedData.area !== undefined) {
-        updateData.area = validatedData.area || null;
-      }
 
       const customer = await prisma.customer.update({
         where: { id: customerId },
         data: updateData,
         include: {
-          addresses: true,
+          addresses: customerAreaAddressInclude,
           sales: {
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -292,7 +302,31 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return customer;
+      if (body.area !== undefined) {
+        await upsertCustomerArea(
+          prisma,
+          customerId,
+          body.area ? String(body.area).trim() : null
+        );
+        const refreshed = await prisma.customer.findUnique({
+          where: { id: customerId },
+          include: {
+            addresses: customerAreaAddressInclude,
+            sales: {
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                items: {
+                  include: { product: true },
+                },
+              },
+            },
+          },
+        });
+        return withCustomerArea(refreshed);
+      }
+
+      return withCustomerArea(customer);
     } catch (error: any) {
       console.error('Failed to update customer:', error);
       console.error('Error stack:', error.stack);
