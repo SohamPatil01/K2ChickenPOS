@@ -4,7 +4,7 @@ import { prisma, PaymentMethod } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
-import { quantitiesForInventoryDeduction } from '../utils/saleItemLedger.js';
+import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
 import {
   customerWithAreaInclude,
   enrichSaleCustomer,
@@ -497,23 +497,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
         // Deduct inventory for OPEN orders (even when discount override is required)
         const unitMapOverride = await loadProductUnitTypes(sale.items.map((i) => i.productId));
-        for (const item of sale.items) {
-          const ut = unitMapOverride.get(item.productId) || 'KG';
-          const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
-          if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
-            await prisma.inventoryLedger.create({
-              data: {
-                storeId,
-                productId: item.productId,
-                type: 'OUT',
-                qtyKg,
-                qtyPcs,
-                reason: 'SALE',
-                refId: sale.id,
-              },
-            });
-          }
-        }
+        await ensureInventoryDeductedForSale(
+          prisma,
+          sale.id,
+          storeId,
+          sale.items,
+          unitMapOverride
+        );
 
         // Create discount override request
         const override = await prisma.discountOverride.create({
@@ -579,66 +569,70 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // If duplicate found, return existing sale instead of creating new one
       if (recentDuplicate) {
         console.log(`[Sale Create] Duplicate sale detected, returning existing sale: ${recentDuplicate.id}`);
+        const unitMapDup = await loadProductUnitTypes(
+          recentDuplicate.items.map((i) => i.productId)
+        );
+        await ensureInventoryDeductedForSale(
+          prisma,
+          recentDuplicate.id,
+          storeId,
+          recentDuplicate.items,
+          unitMapDup
+        );
         return recentDuplicate;
       }
 
-      // Create sale
-      const sale = await prisma.sale.create({
-        data: {
-          storeId,
-          saleNo,
-          customerId,
-          status: 'OPEN',
-          subTotal,
-          discountTotal: data.discountTotal,
-          taxTotal,
-          grandTotal: roundedGrandTotal,
-          createdByUserId: userId,
-          items: {
-            create: data.items.map((item: any) => {
-              const qty = item.qtyKg || item.qtyPcs || 0;
-              const lineTotal = Math.round(qty * item.rate * 100) / 100;
-              const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
-              return {
-                productId: item.productId,
-                qtyKg: item.qtyKg,
-                qtyPcs: item.qtyPcs,
-                rate: item.rate,
-                lineTotal,
-                taxRate: item.taxRate,
-                taxAmount,
-                metaJson: item.metaJson,
-              };
-            }),
-          },
-        },
-        include: {
-          items: {
-            include: { product: true },
-          },
-          customer: customerWithAreaInclude,
-        },
-      });
+      const unitMapCreate = await loadProductUnitTypes(data.items.map((i) => i.productId));
 
-      // Deduct inventory for OPEN orders (credit sales)
-      const unitMapCreate = await loadProductUnitTypes(sale.items.map((i) => i.productId));
-      for (const item of sale.items) {
-        const ut = unitMapCreate.get(item.productId) || 'KG';
-        const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
-        if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
-          await prisma.inventoryLedger.create({
-            data: {
-              storeId,
-              productId: item.productId,
-              type: 'OUT',
-              qtyKg,
-              qtyPcs,
-              reason: 'SALE',
-              refId: sale.id,
+      // Create sale and sync inventory atomically
+      const sale = await prisma.$transaction(async (tx) => {
+        const created = await tx.sale.create({
+          data: {
+            storeId,
+            saleNo,
+            customerId,
+            status: 'OPEN',
+            subTotal,
+            discountTotal: data.discountTotal,
+            taxTotal,
+            grandTotal: roundedGrandTotal,
+            createdByUserId: userId,
+            items: {
+              create: data.items.map((item: any) => {
+                const qty = item.qtyKg || item.qtyPcs || 0;
+                const lineTotal = Math.round(qty * item.rate * 100) / 100;
+                const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
+                return {
+                  productId: item.productId,
+                  qtyKg: item.qtyKg,
+                  qtyPcs: item.qtyPcs,
+                  rate: item.rate,
+                  lineTotal,
+                  taxRate: item.taxRate,
+                  taxAmount,
+                  metaJson: item.metaJson,
+                };
+              }),
             },
-          });
-        }
-      }
+          },
+          include: {
+            items: {
+              include: { product: true },
+            },
+            customer: customerWithAreaInclude,
+          },
+        });
+
+        await ensureInventoryDeductedForSale(
+          tx,
+          created.id,
+          storeId,
+          created.items,
+          unitMapCreate
+        );
+
+        return created;
+      });
 
       // Create audit log
       await prisma.auditLog.create({
@@ -969,44 +963,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
         });
       });
 
-      // Update inventory - only if not already deducted
-      // Check if inventory was already deducted for this sale (when order was created)
-      // Use sale's storeId, not user's storeId (for OWNER users paying franchise sales)
+      // Sync inventory — idempotent (fills gaps if create deduction was partial/missing)
+      const unitMapPay = await loadProductUnitTypes(sale.items.map((i) => i.productId));
       try {
-        // Check if any ledger entries exist for this sale to prevent double-deduction
-        const existingLedgerCount = await prisma.inventoryLedger.count({
-          where: {
-            refId: id,
-            reason: 'SALE',
-            storeId: sale.storeId, // Also check by storeId to be more precise
-          },
-        });
-
-        // Only create inventory ledger if no entries exist for this sale
-        // This prevents double-deduction for credit/OPEN orders
-        if (existingLedgerCount === 0) {
-          for (const item of sale.items) {
-            const ut = item.product?.unitType || 'KG';
-            const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
-            if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
-              await prisma.inventoryLedger.create({
-                data: {
-                  storeId: sale.storeId, // Use sale's storeId, not user's storeId
-                  productId: item.productId,
-                  type: 'OUT',
-                  qtyKg,
-                  qtyPcs,
-                  reason: 'SALE',
-                  refId: id,
-                },
-              });
-            }
-          }
-        }
+        await ensureInventoryDeductedForSale(
+          prisma,
+          id,
+          sale.storeId,
+          sale.items,
+          unitMapPay
+        );
       } catch (inventoryError: any) {
-        // Log inventory error but don't fail payment
-        console.error('Failed to update inventory (non-critical):', inventoryError);
-        // Continue with payment processing even if inventory update fails
+        console.error('[Payment API] Inventory sync failed for sale:', id, inventoryError);
       }
 
       // Award loyalty points if customer exists
@@ -1396,38 +1364,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
       const roundedGrandTotal = Math.round(grandTotal);
 
-      // Adjust inventory when items are changed
-      // First, reverse the existing inventory deductions
-      const existingLedgers = await prisma.inventoryLedger.findMany({
-        where: {
-          refId: id,
-          reason: 'SALE',
-          storeId: existingSale.storeId,
-        },
-      });
-
-      // Reverse existing inventory deductions
-      for (const ledger of existingLedgers) {
-        await prisma.inventoryLedger.create({
-          data: {
-            storeId: existingSale.storeId,
-            productId: ledger.productId,
-            type: 'IN', // Reverse the OUT entry
-            qtyKg: ledger.qtyKg,
-            qtyPcs: ledger.qtyPcs,
-            reason: 'ADJUSTMENT',
-            refId: id,
-          },
-        });
-      }
-
-      // Delete existing items
       await prisma.saleItem.deleteMany({
         where: { saleId: id },
       });
 
-      // Create new items
-      const newItems = await prisma.saleItem.createMany({
+      await prisma.saleItem.createMany({
         data: data.items.map((item: any) => {
           const qty = item.qtyKg || item.qtyPcs || 0;
           const lineTotal = Math.round(qty * item.rate * 100) / 100;
@@ -1446,25 +1387,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
 
       const unitMapPut = await loadProductUnitTypes(data.items.map((i) => i.productId));
-      for (const item of data.items) {
-        const ut = unitMapPut.get(item.productId) || 'KG';
-        const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
-        if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
-          await prisma.inventoryLedger.create({
-            data: {
-              storeId: existingSale.storeId,
-              productId: item.productId,
-              type: 'OUT',
-              qtyKg,
-              qtyPcs,
-              reason: 'SALE',
-              refId: id,
-            },
-          });
-        }
-      }
+      await ensureInventoryDeductedForSale(
+        prisma,
+        id,
+        existingSale.storeId,
+        data.items,
+        unitMapPut
+      );
 
-      // Update sale totals
       const updatedSale = await prisma.sale.update({
         where: { id },
         data: {

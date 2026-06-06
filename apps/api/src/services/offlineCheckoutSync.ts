@@ -6,7 +6,10 @@ import {
   normalizePaymentsForSale,
 } from '@azela-pos/shared';
 import { z } from 'zod';
-import { quantitiesForInventoryDeduction } from '../utils/saleItemLedger.js';
+import {
+  quantitiesForInventoryDeduction,
+  ensureInventoryDeductedForSale,
+} from '../utils/saleItemLedger.js';
 import { upsertCustomerArea } from '../utils/customerArea.js';
 
 const offlinePayloadSchema = z.object({
@@ -232,23 +235,13 @@ export async function applyOfflineCheckoutFromSync(
       include: { items: true },
     });
 
-    for (const item of created.items) {
-      const ut = offlineUnitMap.get(item.productId) || 'KG';
-      const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
-      if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
-        await tx.inventoryLedger.create({
-          data: {
-            storeId,
-            productId: item.productId,
-            type: 'OUT',
-            qtyKg,
-            qtyPcs,
-            reason: 'SALE',
-            refId: created.id,
-          },
-        });
-      }
-    }
+    await ensureInventoryDeductedForSale(
+      tx,
+      created.id,
+      storeId,
+      created.items,
+      offlineUnitMap
+    );
 
     const paymentRows = normalizedPayments
       .filter((p) => p.amount > 0)
