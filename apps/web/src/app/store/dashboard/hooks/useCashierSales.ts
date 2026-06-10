@@ -11,6 +11,8 @@ export interface Sale {
   subTotal: number;
   discountTotal: number;
   taxTotal: number;
+  deliveryFee?: number;
+  deliveryOrder?: { deliveryFee?: number } | null;
   grandTotal: number;
   createdAt: string;
   createdBy: { id?: string; name: string; email?: string; phone?: string };

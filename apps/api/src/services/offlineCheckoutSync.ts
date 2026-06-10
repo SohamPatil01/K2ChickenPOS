@@ -130,8 +130,9 @@ export async function applyOfflineCheckoutFromSync(
     );
   }
 
+  const deliveryFee = Math.max(0, cs.deliveryFee ?? 0);
   const grandTotal =
-    Math.round((subTotal + taxTotal - cs.discountTotal) * 100) / 100;
+    Math.round((subTotal + taxTotal - cs.discountTotal + deliveryFee) * 100) / 100;
   const roundedGrandTotal = Math.round(grandTotal);
 
   const todayForNo = new Date();
@@ -285,7 +286,7 @@ export async function applyOfflineCheckoutFromSync(
             storeId,
             saleId: sale.id,
             type: 'DELIVERY',
-            deliveryFee: 0,
+            deliveryFee,
           },
         });
       }

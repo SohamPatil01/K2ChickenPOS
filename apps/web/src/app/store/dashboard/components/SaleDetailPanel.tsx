@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { resolveSaleDeliveryFee } from '@azela-pos/shared';
 import type { Sale } from '../hooks/useCashierSales';
 
 export interface SaleEditPayload {
@@ -39,7 +40,8 @@ interface EditItem {
 
 function calculateTotals(
   items: EditItem[],
-  discountTotal: number
+  discountTotal: number,
+  deliveryFee: number = 0
 ): { subTotal: number; taxTotal: number; grandTotal: number } {
   let subTotal = 0;
   let taxTotal = 0;
@@ -52,7 +54,7 @@ function calculateTotals(
   subTotal = Math.round(subTotal * 100) / 100;
   taxTotal = Math.round(taxTotal * 100) / 100;
   const discount = Number(discountTotal) || 0;
-  const grandTotal = Math.round((subTotal + taxTotal - discount) * 100) / 100;
+  const grandTotal = Math.round((subTotal + taxTotal - discount + deliveryFee) * 100) / 100;
   return { subTotal, taxTotal, grandTotal: Math.round(grandTotal) };
 }
 
@@ -233,6 +235,15 @@ export default function SaleDetailPanel({
               <span className="text-gray-600 dark:text-gray-400">Discount</span>
               <span className="font-medium dark:text-white">₹{sale.discountTotal.toFixed(2)}</span>
             </div>
+            {(() => {
+              const fee = resolveSaleDeliveryFee(sale);
+              return fee > 0 ? (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Delivery fee</span>
+                  <span className="font-medium dark:text-white">₹{fee.toFixed(2)}</span>
+                </div>
+              ) : null;
+            })()}
             <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200 dark:border-gray-700">
               <span className="dark:text-white">Total</span>
               <span className="dark:text-white">₹{sale.grandTotal.toFixed(2)}</span>
@@ -243,9 +254,11 @@ export default function SaleDetailPanel({
     );
   }
 
+  const saleDeliveryFee = resolveSaleDeliveryFee(sale);
   const { subTotal, taxTotal, grandTotal } = calculateTotals(
     editForm.items,
-    parseFloat(editForm.discountTotal) || 0
+    parseFloat(editForm.discountTotal) || 0,
+    saleDeliveryFee
   );
 
   return (
@@ -347,6 +360,12 @@ export default function SaleDetailPanel({
             <span className="text-gray-600 dark:text-gray-400">Discount</span>
             <span className="font-medium dark:text-white">₹{(parseFloat(editForm.discountTotal) || 0).toFixed(2)}</span>
           </div>
+          {saleDeliveryFee > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Delivery fee</span>
+              <span className="font-medium dark:text-white">₹{saleDeliveryFee.toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-300 dark:border-gray-600">
             <span className="dark:text-white">Total</span>
             <span className="dark:text-white">₹{grandTotal.toFixed(2)}</span>

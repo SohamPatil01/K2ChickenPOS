@@ -125,6 +125,12 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                 <span>{formatMoney(sale.taxTotal)}</span>
               </div>
             )}
+            {(sale.deliveryFee ?? 0) > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                <span>Delivery Fee</span>
+                <span>{formatMoney(sale.deliveryFee!)}</span>
+              </div>
+            )}
             <div
               style={{
                 display: 'flex',

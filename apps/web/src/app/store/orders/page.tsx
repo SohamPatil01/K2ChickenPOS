@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
+import { resolveSaleDeliveryFee } from "@azela-pos/shared";
 import { useNotificationStore } from "@/store/notification";
 import { useReactToPrint } from "react-to-print";
 import CustomerBill from "@/components/CustomerBill";
@@ -26,6 +27,8 @@ interface Sale {
   subTotal: number;
   discountTotal: number;
   taxTotal: number;
+  deliveryFee?: number;
+  deliveryOrder?: { deliveryFee?: number } | null;
   grandTotal: number;
   createdAt: string;
   createdBy: {
@@ -344,9 +347,10 @@ export default function OrdersPage() {
     taxTotal = Math.round(taxTotal * 100) / 100;
 
     const discountTotal = parseFloat(editForm.discountTotal) || 0;
+    const deliveryFee = editingSale ? resolveSaleDeliveryFee(editingSale) : 0;
     // Calculate grand total and round to nearest integer to match backend
     const grandTotal =
-      Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+      Math.round((subTotal + taxTotal - discountTotal + deliveryFee) * 100) / 100;
     const roundedGrandTotal = Math.round(grandTotal);
 
     return { subTotal, taxTotal, discountTotal, grandTotal: roundedGrandTotal };
@@ -824,6 +828,12 @@ export default function OrdersPage() {
                     <div className="flex justify-between text-sm text-red-600 dark:text-red-400">
                       <span>Discount:</span>
                       <span>-₹{selectedSale.discountTotal.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {resolveSaleDeliveryFee(selectedSale) > 0 && (
+                    <div className="flex justify-between text-sm dark:text-white">
+                      <span>Delivery fee:</span>
+                      <span>₹{resolveSaleDeliveryFee(selectedSale).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="border-t border-gray-300 dark:border-gray-600 pt-2 mt-2">

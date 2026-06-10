@@ -5,6 +5,7 @@ export interface BillSale {
   subTotal: number;
   discountTotal: number;
   taxTotal: number;
+  deliveryFee?: number;
   grandTotal: number;
   createdAt: string;
   createdBy?: { name: string };
@@ -230,6 +231,11 @@ export function buildCustomerBillHtml(sale: BillSale, store?: BillStoreInfo): st
           ${
             sale.taxTotal > 0
               ? `<div class="total-row"><span>Tax</span><span>${formatMoney(sale.taxTotal)}</span></div>`
+              : ''
+          }
+          ${
+            (sale.deliveryFee ?? 0) > 0
+              ? `<div class="total-row"><span>Delivery Fee</span><span>${formatMoney(sale.deliveryFee!)}</span></div>`
               : ''
           }
           <div class="total-row grand-total"><span>Grand Total</span><span>${formatMoney(sale.grandTotal)}</span></div>

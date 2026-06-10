@@ -116,6 +116,14 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     const otp = data.type === 'DELIVERY' ? String(Math.floor(1000 + Math.random() * 9000)) : null;
     const otpCodeHash = otp ? crypto.createHash('sha256').update(otp).digest('hex') : null;
 
+    const impliedFee = Math.max(
+      0,
+      Math.round(sale.grandTotal) -
+        Math.round(sale.subTotal + sale.taxTotal - sale.discountTotal)
+    );
+    const resolvedFee =
+      data.deliveryFee > 0 ? data.deliveryFee : impliedFee;
+
     // Use sale's storeId so delivery belongs to the same store as the sale (e.g. franchise)
     const delivery = await prisma.deliveryOrder.create({
       data: {
@@ -123,7 +131,7 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
         saleId: data.saleId,
         type: data.type,
         status: 'CREATED',
-        deliveryFee: data.deliveryFee,
+        deliveryFee: resolvedFee,
         addressId: resolvedAddressId ?? null,
         otpCodeHash,
       },

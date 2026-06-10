@@ -48,6 +48,7 @@ interface CartState {
   discountType: 'amount' | 'percentage';
   discountPercentage: number;
   fulfillmentType: FulfillmentType;
+  deliveryFee: number;
   loadCart: () => Promise<void>;
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
@@ -57,8 +58,9 @@ interface CartState {
   setDiscountType: (type: 'amount' | 'percentage') => void;
   setDiscountPercentage: (percentage: number) => void;
   setFulfillmentType: (type: FulfillmentType) => void;
+  setDeliveryFee: (fee: number) => void;
   clearCart: () => Promise<void>;
-  getTotal: () => { subTotal: number; taxTotal: number; grandTotal: number };
+  getTotal: () => { subTotal: number; taxTotal: number; deliveryFee: number; grandTotal: number };
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
@@ -71,6 +73,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   discountType: 'amount',
   discountPercentage: 0,
   fulfillmentType: 'PICKUP',
+  deliveryFee: 0,
   loadCart: async () => {
     try {
       const items = await offlineDB.cart.toArray();
@@ -182,14 +185,23 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ discountTotal: discountAmount });
   },
   setFulfillmentType: (fulfillmentType: FulfillmentType) => {
-    set({ fulfillmentType });
+    set(
+      fulfillmentType === 'PICKUP'
+        ? { fulfillmentType, deliveryFee: 0 }
+        : { fulfillmentType }
+    );
+  },
+  setDeliveryFee: (deliveryFee: number) => {
+    const fee = Math.max(0, Math.round(deliveryFee));
+    set({ deliveryFee: fee });
   },
   clearCart: async () => {
     await offlineDB.cart.clear();
-    set({ items: [], customerId: null, customerPhone: null, customerName: null, customerArea: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP' });
+    set({ items: [], customerId: null, customerPhone: null, customerName: null, customerArea: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP', deliveryFee: 0 });
   },
   getTotal: () => {
-    const { items, discountTotal, discountType, discountPercentage } = get();
+    const { items, discountTotal, discountType, discountPercentage, deliveryFee, fulfillmentType } = get();
+    const effectiveDeliveryFee = fulfillmentType === 'DELIVERY' ? deliveryFee : 0;
     let subTotal = 0;
     let taxTotal = 0;
 
@@ -213,11 +225,11 @@ export const useCartStore = create<CartState>((set, get) => ({
     // Round discount to 2 decimal places
     calculatedDiscount = Math.round(calculatedDiscount * 100) / 100;
     
-    const grandTotal = Math.round((subTotal + taxTotal - calculatedDiscount) * 100) / 100;
+    const grandTotal = Math.round((subTotal + taxTotal - calculatedDiscount + effectiveDeliveryFee) * 100) / 100;
     // Round grand total to nearest integer for checkout
     const roundedGrandTotal = Math.round(grandTotal);
 
-    return { subTotal, taxTotal, grandTotal: roundedGrandTotal };
+    return { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal: roundedGrandTotal };
   },
 }));
 

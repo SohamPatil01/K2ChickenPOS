@@ -14,6 +14,7 @@ export type OfflineCreateSalePayload = {
   customerPhone?: string;
   customerName?: string;
   discountTotal: number;
+  deliveryFee?: number;
 };
 
 /** True when the browser reports no connectivity. */

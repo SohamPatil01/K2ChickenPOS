@@ -7,6 +7,8 @@ export interface CartPaymentModalProps {
   subTotal: number;
   taxTotal: number;
   discountTotal: number;
+  deliveryFee: number;
+  setDeliveryFee: (fee: number) => void;
   fulfillmentType: 'PICKUP' | 'DELIVERY';
   setFulfillmentType: (t: 'PICKUP' | 'DELIVERY') => void;
   customerId: string | null;
@@ -20,6 +22,8 @@ export default function CartPaymentModal({
   subTotal,
   taxTotal,
   discountTotal,
+  deliveryFee,
+  setDeliveryFee,
   fulfillmentType,
   setFulfillmentType,
   customerId,
@@ -182,9 +186,26 @@ export default function CartPaymentModal({
             </p>
           )}
           {fulfillmentType === 'DELIVERY' && customerId && (
-            <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
-              Order will appear in Delivery. Add address & customer details there.
-            </p>
+            <>
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                  Delivery fee (₹)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={deliveryFee || ''}
+                  onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                  disabled={isProcessing}
+                  className="w-full px-3 py-2 text-sm font-semibold border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:ring-2 focus:ring-brand-500"
+                  placeholder="0"
+                />
+              </div>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                Fee is included in the total. Add address in Delivery after checkout.
+              </p>
+            </>
           )}
         </div>
 
@@ -194,7 +215,7 @@ export default function CartPaymentModal({
               <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
               <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+            <div className={`grid gap-1.5 text-[10px] ${deliveryFee > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <div className="text-center p-1.5 bg-white/50 dark:bg-gray-800/50 rounded">
                 <div className="text-gray-500 dark:text-gray-400">Sub</div>
                 <div className="font-semibold text-xs">₹{Math.round(subTotal)}</div>
@@ -207,6 +228,12 @@ export default function CartPaymentModal({
                 <div className="text-gray-500 dark:text-gray-400">Disc</div>
                 <div className="font-semibold text-xs text-red-600">-₹{Math.round(discountTotal)}</div>
               </div>
+              {deliveryFee > 0 && (
+                <div className="text-center p-1.5 bg-white/50 dark:bg-gray-800/50 rounded">
+                  <div className="text-gray-500 dark:text-gray-400">Del</div>
+                  <div className="font-semibold text-xs">₹{Math.round(deliveryFee)}</div>
+                </div>
+              )}
             </div>
           </div>
 

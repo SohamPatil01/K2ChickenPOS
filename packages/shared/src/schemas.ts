@@ -61,6 +61,7 @@ export const createSaleSchema = z.object({
   customerPhone: z.string().optional(),
   items: z.array(saleItemSchema).min(1),
   discountTotal: z.number().default(0),
+  deliveryFee: z.number().min(0).default(0),
   couponCode: z.string().optional(),
 });
 

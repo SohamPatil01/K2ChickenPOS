@@ -42,6 +42,8 @@ export default function StoreCartPage() {
   const setDiscountPercentage = useCartStore((state) => state.setDiscountPercentage);
   const fulfillmentType = useCartStore((state) => state.fulfillmentType);
   const setFulfillmentType = useCartStore((state) => state.setFulfillmentType);
+  const deliveryFee = useCartStore((state) => state.deliveryFee);
+  const setDeliveryFee = useCartStore((state) => state.setDeliveryFee);
   const loadCart = useCartStore((state) => state.loadCart);
   const clearCart = useCartStore((state) => state.clearCart);
 
@@ -260,8 +262,16 @@ export default function StoreCartPage() {
     setIsProcessingPayment(true);
 
     const buildSaleData = () => {
-      const { items, customerId, customerPhone, customerName, customerArea, discountTotal } =
-        useCartStore.getState();
+      const {
+        items,
+        customerId,
+        customerPhone,
+        customerName,
+        customerArea,
+        discountTotal,
+        fulfillmentType: ft,
+        deliveryFee: fee,
+      } = useCartStore.getState();
       return {
         items: items.map((item) => ({
           productId: item.productId,
@@ -276,6 +286,7 @@ export default function StoreCartPage() {
         customerName: !skipCustomer && customerName ? customerName : undefined,
         customerArea: !skipCustomer && customerArea ? customerArea : undefined,
         discountTotal: discountTotal || 0,
+        deliveryFee: ft === 'DELIVERY' ? fee || 0 : 0,
       };
     };
 
@@ -361,7 +372,7 @@ export default function StoreCartPage() {
           await api.post('/api/v1/delivery', {
             saleId: sale.id,
             type: 'DELIVERY',
-            deliveryFee: 0,
+            deliveryFee: useCartStore.getState().getTotal().deliveryFee,
           });
         } catch (delErr: any) {
           console.error('[Cart] Create delivery failed:', delErr);
@@ -447,7 +458,7 @@ export default function StoreCartPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items.length, isProcessingPayment, showPaymentModal, handleCreateSale, getTotal]);
 
-  const { subTotal, taxTotal, grandTotal } = getTotal();
+  const { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal } = getTotal();
 
   const handleRemoveItem = async (item: any) => {
     if (!item?.id) return;
@@ -972,7 +983,30 @@ export default function StoreCartPage() {
                     </div>
                   </div>
                   
-                  <div className="pt-4 border-t-2 border-gray-300 dark:border-gray-600">
+                  {fulfillmentType === 'DELIVERY' && customerId && (
+                    <div className="pt-3">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Delivery fee (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={deliveryFee || ''}
+                        onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                        className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t-2 border-gray-300 dark:border-gray-600 space-y-1">
+                    {effectiveDeliveryFee > 0 && (
+                      <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                        <span>Delivery fee</span>
+                        <span>₹{effectiveDeliveryFee}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold text-gray-900 dark:text-white">Grand Total</span>
                       <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
@@ -1069,6 +1103,8 @@ export default function StoreCartPage() {
           subTotal={subTotal}
           taxTotal={taxTotal}
           discountTotal={discountTotal}
+          deliveryFee={effectiveDeliveryFee}
+          setDeliveryFee={setDeliveryFee}
           fulfillmentType={fulfillmentType}
           setFulfillmentType={setFulfillmentType}
           customerId={customerId}

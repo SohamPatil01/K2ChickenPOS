@@ -16,6 +16,7 @@ interface Sale {
   subTotal: number;
   discountTotal: number;
   taxTotal: number;
+  deliveryFee?: number;
   grandTotal: number;
   createdAt: string;
   createdBy: {
@@ -430,6 +431,19 @@ export default function ThermalReceipt({
           >
             <span>Discount:</span>
             <span>-₹{sale.discountTotal.toFixed(2)}</span>
+          </div>
+        )}
+        {(sale.deliveryFee ?? 0) > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "4px",
+              fontSize: "9px",
+            }}
+          >
+            <span>Delivery:</span>
+            <span>₹{(sale.deliveryFee ?? 0).toFixed(2)}</span>
           </div>
         )}
         <div

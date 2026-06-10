@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
-import { createSaleSchema, paySaleSchema } from '@azela-pos/shared';
+import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -45,7 +45,11 @@ async function fetchSaleForPayResponse(saleId: string) {
       customer: customerWithAreaInclude,
     },
   });
-  return sale ? enrichSaleCustomer(sale) : null;
+  return sale ? enrichSaleWithDeliveryFee(enrichSaleCustomer(sale)) : null;
+}
+
+function enrichSaleResponse(sale: any) {
+  return enrichSaleWithDeliveryFee(enrichSaleCustomer(sale));
 }
 
 export async function saleRoutes(fastify: FastifyInstance) {
@@ -182,14 +186,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
             },
           },
           deliveryOrder: {
-            select: { id: true },
+            select: { id: true, deliveryFee: true },
           },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
       });
 
-      return sales.map(enrichSaleCustomer);
+      return sales.map(enrichSaleResponse);
     } catch (error: any) {
       console.error('Failed to get sales:', error);
       reply.code(500).send({
@@ -445,6 +449,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Round to 2 decimal places to avoid floating point precision issues
       subTotal = Math.round(subTotal * 100) / 100;
       taxTotal = Math.round(taxTotal * 100) / 100;
+      const deliveryFee = Math.max(0, data.deliveryFee ?? 0);
 
       // Check discount limit and lock status
       if (config?.isDiscountLocked) {
@@ -471,7 +476,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             subTotal,
             discountTotal: 0, // Start with 0, will be updated after approval
             taxTotal,
-            grandTotal: Math.round(subTotal + taxTotal),
+            grandTotal: Math.round(subTotal + taxTotal + deliveryFee),
             createdByUserId: userId,
             items: {
               create: data.items.map((item: any) => {
@@ -546,7 +551,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // Calculate grand total and round to nearest integer to match frontend
-      const grandTotal = Math.round((subTotal + taxTotal - data.discountTotal) * 100) / 100;
+      const grandTotal = Math.round((subTotal + taxTotal - data.discountTotal + deliveryFee) * 100) / 100;
       const roundedGrandTotal = Math.round(grandTotal);
 
       // Check for recent duplicate sale (within last 5 seconds with same items and total)
@@ -646,7 +651,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return enrichSaleCustomer(sale);
+      return enrichSaleResponse(sale);
     } catch (error: any) {
       console.error('Failed to create sale:', error);
       console.error('Error stack:', error.stack);
@@ -1046,7 +1051,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.warn('Failed to create audit log (non-critical):', auditError);
       }
 
-      return enrichSaleCustomer(updatedSale);
+      return enrichSaleResponse(updatedSale);
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         reply.code(400).send({
@@ -1229,7 +1234,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return enrichSaleCustomer(updatedSale);
+      return enrichSaleResponse(updatedSale);
     } catch (error: any) {
       console.error('Failed to void sale:', error);
       reply.code(500).send({ error: 'Failed to void sale', details: error.message });
@@ -1295,7 +1300,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       },
     });
 
-    return enrichSaleCustomer(updatedSale);
+    return enrichSaleResponse(updatedSale);
   });
 
   // Update sale (for editing orders)
@@ -1360,8 +1365,16 @@ export async function saleRoutes(fastify: FastifyInstance) {
       taxTotal = Math.round(taxTotal * 100) / 100;
 
       const discountTotal = parseFloat(data.discountTotal) || 0;
+      const existingDelivery = await prisma.deliveryOrder.findUnique({
+        where: { saleId: id },
+        select: { deliveryFee: true },
+      });
+      const deliveryFee = resolveSaleDeliveryFee({
+        ...existingSale,
+        deliveryOrder: existingDelivery,
+      });
       // Calculate grand total and round to nearest integer to match frontend
-      const grandTotal = Math.round((subTotal + taxTotal - discountTotal) * 100) / 100;
+      const grandTotal = Math.round((subTotal + taxTotal - discountTotal + deliveryFee) * 100) / 100;
       const roundedGrandTotal = Math.round(grandTotal);
 
       await prisma.saleItem.deleteMany({
@@ -1424,7 +1437,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return enrichSaleCustomer(updatedSale);
+      return enrichSaleResponse(updatedSale);
     } catch (error: any) {
       console.error('Failed to update sale:', error);
       reply.code(500).send({

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { resolveSaleDeliveryFee } from '@azela-pos/shared';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
@@ -26,6 +27,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
         const sale = await prisma.sale.findUnique({
           where: { id: saleId },
           include: {
+            deliveryOrder: { select: { deliveryFee: true } },
             store: {
               include: {
                 franchiseConfig: true,
@@ -107,7 +109,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
             where: { id: saleId },
             data: {
               discountTotal: overrideDiscount,
-              grandTotal: sale.subTotal + sale.taxTotal - overrideDiscount,
+              grandTotal: sale.subTotal + sale.taxTotal - overrideDiscount + resolveSaleDeliveryFee(sale),
             },
           });
 
@@ -193,7 +195,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
         const override = await prisma.discountOverride.findUnique({
           where: { id },
           include: {
-            sale: true,
+            sale: { include: { deliveryOrder: { select: { deliveryFee: true } } } },
           },
         });
 
@@ -222,7 +224,7 @@ export async function discountRoutes(fastify: FastifyInstance) {
           where: { id: override.saleId },
           data: {
             discountTotal: override.overrideDiscount,
-            grandTotal: override.sale.subTotal + override.sale.taxTotal - override.overrideDiscount,
+            grandTotal: override.sale.subTotal + override.sale.taxTotal - override.overrideDiscount + resolveSaleDeliveryFee(override.sale),
           },
         });
 

@@ -180,6 +180,8 @@ export default function StorePOSPage() {
     addItem,
     fulfillmentType,
     setFulfillmentType,
+    deliveryFee,
+    setDeliveryFee,
     customerId,
     clearCart,
     loadCart,
@@ -1037,11 +1039,14 @@ export default function StorePOSPage() {
         discountTotal,
       } = useCartStore.getState();
 
+      const ft = useCartStore.getState().fulfillmentType;
+      const fee = useCartStore.getState().deliveryFee;
       const saleData = {
         customerId: customerId || undefined,
         customerPhone: customerPhone || undefined,
         customerName: customerName || undefined,
         discountTotal: discountTotal || 0,
+        deliveryFee: ft === "DELIVERY" ? fee || 0 : 0,
         items: cartItems.map((item) => ({
           productId: item.productId,
           qtyKg: item.qtyKg || undefined,
@@ -1121,7 +1126,7 @@ export default function StorePOSPage() {
           await api.post("/api/v1/delivery", {
             saleId: sale.id,
             type: "DELIVERY",
-            deliveryFee: 0,
+            deliveryFee: useCartStore.getState().getTotal().deliveryFee,
           });
         } catch (delErr: any) {
           console.error("[POS] Create delivery failed:", delErr);
@@ -1174,11 +1179,14 @@ export default function StorePOSPage() {
             discountTotal,
           } = useCartStore.getState();
           const clientGrandTotal = useCartStore.getState().getTotal().grandTotal;
+          const ftFb = useCartStore.getState().fulfillmentType;
+          const feeFb = useCartStore.getState().deliveryFee;
           const saleDataFb = {
             customerId: customerId || undefined,
             customerPhone: customerPhone || undefined,
             customerName: customerName || undefined,
             discountTotal: discountTotal || 0,
+            deliveryFee: ftFb === "DELIVERY" ? feeFb || 0 : 0,
             items: cartItems.map((item) => ({
               productId: item.productId,
               qtyKg: item.qtyKg || undefined,
@@ -1877,9 +1885,28 @@ export default function StorePOSPage() {
                   </p>
                 )}
                 {fulfillmentType === "DELIVERY" && customerId && (
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
-                    Order will appear in Delivery. Add address & customer details there.
-                  </p>
+                  <>
+                    <div className="mt-2">
+                      <label className="block text-[10px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Delivery fee (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={deliveryFee || ""}
+                        onChange={(e) =>
+                          setDeliveryFee(parseFloat(e.target.value) || 0)
+                        }
+                        disabled={isProcessingPayment}
+                        className="w-full px-2 py-1.5 text-sm font-semibold border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right"
+                        placeholder="0"
+                      />
+                    </div>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
+                      Fee is included in total. Add address in Delivery after checkout.
+                    </p>
+                  </>
                 )}
               </div>
 
