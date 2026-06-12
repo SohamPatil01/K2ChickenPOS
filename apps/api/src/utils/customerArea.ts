@@ -34,6 +34,11 @@ export const customerAreaAddressInclude = {
   take: 1,
 } as const;
 
+function isMissingCustomerAreaColumn(error: unknown): boolean {
+  const msg = String((error as { message?: string })?.message || error || '');
+  return msg.includes('Customer.area') && msg.includes('does not exist');
+}
+
 export async function upsertCustomerArea(
   db: Pick<PrismaClient, 'customerAddress' | 'customer'>,
   customerId: string,
@@ -41,10 +46,14 @@ export async function upsertCustomerArea(
 ): Promise<void> {
   const trimmed = typeof area === 'string' ? area.trim() : '';
 
-  await db.customer.update({
-    where: { id: customerId },
-    data: { area: trimmed || null },
-  });
+  try {
+    await db.customer.update({
+      where: { id: customerId },
+      data: { area: trimmed || null },
+    });
+  } catch (error) {
+    if (!isMissingCustomerAreaColumn(error)) throw error;
+  }
 
   const existing = await db.customerAddress.findFirst({
     where: { customerId, label: CUSTOMER_AREA_LABEL },
@@ -80,8 +89,13 @@ export async function upsertCustomerArea(
   });
 }
 
+/** Explicit select — omits area until DB migration is applied; area resolved via addresses fallback. */
 export const customerWithAreaInclude = {
-  include: {
+  select: {
+    id: true,
+    name: true,
+    phone: true,
+    email: true,
     addresses: customerAreaAddressInclude,
   },
 };

@@ -558,6 +558,84 @@ export async function backupRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /api/v1/backup/apply-customer-area-column
+   * Add nullable Customer.area and backfill from legacy Area addresses (DDL + safe UPDATE only).
+   */
+  fastify.post('/apply-customer-area-column', async (request, reply) => {
+    try {
+      if (!isBackupAdminRequest(request)) {
+        reply.status(401);
+        return {
+          success: false,
+          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      await prisma.$executeRawUnsafe(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'Customer' AND column_name = 'area'
+          ) THEN
+            ALTER TABLE "Customer" ADD COLUMN "area" TEXT;
+          END IF;
+        END $$;
+      `);
+
+      const backfill = await prisma.$executeRawUnsafe(`
+        UPDATE "Customer" c
+        SET "area" = NULLIF(TRIM(ca."line1"), '')
+        FROM "CustomerAddress" ca
+        WHERE ca."customerId" = c.id
+          AND ca."label" = 'Area'
+          AND c."area" IS NULL
+          AND ca."line1" IS NOT NULL
+          AND TRIM(ca."line1") <> ''
+          AND TRIM(ca."line1") <> '—';
+      `);
+
+      const columnCheck: { exists: boolean }[] = await prisma.$queryRawUnsafe(`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'Customer' AND column_name = 'area'
+        ) AS exists
+      `);
+
+      const salesProbe = await prisma.sale.findFirst({
+        where: { customerId: { not: null } },
+        include: {
+          customer: {
+            include: { addresses: { where: { label: 'Area' }, take: 1 } },
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Customer.area column applied and backfilled from legacy addresses',
+        timestamp: new Date().toISOString(),
+        columnExists: columnCheck[0]?.exists === true,
+        backfillRowsTouched: typeof backfill === 'number' ? backfill : null,
+        salesProbe: {
+          saleFound: !!salesProbe,
+          customerArea: salesProbe?.customer?.area ?? null,
+        },
+      };
+    } catch (error: any) {
+      fastify.log.error('[Backup] apply-customer-area-column failed:', error);
+      reply.status(500);
+      return {
+        success: false,
+        message: 'Failed to apply Customer.area migration',
+        timestamp: new Date().toISOString(),
+        error: error.message,
+      };
+    }
+  });
+
+  /**
    * POST /api/v1/backup/apply-payment-method-enum
    * Add CREDIT + ONLINE to PaymentMethod enum (DDL only — no data deleted).
    */
