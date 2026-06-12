@@ -54,7 +54,12 @@ export async function ensureInventoryDeductedForSale(
   db: LedgerDb,
   saleId: string,
   storeId: string,
-  items: Array<{ productId: string; qtyKg?: number | null; qtyPcs?: number | null }>,
+  items: Array<{
+    productId: string;
+    qtyKg?: number | null;
+    qtyPcs?: number | null;
+    metaJson?: { manualLine?: boolean; manualEntry?: boolean } | null;
+  }>,
   unitTypeByProductId: Map<string, 'KG' | 'PCS'>
 ): Promise<void> {
   const existing = await db.inventoryLedger.findMany({
@@ -77,6 +82,7 @@ export async function ensureInventoryDeductedForSale(
 
   const expectedByProduct = new Map<string, { kg: number; pcs: number }>();
   for (const item of items) {
+    if (item.metaJson?.manualLine) continue;
     if (!shouldDeductInventoryForProduct(item.productId)) continue;
     if (!unitTypeByProductId.has(item.productId)) continue;
 

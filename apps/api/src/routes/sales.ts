@@ -10,6 +10,7 @@ import {
   enrichSaleCustomer,
   upsertCustomerArea,
 } from '../utils/customerArea.js';
+import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -37,7 +38,7 @@ function sumPaymentAmounts(paymentList: Array<{ method?: string; amount?: number
 }
 
 async function fetchSaleForPayResponse(saleId: string) {
-  return prisma.sale.findUnique({
+  const sale = await prisma.sale.findUnique({
     where: { id: saleId },
     include: {
       items: { include: { product: true } },
@@ -45,7 +46,7 @@ async function fetchSaleForPayResponse(saleId: string) {
       customer: customerWithAreaInclude,
     },
   });
-  return sale ? enrichSaleWithDeliveryFee(enrichSaleCustomer(sale)) : null;
+  return sale ? enrichSaleResponse(sale) : null;
 }
 
 function enrichSaleResponse(sale: any) {
@@ -361,6 +362,19 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      const ownerStoreId =
+        store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+      if (!ownerStoreId) {
+        reply.code(400).send({ error: 'Owner store is not configured for this location' });
+        return;
+      }
+
+      const saleItems = await resolveSaleItemsForCreate(
+        prisma,
+        data.items,
+        ownerStoreId
+      );
+
       // Get franchise config separately if store is a franchise
       let config = null;
       if (store.type === 'FRANCHISE') {
@@ -380,26 +394,26 @@ export async function saleRoutes(fastify: FastifyInstance) {
             },
           },
           update: {
-            name: (data as any).customerName || undefined,
-            ...((data as any).customerArea !== undefined
-              ? { area: String((data as any).customerArea || '').trim() || null }
+            name: data.customerName || undefined,
+            ...(data.customerArea !== undefined
+              ? { area: String(data.customerArea || '').trim() || null }
               : {}),
           },
           create: {
             storeId,
             phone: data.customerPhone,
-            name: (data as any).customerName || 'Customer',
-            ...((data as any).customerArea !== undefined
-              ? { area: String((data as any).customerArea || '').trim() || null }
+            name: data.customerName || 'Customer',
+            ...(data.customerArea !== undefined
+              ? { area: String(data.customerArea || '').trim() || null }
               : {}),
           },
         });
         customerId = customer.id;
-        if ((data as any).customerArea !== undefined) {
-          await upsertCustomerArea(prisma, customer.id, (data as any).customerArea);
+        if (data.customerArea !== undefined) {
+          await upsertCustomerArea(prisma, customer.id, data.customerArea);
         }
-      } else if (customerId && (data as any).customerArea !== undefined) {
-        await upsertCustomerArea(prisma, customerId, (data as any).customerArea);
+      } else if (customerId && data.customerArea !== undefined) {
+        await upsertCustomerArea(prisma, customerId, data.customerArea);
       }
 
       // Generate sale number - retry if duplicate
@@ -446,7 +460,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       let subTotal = 0;
       let taxTotal = 0;
 
-      for (const item of data.items) {
+      for (const item of saleItems) {
         const lineTotal = (item.qtyKg || item.qtyPcs || 0) * item.rate;
         subTotal += lineTotal;
         taxTotal += lineTotal * (item.taxRate / 100);
@@ -485,7 +499,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             grandTotal: Math.round(subTotal + taxTotal + deliveryFee),
             createdByUserId: userId,
             items: {
-              create: data.items.map((item: any) => {
+              create: saleItems.map((item: any) => {
                 const qty = item.qtyKg || item.qtyPcs || 0;
                 const lineTotal = Math.round(qty * item.rate * 100) / 100;
                 const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
@@ -497,6 +511,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
                   lineTotal,
                   taxRate: item.taxRate,
                   taxAmount,
+                  metaJson: item.metaJson,
                 };
               }),
             },
@@ -593,7 +608,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return recentDuplicate;
       }
 
-      const unitMapCreate = await loadProductUnitTypes(data.items.map((i) => i.productId));
+      const unitMapCreate = await loadProductUnitTypes(saleItems.map((i) => i.productId));
 
       // Create sale and sync inventory atomically
       const sale = await prisma.$transaction(async (tx) => {
@@ -609,7 +624,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             grandTotal: roundedGrandTotal,
             createdByUserId: userId,
             items: {
-              create: data.items.map((item: any) => {
+              create: saleItems.map((item: any) => {
                 const qty = item.qtyKg || item.qtyPcs || 0;
                 const lineTotal = Math.round(qty * item.rate * 100) / 100;
                 const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;

@@ -1045,6 +1045,7 @@ export default function StorePOSPage() {
         customerId: customerId || undefined,
         customerPhone: customerPhone || undefined,
         customerName: customerName || undefined,
+        customerArea: useCartStore.getState().customerArea || undefined,
         discountTotal: discountTotal || 0,
         deliveryFee: ft === "DELIVERY" ? fee || 0 : 0,
         items: cartItems.map((item) => ({

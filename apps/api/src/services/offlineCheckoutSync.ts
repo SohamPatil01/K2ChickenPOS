@@ -11,13 +11,11 @@ import {
   ensureInventoryDeductedForSale,
 } from '../utils/saleItemLedger.js';
 import { upsertCustomerArea } from '../utils/customerArea.js';
+import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 
 const offlinePayloadSchema = z.object({
   idempotencyKey: z.string().min(8),
-  createSale: createSaleSchema.extend({
-    customerName: z.string().optional(),
-    customerArea: z.string().optional(),
-  }),
+  createSale: createSaleSchema,
   payments: z.array(paymentSchema).min(1),
   fulfillmentType: z.enum(['PICKUP', 'DELIVERY']).optional(),
 });
@@ -74,14 +72,26 @@ export async function applyOfflineCheckoutFromSync(
     throw new Error('Store not found');
   }
 
+  const cs = data.createSale;
+
+  const ownerStoreId =
+    store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+  if (!ownerStoreId) {
+    throw new Error('Owner store is not configured for this location');
+  }
+
+  const saleItems = await resolveSaleItemsForCreate(
+    prisma,
+    cs.items,
+    ownerStoreId
+  );
+
   let config = null;
   if (store.type === 'FRANCHISE') {
     config = await prisma.franchiseConfig.findUnique({
       where: { franchiseStoreId: storeId },
     });
   }
-
-  const cs = data.createSale;
   let customerId = cs.customerId;
   if (!customerId && cs.customerPhone) {
     const customer = await prisma.customer.upsert({
@@ -116,7 +126,7 @@ export async function applyOfflineCheckoutFromSync(
 
   let subTotal = 0;
   let taxTotal = 0;
-  for (const item of cs.items) {
+  for (const item of saleItems) {
     const lineTotal = (item.qtyKg || item.qtyPcs || 0) * item.rate;
     subTotal += lineTotal;
     taxTotal += lineTotal * (item.taxRate / 100);
@@ -199,7 +209,7 @@ export async function applyOfflineCheckoutFromSync(
     saleStatus = 'OPEN';
   }
 
-  const offlineProductIds = [...new Set(cs.items.map((i) => i.productId))];
+  const offlineProductIds = [...new Set(saleItems.map((i) => i.productId))];
   const offlineProductRows = await prisma.product.findMany({
     where: { id: { in: offlineProductIds } },
     select: { id: true, unitType: true },
@@ -221,7 +231,7 @@ export async function applyOfflineCheckoutFromSync(
         grandTotal: roundedGrandTotal,
         createdByUserId: userId,
         items: {
-          create: cs.items.map((item: any) => {
+          create: saleItems.map((item: any) => {
             const qty = item.qtyKg || item.qtyPcs || 0;
             const lineTotal = Math.round(qty * item.rate * 100) / 100;
             const taxAmount =

@@ -59,6 +59,8 @@ export const saleItemSchema = z.object({
 export const createSaleSchema = z.object({
   customerId: z.string().optional(),
   customerPhone: z.string().optional(),
+  customerName: z.string().optional(),
+  customerArea: z.string().optional(),
   items: z.array(saleItemSchema).min(1),
   discountTotal: z.number().default(0),
   deliveryFee: z.number().min(0).default(0),
