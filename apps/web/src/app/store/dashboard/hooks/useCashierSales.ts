@@ -6,7 +6,7 @@ import api from '@/lib/api';
 export interface Sale {
   id: string;
   saleNo: string;
-  customer: { id: string; name: string; phone: string } | null;
+  customer: { id: string; name: string; phone: string; area?: string | null } | null;
   status: string;
   subTotal: number;
   discountTotal: number;

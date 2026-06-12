@@ -102,7 +102,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
     // Return a JSON array (legacy clients) + total in header for the customers tab count.
     reply.header('X-Customer-Total', String(total));
     reply.header('Cache-Control', 'private, no-store');
-    return customers;
+    return customers.map((c) => withCustomerArea(c));
     } catch (error: any) {
       console.error('[Customers] List failed:', error?.message || error);
       reply.header('Cache-Control', 'private, no-store, no-cache');
@@ -170,12 +170,16 @@ export async function customerRoutes(fastify: FastifyInstance) {
       update: {
         name: data.name,
         email: data.email,
+        ...(data.area !== undefined
+          ? { area: data.area?.trim() || null }
+          : {}),
       },
       create: {
         storeId,
         name: data.name,
         phone: data.phone,
         email: data.email,
+        area: data.area?.trim() || null,
       },
       include: {
         addresses: customerAreaAddressInclude,
@@ -283,6 +287,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
       };
       if (validatedData.email !== undefined) {
         updateData.email = validatedData.email;
+      }
+      if (body.area !== undefined) {
+        updateData.area = body.area ? String(body.area).trim() || null : null;
       }
 
       const customer = await prisma.customer.update({
@@ -665,11 +672,13 @@ export async function customerRoutes(fastify: FastifyInstance) {
         if (sale.customerId && sale.customer) {
           const customerId = sale.customer.id;
           if (!customerMap.has(customerId)) {
+            const customerArea = withCustomerArea(sale.customer)?.area ?? null;
             customerMap.set(customerId, {
               id: sale.customer.id,
               name: sale.customer.name,
               phone: sale.customer.phone,
               email: sale.customer.email,
+              area: customerArea,
               totalPending: 0,
               openOrders: [],
               orderCount: 0,

@@ -381,11 +381,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
           },
           update: {
             name: (data as any).customerName || undefined,
+            ...((data as any).customerArea !== undefined
+              ? { area: String((data as any).customerArea || '').trim() || null }
+              : {}),
           },
           create: {
             storeId,
             phone: data.customerPhone,
             name: (data as any).customerName || 'Customer',
+            ...((data as any).customerArea !== undefined
+              ? { area: String((data as any).customerArea || '').trim() || null }
+              : {}),
           },
         });
         customerId = customer.id;

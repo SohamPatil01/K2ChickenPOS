@@ -93,11 +93,17 @@ export async function applyOfflineCheckoutFromSync(
       },
       update: {
         name: cs.customerName || undefined,
+        ...(cs.customerArea !== undefined
+          ? { area: cs.customerArea?.trim() || null }
+          : {}),
       },
       create: {
         storeId,
         phone: cs.customerPhone,
         name: cs.customerName || 'Customer',
+        ...(cs.customerArea !== undefined
+          ? { area: cs.customerArea?.trim() || null }
+          : {}),
       },
     });
     customerId = customer.id;

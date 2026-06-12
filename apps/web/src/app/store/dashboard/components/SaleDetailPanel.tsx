@@ -189,6 +189,14 @@ export default function SaleDetailPanel({
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400">Customer</p>
             <p className="font-medium dark:text-white">{sale.customer?.name || 'Walk-in'}</p>
+            {sale.customer?.phone && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{sale.customer.phone}</p>
+            )}
+            {sale.customer?.area && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                Area: {sale.customer.area}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Items</p>

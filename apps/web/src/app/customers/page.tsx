@@ -9,6 +9,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string;
+  area?: string | null;
   email?: string;
   loyaltyPoints?: number;
   loyaltyTier?: string;
@@ -88,6 +89,7 @@ export default function CustomersPage() {
     name: '',
     phone: '',
     email: '',
+    area: '',
   });
   const [addressForm, setAddressForm] = useState<Address>({
     label: '',
@@ -160,10 +162,11 @@ export default function CustomersPage() {
         name: customerForm.name,
         phone: customerForm.phone,
         email: customerForm.email || undefined,
+        area: customerForm.area.trim() || undefined,
       });
       await loadCustomers();
       setShowCustomerModal(false);
-      setCustomerForm({ name: '', phone: '', email: '' });
+      setCustomerForm({ name: '', phone: '', email: '', area: '' });
       setSelectedCustomer(response.data);
       alert('Customer added successfully!');
     } catch (error: any) {
@@ -178,15 +181,16 @@ export default function CustomersPage() {
     }
 
     try {
-      const response = await api.post('/api/v1/customers', {
+      const response = await api.put(`/api/v1/customers/${editingCustomer.id}`, {
         name: customerForm.name,
         phone: customerForm.phone,
         email: customerForm.email || undefined,
+        area: customerForm.area.trim() || undefined,
       });
       await loadCustomers();
       setShowCustomerModal(false);
       setEditingCustomer(null);
-      setCustomerForm({ name: '', phone: '', email: '' });
+      setCustomerForm({ name: '', phone: '', email: '', area: '' });
       setSelectedCustomer(response.data);
       alert('Customer updated successfully!');
     } catch (error: any) {
@@ -227,13 +231,14 @@ export default function CustomersPage() {
       name: customer.name,
       phone: customer.phone,
       email: customer.email || '',
+      area: customer.area || '',
     });
     setShowCustomerModal(true);
   };
 
   const openNewCustomer = () => {
     setEditingCustomer(null);
-    setCustomerForm({ name: '', phone: '', email: '' });
+    setCustomerForm({ name: '', phone: '', email: '', area: '' });
     setShowCustomerModal(true);
   };
 
@@ -359,7 +364,10 @@ export default function CustomersPage() {
                   }`}
                 >
                   <div className="font-semibold">{customer.name}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300">{customer.phone}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    {customer.phone}
+                    {customer.area ? ` · ${customer.area}` : ''}
+                  </div>
                   {customer.email && <div className="text-sm text-gray-500 dark:text-gray-400">{customer.email}</div>}
                 </div>
               ))}
@@ -386,6 +394,12 @@ export default function CustomersPage() {
                 <div className="font-semibold text-sm text-gray-600">Phone</div>
                 <div className="text-lg">{selectedCustomer.phone}</div>
               </div>
+              {selectedCustomer.area && (
+                <div>
+                  <div className="font-semibold text-sm text-gray-600">Area</div>
+                  <div className="text-lg">{selectedCustomer.area}</div>
+                </div>
+              )}
               {selectedCustomer.email && (
                 <div>
                   <div className="font-semibold text-sm text-gray-600">Email</div>
@@ -402,8 +416,11 @@ export default function CustomersPage() {
                     + Add Address
                   </button>
                 </div>
-                {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 ? (
-                  selectedCustomer.addresses.map((addr) => (
+                {selectedCustomer.addresses &&
+                selectedCustomer.addresses.filter((a) => a.label !== 'Area').length > 0 ? (
+                  selectedCustomer.addresses
+                    .filter((a) => a.label !== 'Area')
+                    .map((addr) => (
                     <div key={addr.id} className="mb-2 p-3 bg-gray-50 rounded">
                       <div className="font-medium">{addr.label}</div>
                       <div className="text-sm text-gray-600">{addr.line1}, {addr.city}</div>
@@ -530,12 +547,22 @@ export default function CustomersPage() {
                   placeholder="customer@example.com"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Area / Locality</label>
+                <input
+                  type="text"
+                  value={customerForm.area}
+                  onChange={(e) => setCustomerForm({ ...customerForm, area: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="e.g. Kothrud, Baner"
+                />
+              </div>
               <div className="flex gap-2 mt-6">
                 <button
                   onClick={() => {
                     setShowCustomerModal(false);
                     setEditingCustomer(null);
-                    setCustomerForm({ name: '', phone: '', email: '' });
+                    setCustomerForm({ name: '', phone: '', email: '', area: '' });
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-100"
                 >

@@ -9,6 +9,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string;
+  area?: string | null;
   email?: string;
   loyaltyPoints?: number;
   loyaltyTier?: string;
@@ -34,6 +35,7 @@ interface CustomerListRow {
   id: string;
   name: string;
   phone: string;
+  area?: string | null;
   email?: string;
   loyaltyPoints?: number;
   loyaltyTier?: string;
@@ -127,6 +129,7 @@ export default function StoreCustomersPage() {
     name: '',
     phone: '',
     email: '',
+    area: '',
   });
   const [addressForm, setAddressForm] = useState<Address>({
     label: '',
@@ -272,10 +275,11 @@ export default function StoreCustomersPage() {
         name: customerForm.name,
         phone: customerForm.phone,
         email: customerForm.email || undefined,
+        area: customerForm.area.trim() || undefined,
       });
       await loadCustomers();
       setShowCustomerModal(false);
-      setCustomerForm({ name: '', phone: '', email: '' });
+      setCustomerForm({ name: '', phone: '', email: '', area: '' });
       const full = await fetchCustomerDetail(response.data?.id);
       if (full) setSelectedCustomer(full);
       alert('Customer added successfully!');
@@ -295,11 +299,12 @@ export default function StoreCustomersPage() {
         name: customerForm.name,
         phone: customerForm.phone,
         email: customerForm.email || undefined,
+        area: customerForm.area.trim() || undefined,
       });
       await loadCustomers();
       setShowCustomerModal(false);
       setEditingCustomer(null);
-      setCustomerForm({ name: '', phone: '', email: '' });
+      setCustomerForm({ name: '', phone: '', email: '', area: '' });
       const full = await fetchCustomerDetail(editingCustomer.id);
       if (full) setSelectedCustomer(full);
       alert('Customer updated successfully!');
@@ -345,13 +350,14 @@ export default function StoreCustomersPage() {
       name: customer.name,
       phone: customer.phone,
       email: customer.email || '',
+      area: customer.area || '',
     });
     setShowCustomerModal(true);
   };
 
   const openNewCustomer = () => {
     setEditingCustomer(null);
-    setCustomerForm({ name: '', phone: '', email: '' });
+    setCustomerForm({ name: '', phone: '', email: '', area: '' });
     setShowCustomerModal(true);
   };
 
@@ -581,7 +587,10 @@ export default function StoreCustomersPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-gray-900 dark:text-white truncate">{row.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{row.phone}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {row.phone}
+                          {row.area ? ` · ${row.area}` : ''}
+                        </div>
                       </div>
                       {row._count != null && (
                         <div className="shrink-0 text-xs text-gray-400 dark:text-gray-500 text-right">
@@ -642,7 +651,10 @@ export default function StoreCustomersPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-gray-900 dark:text-white truncate">{row.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{row.phone}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {row.phone}
+                          {row.area ? ` · ${row.area}` : ''}
+                        </div>
                       </div>
                       {row._count != null && (
                         <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 shrink-0">
@@ -685,6 +697,11 @@ export default function StoreCustomersPage() {
                           {selectedCustomer.name}
                         </h2>
                         <p className="text-brand-600 dark:text-brand-400 font-medium">{selectedCustomer.phone}</p>
+                        {selectedCustomer.area && (
+                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
+                            <span className="text-gray-500 dark:text-gray-400">Area:</span> {selectedCustomer.area}
+                          </p>
+                        )}
                         {selectedCustomer.email && (
                           <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{selectedCustomer.email}</p>
                         )}
@@ -739,9 +756,12 @@ export default function StoreCustomersPage() {
                       + Add address
                     </button>
                   </div>
-                  {selectedCustomer.addresses && selectedCustomer.addresses.length > 0 ? (
+                  {selectedCustomer.addresses &&
+                  selectedCustomer.addresses.filter((a) => a.label !== 'Area').length > 0 ? (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {selectedCustomer.addresses.map((addr) => (
+                      {selectedCustomer.addresses
+                        .filter((a) => a.label !== 'Area')
+                        .map((addr) => (
                         <div
                           key={addr.id}
                           className="rounded-xl border border-gray-100 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-900/40 p-3"
@@ -876,13 +896,25 @@ export default function StoreCustomersPage() {
                   placeholder="optional@email.com"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Area / Locality
+                </label>
+                <input
+                  type="text"
+                  value={customerForm.area}
+                  onChange={(e) => setCustomerForm({ ...customerForm, area: e.target.value })}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                  placeholder="e.g. Kothrud, Baner"
+                />
+              </div>
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setShowCustomerModal(false);
                     setEditingCustomer(null);
-                    setCustomerForm({ name: '', phone: '', email: '' });
+                    setCustomerForm({ name: '', phone: '', email: '', area: '' });
                   }}
                   className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
