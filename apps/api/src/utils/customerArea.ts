@@ -89,13 +89,14 @@ export async function upsertCustomerArea(
   });
 }
 
-/** Explicit select — omits area until DB migration is applied; area resolved via addresses fallback. */
+/** Explicit select — safe when nested under Sale.select (no include/select mix). */
 export const customerWithAreaInclude = {
   select: {
     id: true,
     name: true,
     phone: true,
     email: true,
+    area: true,
     addresses: customerAreaAddressInclude,
   },
 };
