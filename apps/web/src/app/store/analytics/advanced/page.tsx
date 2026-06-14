@@ -142,6 +142,43 @@ interface InsightsPayload {
   storeIds?: string[];
 }
 
+interface ProfitMarginProduct {
+  productId: string;
+  productName: string;
+  sku: string;
+  unitType: string;
+  revenue: number;
+  qtySold: number;
+  avgCost: number | null;
+  estimatedCogs: number | null;
+  grossProfit: number | null;
+  grossMarginPct: number | null;
+  costStatus: "ok" | "unknown";
+}
+
+interface ProfitMarginPayload {
+  summary: {
+    totalSales: number;
+    totalPurchases: number;
+    expensesLabel: string;
+    netProfit: number;
+    profitMarginPct: number;
+    estimatedCogsFromSales: number;
+    productsWithCost: number;
+    productsMissingCost: number;
+  };
+  products: ProfitMarginProduct[];
+  period: { start: string; end: string };
+}
+
+function formatINR(n: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
 function defaultDateRange() {
   const end = new Date();
   const start = new Date();
@@ -172,8 +209,10 @@ export default function AdvancedAnalyticsPage() {
   const [analyticsErrors, setAnalyticsErrors] = useState<string[]>([]);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [profitMargin, setProfitMargin] = useState<ProfitMarginPayload | null>(null);
+  const [profitMarginError, setProfitMarginError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "sales-overview" | "forecast" | "demand" | "inventory" | "insights"
+    "sales-overview" | "profit-margin" | "forecast" | "demand" | "inventory" | "insights"
   >("sales-overview");
 
   const isOwner = user?.store?.type === "OWNER";
@@ -209,6 +248,7 @@ export default function AdvancedAnalyticsPage() {
     loadAnalytics();
     loadSalesOverview();
     loadInsights();
+    loadProfitMargin();
   }, [user, startDateStr, endDateStr, franchiseStoreId, demandByStore]);
 
   const loadAnalytics = async () => {
@@ -304,6 +344,25 @@ export default function AdvancedAnalyticsPage() {
       console.error("Failed to load sales overview:", e);
       setSalesOverview(null);
       setOverviewError(msg);
+    }
+  };
+
+  const loadProfitMargin = async () => {
+    if (!user?.storeId) return;
+    setProfitMarginError(null);
+    try {
+      const res = await api.get("/api/v1/analytics/profit-margin", {
+        params: scopeParams(),
+      });
+      setProfitMargin(res.data || null);
+    } catch (e: any) {
+      const msg =
+        e.response?.data?.message ||
+        e.response?.data?.error ||
+        e.message ||
+        "Failed to load profit margin";
+      setProfitMargin(null);
+      setProfitMarginError(msg);
     }
   };
 
@@ -483,6 +542,21 @@ export default function AdvancedAnalyticsPage() {
                     data: insights.insights,
                     filename: `analytics_insights_${tag}.csv`,
                   });
+                } else if (activeTab === "profit-margin" && profitMargin) {
+                  exportToCSV({
+                    data: profitMargin.products.map((p) => ({
+                      product: p.productName,
+                      sku: p.sku,
+                      revenue: p.revenue,
+                      qtySold: p.qtySold,
+                      avgCost: p.avgCost ?? "",
+                      estimatedCogs: p.estimatedCogs ?? "",
+                      grossProfit: p.grossProfit ?? "",
+                      grossMarginPct: p.grossMarginPct ?? "",
+                      costStatus: p.costStatus,
+                    })),
+                    filename: `profit_margin_${tag}.csv`,
+                  });
                 }
               }}
               className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
@@ -563,10 +637,11 @@ export default function AdvancedAnalyticsPage() {
           )}
         </div>
 
-        {(analyticsErrors.length > 0 || overviewError || insightsError) && (
+        {(analyticsErrors.length > 0 || overviewError || insightsError || profitMarginError) && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-1">
             {overviewError && <p>Overview: {overviewError}</p>}
             {insightsError && <p>Insights: {insightsError}</p>}
+            {profitMarginError && <p>Profit margin: {profitMarginError}</p>}
             {analyticsErrors.map((e, i) => (
               <p key={i}>{e}</p>
             ))}
@@ -585,6 +660,16 @@ export default function AdvancedAnalyticsPage() {
           }`}
         >
           📊 Sales Overview
+        </button>
+        <button
+          onClick={() => setActiveTab("profit-margin")}
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === "profit-margin"
+              ? "border-blue-600 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+          }`}
+        >
+          💹 Profit Margin
         </button>
         <button
           onClick={() => setActiveTab("forecast")}
@@ -1554,6 +1639,150 @@ export default function AdvancedAnalyticsPage() {
             </button>
           </div>
         )
+      )}
+
+      {activeTab === "profit-margin" && (
+        <div className="space-y-6">
+          {profitMargin ? (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <p className="text-xs uppercase text-gray-500">Sales</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                    {formatINR(profitMargin.summary.totalSales)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <p className="text-xs uppercase text-gray-500">Purchases</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                    {formatINR(profitMargin.summary.totalPurchases)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <p className="text-xs uppercase text-gray-500">Expenses</p>
+                  <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                    {profitMargin.summary.expensesLabel}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <p className="text-xs uppercase text-gray-500">Net profit</p>
+                  <p
+                    className={`text-xl font-bold mt-1 ${
+                      profitMargin.summary.netProfit >= 0
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {formatINR(profitMargin.summary.netProfit)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <p className="text-xs uppercase text-gray-500">Margin %</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                    {profitMargin.summary.profitMarginPct.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                  <p className="text-xs uppercase text-gray-500">Est. COGS (sold)</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                    {formatINR(profitMargin.summary.estimatedCogsFromSales)}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Net profit uses paid sales minus purchase orders in range. Expenses are not tracked
+                yet. Product costs use the average of the last 10 closed franchise POs.
+              </p>
+
+              {profitMargin.summary.productsMissingCost > 0 && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+                  {profitMargin.summary.productsMissingCost} product line(s) have no PO cost —
+                  revenue is included; gross margin columns show a warning.
+                </div>
+              )}
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Product gross margin
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Product
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Revenue
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Qty sold
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Avg cost
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Est. COGS
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Gross profit
+                        </th>
+                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Margin %
+                        </th>
+                        <th className="text-center px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {profitMargin.products.map((p) => (
+                        <tr key={p.productId} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                          <td className="px-4 py-3 text-gray-900 dark:text-white">
+                            <div className="font-medium">{p.productName}</div>
+                            <div className="text-xs text-gray-500">{p.sku}</div>
+                          </td>
+                          <td className="px-4 py-3 text-right">{formatINR(p.revenue)}</td>
+                          <td className="px-4 py-3 text-right">
+                            {p.qtySold} {p.unitType === "PCS" ? "pcs" : "kg"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {p.avgCost != null ? formatINR(p.avgCost) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {p.estimatedCogs != null ? formatINR(p.estimatedCogs) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {p.grossProfit != null ? formatINR(p.grossProfit) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {p.grossMarginPct != null ? `${p.grossMarginPct.toFixed(1)}%` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {p.costStatus === "ok" ? (
+                              <span className="text-emerald-600 dark:text-emerald-400">OK</span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400" title="No PO cost">
+                                ⚠ Unknown
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-gray-600 dark:text-gray-400">
+              {profitMarginError || "No profit data for this range."}
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === "insights" && (

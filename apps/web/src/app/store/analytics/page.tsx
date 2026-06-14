@@ -2,10 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { SimpleLineChart, SimpleBarChart, SimplePieChart } from '@/components/charts';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+
+function formatINR(n: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+interface ProfitMarginSummary {
+  totalSales: number;
+  totalPurchases: number;
+  expensesLabel: string;
+  netProfit: number;
+  profitMarginPct: number;
+  productsMissingCost: number;
+  paidOrderCount?: number;
+  lineItemRevenue?: number;
+}
 
 interface AnalyticsData {
   salesTrend: Array<{ name: string; value: number }>;
@@ -25,6 +45,10 @@ export default function AnalyticsPage() {
     end: format(new Date(), 'yyyy-MM-dd'),
   });
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [profitSummary, setProfitSummary] = useState<ProfitMarginSummary | null>(null);
+
+  const canViewProfit =
+    user?.role === 'OWNER' || user?.role === 'MANAGER';
 
   useEffect(() => {
     if (!user) {
@@ -43,14 +67,32 @@ export default function AnalyticsPage() {
         params: {
           startDate: dateRange.start,
           endDate: dateRange.end,
+          status: 'PAID',
+          limit: '10000',
         },
       });
 
-      const sales = salesResponse.data || [];
+      const sales = (salesResponse.data || []).filter(
+        (s: { status?: string }) => s.status === 'PAID'
+      );
 
       // Process data for charts
       const analyticsData = processAnalyticsData(sales);
       setAnalytics(analyticsData);
+
+      if (canViewProfit) {
+        try {
+          const marginRes = await api.get('/api/v1/analytics/profit-margin', {
+            params: {
+              startDate: dateRange.start,
+              endDate: dateRange.end,
+            },
+          });
+          setProfitSummary(marginRes.data?.summary ?? null);
+        } catch {
+          setProfitSummary(null);
+        }
+      }
     } catch (error) {
       console.error('Failed to load analytics:', error);
     } finally {
@@ -169,6 +211,77 @@ export default function AnalyticsPage() {
           />
         </div>
       </div>
+
+      {canViewProfit && profitSummary && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Profit margin tracker
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Net profit = sales − purchases (expenses not tracked yet)
+              </p>
+            </div>
+            <Link
+              href="/store/analytics/advanced"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              View product breakdown →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Sales</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                {formatINR(profitSummary.totalSales)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Purchases</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                {formatINR(profitSummary.totalPurchases)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Expenses</p>
+              <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                {profitSummary.expensesLabel}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Net profit</p>
+              <p
+                className={`text-xl font-bold mt-1 ${
+                  profitSummary.netProfit >= 0
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-red-600 dark:text-red-400'
+                }`}
+              >
+                {formatINR(profitSummary.netProfit)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Margin %</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                {profitSummary.profitMarginPct.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+          {profitSummary.productsMissingCost > 0 && (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              ⚠ {profitSummary.productsMissingCost} product(s) sold without PO cost data — see
+              Advanced Analytics for details.
+            </p>
+          )}
+          {profitSummary.paidOrderCount != null && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Based on {profitSummary.paidOrderCount} paid order(s) in range (same rules as Sales
+              Overview: business date when set, otherwise bill date).
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Charts Grid */}
       {analytics && (

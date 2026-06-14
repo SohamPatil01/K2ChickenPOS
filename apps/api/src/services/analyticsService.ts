@@ -1382,6 +1382,216 @@ export class AnalyticsService {
       storeIds: current.storeIds,
     };
   }
+
+  /**
+   * Paid sales in calendar range (businessDate when set, else createdAt) — matches sales overview.
+   */
+  private async getPaidSalesInAnalyticsRange(
+    storeIds: string[],
+    rangeStart: Date,
+    rangeEnd: Date
+  ) {
+    const start = startOfDay(rangeStart);
+    const end = endOfDay(rangeEnd);
+    const startStr = format(start, 'yyyy-MM-dd');
+    const endStr = format(end, 'yyyy-MM-dd');
+    const queryStart = subDays(start, 2);
+    const queryEnd = addDays(end, 2);
+    const storeFilter = storeIds.length === 1 ? storeIds[0]! : { in: storeIds };
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: storeFilter,
+        status: 'PAID',
+        OR: [
+          { createdAt: { gte: queryStart, lte: queryEnd } },
+          { businessDate: { gte: queryStart, lte: queryEnd } },
+        ],
+      },
+      select: {
+        id: true,
+        grandTotal: true,
+        createdAt: true,
+        businessDate: true,
+      },
+    });
+
+    return sales.filter((s) => {
+      const key = saleBucketDateKey(s);
+      return key >= startStr && key <= endStr;
+    });
+  }
+
+  /**
+   * Net store profit (sales − purchases; expenses untracked) + per-product gross margin from PO avg cost.
+   */
+  async getProfitMarginTracker(
+    userStoreId: string,
+    start: Date,
+    end: Date,
+    franchiseStoreId?: string | null
+  ) {
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
+    const storeFilter =
+      storeIds.length === 1 ? storeIds[0]! : { in: storeIds };
+    const rangeStart = startOfDay(start);
+    const rangeEnd = endOfDay(end);
+
+    const paidSales = await this.getPaidSalesInAnalyticsRange(storeIds, start, end);
+    const saleIds = paidSales.map((s) => s.id);
+
+    const [posWithItems, saleItems] = await Promise.all([
+      prisma.purchaseOrder.findMany({
+        where: {
+          franchiseStoreId: storeFilter,
+          createdAt: { gte: rangeStart, lte: rangeEnd },
+        },
+        include: { items: true },
+      }),
+      saleIds.length > 0
+        ? prisma.saleItem.findMany({
+            where: { saleId: { in: saleIds } },
+            include: {
+              product: {
+                select: { id: true, name: true, sku: true, unitType: true },
+              },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const totalSales = round2(
+      paidSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0)
+    );
+
+    let totalPurchases = 0;
+    for (const po of posWithItems) {
+      for (const item of po.items) {
+        const rate = item.requestedRate ?? 0;
+        const qtyKg = item.receivedQtyKg ?? item.qtyKg ?? 0;
+        const qtyPcs = item.receivedQtyPcs ?? item.qtyPcs ?? 0;
+        totalPurchases += rate * qtyKg + rate * qtyPcs;
+      }
+    }
+    totalPurchases = round2(totalPurchases);
+
+    const netProfit = round2(totalSales - totalPurchases);
+    const profitMarginPct =
+      totalSales > 0 ? round2((netProfit / totalSales) * 100) : 0;
+
+    type ProductAgg = {
+      productId: string;
+      productName: string;
+      sku: string;
+      unitType: string;
+      revenue: number;
+      qtyKg: number;
+      qtyPcs: number;
+    };
+
+    const byProduct = new Map<string, ProductAgg>();
+    for (const item of saleItems) {
+      const pid = item.productId;
+      let row = byProduct.get(pid);
+      if (!row) {
+        row = {
+          productId: pid,
+          productName: item.product?.name ?? 'Unknown',
+          sku: item.product?.sku ?? '',
+          unitType: item.product?.unitType ?? 'KG',
+          revenue: 0,
+          qtyKg: 0,
+          qtyPcs: 0,
+        };
+        byProduct.set(pid, row);
+      }
+      row.revenue += item.lineTotal ?? 0;
+      row.qtyKg += item.qtyKg ?? 0;
+      row.qtyPcs += item.qtyPcs ?? 0;
+    }
+
+    const productIds = [...byProduct.keys()];
+    const costEntries = await Promise.all(
+      productIds.map(async (id) => [id, await this.calculateAverageCost(id)] as const)
+    );
+    const costMap = new Map(costEntries);
+
+    let estimatedCogsFromSales = 0;
+    let productsWithCost = 0;
+    let productsMissingCost = 0;
+
+    const products = [...byProduct.values()]
+      .map((p) => {
+        const avgCost = costMap.get(p.productId) ?? 0;
+        const hasCost = avgCost > 0;
+        const qtySold =
+          p.unitType === 'PCS'
+            ? p.qtyPcs > 0
+              ? p.qtyPcs
+              : p.qtyKg
+            : p.qtyKg > 0
+              ? p.qtyKg
+              : p.qtyPcs;
+        const roundedQty = round2(qtySold);
+
+        let estimatedCogs: number | null = null;
+        let grossProfit: number | null = null;
+        let grossMarginPct: number | null = null;
+
+        if (hasCost && roundedQty > 0) {
+          estimatedCogs = round2(avgCost * roundedQty);
+          estimatedCogsFromSales += estimatedCogs;
+          grossProfit = round2(p.revenue - estimatedCogs);
+          grossMarginPct =
+            p.revenue > 0 ? round2((grossProfit / p.revenue) * 100) : 0;
+          productsWithCost += 1;
+        } else {
+          productsMissingCost += 1;
+        }
+
+        return {
+          productId: p.productId,
+          productName: p.productName,
+          sku: p.sku,
+          unitType: p.unitType,
+          revenue: round2(p.revenue),
+          qtySold: roundedQty,
+          avgCost: hasCost ? round2(avgCost) : null,
+          estimatedCogs,
+          grossProfit,
+          grossMarginPct,
+          costStatus: hasCost ? ('ok' as const) : ('unknown' as const),
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      period: {
+        start: format(start, 'yyyy-MM-dd'),
+        end: format(end, 'yyyy-MM-dd'),
+      },
+      franchiseStoreId: franchiseStoreId ?? null,
+      storeIds,
+      summary: {
+        totalSales,
+        totalPurchases,
+        totalExpenses: null,
+        expensesTracked: false,
+        expensesLabel: 'Untracked',
+        netProfit,
+        profitMarginPct,
+        estimatedCogsFromSales: round2(estimatedCogsFromSales),
+        productsWithCost,
+        productsMissingCost,
+        paidOrderCount: paidSales.length,
+        lineItemRevenue: round2(
+          saleItems.reduce((sum, item) => sum + (item.lineTotal || 0), 0)
+        ),
+      },
+      products,
+    };
+  }
 }
 
 export const analyticsService = new AnalyticsService();
