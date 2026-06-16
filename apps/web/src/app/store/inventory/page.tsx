@@ -685,7 +685,7 @@ export default function StoreInventoryPage() {
         await loadInventory();
         setShowDeleteModal(false);
         setProductToDelete(null);
-        showNotification("Product deleted", "success");
+        showNotification("Product removed from catalog", "success");
       } else {
         throw new Error("Delete operation did not succeed");
       }

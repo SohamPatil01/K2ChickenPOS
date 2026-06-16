@@ -419,14 +419,28 @@ export async function productRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Actually delete the product (cascade will handle related records)
-      console.log('DELETE - Attempting to delete product:', id);
-      await prisma.product.delete({
-        where: { id },
-      });
+      if (!product.isActive) {
+        return { success: true, message: 'Product already removed from catalog', softDeleted: true };
+      }
 
-      console.log('DELETE - Product deleted successfully:', id);
-      return { success: true, message: 'Product deleted successfully' };
+      // Soft-delete: keep product row for sale/PO history (SaleItem FK blocks hard delete).
+      await prisma.$transaction([
+        prisma.storeProductPrice.updateMany({
+          where: { productId: id },
+          data: { isActive: false },
+        }),
+        prisma.product.update({
+          where: { id },
+          data: { isActive: false },
+        }),
+      ]);
+
+      console.log('DELETE - Product soft-deleted:', id);
+      return {
+        success: true,
+        message: 'Product removed from catalog',
+        softDeleted: true,
+      };
     } catch (error: any) {
       console.error('DELETE - Failed to delete product:', error);
       console.error('DELETE - Error code:', error.code);
@@ -434,6 +448,12 @@ export async function productRoutes(fastify: FastifyInstance) {
       
       if (error.code === 'P2025') {
         reply.code(404).send({ error: 'Product not found', productId: id });
+        return;
+      }
+      if (error.code === 'P2003') {
+        reply.code(409).send({
+          error: 'This product is used in past sales and cannot be permanently deleted. It was not removed.',
+        });
         return;
       }
       reply.code(500).send({ error: 'Failed to delete product', details: error.message });
