@@ -3,6 +3,7 @@
 import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import { prisma } from '@azela-pos/db';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,21 +19,14 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
-// Import prisma directly to avoid workspace resolution issues
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: any;
+  prisma: typeof prisma | undefined;
 };
 
-const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production' && !globalForPrisma.prisma) {
+  globalForPrisma.prisma = prisma;
+}
 
 // Log database connection status on startup
 if (process.env.DATABASE_URL) {

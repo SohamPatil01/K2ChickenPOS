@@ -1,15 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance } from 'fastify';
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
+import { prisma } from '@azela-pos/db';
 import { buildFullDatabaseBackup } from '../services/fullDatabaseBackup.js';
-
-// Create prisma instance for backup operations
-const globalForPrisma = globalThis as unknown as { prisma: any };
-const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-});
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 const RLS_PUBLIC_TABLES = [
   'Store', 'User', 'Customer', 'CustomerAddress', 'Product', 'Category',

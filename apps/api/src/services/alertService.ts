@@ -201,10 +201,17 @@ export class AlertService {
         },
         include: {
           customer: true,
+          payments: true,
         },
       });
 
-      const totalPending = pendingPayments.reduce((sum, s) => sum + (s.grandTotal - s.paidAmount), 0);
+      const totalPending = pendingPayments.reduce((sum, s) => {
+        const paid = (s.payments || []).reduce(
+          (pSum, p) => pSum + (Number(p.amount) || 0),
+          0
+        );
+        return sum + Math.max(0, (s.grandTotal || 0) - paid);
+      }, 0);
 
       if (totalPending > 10000) {
         alerts.push({

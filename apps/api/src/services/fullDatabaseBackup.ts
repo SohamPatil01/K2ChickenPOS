@@ -1,14 +1,4 @@
-// @ts-nocheck
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
-
-const globalForPrisma = globalThis as unknown as { fullBackupPrisma: any };
-const prisma =
-  globalForPrisma.fullBackupPrisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  });
-if (process.env.NODE_ENV !== 'production') globalForPrisma.fullBackupPrisma = prisma;
+import { prisma } from '@azela-pos/db';
 
 /** All application tables in FK-safe restore order (PascalCase = Postgres table names). */
 export const FULL_BACKUP_TABLE_ORDER = [
@@ -94,9 +84,14 @@ export async function buildFullDatabaseBackup(): Promise<FullBackupResult> {
     tables[tableName] = rows.length;
   }
 
-  const migrationRows: { count: bigint }[] = await prisma.$queryRawUnsafe(`
-    SELECT COUNT(*)::bigint AS count FROM "_prisma_migrations"
-  `).catch(() => [{ count: 0n }]);
+  let migrationRows: { count: bigint }[] = [{ count: 0n }];
+  try {
+    migrationRows = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(*)::bigint AS count FROM "_prisma_migrations"
+    `);
+  } catch {
+    migrationRows = [{ count: 0n }];
+  }
 
   const backup = {
     metadata: {
