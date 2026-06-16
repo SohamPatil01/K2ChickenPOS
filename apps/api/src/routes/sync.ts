@@ -5,6 +5,7 @@ import { getUser } from '../utils/auth.js';
 import { syncEventsSchema } from '@azela-pos/shared';
 import { applyOfflineCheckoutFromSync } from '../services/offlineCheckoutSync.js';
 import { scaleBarcodeConfigScopeIdsFromStore } from '../utils/barcode.js';
+import { resolveStoreIdFilter } from '../utils/storeScope.js';
 
 export async function syncRoutes(fastify: FastifyInstance) {
 
@@ -50,6 +51,17 @@ export async function syncRoutes(fastify: FastifyInstance) {
         // Continue processing other events
       }
     }
+
+    const syncRetentionCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    prisma.syncEvent
+      .deleteMany({
+        where: {
+          storeId,
+          ackedAt: { not: null },
+          serverReceivedAt: { lt: syncRetentionCutoff },
+        },
+      })
+      .catch((err) => console.warn('[Sync] Failed to prune old SyncEvent rows:', err));
 
     return { ackedIds, ackedQueueIds, success: true };
   });
@@ -102,9 +114,11 @@ export async function syncRoutes(fastify: FastifyInstance) {
       },
     });
 
+    const customerStoreFilter = await resolveStoreIdFilter(storeId, (getUser(request) as any).role);
+
     // Get customers
     const customers = await prisma.customer.findMany({
-      where: { storeId },
+      where: { storeId: customerStoreFilter },
       include: { addresses: true },
       take: 1000, // Limit for bootstrap
     });

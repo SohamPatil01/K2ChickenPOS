@@ -47,7 +47,7 @@ export default function StoreDiscountApprovalsPage() {
     try {
       await api.patch(`/api/v1/discounts/override/${id}/approve`);
       await loadData();
-      alert('Discount override approved successfully!');
+      alert('Discount approved. Complete payment from Orders → Complete Order for that sale.');
     } catch (error: any) {
       console.error('Failed to approve override:', error);
       alert(error.response?.data?.error || 'Failed to approve override');

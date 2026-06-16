@@ -5,6 +5,10 @@ import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
+import {
+  canAccessStoreResource,
+  resolveStoreIdFilter,
+} from '../utils/storeScope.js';
 
 const discountOverrideSchema = z.object({
   saleId: z.string(),
@@ -36,7 +40,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
           },
         });
 
-        if (!sale || sale.storeId !== storeId) {
+        if (
+          !sale ||
+          !(await canAccessStoreResource(storeId, (getUser(request) as any).role, sale.storeId))
+        ) {
           reply.code(404).send({ error: 'Sale not found' });
           return;
         }
@@ -147,11 +154,13 @@ export async function discountRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const storeId = (getUser(request) as any).storeId;
+        const user = getUser(request) as any;
+        const storeId = user.storeId;
+        const storeFilter = await resolveStoreIdFilter(storeId, user.role);
 
         const overrides = await prisma.discountOverride.findMany({
           where: {
-            storeId,
+            storeId: storeFilter,
             status: 'PENDING',
           },
           include: {
@@ -184,8 +193,9 @@ export async function discountRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const { id } = (request.params as any);
-        const storeId = (getUser(request) as any).storeId;
-        const userId = (getUser(request) as any).userId;
+        const user = getUser(request) as any;
+        const storeId = user.storeId;
+        const userId = user.userId;
 
         if (!id) {
           reply.code(400).send({ error: 'Override ID is required' });
@@ -199,7 +209,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
           },
         });
 
-        if (!override || override.storeId !== storeId) {
+        if (
+          !override ||
+          !(await canAccessStoreResource(storeId, user.role, override.storeId))
+        ) {
           reply.code(404).send({ error: 'Override not found' });
           return;
         }
@@ -266,8 +279,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
     async (request: any, reply: FastifyReply) => {
       try {
         const { id } = (request.params as any);
-        const storeId = (getUser(request) as any).storeId;
-        const userId = (getUser(request) as any).userId;
+        const { rejectionReason } = (request.body as any) || {};
+        const user = getUser(request) as any;
+        const storeId = user.storeId;
+        const userId = user.userId;
 
         if (!id) {
           reply.code(400).send({ error: 'Override ID is required' });
@@ -278,7 +293,10 @@ export async function discountRoutes(fastify: FastifyInstance) {
           where: { id },
         });
 
-        if (!override || override.storeId !== storeId) {
+        if (
+          !override ||
+          !(await canAccessStoreResource(storeId, user.role, override.storeId))
+        ) {
           reply.code(404).send({ error: 'Override not found' });
           return;
         }
@@ -330,10 +348,13 @@ export async function discountRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate] },
     async (request: any, reply: FastifyReply) => {
       try {
-        const storeId = (getUser(request) as any).storeId;
+        const user = getUser(request) as any;
+        const storeId = user.storeId;
         const { startDate, endDate } = (request.query as any);
 
-        const where: any = { storeId };
+        const where: any = {
+          storeId: await resolveStoreIdFilter(storeId, user.role),
+        };
 
         if (startDate && endDate) {
           where.createdAt = {

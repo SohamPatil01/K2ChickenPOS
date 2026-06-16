@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useNotificationStore } from "@/store/notification";
 import api from "@/lib/api";
+import { compressImageFile } from "@/lib/compressImage";
 import Link from "next/link";
 
 interface InventoryItem {
@@ -779,13 +780,7 @@ export default function StoreInventoryPage() {
 
       let imageUrl = addProductForm.imageUrl;
       if (addProductForm.imageFile) {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-        });
-        reader.readAsDataURL(addProductForm.imageFile);
-        imageUrl = await base64Promise;
+        imageUrl = await compressImageFile(addProductForm.imageFile);
       }
 
       const createRes = await api.post("/api/v1/products", {
@@ -896,13 +891,7 @@ export default function StoreInventoryPage() {
       let imageUrl = editForm.imageUrl;
 
       if (editForm.imageFile) {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-        });
-        reader.readAsDataURL(editForm.imageFile);
-        imageUrl = await base64Promise;
+        imageUrl = await compressImageFile(editForm.imageFile);
       }
 
       await api.put(`/api/v1/products/${editingProduct.id}`, {

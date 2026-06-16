@@ -12,6 +12,7 @@ import {
 } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
+import { canAccessStoreResource } from '../utils/storeScope.js';
 
 /** Create or reuse a matching CustomerAddress for delivery flows */
 async function ensureCustomerAddress(customerId: string, rawAddress: unknown): Promise<string> {
@@ -261,13 +262,17 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
   fastify.post('/:id/assign-driver', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
     const { driverId } = assignDriverSchema.parse(request.body as any);
-    const storeId = (getUser(request) as any).storeId;
+    const user = getUser(request) as any;
+    const storeId = user.storeId;
 
     const delivery = await prisma.deliveryOrder.findUnique({
       where: { id },
     });
 
-    if (!delivery || delivery.storeId !== storeId) {
+    if (
+      !delivery ||
+      !(await canAccessStoreResource(storeId, user.role, delivery.storeId))
+    ) {
       reply.code(404).send({ error: 'Delivery not found' });
       return;
     }
@@ -276,7 +281,13 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       where: { id: driverId },
     });
 
-    if (!driver || driver.role !== 'DRIVER' || driver.storeId !== storeId) {
+    const driverOk =
+      driver &&
+      driver.role === 'DRIVER' &&
+      (driver.storeId === delivery.storeId ||
+        (await canAccessStoreResource(storeId, user.role, driver.storeId)));
+
+    if (!driverOk) {
       reply.code(400).send({ error: 'Invalid driver' });
       return;
     }
@@ -409,14 +420,18 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
 
   fastify.patch('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
-    const storeId = (getUser(request) as any).storeId;
+    const user = getUser(request) as any;
+    const storeId = user.storeId;
 
     const delivery = await prisma.deliveryOrder.findUnique({
       where: { id },
       include: { sale: { select: { customerId: true } } },
     });
 
-    if (!delivery || delivery.storeId !== storeId) {
+    if (
+      !delivery ||
+      !(await canAccessStoreResource(storeId, user.role, delivery.storeId))
+    ) {
       reply.code(404).send({ error: 'Delivery not found' });
       return;
     }

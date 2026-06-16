@@ -56,6 +56,9 @@ packages/db/src/*.js.map
 *.sqlite
 # Local SQL dumps (do not commit)
 backups/*.sql
+backups/*.json
+!backups/*.manifest.json
+!backups/.gitkeep
 
 # IDE
 .idea

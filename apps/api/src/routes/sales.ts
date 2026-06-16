@@ -11,6 +11,7 @@ import {
   upsertCustomerArea,
 } from '../utils/customerArea.js';
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
+import { canAccessStoreResource } from '../utils/storeScope.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -1264,15 +1265,20 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
   fastify.post('/:id/refund', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
-    const storeId = (getUser(request) as any).storeId;
-    const userId = (getUser(request) as any).userId;
+    const user = getUser(request) as any;
+    const storeId = user.storeId;
+    const userId = user.userId;
+    const { amount, reason } = (request.body as any) || {};
 
     const sale = await prisma.sale.findUnique({
       where: { id },
       include: { items: { include: { product: true } } },
     });
 
-    if (!sale || sale.storeId !== storeId) {
+    if (
+      !sale ||
+      !(await canAccessStoreResource(storeId, user.role, sale.storeId))
+    ) {
       reply.code(404).send({ error: 'Sale not found' });
       return;
     }
@@ -1297,7 +1303,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
           await prisma.inventoryLedger.create({
             data: {
-              storeId,
+              storeId: sale.storeId,
               productId: item.productId,
               type: 'IN',
               qtyKg,
@@ -1312,7 +1318,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
     await prisma.auditLog.create({
       data: {
-        storeId,
+        storeId: sale.storeId,
         actorUserId: userId,
         action: 'SALE_REFUNDED',
         entityType: 'Sale',
@@ -1329,8 +1335,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
     try {
       const { id } = (request.params as any);
       const data = request.body as any;
-      const storeId = (getUser(request) as any).storeId;
-      const userId = (getUser(request) as any).userId;
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const userId = user.userId;
 
       if (!storeId || !userId) {
         reply.code(400).send({ error: 'Store ID and User ID are required' });
@@ -1348,18 +1355,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // Fetch existing sale
-      const existingSale = await prisma.sale.findFirst({
-        where: {
-          id,
-          storeId,
-        },
+      const existingSale = await prisma.sale.findUnique({
+        where: { id },
         include: {
           items: true,
           payments: true,
         },
       });
 
-      if (!existingSale) {
+      if (
+        !existingSale ||
+        !(await canAccessStoreResource(storeId, user.role, existingSale.storeId))
+      ) {
         reply.code(404).send({ error: 'Sale not found' });
         return;
       }

@@ -209,7 +209,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
   // Get sales monitoring across all franchises
   fastify.get('/sales-monitoring', async (request: any, reply: FastifyReply) => {
     try {
-      const { startDate, endDate } = (request.query as any) || {};
+      const { startDate, endDate, franchiseId } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
 
       const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
@@ -228,7 +228,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             parentOwnerStoreId: ownerStore.id,
           },
         });
-        storeIds = franchises.map(f => f.id);
+        storeIds = [ownerStore.id, ...franchises.map((f) => f.id)];
       }
 
       const sales = await prisma.sale.findMany({
@@ -304,7 +304,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             parentOwnerStoreId: ownerStoreId,
           },
         });
-        storeIds = franchises.map(f => f.id);
+        storeIds = [ownerStoreId, ...franchises.map((f) => f.id)];
       }
 
       // Get all products from owner store
@@ -467,7 +467,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             parentOwnerStoreId: ownerStore.id,
           },
         });
-        storeIds = franchises.map(f => f.id);
+        storeIds = [ownerStoreId, ...franchises.map((f) => f.id)];
       }
 
       // Calculate commissions/royalties (example: 5% of revenue)

@@ -8,7 +8,9 @@
  * Target DB should already have schema: pnpm --filter @azela-pos/db exec prisma migrate deploy
  */
 import { readFile } from 'fs/promises';
-import { prisma } from '@azela-pos/db';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 import { FULL_BACKUP_TABLE_ORDER } from '../apps/api/src/services/fullDatabaseBackup';
 
 type BackupFile = {
@@ -97,17 +99,38 @@ async function restoreRows(model: string, rows: unknown[]) {
     console.warn(`  skip (no prisma model ${model})`);
     return;
   }
-  const batchSize = 500;
+  const normalized = rows.map((row) => normalizeRow(row));
+  const batchSize = 200;
   let inserted = 0;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const chunk = rows.slice(i, i + batchSize);
-    const result = await delegate.createMany({
-      data: chunk,
-      skipDuplicates: true,
-    });
-    inserted += result.count;
+  for (let i = 0; i < normalized.length; i += batchSize) {
+    const chunk = normalized.slice(i, i + batchSize);
+    try {
+      const result = await delegate.createMany({
+        data: chunk,
+        skipDuplicates: true,
+      });
+      inserted += result.count;
+    } catch (err: any) {
+      console.error(`  batch failed for ${model}:`, err.message);
+      throw err;
+    }
   }
   console.log(`  inserted ${inserted} row(s)`);
+}
+
+/** Coerce ISO date strings from JSON backups into Date objects for Prisma. */
+function normalizeRow(row: unknown): Record<string, unknown> {
+  if (!row || typeof row !== 'object') return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row as Record<string, unknown>)) {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      const d = new Date(value);
+      out[key] = Number.isNaN(d.getTime()) ? value : d;
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
 }
 
 async function main() {

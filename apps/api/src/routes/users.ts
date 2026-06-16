@@ -5,6 +5,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
+import { canAccessStoreResource, resolveStoreIdFilter } from '../utils/storeScope.js';
 
 const createUserSchema = z.object({
   name: z.string().min(1),
@@ -27,12 +28,11 @@ const updateUserSchema = z.object({
 export async function userRoutes(fastify: FastifyInstance) {
   // Get all users (staff) - Only OWNER can access
   fastify.get('/', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const storeId = store?.id || (getUser(request) as any).storeId;
+    const user = getUser(request) as any;
+    const storeFilter = await resolveStoreIdFilter(user.storeId, user.role);
 
     const users = await prisma.user.findMany({
-      where: { storeId },
+      where: { storeId: storeFilter },
       select: {
         id: true,
         name: true,
@@ -96,13 +96,11 @@ export async function userRoutes(fastify: FastifyInstance) {
 
   // Update user (staff) - Only OWNER can update
   fastify.put('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
-    // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const storeId = store?.id || (getUser(request) as any).storeId;
+    const user = getUser(request) as any;
+    const storeId = user.storeId;
     const { id } = (request.params as any);
     const data = updateUserSchema.parse(request.body as any);
 
-    // Check if user exists and belongs to the same store
     const existingUser = await prisma.user.findUnique({
       where: { id },
     });
@@ -112,7 +110,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    if (existingUser.storeId !== storeId) {
+    if (!(await canAccessStoreResource(storeId, user.role, existingUser.storeId))) {
       reply.code(403).send({ error: 'Access denied' });
       return;
     }
@@ -160,12 +158,10 @@ export async function userRoutes(fastify: FastifyInstance) {
 
   // Delete user (staff) - Only OWNER can delete
   fastify.delete('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
-    // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const storeId = store?.id || (getUser(request) as any).storeId;
+    const user = getUser(request) as any;
+    const storeId = user.storeId;
     const { id } = (request.params as any);
 
-    // Check if user exists and belongs to the same store
     const existingUser = await prisma.user.findUnique({
       where: { id },
     });
@@ -175,13 +171,12 @@ export async function userRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    if (existingUser.storeId !== storeId) {
+    if (!(await canAccessStoreResource(storeId, user.role, existingUser.storeId))) {
       reply.code(403).send({ error: 'Access denied' });
       return;
     }
 
-    // Prevent deleting yourself
-    if (existingUser.id === (getUser(request) as any).userId) {
+    if (existingUser.id === user.userId) {
       reply.code(400).send({ error: 'Cannot delete your own account' });
       return;
     }
@@ -195,12 +190,11 @@ export async function userRoutes(fastify: FastifyInstance) {
 
   // Get single user - Only OWNER can access
   fastify.get('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
-    // Get default store (owner store)
-    const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-    const storeId = store?.id || (getUser(request) as any).storeId;
+    const user = getUser(request) as any;
+    const storeId = user.storeId;
     const { id } = (request.params as any);
 
-    const user = await prisma.user.findUnique({
+    const staff = await prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
@@ -215,18 +209,17 @@ export async function userRoutes(fastify: FastifyInstance) {
       },
     });
 
-    if (!user) {
+    if (!staff) {
       reply.code(404).send({ error: 'User not found' });
       return;
     }
 
-    if (user.storeId !== storeId) {
+    if (!(await canAccessStoreResource(storeId, user.role, staff.storeId))) {
       reply.code(403).send({ error: 'Access denied' });
       return;
     }
 
-    // Remove storeId from response
-    const { storeId: _, ...userResponse } = user;
+    const { storeId: _, ...userResponse } = staff;
     return userResponse;
   });
 }

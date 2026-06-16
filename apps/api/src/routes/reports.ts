@@ -185,8 +185,14 @@ export async function reportRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Determine which store to use
+      // Determine which store to use for prices / ledger aggregation
+      const resolved = await resolveReportStoreIds(user, queryStoreId);
+      if (!resolved) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
       const userStoreId = queryStoreId || user.storeId;
+      const ledgerStoreFilter = resolved.storeIdWhere;
       
       // Get owner store ID
       const ownerStoreId = userStore.type === 'OWNER' ? userStore.id : userStore.parentOwnerStoreId;
@@ -211,7 +217,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
           take: 1,
         },
         inventoryLedgers: {
-          where: { storeId: userStoreId },
+          where: { storeId: ledgerStoreFilter },
           orderBy: { createdAt: 'desc' },
         },
       },
@@ -851,13 +857,17 @@ export async function reportRoutes(fastify: FastifyInstance) {
     try {
       const user = getUser(request);
       const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-      const userStoreId = queryStoreId || user.storeId;
+      const resolved = await resolveReportStoreIds(user, queryStoreId);
+      if (!resolved) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
     const dateFilter = getDateRange(startDate, endDate);
 
     const cancelledSales = await prisma.sale.findMany({
       where: {
-        storeId: userStoreId,
+        storeId: resolved.storeIdWhere,
         status: 'VOID',
         createdAt: dateFilter,
       },
@@ -902,13 +912,17 @@ export async function reportRoutes(fastify: FastifyInstance) {
     try {
       const user = getUser(request);
       const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-      const userStoreId = queryStoreId || user.storeId;
+      const resolved = await resolveReportStoreIds(user, queryStoreId);
+      if (!resolved) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
     const dateFilter = getDateRange(startDate, endDate);
 
     const purchaseOrders = await prisma.purchaseOrder.findMany({
       where: {
-        franchiseStoreId: userStoreId,
+        franchiseStoreId: resolved.storeIdWhere,
         createdAt: dateFilter,
       },
       include: {
@@ -1163,13 +1177,17 @@ export async function reportRoutes(fastify: FastifyInstance) {
   fastify.get('/pending', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
     try {
       const user = getUser(request);
-      const { startDate, endDate, storeId: queryStoreId } = (request.query as any);
-      const userStoreId = queryStoreId || user.storeId;
+      const { storeId: queryStoreId } = (request.query as any);
+      const resolved = await resolveReportStoreIds(user, queryStoreId);
+      if (!resolved) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
 
     const [pendingPOs, pendingDeliveries, openSales] = await Promise.all([
       prisma.purchaseOrder.findMany({
         where: {
-          franchiseStoreId: userStoreId,
+          franchiseStoreId: resolved.storeIdWhere,
           status: {
             in: ['DRAFT', 'SUBMITTED', 'APPROVED'],
           },
@@ -1184,7 +1202,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }),
       prisma.deliveryOrder.findMany({
         where: {
-          storeId: userStoreId,
+          storeId: resolved.storeIdWhere,
           status: {
             in: ['CREATED', 'READY', 'ASSIGNED', 'OUT_FOR_DELIVERY'],
           },
@@ -1200,7 +1218,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }),
       prisma.sale.findMany({
         where: {
-          storeId: userStoreId,
+          storeId: resolved.storeIdWhere,
           status: 'OPEN',
         },
         include: {
