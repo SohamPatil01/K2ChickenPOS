@@ -1,4 +1,4 @@
-import type { ScaleBarcodeConfig } from '@prisma/client';
+import type { ScaleBarcodeConfig } from '@azela-pos/db';
 import { prisma } from '@azela-pos/db';
 import { normalizeBarcodeForLookup, type ParsedBarcode } from '@azela-pos/shared';
 

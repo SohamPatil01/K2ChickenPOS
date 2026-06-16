@@ -1,9 +1,10 @@
-// @ts-nocheck
-import pkg from '@prisma/client';
-const { PrismaClient } = pkg;
+import { PrismaClient } from '@prisma/client';
+
+export { PrismaClient };
+export * from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: any;
+  prisma: PrismaClient | undefined;
 };
 
 export const prisma =
@@ -13,6 +14,3 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-
-export * from '@prisma/client';
-
