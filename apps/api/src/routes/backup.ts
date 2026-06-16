@@ -784,19 +784,45 @@ export async function backupRoutes(fastify: FastifyInstance) {
       const dbSizeBytes = Number(dbSizeRows[0]?.size_bytes ?? 0);
       const imageChars = Number(imageStats[0]?.total_chars ?? 0);
 
+      let walSizePretty: string | null = null;
+      let replicationSlots: unknown[] = [];
+      try {
+        const walRows: { wal_size_pretty: string }[] = await prisma.$queryRawUnsafe(`
+          SELECT pg_size_pretty(COALESCE((SELECT SUM(size) FROM pg_ls_waldir()), 0)::bigint) AS wal_size_pretty
+        `);
+        walSizePretty = walRows[0]?.wal_size_pretty ?? null;
+      } catch {
+        walSizePretty = 'unavailable (run in Supabase SQL editor)';
+      }
+      try {
+        replicationSlots = await prisma.$queryRawUnsafe(`
+          SELECT slot_name, active,
+            pg_size_pretty(COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn), 0)::bigint) AS retained_wal
+          FROM pg_replication_slots
+        `);
+      } catch {
+        replicationSlots = [];
+      }
+
       return {
         success: true,
         timestamp: new Date().toISOString(),
         database: {
           sizeBytes: dbSizeBytes,
           sizePretty: dbSizeRows[0]?.size_pretty ?? 'unknown',
+          walSizePretty,
           logicalBackupEstimateBytes: backupJsonEstimate,
           logicalBackupEstimatePretty: formatBytes(backupJsonEstimate),
           bloatHint:
             dbSizeBytes > backupJsonEstimate * 3
               ? 'Database disk is much larger than logical data — run storage-cleanup then VACUUM in Supabase SQL editor'
               : null,
+          supabaseNote:
+            dbSizeBytes < 500 * 1024 ** 2
+              ? 'Postgres data is small. If Supabase still shows ~7GB usage, check Organization → Usage for Egress or provisioned Disk (not database rows). Daily API+backup traffic counts as egress.'
+              : null,
         },
+        replicationSlots,
         tables: tableSizes.map((t) => ({
           table: t.table_name,
           sizeBytes: Number(t.size_bytes),
@@ -955,11 +981,8 @@ export async function backupRoutes(fastify: FastifyInstance) {
 
       const vacuumed: string[] = [];
       if (vacuum) {
-        const tables = ['SyncEvent', 'AuditLog', 'Product', 'Sale', 'SaleItem', 'InventoryLedger'];
-        for (const table of tables) {
-          await prisma.$executeRawUnsafe(`VACUUM ANALYZE "${table}"`);
-          vacuumed.push(table);
-        }
+        // VACUUM cannot run inside Prisma's transaction/pooler — run in Supabase SQL editor instead.
+        fastify.log.warn('[Backup] vacuum requested but skipped (use Supabase SQL: VACUUM ANALYZE)');
       }
 
       const afterDbSize: { size_bytes: bigint }[] = await prisma.$queryRawUnsafe(`
@@ -978,8 +1001,9 @@ export async function backupRoutes(fastify: FastifyInstance) {
           vacuumed,
           databaseSizeBefore: formatBytes(Number(beforeDbSize[0]?.size_bytes ?? 0)),
           databaseSizeAfter: formatBytes(Number(afterDbSize[0]?.size_bytes ?? 0)),
-          note:
-            'pg_database_size may not drop until Supabase runs VACUUM FULL. Use SQL editor: VACUUM (VERBOSE, ANALYZE);',
+          note: vacuum
+            ? 'Run VACUUM (VERBOSE, ANALYZE) in Supabase SQL editor to reclaim dead tuple space.'
+            : 'pg_database_size may not drop until VACUUM runs in Supabase SQL editor.',
         },
       };
     } catch (error: any) {
@@ -1008,16 +1032,16 @@ export async function backupRoutes(fastify: FastifyInstance) {
       };
     }
 
-    const syncCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const auditCutoff = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+    const syncRetentionCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const auditRetentionCutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
     const deletedSyncEvents = await prisma.$executeRaw`
       DELETE FROM "SyncEvent"
-      WHERE "ackedAt" IS NOT NULL AND "serverReceivedAt" < ${syncCutoff}
+      WHERE "ackedAt" IS NOT NULL AND "serverReceivedAt" < ${syncRetentionCutoff}
     `;
     const deletedAuditLogs = await prisma.$executeRaw`
       DELETE FROM "AuditLog"
-      WHERE "createdAt" < ${auditCutoff}
+      WHERE "createdAt" < ${auditRetentionCutoff}
     `;
 
     return {
@@ -1026,6 +1050,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
       timestamp: new Date().toISOString(),
       deletedSyncEvents,
       deletedAuditLogs,
+      retention: { syncEventDays: 7, auditLogDays: 90 },
     };
   });
 
@@ -1133,8 +1158,16 @@ function buildStorageRecommendations(input: {
   if (input.dbSizeBytes > input.backupBytes * 5) {
     tips.push('Run VACUUM (VERBOSE, ANALYZE) in Supabase SQL editor after cleanup to reclaim dead tuple space.');
   }
+  if (input.dbSizeBytes < 500 * 1024 ** 2 && input.dbSizeBytes > 0) {
+    tips.push(
+      'Database data is under 500 MB. If Supabase billing still shows ~7 GB, open Organization → Usage — likely Egress or provisioned Disk, not table size.'
+    );
+  }
+  if (input.auditLogTotal > 3000) {
+    tips.push('Run VACUUM (VERBOSE, ANALYZE) in Supabase SQL editor to shrink AuditLog after prune.');
+  }
   if (tips.length === 0) {
-    tips.push('No obvious bloat detected in app tables — check Supabase dashboard → Database → Disk usage for WAL/backups.');
+    tips.push('No obvious table bloat — check Supabase Organization → Usage for egress or provisioned disk.');
   }
   return tips;
 }

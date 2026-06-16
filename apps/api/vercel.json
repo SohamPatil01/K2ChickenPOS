@@ -7,7 +7,8 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
   "functions": { "api/index.ts": { "maxDuration": 60 } },
   "crons": [
-    { "path": "/api/v1/backup/create", "schedule": "0 15 * * *" },
+    { "path": "/api/v1/backup/create", "schedule": "0 15 * * 0" },
+    { "path": "/api/v1/backup/storage-cleanup-weekly", "schedule": "0 4 * * 0" },
     { "path": "/api/v1/cron/daily-closing", "schedule": "0 20 * * *" }
   ],
   "headers": [
