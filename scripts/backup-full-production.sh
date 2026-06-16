@@ -46,8 +46,10 @@ LATEST_URL=$(echo "$LIST_BODY" | jq -r '[.backups[]? | select(.filename | starts
 LATEST_NAME=$(echo "$LIST_BODY" | jq -r '[.backups[]? | select(.filename | startswith("full-backup-"))] | sort_by(.uploadedAt // .filename) | reverse | .[0].filename // empty')
 
 if [ -z "$LATEST_URL" ]; then
-  echo -e "${RED}Could not find full-backup-* in blob list${NC}"
-  exit 1
+  FALLBACK_NAME="full-backup-$(echo "$TS" | tr ':' '-').json"
+  LATEST_URL="https://om69zl13qkyjuykz.public.blob.vercel-storage.com/${FALLBACK_NAME}"
+  LATEST_NAME="$FALLBACK_NAME"
+  echo -e "${YELLOW}List API missed full-backup; trying ${FALLBACK_NAME}${NC}"
 fi
 
 SAFE_TS=$(echo "$TS" | tr ':' '-' | tr 'T' '_')

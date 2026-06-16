@@ -446,6 +446,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
         timestamp,
         backupSize,
         tables,
+        blobFilename: `full-backup-${timestamp.replace(/:/g, '-')}.json`,
       };
     } catch (error: any) {
       fastify.log.error(`[FullBackup] Failed - RequestID: ${requestId}`, error);
@@ -1216,7 +1217,10 @@ async function listVercelBlobBackups() {
     const { blobs } = await list();
     
     return blobs
-      .filter(blob => blob.pathname.startsWith('backup-'))
+      .filter(
+        (blob) =>
+          blob.pathname.startsWith('backup-') || blob.pathname.startsWith('full-backup-')
+      )
       .map(blob => ({
         filename: blob.pathname,
         url: blob.url,
