@@ -1335,9 +1335,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
     try {
       const { id } = (request.params as any);
       const data = request.body as any;
-      const user = getUser(request) as any;
-      const storeId = user.storeId;
-      const userId = user.userId;
+      const authUser = getUser(request) as any;
+      const storeId = authUser.storeId;
+      const userId = authUser.userId;
 
       if (!storeId || !userId) {
         reply.code(400).send({ error: 'Store ID and User ID are required' });
@@ -1365,7 +1365,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       if (
         !existingSale ||
-        !(await canAccessStoreResource(storeId, user.role, existingSale.storeId))
+        !(await canAccessStoreResource(storeId, authUser.role, existingSale.storeId))
       ) {
         reply.code(404).send({ error: 'Sale not found' });
         return;

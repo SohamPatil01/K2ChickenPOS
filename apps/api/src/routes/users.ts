@@ -96,8 +96,8 @@ export async function userRoutes(fastify: FastifyInstance) {
 
   // Update user (staff) - Only OWNER can update
   fastify.put('/:id', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
-    const user = getUser(request) as any;
-    const storeId = user.storeId;
+    const authUser = getUser(request) as any;
+    const storeId = authUser.storeId;
     const { id } = (request.params as any);
     const data = updateUserSchema.parse(request.body as any);
 
@@ -110,7 +110,7 @@ export async function userRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    if (!(await canAccessStoreResource(storeId, user.role, existingUser.storeId))) {
+    if (!(await canAccessStoreResource(storeId, authUser.role, existingUser.storeId))) {
       reply.code(403).send({ error: 'Access denied' });
       return;
     }
