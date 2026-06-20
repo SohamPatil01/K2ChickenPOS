@@ -370,6 +370,40 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // Idempotency: if the client sent a stable key and we already created a sale
+      // for it, return the existing one instead of creating a duplicate (and double
+      // deducting inventory). Guards against network retries. Uses AuditLog (no schema
+      // change) — the same pattern used by the offline checkout sync.
+      const clientSaleId = (data as any).clientSaleId
+        ? String((data as any).clientSaleId).trim()
+        : null;
+      if (clientSaleId) {
+        const priorAudit = await prisma.auditLog.findFirst({
+          where: {
+            storeId,
+            entityType: 'Sale',
+            metaJson: { path: ['clientSaleId'], equals: clientSaleId },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (priorAudit?.entityId) {
+          const existingByClientId = await prisma.sale.findUnique({
+            where: { id: priorAudit.entityId },
+            include: {
+              items: { include: { product: true } },
+              payments: true,
+              customer: customerWithAreaInclude,
+            },
+          });
+          if (existingByClientId) {
+            console.log(
+              `[Sales API] Idempotent hit for clientSaleId=${clientSaleId}; returning existing sale ${existingByClientId.id}`
+            );
+            return enrichSaleResponse(existingByClientId);
+          }
+        }
+      }
+
       const saleItems = await resolveSaleItemsForCreate(
         prisma,
         data.items,
@@ -559,6 +593,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
               discountPercent,
               allowedDiscountPercent,
               saleNo,
+              ...(clientSaleId ? { clientSaleId } : {}),
             },
           },
         });
@@ -661,7 +696,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return created;
       });
 
-      // Create audit log
+      // Create audit log (also records clientSaleId for idempotent retries)
       await prisma.auditLog.create({
         data: {
           storeId,
@@ -669,7 +704,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           action: 'SALE_CREATED',
           entityType: 'Sale',
           entityId: sale.id,
-          metaJson: { saleNo, grandTotal },
+          metaJson: { saleNo, grandTotal, ...(clientSaleId ? { clientSaleId } : {}) },
         },
       });
 
@@ -1201,37 +1236,49 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Restore inventory when voiding a sale
-      // Find existing inventory deductions for this sale
-      const existingLedgers = await prisma.inventoryLedger.findMany({
+      // Restore inventory when voiding a sale.
+      // Reverse the NET ledger impact of this sale across ALL rows tied to it
+      // (SALE OUT deductions + any ADJUSTMENT IN/OUT rows written by prior edits),
+      // so an edited-then-voided bill does not over-restore stock.
+      const saleLedgers = await prisma.inventoryLedger.findMany({
         where: {
           refId: id,
-          reason: 'SALE',
           storeId: sale.storeId,
         },
       });
 
-      console.log(`[Void API] Found ${existingLedgers.length} inventory ledger entries to reverse for sale ${id}`);
+      // Net stock change still attributable to this sale, per product.
+      // Negative => stock is still deducted and must be restored on void.
+      const netByProduct = new Map<string, { kg: number; pcs: number }>();
+      for (const ledger of saleLedgers) {
+        const sign = ledger.type === 'OUT' ? -1 : 1;
+        const cur = netByProduct.get(ledger.productId) || { kg: 0, pcs: 0 };
+        cur.kg = Math.round((cur.kg + sign * (ledger.qtyKg || 0)) * 1000) / 1000;
+        cur.pcs += sign * (ledger.qtyPcs || 0);
+        netByProduct.set(ledger.productId, cur);
+      }
 
-      // Restore inventory by creating IN entries for each OUT entry
-      for (const ledger of existingLedgers) {
-        // Only restore if there's actual quantity
-        const hasQtyKg = ledger.qtyKg !== null && ledger.qtyKg !== undefined && ledger.qtyKg > 0;
-        const hasQtyPcs = ledger.qtyPcs !== null && ledger.qtyPcs !== undefined && ledger.qtyPcs > 0;
+      console.log(`[Void API] Found ${saleLedgers.length} inventory ledger entries for sale ${id}; reversing net impact for ${netByProduct.size} product(s)`);
 
-        if (hasQtyKg || hasQtyPcs) {
+      let restoredCount = 0;
+      for (const [productId, net] of netByProduct) {
+        const restoreKg = net.kg < -0.001 ? Math.round(Math.abs(net.kg) * 1000) / 1000 : null;
+        const restorePcs = net.pcs < 0 ? Math.abs(Math.round(net.pcs)) : null;
+
+        if ((restoreKg && restoreKg > 0) || (restorePcs && restorePcs > 0)) {
           await prisma.inventoryLedger.create({
             data: {
               storeId: sale.storeId,
-              productId: ledger.productId,
-              type: 'IN', // Restore inventory
-              qtyKg: hasQtyKg ? ledger.qtyKg : null,
-              qtyPcs: hasQtyPcs ? ledger.qtyPcs : null,
-              reason: 'ADJUSTMENT', // Use ADJUSTMENT reason for voided sales (adjusting inventory back)
+              productId,
+              type: 'IN', // Restore the net-deducted quantity
+              qtyKg: restoreKg && restoreKg > 0 ? restoreKg : null,
+              qtyPcs: restorePcs && restorePcs > 0 ? restorePcs : null,
+              reason: 'ADJUSTMENT', // Adjusting inventory back for a voided sale
               refId: id,
             },
           });
-          console.log(`[Void API] Restored inventory for product ${ledger.productId}: ${ledger.qtyKg || 0} kg, ${ledger.qtyPcs || 0} pcs`);
+          restoredCount += 1;
+          console.log(`[Void API] Restored net inventory for product ${productId}: ${restoreKg || 0} kg, ${restorePcs || 0} pcs`);
         }
       }
 
@@ -1251,7 +1298,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           metaJson: {
             reason: reason || 'No reason provided',
             userStoreId: storeId,
-            inventoryRestored: existingLedgers.length,
+            inventoryRestored: restoredCount,
           }, // Include user's storeId in metadata
         },
       });

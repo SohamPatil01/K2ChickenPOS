@@ -681,6 +681,15 @@ export async function poRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      // Guard against receiving the same dispatch twice (double inventory add).
+      const existingGrn = await prisma.gRN.findFirst({
+        where: { dispatchId },
+      });
+      if (existingGrn) {
+        reply.code(400).send({ error: 'This dispatch has already been received' });
+        return;
+      }
+
       // Create GRN
       const grn = await prisma.gRN.create({
         data: {
@@ -690,7 +699,9 @@ export async function poRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // Update inventory
+      // Update inventory. Key RECEIVE rows to the PO id (not the dispatch id) so the
+      // finalize step's dedup (which clears RECEIVE rows by PO refId) can replace them
+      // and the received quantity is never counted twice.
       for (const item of dispatch.items) {
         await prisma.inventoryLedger.create({
           data: {
@@ -700,7 +711,7 @@ export async function poRoutes(fastify: FastifyInstance) {
             qtyKg: item.qtyKg,
             qtyPcs: item.qtyPcs,
             reason: 'RECEIVE',
-            refId: dispatchId,
+            refId: dispatch.poId,
           },
         });
       }

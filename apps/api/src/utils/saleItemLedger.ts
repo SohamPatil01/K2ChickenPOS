@@ -7,14 +7,18 @@ export function quantitiesForInventoryDeduction(
   item: { qtyKg?: number | null; qtyPcs?: number | null },
   unitType: 'KG' | 'PCS'
 ): { qtyKg: number | null; qtyPcs: number | null } {
+  // Deduct strictly in the product's native unit. We intentionally do NOT fall back
+  // to the other field (treating pcs as kg or vice versa): that silent conversion
+  // corrupts stock whenever a client populates the unexpected field.
   if (unitType === 'KG') {
     const kg = item.qtyKg;
     if (kg != null && Number(kg) > 0) {
       return { qtyKg: Number(kg), qtyPcs: null };
     }
-    const mistaken = item.qtyPcs;
-    if (mistaken != null && Number(mistaken) > 0) {
-      return { qtyKg: Number(mistaken), qtyPcs: null };
+    if (item.qtyPcs != null && Number(item.qtyPcs) > 0) {
+      console.warn(
+        '[inventory] KG product line missing qtyKg; received qtyPcs instead — skipping deduction to avoid unit corruption'
+      );
     }
     return { qtyKg: null, qtyPcs: null };
   }
@@ -23,9 +27,10 @@ export function quantitiesForInventoryDeduction(
   if (pcs != null && Number(pcs) > 0) {
     return { qtyKg: null, qtyPcs: Math.round(Number(pcs)) };
   }
-  const mistaken = item.qtyKg;
-  if (mistaken != null && Number(mistaken) > 0) {
-    return { qtyKg: null, qtyPcs: Math.round(Number(mistaken)) };
+  if (item.qtyKg != null && Number(item.qtyKg) > 0) {
+    console.warn(
+      '[inventory] PCS product line missing qtyPcs; received qtyKg instead — skipping deduction to avoid unit corruption'
+    );
   }
   return { qtyKg: null, qtyPcs: null };
 }

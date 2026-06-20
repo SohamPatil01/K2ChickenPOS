@@ -1041,7 +1041,14 @@ export default function StorePOSPage() {
 
       const ft = useCartStore.getState().fulfillmentType;
       const fee = useCartStore.getState().deliveryFee;
+      // Stable idempotency key for this checkout attempt so transport-level
+      // retries don't create duplicate bills (and double-deduct inventory).
+      const clientSaleId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const saleData = {
+        clientSaleId,
         customerId: customerId || undefined,
         customerPhone: customerPhone || undefined,
         customerName: customerName || undefined,

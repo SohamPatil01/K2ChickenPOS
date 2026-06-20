@@ -8,6 +8,13 @@ import api from "@/lib/api";
 import { compressImageFile } from "@/lib/compressImage";
 import Link from "next/link";
 
+interface StoreStockBreakdown {
+  storeId: string;
+  storeName: string;
+  qtyKg: number;
+  qtyPcs: number;
+}
+
 interface InventoryItem {
   productId: string;
   productName: string;
@@ -16,6 +23,7 @@ interface InventoryItem {
   unitType: "KG" | "PCS";
   currentQtyKg: number;
   currentQtyPcs: number;
+  storeBreakdown?: StoreStockBreakdown[];
   imageUrl?: string | null;
   pricePerUnit?: number;
   categoryName?: string;
@@ -1183,6 +1191,23 @@ export default function StoreInventoryPage() {
                               {item.currentQtyPcs} pcs
                             </span>
                           )}
+                          {item.storeBreakdown &&
+                            item.storeBreakdown.length > 1 && (
+                              <div className="mt-1.5 flex flex-col gap-0.5">
+                                {item.storeBreakdown.map((b) => (
+                                  <span
+                                    key={b.storeId}
+                                    className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap"
+                                    title={`Stock at ${b.storeName}`}
+                                  >
+                                    {b.storeName}:{" "}
+                                    {item.unitType === "KG"
+                                      ? `${b.qtyKg.toFixed(2)} kg`
+                                      : `${b.qtyPcs} pcs`}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                         </td>
                         <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 text-sm min-w-[140px] sm:min-w-[180px]">
                           <div className="flex flex-col gap-1.5 sm:gap-2">

@@ -57,6 +57,8 @@ export const saleItemSchema = z.object({
 });
 
 export const createSaleSchema = z.object({
+  /** Client-generated idempotency key to dedupe retried/offline-replayed sales */
+  clientSaleId: z.string().min(1).max(64).optional(),
   customerId: z.string().optional(),
   customerPhone: z.string().optional(),
   customerName: z.string().optional(),

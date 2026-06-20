@@ -20,12 +20,11 @@ function resolveSignedAdjustQty(
       ? Number(qtyPcs)
       : null;
 
+  // Adjust strictly in the product's native unit. Do not coerce a value sent in the
+  // wrong field into the native unit — that silent conversion corrupts stock.
   if (unitType === 'KG') {
     if (k !== null && k !== 0) {
       return { signed: k, absQtyKg: Math.abs(k), absQtyPcs: undefined };
-    }
-    if (p !== null && p !== 0) {
-      return { signed: p, absQtyKg: Math.abs(p), absQtyPcs: undefined };
     }
     return null;
   }
@@ -34,13 +33,6 @@ function resolveSignedAdjustQty(
       signed: p,
       absQtyKg: undefined,
       absQtyPcs: Math.abs(Math.round(p)),
-    };
-  }
-  if (k !== null && k !== 0) {
-    return {
-      signed: k,
-      absQtyKg: undefined,
-      absQtyPcs: Math.abs(Math.round(k)),
     };
   }
   return null;
@@ -125,6 +117,16 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         ledgerStoreIds = [storeId];
       }
 
+      // Names for the per-store breakdown (only relevant when aggregating multiple stores).
+      const ledgerStoreRows = await prisma.store.findMany({
+        where: { id: { in: ledgerStoreIds } },
+        select: { id: true, name: true },
+      });
+      const storeNameById = new Map<string, string>(
+        ledgerStoreRows.map((s) => [s.id, s.name])
+      );
+      const isMultiStore = ledgerStoreIds.length > 1;
+
       // Get all products
       const products = await prisma.product.findMany({
         where: {
@@ -151,32 +153,52 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       });
 
       const summary = products.map((product: any) => {
-        let totalQtyKg = 0;
-        let totalQtyPcs = 0;
+        // Accumulate per physical store so an OWNER can see a breakdown instead of one
+        // combined number that matches no single location.
+        const perStore = new Map<string, { kg: number; pcs: number }>();
+        for (const id of ledgerStoreIds) {
+          perStore.set(id, { kg: 0, pcs: 0 });
+        }
 
         for (const ledger of product.inventoryLedgers) {
           if (!ledgerStoreIds.includes(ledger.storeId)) {
             continue;
           }
-          
-          // Handle null/undefined values properly
+
           const qtyKg = ledger.qtyKg !== null && ledger.qtyKg !== undefined ? ledger.qtyKg : 0;
           const qtyPcs = ledger.qtyPcs !== null && ledger.qtyPcs !== undefined ? ledger.qtyPcs : 0;
-          
+          const bucket = perStore.get(ledger.storeId)!;
+
           if (ledger.type === 'IN') {
-            // Round during each operation to prevent floating point precision errors
-            totalQtyKg = Math.round((totalQtyKg + qtyKg) * 1000) / 1000;
-            totalQtyPcs = Math.round(totalQtyPcs + qtyPcs);
+            bucket.kg = Math.round((bucket.kg + qtyKg) * 1000) / 1000;
+            bucket.pcs = Math.round(bucket.pcs + qtyPcs);
           } else {
-            // Round during each operation to prevent floating point precision errors
-            totalQtyKg = Math.round((totalQtyKg - qtyKg) * 1000) / 1000;
-            totalQtyPcs = Math.round(totalQtyPcs - qtyPcs);
+            bucket.kg = Math.round((bucket.kg - qtyKg) * 1000) / 1000;
+            bucket.pcs = Math.round(bucket.pcs - qtyPcs);
           }
         }
-        
-        // Ensure non-negative values and final rounding (use 3 decimal places for consistency)
-        totalQtyKg = Math.max(0, Math.round(totalQtyKg * 1000) / 1000);
-        totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
+
+        let totalQtyKg = 0;
+        let totalQtyPcs = 0;
+        const storeBreakdown: Array<{
+          storeId: string;
+          storeName: string;
+          qtyKg: number;
+          qtyPcs: number;
+        }> = [];
+        for (const id of ledgerStoreIds) {
+          const bucket = perStore.get(id)!;
+          const kg = Math.max(0, Math.round(bucket.kg * 1000) / 1000);
+          const pcs = Math.max(0, Math.round(bucket.pcs));
+          totalQtyKg = Math.round((totalQtyKg + kg) * 1000) / 1000;
+          totalQtyPcs += pcs;
+          storeBreakdown.push({
+            storeId: id,
+            storeName: storeNameById.get(id) || id,
+            qtyKg: kg,
+            qtyPcs: pcs,
+          });
+        }
 
         return {
           productId: product.id,
@@ -186,6 +208,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           unitType: product.unitType,
           currentQtyKg: totalQtyKg,
           currentQtyPcs: totalQtyPcs,
+          // Per-store breakdown (only attached when more than one store is aggregated)
+          storeBreakdown: isMultiStore ? storeBreakdown : undefined,
           imageUrl: product.imageUrl,
           pricePerUnit: product.storeProductPrices[0]?.pricePerUnit || 0,
           categoryName: product.category?.name || '',
@@ -554,6 +578,15 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+        // Compute the ratio in the product's native unit only — never mix kg + pcs.
+        const wastageProduct = await prisma.product.findUnique({
+          where: { id: data.productId },
+          select: { unitType: true },
+        });
+        const isKgProduct = (wastageProduct?.unitType || 'KG') === 'KG';
+        const qtyForUnit = (ledger: { qtyKg: number | null; qtyPcs: number | null }) =>
+          isKgProduct ? ledger.qtyKg || 0 : ledger.qtyPcs || 0;
+
         const receivedLedgers = await prisma.inventoryLedger.findMany({
           where: {
             storeId,
@@ -565,7 +598,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         });
 
         const totalReceived = receivedLedgers.reduce(
-          (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+          (sum, ledger) => sum + qtyForUnit(ledger),
           0
         );
 
@@ -579,11 +612,12 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         });
 
         const existingWastage = wastageLedgers.reduce(
-          (sum, ledger) => sum + (ledger.qtyKg || 0) + (ledger.qtyPcs || 0),
+          (sum, ledger) => sum + qtyForUnit(ledger),
           0
         );
 
-        const totalWastage = existingWastage + (data.qtyKg || 0);
+        const newWastageQty = isKgProduct ? data.qtyKg || 0 : data.qtyPcs || 0;
+        const totalWastage = existingWastage + newWastageQty;
         const wastagePercent = totalReceived > 0 ? (totalWastage / totalReceived) * 100 : 0;
         const allowedPercent = store.franchiseConfig?.allowedWastagePercent || 5.0;
 
