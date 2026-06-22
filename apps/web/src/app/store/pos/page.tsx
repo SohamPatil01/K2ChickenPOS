@@ -29,6 +29,13 @@ import {
   queueOfflineCheckout,
 } from "@/lib/offlineCheckout";
 import { shouldTreatDuplicateCreditPayAsSuccess } from "@/lib/checkoutPayRecovery";
+import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
+import {
+  publishPaymentMode,
+  publishSuccessMode,
+  publishIdleMode,
+  publishCurrentBill,
+} from "@/lib/customerDisplay/publishHelpers";
 
 interface Product {
   id: string;
@@ -1158,6 +1165,9 @@ export default function StorePOSPage() {
       });
       setShowSuccessAnimation(true);
 
+      // Reflect the completed payment on the customer display.
+      publishSuccessMode(roundedSaleGrandTotal, sale.saleNo || null);
+
       window.dispatchEvent(
         new CustomEvent("sale-created", {
           detail: { saleId: sale.id, payments: paymentData.payments },
@@ -1237,6 +1247,21 @@ export default function StorePOSPage() {
       setIsProcessingPayment(false);
     }
   };
+
+  // While the Quick Pay panel is open, keep the customer display's UPI QR in
+  // sync if the payable amount changes (e.g. cashier edits the cart behind it).
+  useEffect(() => {
+    if (!showQuickCheckout) return;
+    let lastTotal = useCartStore.getState().getTotal().grandTotal;
+    const unsub = useCartStore.subscribe(() => {
+      const total = useCartStore.getState().getTotal().grandTotal;
+      if (total !== lastTotal) {
+        lastTotal = total;
+        publishPaymentMode(total, null);
+      }
+    });
+    return () => unsub();
+  }, [showQuickCheckout]);
 
   // Masale products: category Spices/Masale or name contains Masala/Masale (resolve category from list if needed)
   const masaleProducts = products.filter((p) => {
@@ -1325,6 +1350,11 @@ export default function StorePOSPage() {
                   showNotification("Cart is empty", "warning");
                   return;
                 }
+                // Move the customer display into payment mode (dynamic UPI QR).
+                publishPaymentMode(
+                  useCartStore.getState().getTotal().grandTotal,
+                  null
+                );
                 setShowQuickCheckout(true);
               }}
               className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
@@ -1358,6 +1388,7 @@ export default function StorePOSPage() {
                 {items.length}
               </span>
             </Link>
+            <CustomerDisplayButton className="px-4 py-2.5" />
           </div>
         </div>
       </div>
@@ -1792,7 +1823,11 @@ export default function StorePOSPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowQuickCheckout(false)}
+                onClick={() => {
+                  setShowQuickCheckout(false);
+                  // Cashier backed out of payment — return the display to the bill.
+                  publishCurrentBill();
+                }}
                 disabled={isProcessingPayment}
                 className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
@@ -2033,6 +2068,8 @@ export default function StorePOSPage() {
           onComplete={() => {
             setShowSuccessAnimation(false);
             setCompletedSale(null);
+            // Return the customer display to its idle / branding state.
+            publishIdleMode();
           }}
         />
       )}

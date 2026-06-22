@@ -14,6 +14,7 @@ import {
   getPendingSyncCount,
 } from "@/lib/posSync";
 import { refreshOfflineCatalog } from "@/lib/offlineBootstrap";
+import { useCustomerDisplayPublisher } from "@/lib/customerDisplay/useCustomerDisplayPublisher";
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -29,6 +30,10 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [syncBusy, setSyncBusy] = useState(false);
+
+  // Mirror the cashier's live cart to the (optional) customer display. Passive:
+  // no-op unless the cashier has enabled it, never touches billing state.
+  useCustomerDisplayPublisher();
 
   const refreshPendingSync = useCallback(async () => {
     try {

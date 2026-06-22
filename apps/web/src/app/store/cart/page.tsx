@@ -19,6 +19,13 @@ import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
 import { normalizePaymentsForSale } from '@azela-pos/shared';
 import { shouldTreatDuplicateCreditPayAsSuccess } from '@/lib/checkoutPayRecovery';
+import CustomerDisplayButton from '@/components/customerDisplay/CustomerDisplayButton';
+import {
+  publishPaymentMode,
+  publishSuccessMode,
+  publishIdleMode,
+  publishCurrentBill,
+} from '@/lib/customerDisplay/publishHelpers';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -391,7 +398,10 @@ export default function StoreCartPage() {
         grandTotal: roundedSaleGrandTotal,
       });
       setShowSuccessAnimation(true);
-      
+
+      // Reflect the completed payment on the customer display.
+      publishSuccessMode(roundedSaleGrandTotal, sale.saleNo || null);
+
       window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments } }));
       
       // If there's any cash payment, dispatch cash event
@@ -498,15 +508,18 @@ export default function StoreCartPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => router.push('/store/pos')}
-              className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Add Items</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <CustomerDisplayButton />
+              <button
+                onClick={() => router.push('/store/pos')}
+                className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add Items</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1016,7 +1029,10 @@ export default function StoreCartPage() {
                 
                 {/* Enhanced Checkout Button */}
                 <button
-                  onClick={() => setShowPaymentModal(true)}
+                  onClick={() => {
+                    publishPaymentMode(grandTotal, null);
+                    setShowPaymentModal(true);
+                  }}
                   disabled={items.length === 0}
                   className={`w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-orangeGlow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] min-h-[72px] ${
                     items.length > 0 ? 'animate-soft-pulse' : ''
@@ -1073,7 +1089,10 @@ export default function StoreCartPage() {
                     <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</div>
                   </div>
                   <button
-                    onClick={() => setShowPaymentModal(true)}
+                    onClick={() => {
+                      publishPaymentMode(grandTotal, null);
+                      setShowPaymentModal(true);
+                    }}
                     disabled={items.length === 0}
                     className="px-6 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl font-bold text-base shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 disabled:opacity-50"
                   >
@@ -1111,6 +1130,8 @@ export default function StoreCartPage() {
           onClose={() => {
             if (!isProcessingPayment) {
               setShowPaymentModal(false);
+              // Cashier backed out of payment — return display to the bill.
+              publishCurrentBill();
             }
           }}
           onPay={handleCreateSale}
@@ -1132,6 +1153,7 @@ export default function StoreCartPage() {
               onComplete={() => {
                 setShowSuccessAnimation(false);
                 setCompletedSale(null);
+                publishIdleMode();
                 router.push('/store/pos');
               }}
             />
@@ -1150,6 +1172,7 @@ export default function StoreCartPage() {
                 onClick={() => {
                   setShowSuccessAnimation(false);
                   setCompletedSale(null);
+                  publishIdleMode();
                   router.push('/store/pos');
                 }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"

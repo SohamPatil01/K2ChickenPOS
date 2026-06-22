@@ -92,6 +92,7 @@ import { hqFraudAlertsRoutes } from '../src/routes/hq-fraud-alerts.js';
 import { hqYieldIntelligenceRoutes } from '../src/routes/hq-yield-intelligence.js';
 import { hqReplenishmentRoutes } from '../src/routes/hq-replenishment.js';
 import { backupRoutes } from '../src/routes/backup.js';
+import { customerDisplayRoutes } from '../src/routes/customerDisplay.js';
 
 let app: any = null;
 
@@ -277,6 +278,7 @@ async function build() {
   await fastify.register(discountRoutes, { prefix: '/api/v1' });
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
+  await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
 
   // 404 handler for undefined routes
   fastify.setNotFoundHandler(async (request: any, reply: FastifyReply) => {

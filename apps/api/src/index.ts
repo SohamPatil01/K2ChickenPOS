@@ -42,6 +42,7 @@ import { hqFraudAlertsRoutes } from './routes/hq-fraud-alerts.js';
 import { hqYieldIntelligenceRoutes } from './routes/hq-yield-intelligence.js';
 import { hqReplenishmentRoutes } from './routes/hq-replenishment.js';
 import { backupRoutes } from './routes/backup.js';
+import { customerDisplayRoutes } from './routes/customerDisplay.js';
 import { cronRoutes } from './routes/cron.js';
 
 const fastify = Fastify({
@@ -125,6 +126,7 @@ async function build() {
   await fastify.register(discountRoutes, { prefix: '/api/v1' });
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
+  await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(cronRoutes);
 
   return fastify;
