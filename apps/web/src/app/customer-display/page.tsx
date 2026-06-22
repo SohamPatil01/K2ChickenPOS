@@ -22,11 +22,14 @@ import IdleScreen from "./components/IdleScreen";
 import BillingScreen from "./components/BillingScreen";
 import PaymentScreen from "./components/PaymentScreen";
 import SuccessScreen from "./components/SuccessScreen";
+import ReviewScreen from "./components/ReviewScreen";
 import PairingScreen from "./components/PairingScreen";
 
 type Phase = "init" | "pairing" | "connected";
 
-const SUCCESS_AUTORESET_MS = 25000;
+// Hold the "Payment Successful" celebration, then invite a review, then idle.
+const SUCCESS_HOLD_MS = 6000;
+const REVIEW_HOLD_MS = 30000;
 
 export default function CustomerDisplayPage() {
   const [phase, setPhase] = useState<Phase>("init");
@@ -89,7 +92,10 @@ export default function CustomerDisplayPage() {
         setMode("success");
         break;
       case DISPLAY_EVENTS.MODE_IDLE:
-        setMode("idle");
+        // The cashier publishes idle right after the sale completes, but we want
+        // the success + review sequence to run its full course on the display.
+        // A real new transaction (bill.update / payment) still interrupts.
+        setMode((m) => (m === "success" || m === "review" ? m : "idle"));
         break;
       default:
         break;
@@ -118,12 +124,19 @@ export default function CustomerDisplayPage() {
     };
   }, [phase, storeId, sessionToken, handleEvent]);
 
-  // Safety net: if the idle event is missed, drop the success screen anyway.
+  // After the success celebration, advance to the review invitation.
   useEffect(() => {
     if (mode !== "success") return;
-    const id = setTimeout(() => setMode("idle"), SUCCESS_AUTORESET_MS);
+    const id = setTimeout(() => setMode("review"), SUCCESS_HOLD_MS);
     return () => clearTimeout(id);
   }, [mode, success]);
+
+  // After the review screen has been up a while, fall back to idle branding.
+  useEffect(() => {
+    if (mode !== "review") return;
+    const id = setTimeout(() => setMode("idle"), REVIEW_HOLD_MS);
+    return () => clearTimeout(id);
+  }, [mode]);
 
   const showReconnecting =
     phase === "connected" &&
@@ -153,6 +166,8 @@ export default function CustomerDisplayPage() {
               <PaymentScreen data={payment} />
             ) : mode === "success" && success ? (
               <SuccessScreen data={success} />
+            ) : mode === "review" ? (
+              <ReviewScreen />
             ) : (
               <IdleScreen />
             )}

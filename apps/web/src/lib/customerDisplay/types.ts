@@ -56,7 +56,12 @@ export interface IdleModePayload {
   seq: number;
 }
 
-export type DisplayMode = "idle" | "billing" | "payment" | "success";
+export type DisplayMode =
+  | "idle"
+  | "billing"
+  | "payment"
+  | "success"
+  | "review";
 
 export const DISPLAY_CHANNEL_PREFIX = "store:";
 

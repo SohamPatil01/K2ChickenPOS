@@ -11,6 +11,29 @@ export const BRAND = {
   ],
 } as const;
 
+/**
+ * Post-payment "leave us a review" poster shown on the customer display.
+ * The URL can be overridden per deployment with NEXT_PUBLIC_REVIEW_URL.
+ */
+export const REVIEW = {
+  url:
+    (process.env.NEXT_PUBLIC_REVIEW_URL || "").trim() ||
+    "https://g.page/r/CTCzJHARt1JaEBM/review",
+  heading: "Loved our Chicken?",
+  subheading: "Let others know too!",
+  cta: "Scan to leave a review",
+  incentivePercent: "5%",
+  incentiveTitle: "Instant discount",
+  incentiveSub: "on your next order",
+  badges: ["Cut Fresh", "Hygienic", "Delivered Fast"],
+} as const;
+
+/** Returns the configured review URL, or null if explicitly disabled. */
+export function getReviewUrl(): string | null {
+  const url = REVIEW.url.trim();
+  return url ? url : null;
+}
+
 export function formatINR(n: number): string {
   const safe = Number.isFinite(n) ? n : 0;
   return `₹${Math.round(safe).toLocaleString("en-IN")}`;
