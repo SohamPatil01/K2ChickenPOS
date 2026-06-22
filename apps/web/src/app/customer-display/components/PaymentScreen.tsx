@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import QrCode from "@/components/customerDisplay/QrCode";
-import { BRAND, formatINR } from "@/lib/customerDisplay/brand";
+import BrandMark from "@/components/customerDisplay/BrandMark";
+import { formatINR } from "@/lib/customerDisplay/brand";
 import type { PaymentModePayload } from "@/lib/customerDisplay/types";
 
 export default function PaymentScreen({ data }: { data: PaymentModePayload }) {
@@ -16,16 +17,12 @@ export default function PaymentScreen({ data }: { data: PaymentModePayload }) {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center gap-3"
       >
-        <img
-          src={BRAND.logoPath}
-          alt={BRAND.name}
-          className="h-12 w-12 object-contain"
+        <BrandMark
+          logoSizeClass="h-14 w-14"
+          nameSizeClass="text-2xl sm:text-3xl"
+          badgePadClass="p-2"
         />
-        <span className="text-2xl font-bold text-white sm:text-3xl">
-          {BRAND.name}
-        </span>
       </motion.div>
 
       <p className="mt-6 text-xl text-white/60 sm:text-2xl">Amount to pay</p>

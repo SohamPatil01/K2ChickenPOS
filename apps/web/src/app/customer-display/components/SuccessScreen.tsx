@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { BRAND, formatINR } from "@/lib/customerDisplay/brand";
+import BrandMark from "@/components/customerDisplay/BrandMark";
 import type { SuccessModePayload } from "@/lib/customerDisplay/types";
 
 export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
@@ -73,10 +74,10 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
         transition={{ delay: 0.8 }}
         className="mt-12 flex flex-col items-center"
       >
-        <img
-          src={BRAND.logoPath}
-          alt={BRAND.name}
-          className="h-14 w-14 object-contain opacity-80"
+        <BrandMark
+          logoSizeClass="h-14 w-14"
+          badgePadClass="p-2"
+          showName={false}
         />
         <p className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
           Thank you for shopping at {BRAND.name}!

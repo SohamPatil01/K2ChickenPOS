@@ -3,7 +3,7 @@ export const BRAND = {
   name: "K2 Chicken",
   tagline: "Fresh. Hygienic. Delivered with care.",
   phone: "8484978622",
-  logoPath: "/k2-chicken-logo.svg",
+  logoPath: "/chicken-vicken-logo.png",
   promos: [
     "Earn 1 loyalty point for every ₹10 spent",
     "Ask about today's fresh cuts & combos",

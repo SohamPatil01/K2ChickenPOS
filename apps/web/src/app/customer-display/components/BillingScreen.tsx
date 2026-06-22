@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BRAND, formatINR, formatINR2 } from "@/lib/customerDisplay/brand";
+import { formatINR, formatINR2 } from "@/lib/customerDisplay/brand";
+import BrandMark from "@/components/customerDisplay/BrandMark";
 import type { BillUpdatePayload, DisplayLineItem } from "@/lib/customerDisplay/types";
 
 function qtyLabel(item: DisplayLineItem): string {
@@ -22,19 +23,11 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
     <div className="flex h-full w-full flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 px-8 py-5">
-        <div className="flex items-center gap-4">
-          <img
-            src={BRAND.logoPath}
-            alt={BRAND.name}
-            className="h-12 w-12 object-contain sm:h-14 sm:w-14"
-          />
-          <div>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">
-              {BRAND.name}
-            </h1>
-            <p className="text-sm text-white/50">Your order</p>
-          </div>
-        </div>
+        <BrandMark
+          logoSizeClass="h-12 w-12 sm:h-14 sm:w-14"
+          nameSizeClass="text-xl sm:text-2xl"
+          badgePadClass="p-2"
+        />
         <div className="text-right">
           {bill.customerName ? (
             <p className="text-lg font-semibold text-amber-200 sm:text-xl">
@@ -53,13 +46,17 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
       <div className="flex-1 overflow-hidden px-8 py-4">
         {!hasItems ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <motion.img
-              src={BRAND.logoPath}
-              alt={BRAND.name}
-              className="mb-6 h-28 w-28 object-contain opacity-60"
+            <motion.div
+              className="mb-6"
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 3, repeat: Infinity }}
-            />
+            >
+              <BrandMark
+                logoSizeClass="h-24 w-24"
+                badgePadClass="p-3"
+                showName={false}
+              />
+            </motion.div>
             <p className="text-2xl font-medium text-white/70">
               Scanning your items…
             </p>

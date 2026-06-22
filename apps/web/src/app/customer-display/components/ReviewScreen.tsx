@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import QrCode from "@/components/customerDisplay/QrCode";
+import BrandMark from "@/components/customerDisplay/BrandMark";
 import { BRAND, REVIEW, getReviewUrl } from "@/lib/customerDisplay/brand";
 
 const FLOATING_HEARTS = [
@@ -72,12 +73,16 @@ export default function ReviewScreen() {
       >
         {/* LEFT: message + incentive + badges */}
         <div className="flex flex-1 flex-col items-center px-7 py-8 text-center lg:items-start lg:px-10 lg:text-left">
-          <div className="flex items-center gap-3">
-            <img src={BRAND.logoPath} alt={BRAND.name} className="h-11 w-11 object-contain" />
-            <div className="leading-tight">
-              <p className="text-2xl font-black text-[#9a1b1b] sm:text-3xl">{BRAND.name}</p>
-              <p className="text-xs font-medium text-[#9a1b1b]/60 sm:text-sm">{BRAND.tagline}</p>
-            </div>
+          <div className="flex flex-col items-center lg:items-start">
+            <BrandMark
+              logoSizeClass="h-14 w-14"
+              nameSizeClass="text-2xl sm:text-3xl"
+              nameColorClass="text-[#9a1b1b]"
+              badgePadClass="p-1.5"
+            />
+            <p className="mt-1 text-xs font-medium text-[#9a1b1b]/60 sm:text-sm">
+              {BRAND.tagline}
+            </p>
           </div>
 
           <div className="mt-6">

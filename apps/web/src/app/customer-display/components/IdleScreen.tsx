@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BRAND } from "@/lib/customerDisplay/brand";
+import BrandMark from "@/components/customerDisplay/BrandMark";
 
 export default function IdleScreen() {
   const [promoIndex, setPromoIndex] = useState(0);
@@ -26,16 +27,17 @@ export default function IdleScreen() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="flex flex-col items-center"
       >
-        <motion.img
-          src={BRAND.logoPath}
-          alt={BRAND.name}
-          className="mb-8 h-40 w-40 object-contain drop-shadow-2xl sm:h-52 sm:w-52"
+        <motion.div
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <h1 className="text-5xl font-black tracking-tight text-white sm:text-7xl">
-          {BRAND.name}
-        </h1>
+        >
+          <BrandMark
+            logoSizeClass="h-36 w-36 sm:h-44 sm:w-44"
+            nameSizeClass="text-5xl sm:text-7xl"
+            badgePadClass="p-5"
+            className="drop-shadow-2xl"
+          />
+        </motion.div>
         <p className="mt-4 text-xl text-amber-200/80 sm:text-2xl">
           {BRAND.tagline}
         </p>
