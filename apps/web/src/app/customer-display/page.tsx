@@ -28,8 +28,8 @@ import PairingScreen from "./components/PairingScreen";
 type Phase = "init" | "pairing" | "connected";
 
 // Hold the "Payment Successful" celebration, then invite a review, then idle.
-const SUCCESS_HOLD_MS = 6000;
-const REVIEW_HOLD_MS = 30000;
+const SUCCESS_HOLD_MS = 3000;
+const REVIEW_HOLD_MS = 120000;
 
 export default function CustomerDisplayPage() {
   const [phase, setPhase] = useState<Phase>("init");
@@ -139,8 +139,7 @@ export default function CustomerDisplayPage() {
   }, [mode]);
 
   const showReconnecting =
-    phase === "connected" &&
-    (status === "reconnecting" || status === "failed");
+    phase === "connected" && (status === "reconnecting" || status === "failed");
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white">
