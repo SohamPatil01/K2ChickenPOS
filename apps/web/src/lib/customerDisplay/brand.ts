@@ -5,7 +5,7 @@ export const BRAND = {
   phone: "8484978622",
   logoPath: "/chicken-vicken-logo.png",
   promos: [
-    "Earn 1 loyalty point for every ₹10 spent",
+    "Earn loyalty points on every purchase",
     "Ask about today's fresh cuts & combos",
     "Home delivery available — ask the counter",
   ],

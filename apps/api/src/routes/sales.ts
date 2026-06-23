@@ -1042,9 +1042,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Award loyalty points if customer exists
       if (sale.customerId) {
         try {
-          // Calculate points: 1 point per ₹10 spent (configurable)
-          const pointsPerRupee = 0.1; // 1 point per ₹10 = 0.1 points per ₹1
-          const pointsEarned = Math.floor(sale.grandTotal * pointsPerRupee);
+          // Calculate points: 1.25% of the purchase total.
+          const pointsRate = 0.0125; // 1.25% of grand total
+          const pointsEarned = Math.floor(sale.grandTotal * pointsRate);
 
           if (pointsEarned > 0) {
             const customer = await prisma.customer.findFirst({

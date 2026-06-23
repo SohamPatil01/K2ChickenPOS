@@ -69,9 +69,9 @@ export function displayChannelName(storeId: string): string {
   return `${DISPLAY_CHANNEL_PREFIX}${storeId}:display`;
 }
 
-/** Loyalty rule mirrored from the server: 1 point per Rs.10 (0.1 pt / Rs). */
+/** Loyalty rule mirrored from the server: 1.25% of the purchase total. */
 export function estimateLoyaltyPoints(grandTotal: number): number {
-  return Math.floor(Math.max(0, grandTotal) * 0.1);
+  return Math.floor(Math.max(0, grandTotal) * 0.0125);
 }
 
 const PAIR_STORAGE_KEY = "k2-customer-display-session";
