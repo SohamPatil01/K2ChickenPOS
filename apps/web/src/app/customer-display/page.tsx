@@ -28,7 +28,7 @@ import PairingScreen from "./components/PairingScreen";
 type Phase = "init" | "pairing" | "connected";
 
 // Hold the "Payment Successful" celebration, then invite a review, then idle.
-const SUCCESS_HOLD_MS = 3000;
+const SUCCESS_HOLD_MS = 4000;
 const REVIEW_HOLD_MS = 120000;
 
 export default function CustomerDisplayPage() {
@@ -43,6 +43,10 @@ export default function CustomerDisplayPage() {
   const [success, setSuccess] = useState<SuccessModePayload | null>(null);
 
   const lastSeqRef = useRef(0);
+  const modeRef = useRef<DisplayMode>("idle");
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Resolve the pairing token (from ?pair= or stored session) on mount.
   useEffect(() => {
@@ -79,10 +83,23 @@ export default function CustomerDisplayPage() {
       lastSeqRef.current = data.seq;
     }
     switch (name) {
-      case DISPLAY_EVENTS.BILL_UPDATE:
-        setBill(data as BillUpdatePayload);
+      case DISPLAY_EVENTS.BILL_UPDATE: {
+        const payload = data as BillUpdatePayload;
+        // After a sale we hold success → review. Clearing the cashier's cart
+        // emits an empty bill snapshot; ignore it here so it doesn't bounce the
+        // display into an empty billing screen. A real next customer (items
+        // present) still takes over immediately.
+        const cur = modeRef.current;
+        if (
+          (cur === "success" || cur === "review") &&
+          (!payload.items || payload.items.length === 0)
+        ) {
+          break;
+        }
+        setBill(payload);
         setMode("billing");
         break;
+      }
       case DISPLAY_EVENTS.MODE_PAYMENT:
         setPayment(data as PaymentModePayload);
         setMode("payment");
