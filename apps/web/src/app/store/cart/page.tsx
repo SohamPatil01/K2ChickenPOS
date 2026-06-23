@@ -438,7 +438,7 @@ export default function StoreCartPage() {
       setShowSuccessAnimation(true);
 
       // Reflect the completed payment on the customer display.
-      publishSuccessMode(roundedSaleGrandTotal, sale.saleNo || null);
+      publishSuccessMode(roundedSaleGrandTotal, sale.saleNo || null, sale.id || null);
 
       window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments } }));
       

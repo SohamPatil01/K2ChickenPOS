@@ -1,11 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { BRAND, formatINR } from "@/lib/customerDisplay/brand";
 import BrandMark from "@/components/customerDisplay/BrandMark";
+import QrCode from "@/components/customerDisplay/QrCode";
 import type { SuccessModePayload } from "@/lib/customerDisplay/types";
 
 export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
+  // Build the digital-bill link from the display's own origin (same web app
+  // serves /bill/<id>). Computed after mount to avoid hydration mismatch.
+  const [billUrl, setBillUrl] = useState("");
+  useEffect(() => {
+    if (data.saleId && typeof window !== "undefined") {
+      setBillUrl(`${window.location.origin}/bill/${data.saleId}`);
+    } else {
+      setBillUrl("");
+    }
+  }, [data.saleId]);
+
   return (
     <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden px-6 text-center">
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vh] w-[80vh] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/20 blur-[120px]" />
@@ -68,11 +81,32 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
         )}
       </motion.div>
 
+      {billUrl && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.7, type: "spring", stiffness: 180, damping: 16 }}
+          className="mt-8 flex flex-col items-center"
+        >
+          <div className="rounded-2xl bg-white p-4 shadow-2xl">
+            <QrCode
+              value={billUrl}
+              size={300}
+              alt="Scan to view your digital bill"
+              className="h-40 w-40 sm:h-48 sm:w-48"
+            />
+          </div>
+          <p className="mt-3 text-lg font-semibold text-white sm:text-xl">
+            📱 Scan for your digital bill
+          </p>
+        </motion.div>
+      )}
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
-        className="mt-12 flex flex-col items-center"
+        className="mt-10 flex flex-col items-center"
       >
         <BrandMark
           logoSizeClass="h-14 w-14"

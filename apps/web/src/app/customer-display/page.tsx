@@ -27,8 +27,9 @@ import PairingScreen from "./components/PairingScreen";
 
 type Phase = "init" | "pairing" | "connected";
 
-// Hold the "Payment Successful" celebration, then invite a review, then idle.
-const SUCCESS_HOLD_MS = 4000;
+// Hold the "Payment Successful" celebration (long enough to scan the digital
+// bill QR), then invite a review, then idle.
+const SUCCESS_HOLD_MS = 18000;
 const REVIEW_HOLD_MS = 120000;
 
 export default function CustomerDisplayPage() {

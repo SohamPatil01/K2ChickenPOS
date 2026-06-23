@@ -50,6 +50,8 @@ export interface SuccessModePayload {
   amountPaid: number;
   invoiceNo: string | null;
   loyaltyPointsEarned: number;
+  /** Sale id used to build the scannable digital-bill link (/bill/<id>). */
+  saleId: string | null;
 }
 
 export interface IdleModePayload {

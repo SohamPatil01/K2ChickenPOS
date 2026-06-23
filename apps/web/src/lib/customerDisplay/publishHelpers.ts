@@ -95,7 +95,8 @@ export function publishPaymentMode(
 /** Show the success screen with the real sale number + earned loyalty points. */
 export function publishSuccessMode(
   amountPaid: number,
-  invoiceNo: string | null
+  invoiceNo: string | null,
+  saleId: string | null = null
 ): void {
   const store = useCustomerDisplayStore.getState();
   if (!store.active) return;
@@ -103,6 +104,7 @@ export function publishSuccessMode(
     amountPaid,
     invoiceNo,
     loyaltyPointsEarned: estimateLoyaltyPoints(amountPaid),
+    saleId,
   });
 }
 

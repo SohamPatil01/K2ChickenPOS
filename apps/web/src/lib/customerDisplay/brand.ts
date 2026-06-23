@@ -3,6 +3,9 @@ export const BRAND = {
   name: "K2 Chicken",
   tagline: "Fresh. Hygienic. Delivered with care.",
   phone: "8484978622",
+  website: "www.k2chicken.com",
+  address:
+    "Shop No. 4, 24K Glitterati, New DP Rd, Kolte Patil, Vishal Nagar, Pimple Nilakh, Pimpri-Chinchwad, Maharashtra 411027",
   logoPath: "/chicken-vicken-logo.png",
   promos: [
     "Earn loyalty points on every purchase",
