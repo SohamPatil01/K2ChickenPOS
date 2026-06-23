@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { offlineDB, CartItem } from '@azela-pos/offline';
+import { LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 
 export type FulfillmentType = 'PICKUP' | 'DELIVERY';
 
@@ -49,6 +50,8 @@ interface CartState {
   discountPercentage: number;
   fulfillmentType: FulfillmentType;
   deliveryFee: number;
+  /** Loyalty points the customer is redeeming on this bill (1 point = ₹1). */
+  loyaltyRedeemPoints: number;
   loadCart: () => Promise<void>;
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
@@ -59,8 +62,18 @@ interface CartState {
   setDiscountPercentage: (percentage: number) => void;
   setFulfillmentType: (type: FulfillmentType) => void;
   setDeliveryFee: (fee: number) => void;
+  setLoyaltyRedeemPoints: (points: number) => void;
   clearCart: () => Promise<void>;
-  getTotal: () => { subTotal: number; taxTotal: number; deliveryFee: number; grandTotal: number };
+  getTotal: () => {
+    subTotal: number;
+    taxTotal: number;
+    deliveryFee: number;
+    grandTotal: number;
+    /** ₹ amount knocked off the bill by redeemed loyalty points. */
+    loyaltyDiscount: number;
+    /** Points actually applied after capping to balance/bill. */
+    loyaltyPointsApplied: number;
+  };
 }
 
 export const useCartStore = create<CartState>((set, get) => ({
@@ -74,6 +87,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   discountPercentage: 0,
   fulfillmentType: 'PICKUP',
   deliveryFee: 0,
+  loyaltyRedeemPoints: 0,
   loadCart: async () => {
     try {
       const items = await offlineDB.cart.toArray();
@@ -158,11 +172,13 @@ export const useCartStore = create<CartState>((set, get) => ({
         ? { customerArea: customerArea ? String(customerArea).trim() || null : null }
         : {};
     console.log('[Cart Store] setCustomer called:', { customerId, customerPhone, customerName: name, customerArea });
+    // Points belong to a specific customer — clear any pending redemption when
+    // the attached customer changes (or is removed).
     if (!customerId) {
-      set({ customerId, customerPhone, customerName: name, ...areaUpdate, fulfillmentType: 'PICKUP' });
+      set({ customerId, customerPhone, customerName: name, ...areaUpdate, fulfillmentType: 'PICKUP', loyaltyRedeemPoints: 0 });
       return;
     }
-    set({ customerId, customerPhone, customerName: name, ...areaUpdate });
+    set({ customerId, customerPhone, customerName: name, ...areaUpdate, loyaltyRedeemPoints: 0 });
   },
   setDiscount: (discountTotal) => {
     set({ discountTotal });
@@ -195,12 +211,16 @@ export const useCartStore = create<CartState>((set, get) => ({
     const fee = Math.max(0, Math.round(deliveryFee));
     set({ deliveryFee: fee });
   },
+  setLoyaltyRedeemPoints: (points: number) => {
+    const safe = Math.max(0, Math.floor(Number(points) || 0));
+    set({ loyaltyRedeemPoints: safe });
+  },
   clearCart: async () => {
     await offlineDB.cart.clear();
-    set({ items: [], customerId: null, customerPhone: null, customerName: null, customerArea: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP', deliveryFee: 0 });
+    set({ items: [], customerId: null, customerPhone: null, customerName: null, customerArea: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP', deliveryFee: 0, loyaltyRedeemPoints: 0 });
   },
   getTotal: () => {
-    const { items, discountTotal, discountType, discountPercentage, deliveryFee, fulfillmentType } = get();
+    const { items, discountTotal, discountType, discountPercentage, deliveryFee, fulfillmentType, loyaltyRedeemPoints } = get();
     const effectiveDeliveryFee = fulfillmentType === 'DELIVERY' ? deliveryFee : 0;
     let subTotal = 0;
     let taxTotal = 0;
@@ -229,7 +249,22 @@ export const useCartStore = create<CartState>((set, get) => ({
     // Round grand total to nearest integer for checkout
     const roundedGrandTotal = Math.round(grandTotal);
 
-    return { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal: roundedGrandTotal };
+    // Apply loyalty redemption last (1 point = ₹LOYALTY_POINT_VALUE). Cap so the
+    // bill never goes below zero; this mirrors the server-side calculation.
+    const requestedPoints = Math.max(0, Math.floor(loyaltyRedeemPoints || 0));
+    const maxRedeemableValue = roundedGrandTotal;
+    const loyaltyDiscount = Math.min(requestedPoints * LOYALTY_POINT_VALUE, maxRedeemableValue);
+    const loyaltyPointsApplied = Math.floor(loyaltyDiscount / LOYALTY_POINT_VALUE);
+    const finalGrandTotal = roundedGrandTotal - loyaltyDiscount;
+
+    return {
+      subTotal,
+      taxTotal,
+      deliveryFee: effectiveDeliveryFee,
+      grandTotal: finalGrandTotal,
+      loyaltyDiscount,
+      loyaltyPointsApplied,
+    };
   },
 }));
 

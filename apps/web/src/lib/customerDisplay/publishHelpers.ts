@@ -18,13 +18,18 @@ import {
 /** Build a bill snapshot from current cart state, mirroring getTotal() math. */
 export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
   const cart = useCartStore.getState();
-  const { subTotal, taxTotal, deliveryFee, grandTotal } = cart.getTotal();
+  const { subTotal, taxTotal, deliveryFee, grandTotal, loyaltyDiscount } =
+    cart.getTotal();
 
   let discount = cart.discountTotal;
   if (cart.discountType === "percentage" && cart.discountPercentage > 0) {
     discount = (subTotal * cart.discountPercentage) / 100;
   }
   discount = Math.round(discount * 100) / 100;
+
+  // Total customer savings = manual discount + loyalty points redeemed (₹).
+  const totalSavings =
+    Math.round((discount + (loyaltyDiscount || 0)) * 100) / 100;
 
   const items: DisplayLineItem[] = cart.items.map((it) => ({
     name: it.productName,
@@ -45,7 +50,7 @@ export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
     deliveryFee,
     grandTotal,
     loyaltyPointsEst: estimateLoyaltyPoints(grandTotal),
-    savings: discount,
+    savings: totalSavings,
   };
 }
 

@@ -1062,6 +1062,9 @@ export default function StorePOSPage() {
         customerArea: useCartStore.getState().customerArea || undefined,
         discountTotal: discountTotal || 0,
         deliveryFee: ft === "DELIVERY" ? fee || 0 : 0,
+        loyaltyPointsRedeemed: customerId
+          ? useCartStore.getState().getTotal().loyaltyPointsApplied
+          : 0,
         items: cartItems.map((item) => ({
           productId: item.productId,
           qtyKg: item.qtyKg || undefined,
@@ -1205,6 +1208,9 @@ export default function StorePOSPage() {
             customerName: customerName || undefined,
             discountTotal: discountTotal || 0,
             deliveryFee: ftFb === "DELIVERY" ? feeFb || 0 : 0,
+            loyaltyPointsRedeemed: customerId
+              ? useCartStore.getState().getTotal().loyaltyPointsApplied
+              : 0,
             items: cartItems.map((item) => ({
               productId: item.productId,
               qtyKg: item.qtyKg || undefined,

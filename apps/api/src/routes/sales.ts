@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
-import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee } from '@azela-pos/shared';
+import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -607,9 +607,29 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Calculate grand total and round to nearest integer to match frontend
-      const grandTotal = Math.round((subTotal + taxTotal - data.discountTotal + deliveryFee) * 100) / 100;
-      const roundedGrandTotal = Math.round(grandTotal);
+      // Base payable before loyalty redemption (rounded to match the frontend).
+      const baseGrandTotal = Math.round((subTotal + taxTotal - data.discountTotal + deliveryFee) * 100) / 100;
+      const roundedBaseGrandTotal = Math.round(baseGrandTotal);
+
+      // Loyalty redemption at checkout (1 point = ₹LOYALTY_POINT_VALUE). Only when
+      // a customer is attached; cap to their live balance and to the bill so the
+      // payable can never go below zero. This mirrors the cart store calculation.
+      let loyaltyPointsToRedeem = 0;
+      let loyaltyRedeemValue = 0;
+      const requestedRedeem = Math.max(0, Math.floor((data as any).loyaltyPointsRedeemed || 0));
+      if (requestedRedeem > 0 && customerId) {
+        const redeemCustomer = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { loyaltyPoints: true },
+        });
+        const available = Math.floor(redeemCustomer?.loyaltyPoints || 0);
+        const maxByBill = Math.floor(roundedBaseGrandTotal / LOYALTY_POINT_VALUE);
+        loyaltyPointsToRedeem = Math.max(0, Math.min(requestedRedeem, available, maxByBill));
+        loyaltyRedeemValue = loyaltyPointsToRedeem * LOYALTY_POINT_VALUE;
+      }
+
+      const grandTotal = baseGrandTotal - loyaltyRedeemValue;
+      const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue;
 
       // Check for recent duplicate sale (within last 5 seconds with same items and total)
       const fiveSecondsAgo = new Date(Date.now() - 5000);
@@ -692,6 +712,37 @@ export async function saleRoutes(fastify: FastifyInstance) {
           created.items,
           unitMapCreate
         );
+
+        // Deduct redeemed loyalty points atomically with the sale, and record a
+        // REDEEM transaction tied to this sale (so it shows in loyalty history and
+        // can be restored if the sale is later voided).
+        if (loyaltyPointsToRedeem > 0 && customerId) {
+          const redeemCur = await tx.customer.findUnique({
+            where: { id: customerId },
+            select: { loyaltyPoints: true },
+          });
+          const curPoints = Math.floor(redeemCur?.loyaltyPoints || 0);
+          const applied = Math.max(0, Math.min(loyaltyPointsToRedeem, curPoints));
+          if (applied > 0) {
+            const newBalance = curPoints - applied;
+            await tx.customer.update({
+              where: { id: customerId },
+              data: { loyaltyPoints: newBalance },
+            });
+            await tx.loyaltyTransaction.create({
+              data: {
+                customerId,
+                storeId,
+                type: 'REDEEM',
+                points: -applied,
+                balance: newBalance,
+                description: `Redeemed ${applied} points on ${saleNo}`,
+                saleId: created.id,
+                createdBy: userId,
+              },
+            });
+          }
+        }
 
         return created;
       });
@@ -1282,6 +1333,52 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Restore any loyalty points the customer redeemed against this sale, so a
+      // voided bill doesn't cost them their points. Guarded against double-restore.
+      let pointsRestored = 0;
+      if (sale.customerId) {
+        try {
+          const redeemTxns = await prisma.loyaltyTransaction.findMany({
+            where: { saleId: id, type: 'REDEEM' },
+          });
+          const redeemedPoints = redeemTxns.reduce(
+            (sum, t) => sum + Math.abs(t.points || 0),
+            0
+          );
+          if (redeemedPoints > 0) {
+            const alreadyRestored = await prisma.loyaltyTransaction.findFirst({
+              where: { saleId: id, type: 'ADJUST', points: { gt: 0 } },
+            });
+            if (!alreadyRestored) {
+              const cust = await prisma.customer.findUnique({
+                where: { id: sale.customerId },
+                select: { loyaltyPoints: true },
+              });
+              const newBalance = (cust?.loyaltyPoints || 0) + redeemedPoints;
+              await prisma.customer.update({
+                where: { id: sale.customerId },
+                data: { loyaltyPoints: newBalance },
+              });
+              await prisma.loyaltyTransaction.create({
+                data: {
+                  customerId: sale.customerId,
+                  storeId: sale.storeId,
+                  type: 'ADJUST',
+                  points: redeemedPoints,
+                  balance: newBalance,
+                  description: `Restored ${redeemedPoints} redeemed points from voided ${sale.saleNo}`,
+                  saleId: id,
+                  createdBy: userId,
+                },
+              });
+              pointsRestored = redeemedPoints;
+            }
+          }
+        } catch (loyaltyErr) {
+          console.warn('[Void API] Could not restore redeemed loyalty points:', loyaltyErr);
+        }
+      }
+
       const updatedSale = await prisma.sale.update({
         where: { id },
         data: { status: 'VOID' },
@@ -1299,6 +1396,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             reason: reason || 'No reason provided',
             userStoreId: storeId,
             inventoryRestored: restoredCount,
+            loyaltyPointsRestored: pointsRestored,
           }, // Include user's storeId in metadata
         },
       });

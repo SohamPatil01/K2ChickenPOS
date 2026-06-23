@@ -13,8 +13,11 @@ export type OfflineCreateSalePayload = {
   customerId?: string;
   customerPhone?: string;
   customerName?: string;
+  customerArea?: string;
   discountTotal: number;
   deliveryFee?: number;
+  /** Loyalty points redeemed at checkout (1 point = ₹1). */
+  loyaltyPointsRedeemed?: number;
 };
 
 /** True when the browser reports no connectivity. */

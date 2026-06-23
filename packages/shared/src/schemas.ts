@@ -67,7 +67,12 @@ export const createSaleSchema = z.object({
   discountTotal: z.number().default(0),
   deliveryFee: z.number().min(0).default(0),
   couponCode: z.string().optional(),
+  /** Loyalty points the customer chooses to redeem at checkout (1 point = ₹1). */
+  loyaltyPointsRedeemed: z.number().int().min(0).default(0),
 });
+
+/** Monetary value of one loyalty point when redeemed at checkout (₹). */
+export const LOYALTY_POINT_VALUE = 1;
 
 const paymentMethodEnum = z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']);
 

@@ -17,7 +17,7 @@ import {
 } from '@/lib/offlineCheckout';
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
-import { normalizePaymentsForSale } from '@azela-pos/shared';
+import { normalizePaymentsForSale, LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 import { shouldTreatDuplicateCreditPayAsSuccess } from '@/lib/checkoutPayRecovery';
 import CustomerDisplayButton from '@/components/customerDisplay/CustomerDisplayButton';
 import {
@@ -53,6 +53,8 @@ export default function StoreCartPage() {
   const setDeliveryFee = useCartStore((state) => state.setDeliveryFee);
   const loadCart = useCartStore((state) => state.loadCart);
   const clearCart = useCartStore((state) => state.clearCart);
+  const loyaltyRedeemPoints = useCartStore((state) => state.loyaltyRedeemPoints);
+  const setLoyaltyRedeemPoints = useCartStore((state) => state.setLoyaltyRedeemPoints);
 
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -73,6 +75,29 @@ export default function StoreCartPage() {
   const [showCustomerSection, setShowCustomerSection] = useState(true); // Show by default
   const [skipCustomer, setSkipCustomer] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
+  // Live loyalty balance for the attached customer (for redeem-at-checkout).
+  const [customerPoints, setCustomerPoints] = useState<number | null>(null);
+
+  // Fetch the attached customer's loyalty balance so the cashier can redeem it.
+  useEffect(() => {
+    let cancelled = false;
+    if (!customerId || skipCustomer) {
+      setCustomerPoints(null);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.get(`/api/v1/customers/${customerId}/loyalty`);
+        const pts = Math.floor(res.data?.customer?.loyaltyPoints || 0);
+        if (!cancelled) setCustomerPoints(pts);
+      } catch {
+        if (!cancelled) setCustomerPoints(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, skipCustomer]);
 
   useEffect(() => {
     if (!user) {
@@ -269,6 +294,7 @@ export default function StoreCartPage() {
     setIsProcessingPayment(true);
 
     const buildSaleData = () => {
+      const state = useCartStore.getState();
       const {
         items,
         customerId,
@@ -278,7 +304,10 @@ export default function StoreCartPage() {
         discountTotal,
         fulfillmentType: ft,
         deliveryFee: fee,
-      } = useCartStore.getState();
+      } = state;
+      // Loyalty redemption only applies to an attached (non-walk-in) customer.
+      const loyaltyPointsRedeemed =
+        !skipCustomer && customerId ? state.getTotal().loyaltyPointsApplied : 0;
       return {
         items: items.map((item) => ({
           productId: item.productId,
@@ -294,6 +323,7 @@ export default function StoreCartPage() {
         customerArea: !skipCustomer && customerArea ? customerArea : undefined,
         discountTotal: discountTotal || 0,
         deliveryFee: ft === 'DELIVERY' ? fee || 0 : 0,
+        loyaltyPointsRedeemed,
       };
     };
 
@@ -468,7 +498,18 @@ export default function StoreCartPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items.length, isProcessingPayment, showPaymentModal, handleCreateSale, getTotal]);
 
-  const { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal } = getTotal();
+  const { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal, loyaltyDiscount } = getTotal();
+  // Loyalty redeem caps (1 point = ₹LOYALTY_POINT_VALUE). The bill before redemption
+  // is the net grand total plus whatever is currently being redeemed.
+  const billBeforeRedeem = grandTotal + loyaltyDiscount;
+  const maxRedeemablePoints = Math.max(
+    0,
+    Math.min(
+      Math.floor(customerPoints || 0),
+      Math.floor(billBeforeRedeem / LOYALTY_POINT_VALUE)
+    )
+  );
+  const canRedeemLoyalty = !!customerId && !skipCustomer && (customerPoints ?? 0) > 0;
 
   const handleRemoveItem = async (item: any) => {
     if (!item?.id) return;
@@ -996,6 +1037,62 @@ export default function StoreCartPage() {
                     </div>
                   </div>
                   
+                  {/* Redeem loyalty points at checkout (1 point = ₹1) */}
+                  {canRedeemLoyalty && (
+                    <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                          <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          Redeem Loyalty Points
+                        </label>
+                        <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                          {customerPoints} pts available
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={maxRedeemablePoints}
+                          value={loyaltyRedeemPoints || ''}
+                          onChange={(e) => {
+                            const v = Math.floor(parseFloat(e.target.value) || 0);
+                            setLoyaltyRedeemPoints(Math.max(0, Math.min(v, maxRedeemablePoints)));
+                          }}
+                          className="flex-1 px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          placeholder="0"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setLoyaltyRedeemPoints(maxRedeemablePoints)}
+                          className="px-4 py-3 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+                        >
+                          Max
+                        </button>
+                        {loyaltyRedeemPoints > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setLoyaltyRedeemPoints(0)}
+                            className="px-4 py-3 text-xs font-semibold rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      {loyaltyDiscount > 0 ? (
+                        <div className="mt-2 text-sm text-center text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-lg">
+                          Redeeming <span className="font-semibold">{loyaltyDiscount} pts</span> = <span className="font-semibold">−₹{loyaltyDiscount}</span> off this bill
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                          1 point = ₹{LOYALTY_POINT_VALUE}. Points are deducted when the bill is paid.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {fulfillmentType === 'DELIVERY' && customerId && (
                     <div className="pt-3">
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -1018,6 +1115,12 @@ export default function StoreCartPage() {
                       <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
                         <span>Delivery fee</span>
                         <span>₹{effectiveDeliveryFee}</span>
+                      </div>
+                    )}
+                    {loyaltyDiscount > 0 && (
+                      <div className="flex justify-between items-center text-sm text-green-700 dark:text-green-400">
+                        <span>Loyalty redeemed</span>
+                        <span>−₹{loyaltyDiscount}</span>
                       </div>
                     )}
                     <div className="flex justify-between items-center">
