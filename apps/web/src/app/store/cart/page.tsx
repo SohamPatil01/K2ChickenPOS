@@ -509,7 +509,10 @@ export default function StoreCartPage() {
       Math.floor(billBeforeRedeem / LOYALTY_POINT_VALUE)
     )
   );
-  const canRedeemLoyalty = !!customerId && !skipCustomer && (customerPoints ?? 0) > 0;
+  // Show the redeem section whenever a real (non-walk-in) customer is attached,
+  // even with a zero balance, so cashiers can always see the option.
+  const canRedeemLoyalty = !!customerId && !skipCustomer;
+  const hasRedeemablePoints = maxRedeemablePoints > 0;
 
   const handleRemoveItem = async (item: any) => {
     if (!item?.id) return;
@@ -1048,7 +1051,9 @@ export default function StoreCartPage() {
                           Redeem Loyalty Points
                         </label>
                         <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                          {customerPoints} pts available
+                          {customerPoints === null
+                            ? 'Loading…'
+                            : `${customerPoints} pts available`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1057,17 +1062,19 @@ export default function StoreCartPage() {
                           min={0}
                           max={maxRedeemablePoints}
                           value={loyaltyRedeemPoints || ''}
+                          disabled={!hasRedeemablePoints}
                           onChange={(e) => {
                             const v = Math.floor(parseFloat(e.target.value) || 0);
                             setLoyaltyRedeemPoints(Math.max(0, Math.min(v, maxRedeemablePoints)));
                           }}
-                          className="flex-1 px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          className="flex-1 px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           placeholder="0"
                         />
                         <button
                           type="button"
+                          disabled={!hasRedeemablePoints}
                           onClick={() => setLoyaltyRedeemPoints(maxRedeemablePoints)}
-                          className="px-4 py-3 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+                          className="px-4 py-3 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Max
                         </button>
@@ -1085,6 +1092,10 @@ export default function StoreCartPage() {
                         <div className="mt-2 text-sm text-center text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-lg">
                           Redeeming <span className="font-semibold">{loyaltyDiscount} pts</span> = <span className="font-semibold">−₹{loyaltyDiscount}</span> off this bill
                         </div>
+                      ) : customerPoints === 0 ? (
+                        <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                          No points to redeem yet — points are earned on each paid bill.
+                        </p>
                       ) : (
                         <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
                           1 point = ₹{LOYALTY_POINT_VALUE}. Points are deducted when the bill is paid.
