@@ -85,19 +85,27 @@ export default function StoreCartPage() {
       setCustomerPoints(null);
       return;
     }
+    // Instant fallback from the already-loaded customer list (includes points),
+    // so the control is usable immediately and never sits on "Loading…".
+    const fromList: any = allCustomers.find((c: any) => c.id === customerId);
+    if (fromList && typeof fromList.loyaltyPoints === 'number') {
+      setCustomerPoints(Math.floor(fromList.loyaltyPoints));
+    }
     (async () => {
       try {
         const res = await api.get(`/api/v1/customers/${customerId}/loyalty`);
-        const pts = Math.floor(res.data?.customer?.loyaltyPoints || 0);
+        const pts = Math.floor(res.data?.customer?.loyaltyPoints ?? 0);
         if (!cancelled) setCustomerPoints(pts);
-      } catch {
-        if (!cancelled) setCustomerPoints(null);
+      } catch (err) {
+        console.error('[Cart] Failed to load loyalty balance:', err);
+        // Don't get stuck on "Loading…": keep the list fallback, else assume 0.
+        if (!cancelled) setCustomerPoints((prev) => (prev === null ? 0 : prev));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [customerId, skipCustomer]);
+  }, [customerId, skipCustomer, allCustomers]);
 
   useEffect(() => {
     if (!user) {
