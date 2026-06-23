@@ -987,5 +987,223 @@ export async function customerRoutes(fastify: FastifyInstance) {
       reply.code(500).send({ error: 'Failed to adjust loyalty points' });
     }
   });
+
+  // ------------------------------------------------------------------
+  // One-time maintenance: recompute every customer's loyalty balance from
+  // their purchase history at the current 1.25% rate, net of points already
+  // redeemed. OWNER-only. Dry-run by default (preview), apply with dryRun:false.
+  //
+  // Rules (chosen by the operator):
+  //   earned   = floor( sum(grandTotal of all NON-VOID sales) * 0.0125 )
+  //   redeemed = sum(|REDEEM points|) excluding redemptions tied to VOID sales
+  //              (those were already restored by the void flow)
+  //   balance  = max(0, earned - redeemed)
+  //   totalSpent / tier are recomputed from the same NON-VOID sales total.
+  //
+  // No schema changes: only loyaltyPoints / totalSpent / loyaltyTier are
+  // written, plus an ADJUST loyalty transaction + audit log for traceability.
+  // ------------------------------------------------------------------
+  fastify.post('/loyalty/backfill', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply): Promise<any> => {
+    try {
+      const body = (request.body as any) || {};
+      const dryRun = body.dryRun !== false; // default true — must explicitly opt in to apply
+      const userId = (getUser(request) as any).userId;
+      const POINTS_RATE = 0.0125;
+
+      const tierFor = (totalSpent: number): string => {
+        if (totalSpent >= 50000) return 'PLATINUM';
+        if (totalSpent >= 20000) return 'GOLD';
+        if (totalSpent >= 5000) return 'SILVER';
+        return 'BRONZE';
+      };
+
+      // Aggregate non-void sales per customer (earning + spend base).
+      const salesAgg = await prisma.sale.groupBy({
+        by: ['customerId'],
+        where: { customerId: { not: null }, status: { not: 'VOID' } },
+        _sum: { grandTotal: true },
+      });
+      const salesByCustomer = new Map<string, number>();
+      for (const row of salesAgg as any[]) {
+        if (row.customerId) salesByCustomer.set(row.customerId, row._sum?.grandTotal || 0);
+      }
+
+      // All redeemed points per customer (stored negative).
+      const redeemAgg = await prisma.loyaltyTransaction.groupBy({
+        by: ['customerId'],
+        where: { type: 'REDEEM' },
+        _sum: { points: true },
+      });
+      const redeemByCustomer = new Map<string, number>();
+      for (const row of redeemAgg as any[]) {
+        redeemByCustomer.set(row.customerId, Math.abs(row._sum?.points || 0));
+      }
+
+      // Redemptions tied to VOID sales — exclude, since the void already
+      // restored those points to the customer.
+      const voidSales = await prisma.sale.findMany({
+        where: { status: 'VOID' },
+        select: { id: true },
+      });
+      const voidSaleIds = voidSales.map((s) => s.id);
+      const voidRedeemByCustomer = new Map<string, number>();
+      if (voidSaleIds.length > 0) {
+        const voidRedeemAgg = await prisma.loyaltyTransaction.groupBy({
+          by: ['customerId'],
+          where: { type: 'REDEEM', saleId: { in: voidSaleIds } },
+          _sum: { points: true },
+        });
+        for (const row of voidRedeemAgg as any[]) {
+          voidRedeemByCustomer.set(row.customerId, Math.abs(row._sum?.points || 0));
+        }
+      }
+
+      const customers = await prisma.customer.findMany({
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          storeId: true,
+          loyaltyPoints: true,
+          totalSpent: true,
+          loyaltyTier: true,
+        },
+      });
+
+      type Change = {
+        customerId: string;
+        name: string | null;
+        phone: string | null;
+        storeId: string;
+        oldPoints: number;
+        newPoints: number;
+        delta: number;
+        oldTotalSpent: number;
+        newTotalSpent: number;
+        oldTier: string | null;
+        newTier: string;
+      };
+
+      const changes: Change[] = [];
+      let oldPointsSum = 0;
+      let newPointsSum = 0;
+
+      for (const c of customers) {
+        const salesSum = salesByCustomer.get(c.id) || 0;
+        const earned = Math.floor(salesSum * POINTS_RATE);
+        const totalRedeem = redeemByCustomer.get(c.id) || 0;
+        const voidRedeem = voidRedeemByCustomer.get(c.id) || 0;
+        const redeemedActive = Math.max(0, totalRedeem - voidRedeem);
+        const newPoints = Math.max(0, earned - redeemedActive);
+        const newTotalSpent = Math.round(salesSum);
+        const newTier = tierFor(newTotalSpent);
+
+        const oldPoints = Math.round(c.loyaltyPoints || 0);
+        const oldTotalSpent = Math.round(c.totalSpent || 0);
+
+        oldPointsSum += oldPoints;
+        newPointsSum += newPoints;
+
+        if (
+          newPoints !== oldPoints ||
+          newTotalSpent !== oldTotalSpent ||
+          newTier !== (c.loyaltyTier || 'BRONZE')
+        ) {
+          changes.push({
+            customerId: c.id,
+            name: c.name,
+            phone: c.phone,
+            storeId: c.storeId,
+            oldPoints,
+            newPoints,
+            delta: newPoints - oldPoints,
+            oldTotalSpent,
+            newTotalSpent,
+            oldTier: c.loyaltyTier,
+            newTier,
+          });
+        }
+      }
+
+      const summary = {
+        dryRun,
+        pointsRate: POINTS_RATE,
+        totalCustomers: customers.length,
+        changedCount: changes.length,
+        totals: {
+          oldPointsSum,
+          newPointsSum,
+          deltaSum: newPointsSum - oldPointsSum,
+        },
+        sample: changes.slice(0, 100),
+      };
+
+      if (dryRun) {
+        return { ...summary, applied: false };
+      }
+
+      // Apply in small chunks to stay within serverless limits.
+      const chunkSize = 20;
+      let applied = 0;
+      for (let i = 0; i < changes.length; i += chunkSize) {
+        const chunk = changes.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(async (ch) => {
+            await prisma.customer.update({
+              where: { id: ch.customerId },
+              data: {
+                loyaltyPoints: ch.newPoints,
+                totalSpent: ch.newTotalSpent,
+                loyaltyTier: ch.newTier,
+              },
+            });
+            if (ch.delta !== 0) {
+              await prisma.loyaltyTransaction.create({
+                data: {
+                  customerId: ch.customerId,
+                  storeId: ch.storeId,
+                  type: 'ADJUST',
+                  points: ch.delta,
+                  balance: ch.newPoints,
+                  description: 'Loyalty recalculation backfill (1.25% of purchases, net of redemptions)',
+                  createdBy: userId,
+                },
+              });
+            }
+          })
+        );
+        applied += chunk.length;
+      }
+
+      // Single summary audit log for the whole run.
+      try {
+        const actorStoreId = (getUser(request) as any).storeId;
+        await prisma.auditLog.create({
+          data: {
+            storeId: actorStoreId,
+            actorUserId: userId,
+            action: 'LOYALTY_POINTS_BACKFILL',
+            entityType: 'Customer',
+            entityId: 'ALL',
+            metaJson: {
+              pointsRate: POINTS_RATE,
+              totalCustomers: customers.length,
+              changedCount: changes.length,
+              oldPointsSum,
+              newPointsSum,
+              deltaSum: newPointsSum - oldPointsSum,
+            },
+          },
+        });
+      } catch (auditErr) {
+        console.warn('[Loyalty Backfill] audit log failed (non-critical):', auditErr);
+      }
+
+      return { ...summary, applied: true, appliedCount: applied };
+    } catch (error: any) {
+      console.error('Failed to backfill loyalty points:', error);
+      reply.code(500).send({ error: 'Failed to backfill loyalty points', details: error?.message });
+    }
+  });
 }
 

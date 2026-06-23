@@ -148,6 +148,7 @@ export default function StoreCustomersPage() {
   const [loyaltyForm, setLoyaltyForm] = useState({ points: 0, description: '' });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingLoyalty, setLoadingLoyalty] = useState(false);
+  const [recalcRunning, setRecalcRunning] = useState(false);
 
   const showSearchDropdown = searchFocused && debouncedSearch.length > 0;
 
@@ -180,6 +181,38 @@ export default function StoreCustomersPage() {
       setCustomerTotal(0);
     } finally {
       setListLoading(false);
+    }
+  };
+
+  // OWNER-only: recompute every customer's loyalty balance from purchase
+  // history at 1.25% (net of redemptions). Previews via dry-run, then applies.
+  const handleRecalcLoyalty = async () => {
+    if (recalcRunning) return;
+    try {
+      setRecalcRunning(true);
+      const preview = await api.post('/api/v1/customers/loyalty/backfill', { dryRun: true });
+      const d = preview.data;
+      if (!d || d.changedCount === 0) {
+        window.alert('Loyalty points are already up to date — no changes needed.');
+        return;
+      }
+      const sign = d.totals.deltaSum >= 0 ? '+' : '';
+      const ok = window.confirm(
+        `Recalculate loyalty points across ${d.totalCustomers} customers?\n\n` +
+          `${d.changedCount} customer(s) will change.\n` +
+          `Total points: ${d.totals.oldPointsSum} → ${d.totals.newPointsSum} (net ${sign}${d.totals.deltaSum}).\n\n` +
+          `Each balance becomes 1.25% of their non-voided purchases, minus points already redeemed. Continue?`
+      );
+      if (!ok) return;
+      const res = await api.post('/api/v1/customers/loyalty/backfill', { dryRun: false });
+      window.alert(`Done. Updated ${res.data.changedCount} customer(s).`);
+      await loadCustomers();
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.error || e?.message || 'Failed to recalculate loyalty points';
+      window.alert(msg);
+    } finally {
+      setRecalcRunning(false);
     }
   };
 
@@ -503,13 +536,26 @@ export default function StoreCustomersPage() {
                 : `${allCustomers.length} customers on file`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={openNewCustomer}
-            className="shrink-0 px-5 py-2.5 rounded-xl bg-white text-brand-700 font-semibold text-sm shadow-md hover:bg-white/95 transition-colors"
-          >
-            + Add customer
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {user?.role === 'OWNER' && (
+              <button
+                type="button"
+                onClick={handleRecalcLoyalty}
+                disabled={recalcRunning}
+                title="Recompute every customer's loyalty points from their purchase history (1.25%, net of redemptions)"
+                className="px-4 py-2.5 rounded-xl bg-white/15 text-white font-semibold text-sm ring-1 ring-white/30 hover:bg-white/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {recalcRunning ? 'Recalculating…' : 'Recalculate points'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={openNewCustomer}
+              className="px-5 py-2.5 rounded-xl bg-white text-brand-700 font-semibold text-sm shadow-md hover:bg-white/95 transition-colors"
+            >
+              + Add customer
+            </button>
+          </div>
         </div>
       </div>
 
