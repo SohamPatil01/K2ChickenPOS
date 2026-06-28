@@ -14,7 +14,11 @@ import { getUser } from '../utils/auth.js';
  * Nothing here touches billing, inventory, loyalty or payment workflows.
  */
 
-const DISPLAY_TTL_MS = 60 * 60 * 1000; // Ably token valid 1h; SDK auto-renews via authUrl.
+// Ably caps access-token TTL at 24h. We use 12h so the SDK only re-calls our
+// (sometimes cold-starting) /token endpoint a couple of times a day instead of
+// hourly — every renewal is a chance for a slow serverless auth to drop the
+// realtime connection, so fewer renewals = far fewer disconnects.
+const DISPLAY_TTL_MS = 12 * 60 * 60 * 1000;
 const SESSION_TTL = '30d'; // Paired display stays paired across power-cycles.
 
 function channelForStore(storeId: string): string {

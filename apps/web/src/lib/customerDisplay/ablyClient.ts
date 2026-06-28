@@ -17,6 +17,21 @@ interface BaseOptions {
   onStatus?: (status: ConnectionStatus) => void;
 }
 
+/**
+ * Shared connection-resilience tuning for both sides:
+ *  - Faster reconnect attempts than Ably's defaults so a blip recovers in a few
+ *    seconds instead of 15–30s.
+ *  - Generous auth/request timeouts so a cold-starting Vercel `/token` function
+ *    doesn't cause a token renewal (and therefore the connection) to fail.
+ */
+const RESILIENCE_OPTIONS = {
+  autoConnect: true,
+  disconnectedRetryTimeout: 4000,
+  suspendedRetryTimeout: 8000,
+  realtimeRequestTimeout: 20000,
+  httpRequestTimeout: 20000,
+} as const;
+
 interface PublisherOptions extends BaseOptions {
   /** Cashier app access token (JWT) used to authorize the Ably token request. */
   getAccessToken: () => string | null;
@@ -101,7 +116,7 @@ export async function createDisplayPublisher(
       authUrl: tokenAuthUrl(),
       authMethod: "GET",
       authHeaders: { Authorization: `Bearer ${token}` },
-      autoConnect: true,
+      ...RESILIENCE_OPTIONS,
       closeOnUnload: true,
     });
   } catch {
@@ -167,8 +182,11 @@ export async function createDisplaySubscriber(
       authUrl: tokenAuthUrl(),
       authMethod: "GET",
       authParams: { t: opts.sessionToken },
-      autoConnect: true,
-      closeOnUnload: true,
+      ...RESILIENCE_OPTIONS,
+      // Always-on display: don't tear the connection down on a stray page
+      // lifecycle event (some TV/kiosk browsers fire pagehide on blur). The SDK
+      // keeps the socket alive / recovers it instead.
+      closeOnUnload: false,
     });
   } catch {
     opts.onStatus?.("disabled");
@@ -180,18 +198,36 @@ export async function createDisplaySubscriber(
   );
 
   client.connection.on((stateChange: any) => {
-    const status = mapState(stateChange.current);
-    opts.onStatus?.(status);
-    if (status === "connected") {
+    opts.onStatus?.(mapState(stateChange.current));
+  });
+
+  // Watch the *channel* (not just the connection). A channel can silently go
+  // suspended/detached while the connection still reports "connected" — that's
+  // the case where the display looks fine but stops receiving bill updates.
+  // Re-attach so messages start flowing again, and re-enter presence so the
+  // cashier keeps seeing the display as live.
+  channel.on((stateChange: any) => {
+    const s = stateChange.current;
+    if (s === "attached") {
       try {
         void channel.presence.enter({ at: Date.now() });
       } catch {
         // presence is best-effort
       }
+    } else if (s === "suspended" || s === "detached" || s === "failed") {
+      opts.onStatus?.("reconnecting");
+      try {
+        void channel.attach();
+      } catch {
+        // attach is best-effort; the SDK keeps retrying the connection too
+      }
     }
   });
 
   try {
+    // subscribe() implicitly attaches the channel, which fires the "attached"
+    // handler above (presence enter). Ably re-attaches automatically on
+    // reconnect, so the same handler re-runs and re-enters presence.
     await channel.subscribe((message: any) => {
       opts.onEvent(message.name, message.data);
     });

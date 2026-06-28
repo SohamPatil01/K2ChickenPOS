@@ -92,11 +92,21 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
           handle = h;
           connecting = false;
           // Poll presence occasionally to show "display connected" on the cashier UI.
+          // Require two consecutive misses before showing "disconnected" so a
+          // single dropped poll (or a momentary presence gap during the display's
+          // reconnect) doesn't make the indicator flap.
           if (presenceTimer) clearInterval(presenceTimer);
+          let misses = 0;
           presenceTimer = setInterval(async () => {
             if (!handle) return;
             const connected = await handle.isDisplayConnected();
-            set({ displayConnected: connected });
+            if (connected) {
+              misses = 0;
+              set({ displayConnected: true });
+            } else {
+              misses += 1;
+              if (misses >= 2) set({ displayConnected: false });
+            }
           }, 10000);
         })
         .catch(() => {
