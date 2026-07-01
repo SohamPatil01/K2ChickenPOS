@@ -1,4 +1,10 @@
 import { prisma } from '@azela-pos/db';
+import {
+  salesInStoreDayWhere,
+  storeDayBoundsFromYmd,
+  tallyPaymentsFromSales,
+  tallyToClosingFields,
+} from '@azela-pos/shared';
 
 function startOfDayUtc(date: Date): Date {
   const d = new Date(date);
@@ -21,8 +27,9 @@ interface DailyClosingValidation {
 /** Auto daily closing for cron — uses the same fields as the manual daily-closing API. */
 export class DailyClosingService {
   async generateDailyClosing(storeId: string, closingDate: Date): Promise<any> {
-    const closingDateObj = startOfDayUtc(closingDate);
-    const closingDateEnd = endOfDayUtc(closingDate);
+    const closingDateStr = closingDate.toISOString().split('T')[0];
+    const closingDateObj = new Date(closingDateStr + 'T00:00:00.000Z');
+    const { gte: dayStart, lte: dayEnd } = storeDayBoundsFromYmd(closingDateStr);
 
     const existing = await prisma.dailyClosing.findUnique({
       where: {
@@ -48,7 +55,7 @@ export class DailyClosingService {
       return { success: false, message: 'No active manager/owner found for store' };
     }
 
-    const summary = await this.calculateDailySummary(storeId, closingDateObj, closingDateEnd);
+    const summary = await this.calculateDailySummary(storeId, closingDateStr, dayStart, dayEnd);
     const validation = this.validateClosing(summary);
     if (!validation.isValid) {
       return { success: false, message: 'Validation failed', errors: validation.errors };
@@ -120,15 +127,12 @@ export class DailyClosingService {
 
   private async calculateDailySummary(
     storeId: string,
+    closingDateStr: string,
     startDate: Date,
     endDate: Date
   ) {
     const sales = await prisma.sale.findMany({
-      where: {
-        storeId,
-        createdAt: { gte: startDate, lte: endDate },
-        status: 'PAID',
-      },
+      where: salesInStoreDayWhere(storeId, closingDateStr, 'PAID') as any,
       include: {
         items: { include: { product: true } },
         payments: true,
@@ -174,31 +178,8 @@ export class DailyClosingService {
         ) * 100
       ) / 100;
 
-    let cashSales = 0;
-    let cardSales = 0;
-    let upiSales = 0;
-
-    for (const sale of sales) {
-      for (const payment of sale.payments || []) {
-        switch (payment.method) {
-          case 'CASH':
-            cashSales += payment.amount;
-            break;
-          case 'CARD':
-            cardSales += payment.amount;
-            break;
-          case 'UPI':
-            upiSales += payment.amount;
-            break;
-          default:
-            break;
-        }
-      }
-    }
-
-    cashSales = Math.round(cashSales * 1000) / 1000;
-    cardSales = Math.round(cardSales * 1000) / 1000;
-    upiSales = Math.round(upiSales * 1000) / 1000;
+    const paymentTotals = tallyPaymentsFromSales(sales);
+    const { cashSales, cardSales, upiSales } = tallyToClosingFields(paymentTotals);
 
     return {
       totalSales,

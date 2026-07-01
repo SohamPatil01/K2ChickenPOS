@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { tallyPaymentsFromSales, tallyToClosingFields } from '@azela-pos/shared';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
+import { localDateRangeToApiBounds, todayLocalYmd } from '@/lib/dateRangeParams';
 import { Button, Card } from '@/components/ui';
 
 export default function StoreDailyClosingPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
-  const [closingDate, setClosingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [closingDate, setClosingDate] = useState(todayLocalYmd());
   const [existingClosing, setExistingClosing] = useState<any>(null);
   const [formData, setFormData] = useState({
     openingCash: 0,
@@ -115,43 +117,32 @@ export default function StoreDailyClosingPage() {
         
         // Try to fetch today's sales data directly
         try {
-          const dateObj = new Date(closingDate + 'T00:00:00.000Z');
-          const nextDay = new Date(dateObj);
-          nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-          
+          const { startDate, endDate } = localDateRangeToApiBounds(closingDate, closingDate);
+
           const salesRes = await api.get('/api/v1/sales', {
             params: {
-              startDate: dateObj.toISOString(),
-              endDate: nextDay.toISOString(),
+              startDate,
+              endDate,
               status: 'PAID',
             },
           });
-          
+
           const sales = salesRes.data || [];
-          
-          // Calculate payment breakdown
-          let cashTotal = 0;
-          let cardTotal = 0;
-          let upiTotal = 0;
-          let totalRevenue = 0;
-          
-          sales.forEach((sale: any) => {
-            totalRevenue += sale.grandTotal || 0;
-            (sale.payments || []).forEach((payment: any) => {
-              const method = (payment.method || '').toUpperCase();
-              const amount = payment.amount || 0;
-              if (method === 'CASH') {
-                cashTotal += amount;
-              } else if (method === 'UPI') {
-                upiTotal += amount;
-              } else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD') {
-                cardTotal += amount;
-              }
-            });
+          const paymentTotals = tallyPaymentsFromSales(sales);
+          const { cashSales, cardSales, upiSales } = tallyToClosingFields(paymentTotals);
+          const totalRevenue = sales.reduce(
+            (sum: number, sale: any) => sum + (sale.grandTotal || 0),
+            0
+          );
+
+          console.log('[Daily Closing] Fetched sales data:', {
+            cashSales,
+            cardSales,
+            upiSales,
+            totalRevenue,
+            salesCount: sales.length,
           });
-          
-          console.log('[Daily Closing] Fetched sales data:', { cashTotal, cardTotal, upiTotal, totalRevenue, salesCount: sales.length });
-          
+
           setSummary({
             totalSales: sales.length,
             totalRevenue,
@@ -159,9 +150,9 @@ export default function StoreDailyClosingPage() {
             totalTax: 0,
             totalWeightSoldKg: 0,
             totalWastageKg: 0,
-            cashSales: cashTotal,
-            cardSales: cardTotal,
-            upiSales: upiTotal,
+            cashSales,
+            cardSales,
+            upiSales,
           });
         } catch (salesError) {
           console.error('[Daily Closing] Failed to fetch sales data:', salesError);

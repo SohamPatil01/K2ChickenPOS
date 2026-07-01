@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { tallyPaymentsFromSales } from '@azela-pos/shared';
 import api from '@/lib/api';
+import { localDateRangeToApiBounds, parseLocalYmd, todayLocalYmd } from '@/lib/dateRangeParams';
+import { format, startOfMonth, subDays } from 'date-fns';
 
 export interface DashboardStats {
   today: {
@@ -93,10 +96,8 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
     setError(null);
     const userRole = user.role as string;
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const today = new Date(todayStr + 'T00:00:00.000Z');
-      const tomorrow = new Date(today);
-      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      const todayYmd = todayLocalYmd();
+      const { startDate, endDate } = localDateRangeToApiBounds(todayYmd, todayYmd);
 
       const promises: Promise<any>[] = [
         api.get('/api/v1/sales/dashboard').catch(() => ({ data: null })),
@@ -114,35 +115,38 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
       const dashboardData = results[0].data;
       const topItems = results[1]?.data || [];
 
-      const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const monthStartYmd = format(startOfMonth(parseLocalYmd(todayYmd)), 'yyyy-MM-dd');
+      const { startDate: monthStartIso } = localDateRangeToApiBounds(monthStartYmd, todayYmd);
       const monthSalesRes = await api.get('/api/v1/sales', {
-        params: { startDate: monthStart.toISOString(), status: 'PAID' },
+        params: { startDate: monthStartIso, endDate, status: 'PAID' },
       }).catch(() => ({ data: [] }));
       const monthSales = monthSalesRes.data || [];
       const monthRevenue = monthSales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
 
-      const yesterday = new Date(today);
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-      const yesterdayEnd = new Date(yesterday);
-      yesterdayEnd.setUTCHours(23, 59, 59, 999);
+      const yesterdayYmd = format(subDays(parseLocalYmd(todayYmd), 1), 'yyyy-MM-dd');
+      const { startDate: yStart, endDate: yEnd } = localDateRangeToApiBounds(
+        yesterdayYmd,
+        yesterdayYmd
+      );
       const yesterdaySalesRes = await api.get('/api/v1/sales', {
         params: {
-          startDate: yesterday.toISOString(),
-          endDate: yesterdayEnd.toISOString(),
+          startDate: yStart,
+          endDate: yEnd,
           status: 'PAID',
         },
       }).catch(() => ({ data: [] }));
       const yesterdaySales = yesterdaySalesRes.data || [];
       const yesterdayRevenue = yesterdaySales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
 
-      const lastWeek = new Date(today);
-      lastWeek.setUTCDate(lastWeek.getUTCDate() - 7);
-      const lastWeekEnd = new Date(lastWeek);
-      lastWeekEnd.setUTCHours(23, 59, 59, 999);
+      const lastWeekYmd = format(subDays(parseLocalYmd(todayYmd), 7), 'yyyy-MM-dd');
+      const { startDate: lwStart, endDate: lwEnd } = localDateRangeToApiBounds(
+        lastWeekYmd,
+        lastWeekYmd
+      );
       const lastWeekSalesRes = await api.get('/api/v1/sales', {
         params: {
-          startDate: lastWeek.toISOString(),
-          endDate: lastWeekEnd.toISOString(),
+          startDate: lwStart,
+          endDate: lwEnd,
           status: 'PAID',
         },
       }).catch(() => ({ data: [] }));
@@ -151,27 +155,21 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
 
       const salesRes = await api.get('/api/v1/sales', {
         params: {
-          startDate: today.toISOString(),
-          endDate: tomorrow.toISOString(),
+          startDate,
+          endDate,
           status: 'PAID',
         },
       }).catch(() => ({ data: [] }));
       const paidSales = salesRes.data || [];
 
-      const paymentBreakdown = { cash: 0, upi: 0, card: 0, other: 0 };
-      paidSales.forEach((sale: any) => {
-        (sale.payments || []).forEach((p: any) => {
-          const method = (p.method || '').toUpperCase();
-          const amount = p.amount || 0;
-          if (method === 'CASH') paymentBreakdown.cash += amount;
-          else if (method === 'UPI') paymentBreakdown.upi += amount;
-          else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD')
-            paymentBreakdown.card += amount;
-          else paymentBreakdown.other += amount;
-        });
-      });
-      const totalPayments =
-        paymentBreakdown.cash + paymentBreakdown.upi + paymentBreakdown.card + paymentBreakdown.other;
+      const tallied = tallyPaymentsFromSales(paidSales);
+      const paymentBreakdown = {
+        cash: tallied.cash,
+        upi: tallied.upi,
+        card: tallied.card,
+        other: tallied.other + tallied.credit,
+      };
+      const totalPayments = tallied.total;
 
       const todayRevenue = paidSales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
       const todayWeight = paidSales.reduce((s: number, x: any) => {
@@ -179,7 +177,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
       }, 0);
 
       const inventoryRes = await api.get('/api/v1/inventory/ledger', {
-        params: { startDate: today.toISOString(), endDate: tomorrow.toISOString() },
+        params: { startDate, endDate },
       }).catch(() => ({ data: [] }));
       const ledgers = inventoryRes.data || [];
       const receivedStock = ledgers
@@ -257,13 +255,12 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
       setStats(newStats);
 
       if (userRole === 'MANAGER' || userRole === 'OWNER') {
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
+        const trendStartYmd = format(subDays(parseLocalYmd(todayYmd), 6), 'yyyy-MM-dd');
         api
           .get('/api/v1/analytics/sales-trend', {
             params: {
-              startDate: sevenDaysAgo.toISOString().split('T')[0],
-              endDate: todayStr,
+              startDate: trendStartYmd,
+              endDate: todayYmd,
             },
           })
           .then((res: any) => {

@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
-import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE } from '@azela-pos/shared';
+import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -134,19 +134,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
         where.payments = { some: { method: String(paymentMethod).toUpperCase() } };
       }
       if (startDate || endDate) {
-        const parseBound = (value: string, endOfDay: boolean) => {
-          if (value.includes('T')) {
-            return new Date(value);
-          }
-          return new Date(value + (endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'));
-        };
+        const parsed = parseStoreDateRange(
+          startDate ? String(startDate) : undefined,
+          endDate ? String(endDate) : undefined
+        );
+        if (parsed) {
+          where.createdAt = { gte: parsed.gte, lte: parsed.lte };
+        } else if (startDate || endDate) {
+          const parseBound = (value: string, endOfDay: boolean) => {
+            if (value.includes('T')) {
+              return new Date(value);
+            }
+            return new Date(value + (endOfDay ? 'T23:59:59.999+05:30' : 'T00:00:00.000+05:30'));
+          };
 
-        where.createdAt = {};
-        if (startDate) {
-          where.createdAt.gte = parseBound(String(startDate), false);
-        }
-        if (endDate) {
-          where.createdAt.lte = parseBound(String(endDate), true);
+          where.createdAt = {};
+          if (startDate) {
+            where.createdAt.gte = parseBound(String(startDate), false);
+          }
+          if (endDate) {
+            where.createdAt.lte = parseBound(String(endDate), true);
+          }
         }
       }
 
@@ -257,10 +265,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.log('[Sales Dashboard] Owner accessing sales from stores:', storeIds);
       }
 
-      // Use UTC to avoid timezone issues - consistent with frontend
-      const todayStr = new Date().toISOString().split('T')[0]; // Get YYYY-MM-DD in UTC
-      const today = new Date(todayStr + 'T00:00:00.000Z');
-      const todayEnd = new Date(todayStr + 'T23:59:59.999Z');
+      // Use store calendar day (IST) for "today" — matches daily closing & reports.
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayBounds = parseStoreDateRange(todayStr, todayStr)!;
+      const today = todayBounds.gte;
+      const todayEnd = todayBounds.lte;
 
       // Today's sales
       const todaySales = await prisma.sale.findMany({
@@ -528,6 +537,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             saleNo,
             customerId,
             status: 'OPEN',
+            businessDate: businessDateForNow(),
             subTotal,
             discountTotal: 0, // Start with 0, will be updated after approval
             taxTotal,
@@ -674,6 +684,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             saleNo,
             customerId,
             status: 'OPEN',
+            businessDate: businessDateForNow(),
             subTotal,
             discountTotal: data.discountTotal,
             taxTotal,

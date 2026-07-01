@@ -2,6 +2,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
+import {
+  salesInStoreDayWhere,
+  storeDayBoundsFromYmd,
+  tallyPaymentsFromSales,
+  tallyToClosingFields,
+} from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 
@@ -79,10 +85,10 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         const userId = (getUser(request) as any).userId;
         const { closingDate, openingCash, cashReceived, closingCash, notes, shiftId } = (request.body as any);
 
-        // Use UTC to avoid timezone issues - consistent with other date filtering
-        const closingDateStr = closingDate.split('T')[0]; // Get YYYY-MM-DD
+        // Store calendar day (IST) — matches when staff actually traded.
+        const closingDateStr = closingDate.split('T')[0]; // YYYY-MM-DD
         const closingDateObj = new Date(closingDateStr + 'T00:00:00.000Z');
-        const closingDateEnd = new Date(closingDateStr + 'T23:59:59.999Z');
+        const { gte: dayStart, lte: dayEnd } = storeDayBoundsFromYmd(closingDateStr);
 
         // Check if closing already exists for this date
         const existing = await prisma.dailyClosing.findUnique({
@@ -99,16 +105,9 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           return;
         }
 
-        // Get all sales for the day
+        // Get all PAID sales for the store calendar day (IST).
         const sales = await prisma.sale.findMany({
-          where: {
-            storeId,
-            status: 'PAID',
-            createdAt: {
-              gte: closingDateObj,
-              lte: closingDateEnd,
-            },
-          },
+          where: salesInStoreDayWhere(storeId, closingDateStr, 'PAID'),
           include: {
             items: {
               include: {
@@ -125,21 +124,8 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         const totalDiscounts = Math.round(sales.reduce((sum: any, s: any) => sum + s.discountTotal, 0) * 1000) / 1000;
         const totalTax = Math.round(sales.reduce((sum: any, s: any) => sum + s.taxTotal, 0) * 1000) / 1000;
 
-        // Calculate payment method breakdown - Round to 3 decimal places
-        const cashSales = Math.round(sales.reduce((sum: any, s: any) => {
-          const cashPayments = s.payments.filter((p: any) => p.method === 'CASH');
-          return sum + cashPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0) * 1000) / 1000;
-
-        const cardSales = Math.round(sales.reduce((sum: any, s: any) => {
-          const cardPayments = s.payments.filter((p: any) => p.method === 'CARD');
-          return sum + cardPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0) * 1000) / 1000;
-
-        const upiSales = Math.round(sales.reduce((sum: any, s: any) => {
-          const upiPayments = s.payments.filter((p: any) => p.method === 'UPI');
-          return sum + upiPayments.reduce((pSum, p) => pSum + p.amount, 0);
-        }, 0) * 1000) / 1000;
+        const paymentTotals = tallyPaymentsFromSales(sales);
+        const { cashSales, cardSales, upiSales } = tallyToClosingFields(paymentTotals);
 
         // Auto-set cashReceived from cashSales (cash revenue)
         // If cashReceived is provided, use it; otherwise use cashSales
@@ -164,8 +150,8 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
             storeId,
             reason: 'WASTAGE',
             createdAt: {
-              gte: closingDateObj,
-              lte: closingDateEnd,
+              gte: dayStart,
+              lte: dayEnd,
             },
           },
         });
