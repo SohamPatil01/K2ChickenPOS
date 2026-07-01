@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
-import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange } from '@azela-pos/shared';
+import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -139,7 +139,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           endDate ? String(endDate) : undefined
         );
         if (parsed) {
-          where.createdAt = { gte: parsed.gte, lte: parsed.lte };
+          Object.assign(where, salesInDateRangeWhere(parsed.gte, parsed.lte));
         } else if (startDate || endDate) {
           const parseBound = (value: string, endOfDay: boolean) => {
             if (value.includes('T')) {
@@ -266,17 +266,16 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // Use store calendar day (IST) for "today" — matches daily closing & reports.
-      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayStr = ymdInStoreTz();
       const todayBounds = parseStoreDateRange(todayStr, todayStr)!;
-      const today = todayBounds.gte;
-      const todayEnd = todayBounds.lte;
+      const storeScope =
+        userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId;
 
-      // Today's sales
       const todaySales = await prisma.sale.findMany({
         where: {
-          storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
+          storeId: storeScope,
           status: 'PAID',
-          createdAt: { gte: today, lte: todayEnd },
+          ...salesInDateRangeWhere(todayBounds.gte, todayBounds.lte),
         },
       });
 
@@ -284,13 +283,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const todayCount = todaySales.length;
       const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 1000) / 1000 : 0;
 
-      // This month - use UTC for consistency
-      const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      // This month — IST month start through end of today
+      const monthStartYmd = `${todayStr.slice(0, 8)}01`;
+      const monthBounds = parseStoreDateRange(monthStartYmd, todayStr)!;
       const monthSales = await prisma.sale.findMany({
         where: {
-          storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId,
+          storeId: storeScope,
           status: 'PAID',
-          createdAt: { gte: monthStart },
+          ...salesInDateRangeWhere(monthBounds.gte, monthBounds.lte),
         },
       });
 
@@ -462,7 +462,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Generate sale number - retry if duplicate
       const today = new Date();
-      const dateStr = today.toISOString().split('T')[0].replace(/-/g, '');
+      const dateStr = ymdInStoreTz(today).replace(/-/g, '');
       let saleNo: string;
       let attempts = 0;
       const maxAttempts = 5;

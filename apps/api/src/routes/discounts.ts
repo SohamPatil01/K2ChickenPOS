@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { resolveSaleDeliveryFee } from '@azela-pos/shared';
+import { resolveSaleDeliveryFee, resolveStoreDateRange } from '@azela-pos/shared';
 import { prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { requireRole } from '../utils/auth.js';
@@ -357,10 +357,8 @@ export async function discountRoutes(fastify: FastifyInstance) {
         };
 
         if (startDate && endDate) {
-          where.createdAt = {
-            gte: new Date(startDate + 'T00:00:00.000Z'),
-            lte: new Date(endDate + 'T23:59:59.999Z'),
-          };
+          const { gte, lte } = resolveStoreDateRange(startDate, endDate);
+          where.createdAt = { gte, lte };
         }
 
         const overrides = await prisma.discountOverride.findMany({

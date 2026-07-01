@@ -1,7 +1,13 @@
 import { FastifyInstance } from 'fastify';
+import { resolveStoreDateRange } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
 import { analyticsService } from '../services/analyticsService.js';
 import { alertService } from '../services/alertService.js';
+
+function rangeFromQuery(startDate?: string, endDate?: string, defaultDaysBack = 29) {
+  const { gte, lte } = resolveStoreDateRange(startDate, endDate, defaultDaysBack);
+  return { start: gte, end: lte };
+}
 
 function parseFranchiseStoreId(q: Record<string, unknown>): string | undefined {
   const v = q.franchiseStoreId ?? q.franchiseId;
@@ -35,10 +41,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
         const startDate = (q.startDate as string) || '';
         const endDate = (q.endDate as string) || '';
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
-        const start = startDate
-          ? new Date(startDate + 'T00:00:00.000Z')
-          : new Date(end.getTime() - 29 * 86400000);
+        const { start, end } = rangeFromQuery(startDate, endDate);
 
         const overview = await analyticsService.getSalesOverview(
           storeId,
@@ -78,10 +81,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
 
         const startDate = (q.startDate as string) || '';
         const endDate = (q.endDate as string) || '';
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
-        const start = startDate
-          ? new Date(startDate + 'T00:00:00.000Z')
-          : new Date(end.getTime() - 29 * 86400000);
+        const { start, end } = rangeFromQuery(startDate, endDate);
 
         const insights = await analyticsService.getInsights(
           storeId,
@@ -284,8 +284,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+        const { start, end } = rangeFromQuery(startDate, endDate, 30);
 
         const topItems = await analyticsService.getTopItems(storeId, start, end, franchiseStoreId ?? null);
         return reply.send(topItems);
@@ -316,8 +315,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+        const { start, end } = rangeFromQuery(startDate, endDate, 30);
 
         const trend = await analyticsService.getSalesTrend(storeId, start, end, franchiseStoreId ?? null);
         return reply.send(trend);
@@ -348,8 +346,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+        const { start, end } = rangeFromQuery(startDate, endDate, 30);
 
         const paymentMix = await analyticsService.getPaymentMix(storeId, start, end, franchiseStoreId ?? null);
         return reply.send(paymentMix);
@@ -380,8 +377,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const start = startDate ? new Date(startDate + 'T00:00:00.000Z') : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
+        const { start, end } = rangeFromQuery(startDate, endDate, 30);
 
         const heatmap = await analyticsService.getTimeHeatmap(storeId, start, end, franchiseStoreId ?? null);
         return reply.send(heatmap);
@@ -412,10 +408,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const end = endDate ? new Date(endDate + 'T23:59:59.999Z') : new Date();
-        const start = startDate
-          ? new Date(startDate + 'T00:00:00.000Z')
-          : new Date(end.getTime() - 29 * 86400000);
+        const { start, end } = rangeFromQuery(startDate, endDate);
 
         const data = await analyticsService.getProfitMarginTracker(
           storeId,

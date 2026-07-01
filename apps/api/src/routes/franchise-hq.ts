@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { resolveStoreDateRange, salesInDateRangeWhere, tallyPaymentsFromSales, ymdInStoreTz, ymdDaysAgoInStoreTz } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 
@@ -12,23 +13,22 @@ interface QueryParams {
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
-    const start = new Date(startDate + 'T00:00:00.000Z');
-    const end = new Date(endDate + 'T23:59:59.999Z');
-    return {
-      gte: start,
-      lte: end,
-    };
-  } else {
-    const end = new Date();
-    end.setUTCHours(23, 59, 59, 999);
-    const start = new Date();
-    start.setUTCDate(start.getUTCDate() - 30);
-    start.setUTCHours(0, 0, 0, 0);
-    return {
-      gte: start,
-      lte: end,
-    };
+    return resolveStoreDateRange(startDate, endDate);
   }
+  return resolveStoreDateRange(undefined, undefined, 30);
+}
+
+function salesInPeriodWhere(dateFilter: { gte: Date; lte: Date }) {
+  return salesInDateRangeWhere(dateFilter.gte, dateFilter.lte);
+}
+
+function saleRangeWhere(storeId: string | { in: string[] }, dateFilter: { gte: Date; lte: Date }) {
+  const storeClause = typeof storeId === 'string' ? { storeId } : { storeId };
+  return {
+    ...storeClause,
+    status: 'PAID',
+    ...salesInDateRangeWhere(dateFilter.gte, dateFilter.lte),
+  };
 }
 
 export async function franchiseHQRoutes(fastify: FastifyInstance) {
@@ -88,14 +88,14 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           where: {
             storeId: { in: allStoreIds },
             status: 'PAID',
-            createdAt: dateFilter,
+            ...salesInPeriodWhere(dateFilter),
           },
         }),
         prisma.sale.aggregate({
           where: {
             storeId: { in: allStoreIds },
             status: 'PAID',
-            createdAt: dateFilter,
+            ...salesInPeriodWhere(dateFilter),
           },
           _sum: { grandTotal: true },
         }),
@@ -107,21 +107,13 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         }),
         prisma.sale.groupBy({
           by: ['storeId'],
-          where: {
-            storeId: { in: allStoreIds },
-            status: 'PAID',
-            createdAt: dateFilter,
-          },
+          where: saleRangeWhere({ in: allStoreIds }, dateFilter),
           _count: { id: true },
           _sum: { grandTotal: true },
         }),
         prisma.saleItem.findMany({
           where: {
-            sale: {
-              storeId: { in: allStoreIds },
-              status: 'PAID',
-              createdAt: dateFilter,
-            },
+            sale: saleRangeWhere({ in: allStoreIds }, dateFilter),
           },
           select: {
             lineTotal: true,
@@ -149,11 +141,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           })),
         ].map(async (store: any) => {
           const sales = await prisma.sale.findMany({
-            where: {
-              storeId: store.id,
-              status: 'PAID',
-              createdAt: dateFilter,
-            },
+            where: saleRangeWhere(store.id, dateFilter),
           });
 
           const revenue = Math.round(sales.reduce((sum: any, s: any) => sum + (s.grandTotal || 0), 0) * 100) / 100;
@@ -187,8 +175,8 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         },
         franchiseBreakdown: storeBreakdown.sort((a: any, b: any) => b.revenue - a.revenue),
         period: {
-          startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          endDate: endDate || new Date().toISOString().split('T')[0],
+          startDate: startDate || ymdDaysAgoInStoreTz(30),
+          endDate: endDate || ymdInStoreTz(),
         },
       };
     } catch (error: any) {
@@ -232,11 +220,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       }
 
       const sales = await prisma.sale.findMany({
-        where: {
-          storeId: { in: storeIds },
-          status: 'PAID',
-          createdAt: dateFilter,
-        },
+        where: saleRangeWhere({ in: storeIds }, dateFilter),
         include: {
           store: {
             select: { id: true, name: true },
@@ -259,11 +243,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       // Daily sales trend
       const dailySales = await prisma.sale.groupBy({
         by: ['storeId', 'createdAt'],
-        where: {
-          storeId: { in: storeIds },
-          status: 'PAID',
-          createdAt: dateFilter,
-        },
+        where: saleRangeWhere({ in: storeIds }, dateFilter),
         _count: { id: true },
         _sum: { grandTotal: true },
       });
@@ -483,7 +463,7 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
             where: {
               storeId,
               status: 'PAID',
-              createdAt: dateFilter,
+              ...salesInDateRangeWhere(dateFilter.gte, dateFilter.lte),
             },
             include: {
               payments: {
@@ -499,15 +479,15 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
           const commission = totalRevenue * COMMISSION_RATE;
           const netPayment = totalRevenue - commission;
 
-          // Payment method breakdown
-          const paymentBreakdown = sales.reduce((acc: any, sale: any) => {
-            sale.payments?.forEach((payment: any) => {
-              const method = payment.method ?? 'UNKNOWN';
-              const amount = Number(payment.amount ?? 0);
-              acc[method] = (acc[method] || 0) + amount;
-            });
-            return acc;
-          }, {} as Record<string, number>);
+          // Payment method breakdown (ONLINE rolled into UPI)
+          const paymentTotals = tallyPaymentsFromSales(sales);
+          const paymentBreakdown: Record<string, number> = {
+            CASH: paymentTotals.cash,
+            UPI: paymentTotals.upi,
+            CARD: paymentTotals.card,
+          };
+          if (paymentTotals.credit > 0) paymentBreakdown.CREDIT = paymentTotals.credit;
+          if (paymentTotals.other > 0) paymentBreakdown.OTHER = paymentTotals.other;
 
           return {
             franchiseId: storeId,
@@ -533,8 +513,8 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         },
         franchisePayments: franchisePayments.sort((a: any, b: any) => b.totalRevenue - a.totalRevenue),
         period: {
-          startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          endDate: endDate || new Date().toISOString().split('T')[0],
+          startDate: startDate || ymdDaysAgoInStoreTz(30),
+          endDate: endDate || ymdInStoreTz(),
         },
       };
     } catch (error: any) {

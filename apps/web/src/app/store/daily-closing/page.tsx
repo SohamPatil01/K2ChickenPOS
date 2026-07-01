@@ -210,7 +210,7 @@ export default function StoreDailyClosingPage() {
     }
 
     // Confirm if closing date is not today
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocalYmd();
     if (closingDate !== today) {
       if (!confirm(`You are creating a daily closing for ${closingDate}, which is not today (${today}). Continue?`)) {
         return;

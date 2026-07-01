@@ -4,13 +4,7 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
-
-interface ReportItem {
-  id: string;
-  label: string;
-  path?: string;
-  onClick?: () => void;
-}
+import { CA_REPORT_ITEMS } from '@/lib/caReports';
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -18,86 +12,53 @@ export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
 
   useEffect(() => {
-    // Wait for user to load
-    if (user === undefined) {
-      return; // Still loading
-    }
+    if (user === undefined) return;
 
     if (!user) {
       router.push('/login');
       return;
     }
 
-    // Only OWNER can access reports
-    if (user.role !== 'OWNER') {
-      alert('Access denied. Only Owners can access reports.');
-      router.push('/pos');
+    if (user.role !== 'OWNER' && user.role !== 'MANAGER') {
+      alert('Access denied. Only Owner and Manager can access reports.');
+      router.push(user.role === 'CASHIER' ? '/store/pos' : '/store');
       return;
     }
   }, [user, router]);
 
-  const reportItems: ReportItem[] = [
-    { id: 'stock', label: 'Stock', path: '/reports/stock' },
-    { id: 'product-wise-sale', label: 'Product Wise Sale', path: '/reports/product-wise-sale' },
-    { id: 'daily-product-transaction', label: 'Daily Sales Summary', path: '/reports/daily-product-transaction' },
-    { id: 'range-master', label: 'Range Master', path: '/reports/range-master' },
-    { id: 'article-wise-sale', label: 'Artical Wise Sale', path: '/reports/article-wise-sale' },
-    { id: 'bill-wise-sale', label: 'Bill Wise Sale', path: '/reports/bill-wise-sale' },
-    { id: 'sales-register-summary', label: 'Sales Register Summery', path: '/reports/sales-register-summary' },
-    { id: 'sales-sub-register', label: 'Sales Sub Register', path: '/reports/sales-sub-register' },
-    { id: 'bill-wise-sale-cancel', label: 'Bill Wise Sale Cancel', path: '/reports/bill-wise-sale-cancel' },
-    { id: 'po-report', label: 'PO Report', path: '/reports/po-report' },
-    { id: 'summary-report', label: 'Summary Report', path: '/reports/summary-report' },
-    { id: 'sku-wise-sales', label: 'SKU Wise Sales Report', path: '/reports/sku-wise-sales' },
-    { id: 'pending', label: 'Pending', path: '/reports/pending' },
-    { id: 'settings', label: 'Settings', path: '/reports/settings' },
-    { id: 'mrn-balance', label: 'MRN & Balance Confirmation', path: '/reports/mrn-balance' },
-  ];
-
-  const handleReportClick = (item: ReportItem) => {
-    setSelectedReport(item.id);
-    if (item.path) {
-      router.push(item.path);
-    } else if (item.onClick) {
-      item.onClick();
-    }
+  const handleReportClick = (path: string, id: string) => {
+    setSelectedReport(id);
+    router.push(path);
   };
 
   return (
     <Layout>
       <div className="max-w-4xl mx-auto">
-        {/* Primary Header - matching the image */}
         <div className="bg-primary-500 text-white py-3 sm:py-4 px-4 sm:px-6 shadow-md">
           <h1 className="text-xl sm:text-2xl font-bold text-white">Reports</h1>
+          <p className="text-sm text-primary-100 mt-1">CA-style registers for accounts & audit</p>
         </div>
 
-        {/* Report Items List */}
         <div className="bg-white dark:bg-gray-800 shadow-md overflow-hidden">
-          {reportItems.map((item, index) => (
+          {CA_REPORT_ITEMS.map((item, index) => (
             <div key={item.id}>
               <button
-                onClick={() => handleReportClick(item)}
+                onClick={() => handleReportClick(item.path, item.id)}
                 className={`w-full text-left py-3 sm:py-4 px-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors touch-target ${
                   selectedReport === item.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
                 }`}
               >
-                <span className="text-gray-800 dark:text-gray-200 font-medium text-sm sm:text-base">{item.label}</span>
+                <span className="text-gray-800 dark:text-gray-200 font-medium text-sm sm:text-base">
+                  {item.label}
+                </span>
               </button>
-              {index < reportItems.length - 1 && (
+              {index < CA_REPORT_ITEMS.length - 1 && (
                 <hr className="border-gray-200 dark:border-gray-700" />
               )}
             </div>
           ))}
         </div>
-
-        {/* Info Message */}
-        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
-          <p className="text-xs sm:text-sm text-primary-700 dark:text-primary-300">
-            <strong>Note:</strong> Click on any report to view detailed information. Reports are being developed and will be available soon.
-          </p>
-        </div>
       </div>
     </Layout>
   );
 }
-

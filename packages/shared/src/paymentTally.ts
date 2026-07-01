@@ -79,3 +79,29 @@ export function tallyToClosingFields(totals: PaymentTotals) {
     upiSales: totals.upi,
   };
 }
+
+/** Chart / analytics rows with ONLINE rolled into UPI. */
+export function paymentMixChartRows(
+  sales: Array<{ payments?: Array<{ method?: string; amount?: number }> | null }>
+): Array<{ name: string; total: number }> {
+  const t = tallyPaymentsFromSales(sales);
+  const rows: Array<{ name: string; total: number }> = [
+    { name: 'CASH', total: t.cash },
+    { name: 'UPI', total: t.upi },
+    { name: 'CARD', total: t.card },
+  ];
+  if (t.credit > 0) rows.push({ name: 'CREDIT', total: t.credit });
+  if (t.other > 0) rows.push({ name: 'OTHER', total: t.other });
+  return rows.filter((r) => r.total > 0);
+}
+
+/** Dashboard-style buckets from tallied payments. */
+export function paymentBreakdownBuckets(totals: PaymentTotals) {
+  return {
+    cash: totals.cash,
+    upi: totals.upi,
+    card: totals.card,
+    other: totals.other + totals.credit,
+    total: totals.total,
+  };
+}

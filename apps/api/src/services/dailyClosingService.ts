@@ -2,21 +2,11 @@ import { prisma } from '@azela-pos/db';
 import {
   salesInStoreDayWhere,
   storeDayBoundsFromYmd,
+  closingDateStorageKey,
+  ymdInStoreTz,
   tallyPaymentsFromSales,
   tallyToClosingFields,
 } from '@azela-pos/shared';
-
-function startOfDayUtc(date: Date): Date {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfDayUtc(date: Date): Date {
-  const d = new Date(date);
-  d.setUTCHours(23, 59, 59, 999);
-  return d;
-}
 
 interface DailyClosingValidation {
   isValid: boolean;
@@ -27,8 +17,8 @@ interface DailyClosingValidation {
 /** Auto daily closing for cron — uses the same fields as the manual daily-closing API. */
 export class DailyClosingService {
   async generateDailyClosing(storeId: string, closingDate: Date): Promise<any> {
-    const closingDateStr = closingDate.toISOString().split('T')[0];
-    const closingDateObj = new Date(closingDateStr + 'T00:00:00.000Z');
+    const closingDateStr = ymdInStoreTz(closingDate);
+    const closingDateObj = closingDateStorageKey(closingDateStr);
     const { gte: dayStart, lte: dayEnd } = storeDayBoundsFromYmd(closingDateStr);
 
     const existing = await prisma.dailyClosing.findUnique({

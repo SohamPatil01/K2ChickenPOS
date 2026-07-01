@@ -1,4 +1,10 @@
 import { prisma } from '@azela-pos/db';
+import {
+  salesInStoreDayWhere,
+  storeDayBoundsFromYmd,
+  ymdDaysAgoInStoreTz,
+  ymdInStoreTz,
+} from '@azela-pos/shared';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -17,6 +23,18 @@ function subDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setUTCDate(d.getUTCDate() - days);
   return d;
+}
+
+function storeDayRange(ymd: string) {
+  return storeDayBoundsFromYmd(ymd);
+}
+
+function todayStoreDay() {
+  return storeDayRange(ymdInStoreTz());
+}
+
+function yesterdayStoreDay() {
+  return storeDayRange(ymdDaysAgoInStoreTz(1));
 }
 
 /**
@@ -141,27 +159,17 @@ export class AlertService {
     const alerts: Alert[] = [];
 
     try {
-      const today = startOfDay(new Date());
-      const todayEnd = endOfDay(new Date());
-      const yesterday = startOfDay(subDays(new Date(), 1));
-      const yesterdayEnd = endOfDay(subDays(new Date(), 1));
+      const { gte: today, lte: todayEnd } = todayStoreDay();
+      const { gte: yesterday, lte: yesterdayEnd } = yesterdayStoreDay();
 
-      // Today's sales
+      // Today's sales (store calendar day, IST)
       const todaySales = await prisma.sale.findMany({
-        where: {
-          storeId,
-          status: 'PAID',
-          createdAt: { gte: today, lte: todayEnd },
-        },
+        where: salesInStoreDayWhere(storeId, ymdInStoreTz(), 'PAID') as any,
       });
 
       // Yesterday's sales
       const yesterdaySales = await prisma.sale.findMany({
-        where: {
-          storeId,
-          status: 'PAID',
-          createdAt: { gte: yesterday, lte: yesterdayEnd },
-        },
+        where: salesInStoreDayWhere(storeId, ymdDaysAgoInStoreTz(1), 'PAID') as any,
       });
 
       const todayRevenue = todaySales.reduce((sum, s) => sum + s.grandTotal, 0);
@@ -238,14 +246,14 @@ export class AlertService {
     const alerts: Alert[] = [];
 
     try {
-      const today = startOfDay(new Date());
-      const todayEnd = endOfDay(new Date());
+      const { gte: today, lte: todayEnd } = todayStoreDay();
 
-      // Get today's closing (if exists)
+      // Get today's closing (if exists) — closingDate key is yyyy-MM-dd UTC midnight
+      const closingYmd = ymdInStoreTz();
       const closing = await prisma.dailyClosing.findFirst({
         where: {
           storeId,
-          closingDate: { gte: today, lte: todayEnd },
+          closingDate: new Date(`${closingYmd}T00:00:00.000Z`),
         },
       });
 
@@ -299,8 +307,7 @@ export class AlertService {
     const alerts: Alert[] = [];
 
     try {
-      const today = startOfDay(new Date());
-      const todayEnd = endOfDay(new Date());
+      const { gte: today, lte: todayEnd } = todayStoreDay();
 
       const wastage = await prisma.inventoryLedger.findMany({
         where: {
@@ -374,21 +381,30 @@ export class AlertService {
     const alerts: Alert[] = [];
 
     try {
-      const last7Days = startOfDay(subDays(new Date(), 7));
-      const today = endOfDay(new Date());
+      const last7StartYmd = ymdDaysAgoInStoreTz(6);
+      const { gte: last7Days, lte: todayEnd } = storeDayBoundsFromYmd(last7StartYmd);
+      const todayYmd = ymdInStoreTz();
+      const { gte: todayStart, lte: todayEndBound } = storeDayBoundsFromYmd(todayYmd);
 
       const sales = await prisma.sale.findMany({
         where: {
           storeId,
           status: 'PAID',
-          createdAt: { gte: last7Days, lte: today },
+          OR: [
+            { businessDate: { gte: last7Days, lte: todayEndBound } },
+            { AND: [{ businessDate: null }, { createdAt: { gte: last7Days, lte: todayEndBound } }] },
+          ],
         },
       });
 
       const avgDailyRevenue = sales.reduce((sum, s) => sum + s.grandTotal, 0) / 7;
-      const todayRevenue = sales
-        .filter(s => new Date(s.createdAt).toDateString() === new Date().toDateString())
-        .reduce((sum, s) => sum + s.grandTotal, 0);
+      const todaySales = sales.filter((s) => {
+        const key = s.businessDate
+          ? ymdInStoreTz(new Date(s.businessDate))
+          : ymdInStoreTz(new Date(s.createdAt));
+        return key === todayYmd;
+      });
+      const todayRevenue = todaySales.reduce((sum, s) => sum + s.grandTotal, 0);
 
       // Performance below average
       if (avgDailyRevenue > 0 && todayRevenue < avgDailyRevenue * 0.7 && new Date().getHours() > 18) {
@@ -404,13 +420,11 @@ export class AlertService {
       }
 
       // Check for unclosed daily closing
-      const yesterday = startOfDay(subDays(new Date(), 1));
-      const yesterdayEnd = endOfDay(subDays(new Date(), 1));
-
+      const yesterdayYmd = ymdDaysAgoInStoreTz(1);
       const yesterdayClosing = await prisma.dailyClosing.findFirst({
         where: {
           storeId,
-          closingDate: { gte: yesterday, lte: yesterdayEnd },
+          closingDate: new Date(`${yesterdayYmd}T00:00:00.000Z`),
         },
       });
 

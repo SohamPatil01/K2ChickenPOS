@@ -8,6 +8,8 @@ interface ReportLayoutProps {
   title: string;
   children: React.ReactNode;
   dateRange?: boolean;
+  /** Default date picker range — `today` aligns bill-wise totals with the dashboard. */
+  defaultRange?: 'today' | 'last30';
   onDateRangeChange?: (startDate: string, endDate: string) => void;
   exportable?: boolean;
   onExport?: () => void;
@@ -17,15 +19,17 @@ export default function ReportLayout({
   title,
   children,
   dateRange = true,
+  defaultRange = 'last30',
   onDateRangeChange,
   exportable = true,
   onExport,
 }: ReportLayoutProps) {
   const router = useRouter();
+  const todayYmd = format(new Date(), 'yyyy-MM-dd');
   const [startDate, setStartDate] = useState(
-    format(subDays(new Date(), 30), 'yyyy-MM-dd')
+    defaultRange === 'today' ? todayYmd : format(subDays(new Date(), 30), 'yyyy-MM-dd')
   );
-  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(todayYmd);
 
   const handleDateChange = (newStartDate?: string, newEndDate?: string) => {
     const effectiveStartDate = newStartDate !== undefined ? newStartDate : startDate;

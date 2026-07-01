@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
-import { addToMasaleSplit, emptyMasaleSplit, isMasaleProduct, masaleSplitFromRows } from '@azela-pos/shared';
+import { addToMasaleSplit, emptyMasaleSplit, isMasaleProduct, masaleSplitFromRows, parseStoreDateRange, resolveStoreDateRange, salesInDateRangeWhere } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
 
 interface QueryParams {
@@ -54,7 +54,10 @@ function getReportDateRange(startDate?: string, endDate?: string) {
 }
 
 function getDateRange(startDate?: string, endDate?: string) {
-  return getReportDateRange(startDate, endDate);
+  if (!startDate && !endDate) {
+    return resolveStoreDateRange(undefined, undefined, 30);
+  }
+  return parseStoreDateRange(startDate, endDate) || resolveStoreDateRange(startDate, endDate, 29);
 }
 
 async function resolveReportStoreIds(user: any, queryStoreId?: string) {
@@ -86,19 +89,16 @@ function saleDateKey(sale: { businessDate?: Date | null; createdAt: Date }): str
   return ymdInReportTz(d);
 }
 
-/** Date + store filter only (flat OR — matches analytics queries). */
+/** Date + store filter — same business-day logic as dashboard & daily closing. */
 function reportSalesDateWhere(storeId: any, startDate?: string, endDate?: string) {
-  const dateFilter = getReportDateRange(startDate, endDate);
+  const dateFilter = getDateRange(startDate, endDate);
   return {
     storeId,
-    OR: [
-      { createdAt: { gte: dateFilter.gte, lte: dateFilter.lte } },
-      { businessDate: { gte: dateFilter.gte, lte: dateFilter.lte } },
-    ],
+    ...salesInDateRangeWhere(dateFilter.gte, dateFilter.lte),
   };
 }
 
-/** PAID sales + OPEN credit bills in range (two simple queries, merged). */
+/** PAID sales only — used by register summary, product-wise, etc. */
 async function fetchReportableSales(
   storeId: any,
   startDate: string | undefined,
@@ -108,24 +108,31 @@ async function fetchReportableSales(
   const base = reportSalesDateWhere(storeId, startDate, endDate);
   const paidSales = await prisma.sale.findMany({ ...query, where: { ...base, status: 'PAID' } });
 
-  let openCreditSales: any[] = [];
-  try {
-    openCreditSales = await prisma.sale.findMany({
-      ...query,
-      where: { ...base, status: 'OPEN', payments: { some: { method: 'CREDIT' } } },
-    });
-  } catch (err: any) {
-    const msg = String(err?.message || err);
-    // Production DB may lack CREDIT on PaymentMethod enum until migration is applied
-    if (msg.includes('PaymentMethod') || msg.includes('CREDIT') || msg.includes('22P02')) {
-      console.warn('[Reports] CREDIT not in PaymentMethod enum; returning PAID sales only');
-    } else {
-      throw err;
-    }
+  let merged = [...paidSales];
+  const order = query.orderBy?.createdAt;
+  if (order === 'desc') {
+    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } else if (order === 'asc') {
+    merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
+  return merged;
+}
+
+/** Bill-wise register: PAID + OPEN (unpaid/credit) bills in the date range. */
+async function fetchBillWiseSales(
+  storeId: any,
+  startDate: string | undefined,
+  endDate: string | undefined,
+  query: { include?: any; select?: any; orderBy?: any } = {}
+) {
+  const base = reportSalesDateWhere(storeId, startDate, endDate);
+  const [paidSales, openSales] = await Promise.all([
+    prisma.sale.findMany({ ...query, where: { ...base, status: 'PAID' } }),
+    prisma.sale.findMany({ ...query, where: { ...base, status: 'OPEN' } }),
+  ]);
 
   const byId = new Map<string, any>();
-  for (const sale of [...paidSales, ...openCreditSales]) {
+  for (const sale of [...paidSales, ...openSales]) {
     byId.set(sale.id, sale);
   }
 
@@ -137,6 +144,42 @@ async function fetchReportableSales(
     merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
   return merged;
+}
+
+function mapBillWiseRow(sale: any) {
+  const masale = masaleTotalsFromSaleItems(sale.items);
+  return {
+    saleId: sale.id,
+    saleNo: sale.saleNo,
+    status: sale.status,
+    date: sale.createdAt,
+    customerName: sale.customer?.name || 'Walk-in',
+    customerPhone: sale.customer?.phone || 'N/A',
+    itemsCount: sale.items.length,
+    subTotal: sale.subTotal,
+    discount: sale.discountTotal,
+    tax: sale.taxTotal,
+    grandTotal: sale.grandTotal,
+    masaleRevenue: masale.masaleRevenue,
+    masaleQtyPcs: masale.masaleQtyPcs,
+    masaleQtyKg: masale.masaleQtyKg,
+    payments: sale.payments.map((p: any) => ({
+      method: p.method,
+      amount: p.amount,
+    })),
+    createdBy: sale.createdBy?.name ?? '—',
+    items: sale.items
+      .filter((item: any) => item.product)
+      .map((item: any) => ({
+        productName: item.product.name,
+        sku: item.product.sku,
+        isMasale: isMasaleProduct(item.product.category?.name, item.product.name),
+        qtyKg: item.qtyKg,
+        qtyPcs: item.qtyPcs,
+        rate: item.rate,
+        lineTotal: item.lineTotal,
+      })),
+  };
 }
 
 function itemMasaleFlag(item: {
@@ -587,7 +630,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const dateFilter = getDateRange(startDate, endDate);
     console.log('[Bill-wise Report] Date filter:', dateFilter);
 
-    const sales = await fetchReportableSales(
+    const sales = await fetchBillWiseSales(
       storeIds.length > 1 ? { in: storeIds } : storeIds[0],
       startDate,
       endDate,
@@ -611,40 +654,26 @@ export async function reportRoutes(fastify: FastifyInstance) {
       }
     );
 
-    return sales.map((sale) => {
-      const masale = masaleTotalsFromSaleItems(sale.items);
-      return {
-      saleId: sale.id,
-      saleNo: sale.saleNo,
-      date: sale.createdAt,
-      customerName: sale.customer?.name || 'Walk-in',
-      customerPhone: sale.customer?.phone || 'N/A',
-      itemsCount: sale.items.length,
-      subTotal: sale.subTotal,
-      discount: sale.discountTotal,
-      tax: sale.taxTotal,
-      grandTotal: sale.grandTotal,
-      masaleRevenue: masale.masaleRevenue,
-      masaleQtyPcs: masale.masaleQtyPcs,
-      masaleQtyKg: masale.masaleQtyKg,
-      payments: sale.payments.map((p: any) => ({
-        method: p.method,
-        amount: p.amount,
-      })),
-      createdBy: sale.createdBy.name,
-      items: sale.items
-        .filter((item: any) => item.product)
-        .map((item: any) => ({
-          productName: item.product.name,
-          sku: item.product.sku,
-          isMasale: isMasaleProduct(item.product.category?.name, item.product.name),
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
-          rate: item.rate,
-          lineTotal: item.lineTotal,
-        })),
+    const rows = sales.map(mapBillWiseRow);
+    const paidRows = rows.filter((r) => r.status === 'PAID');
+    const openRows = rows.filter((r) => r.status === 'OPEN');
+    const realisedRevenue = Math.round(paidRows.reduce((s, r) => s + r.grandTotal, 0) * 1000) / 1000;
+    const outstandingRevenue = Math.round(openRows.reduce((s, r) => s + r.grandTotal, 0) * 1000) / 1000;
+    const masaleRevenue = Math.round(rows.reduce((s, r) => s + (r.masaleRevenue || 0), 0) * 1000) / 1000;
+    const masaleQtyPcs = rows.reduce((s, r) => s + (r.masaleQtyPcs || 0), 0);
+
+    return {
+      rows,
+      summary: {
+        totalBills: rows.length,
+        paidBills: paidRows.length,
+        openBills: openRows.length,
+        realisedRevenue,
+        outstandingRevenue,
+        masaleRevenue,
+        masaleQtyPcs,
+      },
     };
-    });
     } catch (error: any) {
       console.error('Bill-wise sale report error:', error);
       reply.code(500).send({ error: 'Failed to generate bill-wise sale report', details: error.message });

@@ -5,8 +5,10 @@ import { z } from 'zod';
 import {
   salesInStoreDayWhere,
   storeDayBoundsFromYmd,
+  closingDateStorageKey,
   tallyPaymentsFromSales,
   tallyToClosingFields,
+  resolveStoreDateRange,
 } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
@@ -87,7 +89,7 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
 
         // Store calendar day (IST) — matches when staff actually traded.
         const closingDateStr = closingDate.split('T')[0]; // YYYY-MM-DD
-        const closingDateObj = new Date(closingDateStr + 'T00:00:00.000Z');
+        const closingDateObj = closingDateStorageKey(closingDateStr);
         const { gte: dayStart, lte: dayEnd } = storeDayBoundsFromYmd(closingDateStr);
 
         // Check if closing already exists for this date
@@ -384,10 +386,9 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         // Decode URL-encoded date if needed
         date = decodeURIComponent(date);
 
-        // Use UTC to avoid timezone issues - consistent with other date filtering
         // Handle both YYYY-MM-DD and ISO date strings
         const closingDateStr = date.split('T')[0]; // Get YYYY-MM-DD
-        const closingDate = new Date(closingDateStr + 'T00:00:00.000Z');
+        const closingDate = closingDateStorageKey(closingDateStr);
         
         // Validate date
         if (isNaN(closingDate.getTime())) {
@@ -415,8 +416,8 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
 
         // If not found with exact match, try finding by date range (in case of timezone issues)
         if (!closing) {
-          const closingDateStart = new Date(closingDateStr + 'T00:00:00.000Z');
-          const closingDateEnd = new Date(closingDateStr + 'T23:59:59.999Z');
+          const closingDateStart = closingDateStorageKey(closingDateStr);
+          const { lte: closingDateEnd } = storeDayBoundsFromYmd(closingDateStr);
           
           closing = await prisma.dailyClosing.findFirst({
             where: {
@@ -442,6 +443,33 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
           return;
         }
 
+        // Refresh live totals for open closings so cash/UPI stay current during the day.
+        if (!closing.isFinalized) {
+          const sales = await prisma.sale.findMany({
+            where: salesInStoreDayWhere(storeId, closingDateStr, 'PAID'),
+            include: { payments: true },
+          });
+          const paymentTotals = tallyPaymentsFromSales(sales);
+          const { cashSales, cardSales, upiSales } = tallyToClosingFields(paymentTotals);
+          const totalRevenue =
+            Math.round(sales.reduce((sum: number, s: any) => sum + (s.grandTotal || 0), 0) * 1000) /
+            1000;
+          return {
+            ...closing,
+            totalSales: sales.length,
+            totalRevenue,
+            totalDiscounts:
+              Math.round(sales.reduce((sum: number, s: any) => sum + (s.discountTotal || 0), 0) * 1000) /
+              1000,
+            totalTax:
+              Math.round(sales.reduce((sum: number, s: any) => sum + (s.taxTotal || 0), 0) * 1000) /
+              1000,
+            cashSales,
+            cardSales,
+            upiSales,
+          };
+        }
+
         return closing;
       } catch (error: any) {
         console.error('Failed to load daily closing:', error);
@@ -463,10 +491,8 @@ export async function dailyClosingRoutes(fastify: FastifyInstance) {
         const where: any = { storeId };
 
         if (startDate && endDate) {
-          where.closingDate = {
-            gte: new Date(startDate + 'T00:00:00.000Z'),
-            lte: new Date(endDate + 'T23:59:59.999Z'),
-          };
+          const { gte, lte } = resolveStoreDateRange(startDate, endDate);
+          where.closingDate = { gte, lte };
         }
 
         const closings = await prisma.dailyClosing.findMany({

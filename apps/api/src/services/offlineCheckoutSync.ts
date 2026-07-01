@@ -4,6 +4,7 @@ import {
   createSaleSchema,
   paymentSchema,
   normalizePaymentsForSale,
+  ymdInStoreTz,
 } from '@azela-pos/shared';
 import { z } from 'zod';
 import {
@@ -152,7 +153,7 @@ export async function applyOfflineCheckoutFromSync(
   const roundedGrandTotal = Math.round(grandTotal);
 
   const todayForNo = new Date();
-  const dateStr = todayForNo.toISOString().split('T')[0].replace(/-/g, '');
+  const dateStr = ymdInStoreTz(todayForNo).replace(/-/g, '');
   let saleNo: string;
   let attempts = 0;
   const maxAttempts = 5;

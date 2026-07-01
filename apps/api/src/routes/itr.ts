@@ -1,31 +1,12 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { resolveStoreDateRange } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
 
-/** Date range for queries; same logic as reports */
+/** Date range for queries — store calendar (IST), aligned with reports. */
 function getDateRange(startDate?: string, endDate?: string) {
-  if (startDate && endDate) {
-    const startStr = startDate.split('T')[0];
-    const endStr = endDate.split('T')[0];
-    const start = new Date(startStr + 'T00:00:00.000Z');
-    const end = new Date(endStr + 'T23:59:59.999Z');
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      const endDefault = new Date();
-      endDefault.setUTCHours(23, 59, 59, 999);
-      const startDefault = new Date();
-      startDefault.setUTCDate(startDefault.getUTCDate() - 365);
-      startDefault.setUTCHours(0, 0, 0, 0);
-      return { gte: startDefault, lte: endDefault };
-    }
-    return { gte: start, lte: end };
-  }
-  const end = new Date();
-  end.setUTCHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setUTCFullYear(start.getUTCFullYear() - 1);
-  start.setUTCHours(0, 0, 0, 0);
-  return { gte: start, lte: end };
+  return resolveStoreDateRange(startDate, endDate, 365);
 }
 
 /** Resolve store IDs for owner (all franchises + owner) or single store */

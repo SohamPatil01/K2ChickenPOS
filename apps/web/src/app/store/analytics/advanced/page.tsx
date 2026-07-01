@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import api from "@/lib/api";
+import { localDateRangeToApiBounds, todayLocalYmd } from "@/lib/dateRangeParams";
+import { format, subDays } from "date-fns";
 import {
   SimpleLineChart,
   SimpleBarChart,
@@ -180,13 +182,9 @@ function formatINR(n: number) {
 }
 
 function defaultDateRange() {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 29);
-  return {
-    startDateStr: start.toISOString().split("T")[0],
-    endDateStr: end.toISOString().split("T")[0],
-  };
+  const endDateStr = todayLocalYmd();
+  const startDateStr = format(subDays(new Date(), 29), "yyyy-MM-dd");
+  return { startDateStr, endDateStr };
 }
 
 export default function AdvancedAnalyticsPage() {
@@ -388,12 +386,11 @@ export default function AdvancedAnalyticsPage() {
   const loadSalesFallback = async (tab: "forecast" | "demand") => {
     setLoading(true);
     try {
-      const start = new Date(startDateStr + "T00:00:00.000Z");
-      const end = new Date(endDateStr + "T23:59:59.999Z");
+      const { startDate, endDate } = localDateRangeToApiBounds(startDateStr, endDateStr);
       const res = await api.get("/api/v1/sales", {
         params: {
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
+          startDate,
+          endDate,
           status: "PAID",
         },
       });
@@ -401,21 +398,18 @@ export default function AdvancedAnalyticsPage() {
       if (tab === "forecast") {
         const salesByDate: Record<string, number> = {};
         sales.forEach((s: any) => {
-          const d = new Date(s.createdAt);
-          const key = d.toISOString().split("T")[0];
+          const key = String(s.createdAt).slice(0, 10);
           salesByDate[key] = (salesByDate[key] || 0) + (s.grandTotal || 0);
         });
         const dates: string[] = [];
         const values: number[] = [];
+        const startMs = new Date(startDate).getTime();
+        const endMs = new Date(endDate).getTime();
         const dayMs = 86400000;
-        const n = Math.max(
-          1,
-          Math.round((end.getTime() - start.getTime()) / dayMs) + 1
-        );
-        for (let i = n - 1; i >= 0; i--) {
-          const d = new Date(end);
-          d.setUTCDate(d.getUTCDate() - i);
-          const key = d.toISOString().split("T")[0];
+        const n = Math.max(1, Math.round((endMs - startMs) / dayMs) + 1);
+        for (let i = 0; i < n; i++) {
+          const d = new Date(startMs + i * dayMs);
+          const key = d.toLocaleDateString("en-CA");
           dates.push(key);
           values.push(salesByDate[key] || 0);
         }

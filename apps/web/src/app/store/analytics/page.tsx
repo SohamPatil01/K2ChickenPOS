@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
+import { tallyPaymentsFromSales } from '@azela-pos/shared';
 import api from '@/lib/api';
 import { SimpleLineChart, SimpleBarChart, SimplePieChart } from '@/components/charts';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
@@ -132,14 +133,15 @@ export default function AnalyticsPage() {
     });
     const categoryDistribution = Object.entries(categorySales).map(([name, value]) => ({ name, value }));
 
-    // Payment methods
-    const paymentMethodSales: Record<string, number> = {};
-    sales.forEach(sale => {
-      sale.payments?.forEach((payment: any) => {
-        paymentMethodSales[payment.method] = (paymentMethodSales[payment.method] || 0) + (payment.amount || 0);
-      });
-    });
-    const paymentMethods = Object.entries(paymentMethodSales).map(([name, value]) => ({ name, value }));
+    // Payment methods (ONLINE rolled into UPI for tally)
+    const tallied = tallyPaymentsFromSales(sales);
+    const paymentMethods = [
+      { name: 'Cash', value: tallied.cash },
+      { name: 'UPI', value: tallied.upi },
+      { name: 'Card', value: tallied.card },
+      ...(tallied.credit > 0 ? [{ name: 'Credit', value: tallied.credit }] : []),
+      ...(tallied.other > 0 ? [{ name: 'Other', value: tallied.other }] : []),
+    ].filter((r) => r.value > 0);
 
     // Hourly pattern
     const hourlySales: Record<string, number> = {};

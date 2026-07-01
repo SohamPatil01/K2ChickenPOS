@@ -9,6 +9,7 @@ import {
   updateDeliveryStatusSchema,
   verifyOTPSchema,
   customerAddressSchema,
+  storeDayBoundsFromYmd,
 } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
@@ -209,23 +210,17 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
         where.createdAt = { gte, lte };
       }
     } else {
-      /** YYYY-MM-DD → UTC day bounds (legacy / server-side tools) */
-      const dayBoundsUtc = (iso: string) => {
-        const d = String(iso).split('T')[0];
-        return {
-          gte: new Date(d + 'T00:00:00.000Z'),
-          lte: new Date(d + 'T23:59:59.999Z'),
-        };
-      };
+      /** YYYY-MM-DD → store calendar day bounds (IST) */
+      const dayBounds = (iso: string) => storeDayBoundsFromYmd(String(iso).split('T')[0]);
 
       if (qStart && qEnd) {
-        const gte = dayBoundsUtc(qStart).gte;
-        const lte = dayBoundsUtc(qEnd).lte;
+        const { gte } = dayBounds(qStart);
+        const { lte } = dayBounds(qEnd);
         if (!isNaN(gte.getTime()) && !isNaN(lte.getTime()) && gte <= lte) {
           where.createdAt = { gte, lte };
         }
       } else if (date) {
-        const { gte, lte } = dayBoundsUtc(date);
+        const { gte, lte } = dayBounds(date);
         if (!isNaN(gte.getTime())) {
           where.createdAt = { gte, lte };
         }

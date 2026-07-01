@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
+import { resolveStoreDateRange, salesInDateRangeWhere, ymdDaysAgoInStoreTz, ymdInStoreTz } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 
@@ -328,26 +329,12 @@ export async function storeRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Date range
+      // Date range (store calendar IST)
       let dateFilter: any = {};
       if (startDate && endDate) {
-        const start = new Date(startDate + 'T00:00:00.000Z');
-        const end = new Date(endDate + 'T23:59:59.999Z');
-        dateFilter = {
-          gte: start,
-          lte: end,
-        };
+        dateFilter = resolveStoreDateRange(startDate, endDate);
       } else {
-        // Default to last 30 days
-        const end = new Date();
-        end.setUTCHours(23, 59, 59, 999);
-        const start = new Date();
-        start.setUTCDate(start.getUTCDate() - 30);
-        start.setUTCHours(0, 0, 0, 0);
-        dateFilter = {
-          gte: start,
-          lte: end,
-        };
+        dateFilter = resolveStoreDateRange(undefined, ymdInStoreTz(), 30);
       }
 
       const [sales, revenue, customers] = await Promise.all([
@@ -355,14 +342,14 @@ export async function storeRoutes(fastify: FastifyInstance) {
           where: {
             storeId: id,
             status: 'PAID',
-            createdAt: dateFilter,
+            ...salesInDateRangeWhere(dateFilter.gte, dateFilter.lte),
           },
         }),
         prisma.sale.aggregate({
           where: {
             storeId: id,
             status: 'PAID',
-            createdAt: dateFilter,
+            ...salesInDateRangeWhere(dateFilter.gte, dateFilter.lte),
           },
           _sum: {
             grandTotal: true,
@@ -381,8 +368,8 @@ export async function storeRoutes(fastify: FastifyInstance) {
         revenue: revenue._sum.grandTotal || 0,
         customers,
         period: {
-          startDate: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          endDate: endDate || new Date().toISOString().split('T')[0],
+          startDate: startDate || ymdDaysAgoInStoreTz(30),
+          endDate: endDate || ymdInStoreTz(),
         },
       };
     } catch (error: any) {

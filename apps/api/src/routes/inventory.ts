@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
-import { inventoryAdjustSchema, wastageSchema } from '@azela-pos/shared';
+import { inventoryAdjustSchema, wastageSchema, resolveStoreDateRange } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 
@@ -243,8 +243,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         reply.code(400).send({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
         return;
       }
-      const start = new Date(startDate + 'T00:00:00.000Z');
-      const end = new Date(endDate + 'T23:59:59.999Z');
+      const { gte: start, lte: end } = resolveStoreDateRange(startDate, endDate);
 
       const sales = await prisma.sale.findMany({
         where: {
@@ -688,10 +687,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
             lte: new Date(endDate as string),
           };
         } else {
-          where.createdAt = {
-            gte: new Date(startStr + 'T00:00:00.000Z'),
-            lte: new Date(endStr + 'T23:59:59.999Z'),
-          };
+          where.createdAt = resolveStoreDateRange(startStr, endStr);
         }
       }
 

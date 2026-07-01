@@ -1,4 +1,5 @@
 import { prisma } from '@azela-pos/db';
+import { paymentMixChartRows } from '@azela-pos/shared';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -1191,17 +1192,9 @@ export class AnalyticsService {
         return k >= startStr && k <= endStr;
       });
 
-      const paymentStats: Record<string, number> = {};
-      inRange.forEach(sale => {
-        sale.payments.forEach(payment => {
-          const method = payment.method || 'Unknown';
-          paymentStats[method] = (paymentStats[method] || 0) + (payment.amount || 0);
-        });
-      });
-
-      return Object.entries(paymentStats).map(([method, amount]) => ({
-        name: method,
-        total: amount,
+      return paymentMixChartRows(inRange).map(({ name, total }) => ({
+        name,
+        total,
       }));
     } catch (error) {
       console.error('[Analytics] Payment mix error:', error);

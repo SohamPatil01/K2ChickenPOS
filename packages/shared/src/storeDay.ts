@@ -37,10 +37,48 @@ export function parseStoreDateRange(
   return storeDayBoundsFromYmd(single);
 }
 
+/** yyyy-MM-dd N days before a store-calendar day (default: today in store TZ). */
+export function ymdDaysAgoInStoreTz(days: number, from: Date = new Date()): string {
+  const anchor = new Date(`${ymdInStoreTz(from)}T12:00:00.000${STORE_TZ_OFFSET}`);
+  anchor.setDate(anchor.getDate() - days);
+  return ymdInStoreTz(anchor);
+}
+
+/**
+ * Resolve API/report date bounds. yyyy-MM-dd uses IST; missing end → today;
+ * missing start → `defaultDaysBack` store days before end.
+ */
+export function resolveStoreDateRange(
+  startDate?: string,
+  endDate?: string,
+  defaultDaysBack = 29
+): { gte: Date; lte: Date } {
+  const endYmd = endDate ? String(endDate).split('T')[0] : ymdInStoreTz();
+  const startYmd = startDate
+    ? String(startDate).split('T')[0]
+    : ymdDaysAgoInStoreTz(defaultDaysBack, new Date(`${endYmd}T12:00:00.000${STORE_TZ_OFFSET}`));
+  return parseStoreDateRange(startYmd, endYmd)!;
+}
+
 /** Midnight store-local for the sale's business day (stored on Sale.businessDate). */
 export function businessDateForNow(at: Date = new Date()): Date {
   const ymd = ymdInStoreTz(at);
   return new Date(`${ymd}T00:00:00.000${STORE_TZ_OFFSET}`);
+}
+
+/** Stable DB key for DailyClosing.closingDate unique constraint. */
+export function closingDateStorageKey(ymd: string): Date {
+  return new Date(`${String(ymd).split('T')[0]}T00:00:00.000Z`);
+}
+
+/** Prisma filter: sales in [gte, lte] by businessDate or createdAt fallback. */
+export function salesInDateRangeWhere(gte: Date, lte: Date) {
+  return {
+    OR: [
+      { businessDate: { gte, lte } },
+      { AND: [{ businessDate: null }, { createdAt: { gte, lte } }] },
+    ],
+  };
 }
 
 /** Prisma where-clause: PAID sales belonging to one store calendar day. */
@@ -53,9 +91,6 @@ export function salesInStoreDayWhere(
   return {
     storeId,
     status,
-    OR: [
-      { businessDate: { gte, lte } },
-      { AND: [{ businessDate: null }, { createdAt: { gte, lte } }] },
-    ],
+    ...salesInDateRangeWhere(gte, lte),
   };
 }

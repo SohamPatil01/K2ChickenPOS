@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { tallyPaymentsFromSales, tallyToClosingFields } from '@azela-pos/shared';
 import Layout from '@/components/Layout';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
+import { localDateRangeToApiBounds, todayLocalYmd } from '@/lib/dateRangeParams';
 import { Button, Card } from '@/components/ui';
 
 export default function DailyClosingPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
-  const [closingDate, setClosingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [closingDate, setClosingDate] = useState(todayLocalYmd());
   const [existingClosing, setExistingClosing] = useState<any>(null);
   const [formData, setFormData] = useState({
     openingCash: 0,
@@ -60,10 +62,37 @@ export default function DailyClosingPage() {
       }
     } catch (error: any) {
       if (error.response?.status === 404) {
-        // 404 is expected when no daily closing exists for this date - not an error
         setExistingClosing(null);
-        // Load summary for new closing
-        await loadSummary();
+        try {
+          const { startDate, endDate } = localDateRangeToApiBounds(closingDate, closingDate);
+          const salesRes = await api.get('/api/v1/sales', {
+            params: { startDate, endDate, status: 'PAID' },
+          });
+          const sales = salesRes.data || [];
+          const paymentTotals = tallyPaymentsFromSales(sales);
+          const { cashSales, cardSales, upiSales } = tallyToClosingFields(paymentTotals);
+          const totalRevenue = sales.reduce(
+            (sum: number, sale: any) => sum + (sale.grandTotal || 0),
+            0
+          );
+          setSummary({
+            totalSales: sales.length,
+            totalRevenue,
+            totalDiscounts: 0,
+            totalTax: 0,
+            totalWeightSoldKg: 0,
+            totalWastageKg: 0,
+            cashSales,
+            cardSales,
+            upiSales,
+          });
+          if (cashSales !== undefined) {
+            setFormData((prev) => ({ ...prev, cashReceived: cashSales || 0 }));
+          }
+        } catch (salesError) {
+          console.error('Failed to fetch sales data:', salesError);
+          await loadSummary();
+        }
       } else {
         console.error('Failed to load daily closing:', error);
       }

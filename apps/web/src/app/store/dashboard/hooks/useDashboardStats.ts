@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { tallyPaymentsFromSales } from '@azela-pos/shared';
+import { tallyPaymentsFromSales, paymentBreakdownBuckets } from '@azela-pos/shared';
 import api from '@/lib/api';
-import { localDateRangeToApiBounds, parseLocalYmd, todayLocalYmd } from '@/lib/dateRangeParams';
+import { localDateRangeToApiBounds, parseLocalYmd, todayLocalYmd, defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
 import { format, startOfMonth, subDays } from 'date-fns';
 
 export interface DashboardStats {
@@ -105,8 +105,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
       if (userRole === 'MANAGER' || userRole === 'OWNER') {
         promises.push(
           api.get(
-            '/api/v1/analytics/top-items?startDate=' +
-              new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            '/api/v1/analytics/top-items?startDate=' + defaultDateRangeLast7Days().start
           ).catch(() => ({ data: null }))
         );
       }
@@ -283,35 +282,24 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
   const loadHistoricalData = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      const dateObj = new Date(date + 'T00:00:00.000Z');
-      const nextDay = new Date(dateObj);
-      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      const { startDate, endDate } = localDateRangeToApiBounds(date, date);
 
       const salesRes = await api.get('/api/v1/sales', {
         params: {
-          startDate: dateObj.toISOString(),
-          endDate: nextDay.toISOString(),
+          startDate,
+          endDate,
           status: 'PAID',
         },
       });
       const sales = salesRes.data || [];
-      const paymentBreakdown = { cash: 0, upi: 0, card: 0, other: 0 };
-      sales.forEach((sale: any) => {
-        (sale.payments || []).forEach((p: any) => {
-          const method = (p.method || '').toUpperCase();
-          const amount = p.amount || 0;
-          if (method === 'CASH') paymentBreakdown.cash += amount;
-          else if (method === 'UPI') paymentBreakdown.upi += amount;
-          else if (method === 'CARD' || method === 'CREDIT_CARD' || method === 'DEBIT_CARD')
-            paymentBreakdown.card += amount;
-          else paymentBreakdown.other += amount;
-        });
-      });
+      const { cash, upi, card, other } = paymentBreakdownBuckets(
+        tallyPaymentsFromSales(sales)
+      );
 
       const openSalesRes = await api.get('/api/v1/sales', {
         params: {
-          startDate: dateObj.toISOString(),
-          endDate: nextDay.toISOString(),
+          startDate,
+          endDate,
           status: 'OPEN',
         },
       });
@@ -322,7 +310,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
         date,
         salesCount: sales.length,
         totalRevenue: sales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0),
-        paymentBreakdown,
+        paymentBreakdown: { cash, upi, card, other },
         pendingAmount,
         pendingCount: openSales.length,
       });
