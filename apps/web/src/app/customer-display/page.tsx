@@ -168,28 +168,35 @@ export default function CustomerDisplayPage() {
           Loading…
         </div>
       ) : (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={mode}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="h-full w-full"
-          >
-            {mode === "billing" && bill ? (
-              <BillingScreen bill={bill} />
-            ) : mode === "payment" && payment ? (
-              <PaymentScreen data={payment} />
-            ) : mode === "success" && success ? (
-              <SuccessScreen data={success} />
-            ) : mode === "review" ? (
-              <ReviewScreen />
-            ) : (
-              <IdleScreen />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        // Crossfade (not wait): outgoing and incoming overlap so idle → bill →
+        // pay → success never flashes through an empty frame.
+        <div className="relative h-full w-full">
+          <AnimatePresence mode="sync" initial={false}>
+            <motion.div
+              key={mode}
+              initial={{ opacity: 0, scale: 0.988 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.008 }}
+              transition={{
+                duration: 0.55,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="absolute inset-0 h-full w-full will-change-[opacity,transform]"
+            >
+              {mode === "billing" && bill ? (
+                <BillingScreen bill={bill} />
+              ) : mode === "payment" && payment ? (
+                <PaymentScreen data={payment} />
+              ) : mode === "success" && success ? (
+                <SuccessScreen data={success} />
+              ) : mode === "review" ? (
+                <ReviewScreen />
+              ) : (
+                <IdleScreen />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       )}
 
       {/* Connection overlay */}
