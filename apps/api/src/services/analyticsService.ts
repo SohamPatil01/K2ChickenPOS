@@ -1,5 +1,10 @@
 import { prisma } from '@azela-pos/db';
-import { paymentMixChartRows } from '@azela-pos/shared';
+import {
+  paymentMixChartRows,
+  saleBusinessDayKey,
+  ymdInStoreTz,
+  eachStoreYmdInclusive,
+} from '@azela-pos/shared';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -27,23 +32,24 @@ function addDays(date: Date, days: number): Date {
 }
 
 function format(date: Date, formatStr: string): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-
+  // Prefer store calendar (IST) so chart labels match Orders / daily closing.
   if (formatStr === 'yyyy-MM-dd') {
-    return `${year}-${month}-${day}`;
+    return ymdInStoreTz(date);
   }
-  // Add more formats as needed
-  return date.toISOString().split('T')[0];
+  return ymdInStoreTz(date);
 }
 
-/** Calendar day key for analytics: prefer businessDate when set (UTC day), else sale createdAt */
+/** Store calendar day: businessDate (IST midnight) or createdAt — never UTC date-of-instant. */
 function saleBucketDateKey(sale: { businessDate: Date | null; createdAt: Date }): string {
-  if (sale.businessDate) {
-    return format(startOfDay(new Date(sale.businessDate)), 'yyyy-MM-dd');
-  }
-  return format(new Date(sale.createdAt), 'yyyy-MM-dd');
+  return saleBusinessDayKey(sale);
+}
+
+/** Inclusive store-day keys for an analytics range (bounds may be IST or UTC instants). */
+function storeRangeYmd(startDate: Date, endDate: Date): { startStr: string; endStr: string } {
+  return {
+    startStr: ymdInStoreTz(startDate),
+    endStr: ymdInStoreTz(endDate),
+  };
 }
 
 function utcDayOfWeekFromYmd(ymd: string): number {
@@ -228,13 +234,9 @@ export class AnalyticsService {
     franchiseStoreId?: string | null
   ): Promise<any> {
     const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
-    const start = startOfDay(rangeStart);
-    const end = endOfDay(rangeEnd);
-    const startStr = format(start, 'yyyy-MM-dd');
-    const endStr = format(end, 'yyyy-MM-dd');
-
-    const queryStart = subDays(start, 2);
-    const queryEnd = addDays(end, 2);
+    const { startStr, endStr } = storeRangeYmd(rangeStart, rangeEnd);
+    const queryStart = new Date(rangeStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(rangeEnd.getTime() + 2 * 24 * 60 * 60 * 1000);
 
     const sales = await prisma.sale.findMany({
       where: {
@@ -297,13 +299,10 @@ export class AnalyticsService {
     const minDaysRecommended = 14;
     const insufficientHistory = daysWithSales < minDaysRecommended;
 
-    const dailyRevenue: { date: string; total: number }[] = [];
-    const cursor = new Date(start);
-    while (cursor <= end) {
-      const ds = format(cursor, 'yyyy-MM-dd');
-      dailyRevenue.push({ date: ds, total: byDate[ds] || 0 });
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
+    const dailyRevenue: { date: string; total: number }[] = eachStoreYmdInclusive(
+      startStr,
+      endStr
+    ).map((ds) => ({ date: ds, total: byDate[ds] || 0 }));
 
     const bestDayEntry = Object.entries(byDate).sort((a, b) => b[1] - a[1])[0];
     const peakHourEntry = Object.entries(byHour).sort((a, b) => b[1] - a[1])[0];
@@ -1026,18 +1025,17 @@ export class AnalyticsService {
       if (!storeId) return [];
 
       const { storeIds } = await this.resolveAnalyticsStoreIds(storeId, franchiseStoreId ?? null);
-      const start = startOfDay(startDate);
-      const end = endOfDay(endDate);
-      const startStr = format(start, 'yyyy-MM-dd');
-      const endStr = format(end, 'yyyy-MM-dd');
+      const { startStr, endStr } = storeRangeYmd(startDate, endDate);
+      const fetchStart = new Date(startDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+      const fetchEnd = new Date(endDate.getTime() + 2 * 24 * 60 * 60 * 1000);
 
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
           status: 'PAID',
           OR: [
-            { createdAt: { gte: subDays(start, 2), lte: addDays(end, 2) } },
-            { businessDate: { gte: subDays(start, 2), lte: addDays(end, 2) } },
+            { createdAt: { gte: fetchStart, lte: fetchEnd } },
+            { businessDate: { gte: fetchStart, lte: fetchEnd } },
           ],
         },
         select: {
@@ -1095,18 +1093,18 @@ export class AnalyticsService {
       if (!storeId) return [];
 
       const { storeIds } = await this.resolveAnalyticsStoreIds(storeId, franchiseStoreId ?? null);
-      const start = startOfDay(startDate);
-      const end = endOfDay(endDate);
-      const startStr = format(start, 'yyyy-MM-dd');
-      const endStr = format(end, 'yyyy-MM-dd');
+      const { startStr, endStr } = storeRangeYmd(startDate, endDate);
+      // Widen fetch window so IST-edge sales are included, then bucket in store TZ.
+      const fetchStart = new Date(startDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+      const fetchEnd = new Date(endDate.getTime() + 2 * 24 * 60 * 60 * 1000);
 
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
           status: 'PAID',
           OR: [
-            { createdAt: { gte: subDays(start, 2), lte: addDays(end, 2) } },
-            { businessDate: { gte: subDays(start, 2), lte: addDays(end, 2) } },
+            { createdAt: { gte: fetchStart, lte: fetchEnd } },
+            { businessDate: { gte: fetchStart, lte: fetchEnd } },
           ],
         },
         select: {
@@ -1131,22 +1129,14 @@ export class AnalyticsService {
         salesByDate[date].count += 1;
       });
 
-      const result: any[] = [];
-      const currentDate = new Date(start);
-      const endD = new Date(end);
-
-      while (currentDate <= endD) {
-        const dateStr = format(currentDate, 'yyyy-MM-dd');
+      return eachStoreYmdInclusive(startStr, endStr).map((dateStr) => {
         const data = salesByDate[dateStr] || { total: 0, count: 0 };
-        result.push({
+        return {
           date: dateStr,
           total: data.total,
           count: data.count,
-        });
-        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-      }
-
-      return result;
+        };
+      });
     } catch (error) {
       console.error('[Analytics] Sales trend error:', error);
       return [];
@@ -1166,18 +1156,17 @@ export class AnalyticsService {
       if (!storeId) return [];
 
       const { storeIds } = await this.resolveAnalyticsStoreIds(storeId, franchiseStoreId ?? null);
-      const start = startOfDay(startDate);
-      const end = endOfDay(endDate);
-      const startStr = format(start, 'yyyy-MM-dd');
-      const endStr = format(end, 'yyyy-MM-dd');
+      const { startStr, endStr } = storeRangeYmd(startDate, endDate);
+      const fetchStart = new Date(startDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+      const fetchEnd = new Date(endDate.getTime() + 2 * 24 * 60 * 60 * 1000);
 
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
           status: 'PAID',
           OR: [
-            { createdAt: { gte: subDays(start, 2), lte: addDays(end, 2) } },
-            { businessDate: { gte: subDays(start, 2), lte: addDays(end, 2) } },
+            { createdAt: { gte: fetchStart, lte: fetchEnd } },
+            { businessDate: { gte: fetchStart, lte: fetchEnd } },
           ],
         },
         select: {
@@ -1215,18 +1204,17 @@ export class AnalyticsService {
       if (!storeId) return [];
 
       const { storeIds } = await this.resolveAnalyticsStoreIds(storeId, franchiseStoreId ?? null);
-      const start = startOfDay(startDate);
-      const end = endOfDay(endDate);
-      const startStr = format(start, 'yyyy-MM-dd');
-      const endStr = format(end, 'yyyy-MM-dd');
+      const { startStr, endStr } = storeRangeYmd(startDate, endDate);
+      const fetchStart = new Date(startDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+      const fetchEnd = new Date(endDate.getTime() + 2 * 24 * 60 * 60 * 1000);
 
       const sales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
           status: 'PAID',
           OR: [
-            { createdAt: { gte: subDays(start, 2), lte: addDays(end, 2) } },
-            { businessDate: { gte: subDays(start, 2), lte: addDays(end, 2) } },
+            { createdAt: { gte: fetchStart, lte: fetchEnd } },
+            { businessDate: { gte: fetchStart, lte: fetchEnd } },
           ],
         },
         select: {
@@ -1384,12 +1372,9 @@ export class AnalyticsService {
     rangeStart: Date,
     rangeEnd: Date
   ) {
-    const start = startOfDay(rangeStart);
-    const end = endOfDay(rangeEnd);
-    const startStr = format(start, 'yyyy-MM-dd');
-    const endStr = format(end, 'yyyy-MM-dd');
-    const queryStart = subDays(start, 2);
-    const queryEnd = addDays(end, 2);
+    const { startStr, endStr } = storeRangeYmd(rangeStart, rangeEnd);
+    const queryStart = new Date(rangeStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(rangeEnd.getTime() + 2 * 24 * 60 * 60 * 1000);
     const storeFilter = storeIds.length === 1 ? storeIds[0]! : { in: storeIds };
 
     const sales = await prisma.sale.findMany({

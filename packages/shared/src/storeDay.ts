@@ -66,6 +66,35 @@ export function businessDateForNow(at: Date = new Date()): Date {
   return new Date(`${ymd}T00:00:00.000${STORE_TZ_OFFSET}`);
 }
 
+/**
+ * Store calendar day for a sale. Prefer businessDate (IST midnight instant),
+ * else createdAt — always in Asia/Kolkata (never UTC date-of-instant).
+ */
+export function saleBusinessDayKey(sale: {
+  businessDate?: Date | string | null;
+  createdAt: Date | string;
+}): string {
+  if (sale.businessDate) {
+    return ymdInStoreTz(new Date(sale.businessDate));
+  }
+  return ymdInStoreTz(new Date(sale.createdAt));
+}
+
+/** Inclusive list of store-calendar days from startYmd through endYmd. */
+export function eachStoreYmdInclusive(startYmd: string, endYmd: string): string[] {
+  const start = String(startYmd).split('T')[0];
+  const end = String(endYmd).split('T')[0];
+  const days: string[] = [];
+  let cur = start;
+  while (cur <= end) {
+    days.push(cur);
+    const noon = new Date(`${cur}T12:00:00.000${STORE_TZ_OFFSET}`);
+    noon.setDate(noon.getDate() + 1);
+    cur = ymdInStoreTz(noon);
+  }
+  return days;
+}
+
 /** Stable DB key for DailyClosing.closingDate unique constraint. */
 export function closingDateStorageKey(ymd: string): Date {
   return new Date(`${String(ymd).split('T')[0]}T00:00:00.000Z`);

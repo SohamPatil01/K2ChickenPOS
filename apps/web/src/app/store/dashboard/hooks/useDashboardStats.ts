@@ -213,17 +213,16 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5);
 
+      // Always use store-local sales queries for today (dashboard API historically used UTC midnight).
       const newStats: DashboardStats = {
-        today: dashboardData?.today ?? {
+        today: {
           revenue: todayRevenue,
           count: paidSales.length,
           avgBill: paidSales.length > 0 ? todayRevenue / paidSales.length : 0,
         },
         yesterday: { revenue: yesterdayRevenue, count: yesterdaySales.length },
         lastWeek: { revenue: lastWeekRevenue, count: lastWeekSales.length },
-        month: dashboardData?.month
-          ? { revenue: dashboardData.month.revenue || 0, count: dashboardData.month.count || 0 }
-          : { revenue: monthRevenue, count: monthSales.length },
+        month: { revenue: monthRevenue, count: monthSales.length },
         todaySales: {
           count: paidSales.length,
           revenue: todayRevenue,
