@@ -1046,6 +1046,12 @@ export default function StorePOSPage() {
         discountTotal,
       } = useCartStore.getState();
 
+      const payableTotal = useCartStore.getState().getTotal().grandTotal;
+      // Cash/card/credit → no UPI QR; UPI/online → QR for full amount only.
+      publishPaymentMode(payableTotal, null, {
+        payments: [{ method, amount: payableTotal }],
+      });
+
       const ft = useCartStore.getState().fulfillmentType;
       const fee = useCartStore.getState().deliveryFee;
       // Stable idempotency key for this checkout attempt so transport-level
@@ -1254,8 +1260,7 @@ export default function StorePOSPage() {
     }
   };
 
-  // While the Quick Pay panel is open, keep the customer display's UPI QR in
-  // sync if the payable amount changes (e.g. cashier edits the cart behind it).
+  // While Quick Pay is open, keep the display total in sync (no UPI until method chosen).
   useEffect(() => {
     if (!showQuickCheckout) return;
     let lastTotal = useCartStore.getState().getTotal().grandTotal;

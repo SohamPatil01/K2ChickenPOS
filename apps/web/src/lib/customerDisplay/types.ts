@@ -36,6 +36,11 @@ export interface BillUpdatePayload {
   savings: number;
 }
 
+export interface PaymentLineDisplay {
+  method: string;
+  amount: number;
+}
+
 export interface PaymentModePayload {
   seq: number;
   grandTotal: number;
@@ -43,6 +48,10 @@ export interface PaymentModePayload {
   upiQrString: string;
   upiId: string;
   payeeName: string;
+  /** Cashier-selected lines (single method or split). Empty = total only, no QR yet. */
+  payments: PaymentLineDisplay[];
+  /** Amount encoded in the UPI QR. 0 = hide QR (cash/card/credit only). */
+  upiAmount: number;
 }
 
 export interface SuccessModePayload {

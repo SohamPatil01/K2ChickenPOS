@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { publishPaymentMode } from '@/lib/customerDisplay/publishHelpers';
 
 export interface CartPaymentModalProps {
   grandTotal: number;
@@ -51,6 +52,23 @@ export default function CartPaymentModal({
   const change = parseFloat(amountPaid) - grandTotal;
   const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
   const splitRemaining = Math.max(0, grandTotal - splitTotal);
+
+  // Drive customer display: cash/card/credit = no UPI QR; UPI = QR; split = UPI portion only.
+  useEffect(() => {
+    if (isSplitPayment) {
+      publishPaymentMode(grandTotal, null, {
+        payments: splitPayments.length > 0 ? splitPayments : undefined,
+      });
+      return;
+    }
+    const amount =
+      selectedMethod === 'CREDIT'
+        ? grandTotal
+        : Math.min(parseFloat(amountPaid) || grandTotal, grandTotal);
+    publishPaymentMode(grandTotal, null, {
+      payments: [{ method: selectedMethod, amount: amount > 0 ? amount : grandTotal }],
+    });
+  }, [grandTotal, selectedMethod, isSplitPayment, splitPayments, amountPaid]);
 
   const paymentMethods = [
     { value: 'CASH', label: 'Cash', icon: '💵', key: '1' },

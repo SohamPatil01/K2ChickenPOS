@@ -7,6 +7,7 @@ import {
   estimateLoyaltyPoints,
   type BillUpdatePayload,
   type DisplayLineItem,
+  type PaymentLineDisplay,
 } from "./types";
 
 /**
@@ -65,23 +66,53 @@ export function publishCurrentBill(): void {
   }
 }
 
-/** Switch the display into payment mode with a dynamic UPI QR for `grandTotal`. */
+function isUpiLike(method: string): boolean {
+  const m = String(method || "").toUpperCase();
+  return m === "UPI" || m === "ONLINE";
+}
+
+export type PublishPaymentOptions = {
+  /** Single-method or split lines. Omit / empty = show total only, no UPI QR. */
+  payments?: Array<{ method: string; amount: number }>;
+};
+
+/**
+ * Switch the display into payment mode.
+ * - Cash / Card / Credit only → no UPI QR
+ * - UPI / Online only → QR for that amount
+ * - Split → show each line; QR only for the UPI/Online portion
+ */
 export function publishPaymentMode(
   grandTotal: number,
-  invoiceNo: string | null
+  invoiceNo: string | null,
+  options?: PublishPaymentOptions
 ): void {
   const store = useCustomerDisplayStore.getState();
   if (!store.active) return;
 
+  const payments: PaymentLineDisplay[] = (options?.payments || [])
+    .filter((p) => Number(p.amount) > 0)
+    .map((p) => ({
+      method: String(p.method || "").toUpperCase(),
+      amount: Math.round(Number(p.amount) * 1000) / 1000,
+    }));
+
+  const upiAmount =
+    Math.round(
+      payments.filter((p) => isUpiLike(p.method)).reduce((s, p) => s + p.amount, 0) *
+        1000
+    ) / 1000;
+
   const cfg = getUpiConfig();
-  const upiQrString = cfg
-    ? buildUpiString({
-        upiId: cfg.upiId,
-        payeeName: cfg.payeeName,
-        amount: grandTotal,
-        note: invoiceNo || undefined,
-      })
-    : "";
+  const upiQrString =
+    upiAmount > 0 && cfg
+      ? buildUpiString({
+          upiId: cfg.upiId,
+          payeeName: cfg.payeeName,
+          amount: upiAmount,
+          note: invoiceNo || undefined,
+        })
+      : "";
 
   store.publishPayment({
     grandTotal,
@@ -89,6 +120,8 @@ export function publishPaymentMode(
     upiQrString,
     upiId: cfg?.upiId || "",
     payeeName: cfg?.payeeName || "K2 Chicken",
+    payments,
+    upiAmount,
   });
 }
 

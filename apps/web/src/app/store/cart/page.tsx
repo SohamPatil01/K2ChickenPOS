@@ -497,6 +497,9 @@ export default function StoreCartPage() {
         e.preventDefault();
         if (items.length > 0 && !isProcessingPayment && !showPaymentModal) {
           const { grandTotal } = getTotal();
+          publishPaymentMode(grandTotal, null, {
+            payments: [{ method: 'CASH', amount: grandTotal }],
+          });
           handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
         }
       }
@@ -1172,7 +1175,9 @@ export default function StoreCartPage() {
                 {/* Quick Pay Button */}
                 <button
                   onClick={() => {
-                    // Quick pay with Cash, exact amount
+                    publishPaymentMode(grandTotal, null, {
+                      payments: [{ method: 'CASH', amount: grandTotal }],
+                    });
                     handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
                   }}
                   disabled={items.length === 0 || isProcessingPayment}
@@ -1223,6 +1228,9 @@ export default function StoreCartPage() {
                 </div>
                 <button
                   onClick={() => {
+                    publishPaymentMode(grandTotal, null, {
+                      payments: [{ method: 'CASH', amount: grandTotal }],
+                    });
                     handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
                   }}
                   disabled={items.length === 0 || isProcessingPayment}
