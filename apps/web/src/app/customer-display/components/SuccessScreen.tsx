@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { BRAND, formatINR } from "@/lib/customerDisplay/brand";
-import BrandMark from "@/components/customerDisplay/BrandMark";
 import QrCode from "@/components/customerDisplay/QrCode";
 import type { SuccessModePayload } from "@/lib/customerDisplay/types";
 
@@ -19,48 +18,77 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
     }
   }, [data.saleId]);
 
-  return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden px-6 text-center">
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vh] w-[80vh] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/20 blur-[120px]" />
+  // Replay stamp animation for every new payment.
+  const animKey = data.saleId || data.invoiceNo || String(data.amountPaid);
 
-      <motion.div
-        initial={{ scale: 0, rotate: -30 }}
-        animate={{ scale: 1, rotate: 0 }}
-        transition={{ type: "spring", stiffness: 200, damping: 14 }}
-        className="flex h-36 w-36 items-center justify-center rounded-full bg-emerald-500 shadow-2xl sm:h-44 sm:w-44"
-      >
-        <motion.svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth={3}
-          className="h-20 w-20 sm:h-24 sm:w-24"
+  return (
+    <div
+      key={animKey}
+      className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden px-6 text-center"
+    >
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vh] w-[80vh] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
+
+      {/* K2 Chicken stamp: logo drops in, green ring expands */}
+      <div className="relative flex h-44 w-44 items-center justify-center sm:h-52 sm:w-52">
+        <motion.div
+          aria-hidden
+          className="absolute inset-0 rounded-full border-[6px] border-emerald-400"
+          initial={{ scale: 0.35, opacity: 0 }}
+          animate={{ scale: 1.35, opacity: [0, 0.9, 0] }}
+          transition={{ duration: 0.85, delay: 0.28, ease: "easeOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute inset-2 rounded-full border-4 border-emerald-300/60"
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1.15, opacity: [0, 0.7, 0] }}
+          transition={{ duration: 0.7, delay: 0.38, ease: "easeOut" }}
+        />
+
+        <motion.div
+          initial={{ scale: 2.4, y: -120, rotate: -12, opacity: 0 }}
+          animate={{ scale: 1, y: 0, rotate: 0, opacity: 1 }}
+          transition={{
+            type: "spring",
+            stiffness: 420,
+            damping: 16,
+            mass: 0.85,
+          }}
+          className="relative z-10 flex flex-col items-center"
         >
-          <motion.path
-            d="M5 13l4 4L19 7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-          />
-        </motion.svg>
-      </motion.div>
+          <div className="rounded-3xl bg-white p-3 shadow-2xl ring-4 ring-emerald-400/80 sm:p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={BRAND.logoPath}
+              alt={BRAND.name}
+              className="h-24 w-24 object-contain sm:h-28 sm:w-28"
+            />
+          </div>
+          <motion.span
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.35, type: "spring", stiffness: 300, damping: 14 }}
+            className="mt-3 rounded-full bg-emerald-500 px-5 py-1.5 text-sm font-black uppercase tracking-widest text-white shadow-lg sm:text-base"
+          >
+            Paid
+          </motion.span>
+        </motion.div>
+      </div>
 
       <motion.h1
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="mt-8 text-5xl font-black text-white sm:text-6xl"
+        transition={{ delay: 0.45, duration: 0.35 }}
+        className="mt-6 text-5xl font-black text-white sm:text-6xl"
       >
         Payment Successful
       </motion.h1>
 
       <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.45 }}
-        className="mt-3 text-2xl text-emerald-300 sm:text-3xl"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.55, type: "spring", stiffness: 200, damping: 16 }}
+        className="mt-3 text-3xl font-bold text-emerald-300 sm:text-4xl"
       >
         {formatINR(data.amountPaid)} paid
       </motion.p>
@@ -68,8 +96,8 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-        className="mt-8 flex flex-col items-center gap-3"
+        transition={{ delay: 0.7 }}
+        className="mt-6 flex flex-col items-center gap-3"
       >
         {data.loyaltyPointsEarned > 0 && (
           <span className="rounded-full bg-amber-500/20 px-6 py-2.5 text-xl font-semibold text-amber-300 sm:text-2xl">
@@ -85,7 +113,7 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.7, type: "spring", stiffness: 180, damping: 16 }}
+          transition={{ delay: 0.85, type: "spring", stiffness: 180, damping: 16 }}
           className="mt-8 flex flex-col items-center"
         >
           <div className="rounded-2xl bg-white p-4 shadow-2xl">
@@ -105,15 +133,10 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.8 }}
-        className="mt-10 flex flex-col items-center"
+        transition={{ delay: 1 }}
+        className="mt-8 flex flex-col items-center"
       >
-        <BrandMark
-          logoSizeClass="h-14 w-14"
-          badgePadClass="p-2"
-          showName={false}
-        />
-        <p className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
+        <p className="text-2xl font-semibold text-white sm:text-3xl">
           Thank you for shopping at {BRAND.name}!
         </p>
         <p className="mt-1 text-lg text-white/50">Please visit again soon.</p>
