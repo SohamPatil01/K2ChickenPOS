@@ -378,18 +378,36 @@ export default function StoreCartPage() {
       const saleResponse = await api.post('/api/v1/sales', saleData);
       console.log('[Cart] Sale response:', saleResponse.data);
 
-      if (saleResponse.data?.requiresApproval) {
+      const payload = saleResponse.data;
+      // Discount over limit: sale is OPEN + pending override (HTTP 202 body is nested).
+      const needsDiscountApproval =
+        payload?.requiresApproval === true ||
+        payload?.override?.status === 'PENDING' ||
+        (payload?.sale?.id && payload?.override && !payload?.id);
+
+      const finishPendingDiscountApproval = async (saleNo: string) => {
         setShowPaymentModal(false);
+        publishIdleMode();
         showNotification(
-          `Sale created but discount requires manager approval. Sale #${saleResponse.data.sale.saleNo} is pending approval.`,
-          'info'
+          `Sale #${saleNo} created. Discount needs manager approval before payment.`,
+          'info',
+          6000
         );
-        await clearCart();
-        setTimeout(() => router.push('/store/discount-approvals'), 2000);
+        try {
+          await clearCart();
+        } catch (clearErr) {
+          console.error('[Cart] clearCart after discount approval request:', clearErr);
+        }
+        setTimeout(() => router.push('/store/discount-approvals'), 1500);
+      };
+
+      if (needsDiscountApproval) {
+        const saleNo = payload?.sale?.saleNo || payload?.saleNo || 'pending';
+        await finishPendingDiscountApproval(saleNo);
         return;
       }
 
-      const sale = saleResponse.data;
+      const sale = payload?.sale?.id ? payload.sale : payload;
       if (!sale || !sale.id) {
         console.error('[Cart] Invalid sale response:', sale);
         throw new Error('Invalid sale response: Sale ID not found');
@@ -403,6 +421,14 @@ export default function StoreCartPage() {
       try {
         await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
       } catch (payErr: any) {
+        const payData = payErr?.response?.data;
+        if (
+          payData?.requiresApproval ||
+          String(payData?.error || '').toLowerCase().includes('pending approval')
+        ) {
+          await finishPendingDiscountApproval(sale.saleNo || sale.id);
+          return;
+        }
         if (!shouldTreatDuplicateCreditPayAsSuccess(payErr, normalizedPayments)) {
           throw payErr;
         }
@@ -456,6 +482,30 @@ export default function StoreCartPage() {
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
 
+      const errData = error?.response?.data;
+      // Some proxies surface HTTP 202 discount-approval as an error; sale already exists.
+      if (
+        errData?.requiresApproval ||
+        errData?.override?.status === 'PENDING' ||
+        (errData?.sale?.id && errData?.override)
+      ) {
+        setShowPaymentModal(false);
+        publishIdleMode();
+        const saleNo = errData?.sale?.saleNo || 'pending';
+        showNotification(
+          `Sale #${saleNo} created. Discount needs manager approval before payment.`,
+          'info',
+          6000
+        );
+        try {
+          await clearCart();
+        } catch (clearErr) {
+          console.error('[Cart] clearCart after discount approval error path:', clearErr);
+        }
+        setTimeout(() => router.push('/store/discount-approvals'), 1500);
+        return;
+      }
+
       if (isCheckoutNetworkError(error) && useCartStore.getState().items.length > 0) {
         try {
           await finishOfflineCheckout(
@@ -480,6 +530,9 @@ export default function StoreCartPage() {
         errorMessage = error.message;
       }
       
+      // Unstick payment UI + customer display on any failure.
+      setShowPaymentModal(false);
+      publishCurrentBill();
       showNotification(errorMessage, 'error', 5000);
     } finally {
       paymentInFlightRef.current = false;
