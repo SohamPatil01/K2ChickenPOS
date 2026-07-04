@@ -36,8 +36,11 @@ export default function CartPaymentModal({
   const [amountPaid, setAmountPaid] = useState(grandTotal.toString());
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([]);
+  const [splitError, setSplitError] = useState<string | null>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
   const payingRef = useRef(false);
+
+  const roundMoney = (n: number) => Math.round(n * 100) / 100;
 
   useEffect(() => {
     if (!isProcessing) {
@@ -46,12 +49,16 @@ export default function CartPaymentModal({
   }, [isProcessing]);
 
   useEffect(() => {
-    setAmountPaid(grandTotal.toString());
-  }, [grandTotal]);
+    if (!isSplitPayment) {
+      setAmountPaid(grandTotal.toString());
+    }
+  }, [grandTotal, isSplitPayment]);
 
   const change = parseFloat(amountPaid) - grandTotal;
-  const splitTotal = splitPayments.reduce((sum, p) => sum + p.amount, 0);
-  const splitRemaining = Math.max(0, grandTotal - splitTotal);
+  const splitTotal = roundMoney(splitPayments.reduce((sum, p) => sum + p.amount, 0));
+  const splitRemaining = roundMoney(Math.max(0, grandTotal - splitTotal));
+  const splitIsComplete =
+    splitPayments.length > 0 && Math.abs(splitTotal - grandTotal) <= 0.05;
 
   // Drive customer display: cash/card/credit = no UPI QR; UPI = QR; split = UPI portion only.
   useEffect(() => {
@@ -80,26 +87,38 @@ export default function CartPaymentModal({
 
   const handlePayment = useCallback(() => {
     if (isProcessing || payingRef.current) return;
-    payingRef.current = true;
 
     if (isSplitPayment) {
-      if (Math.abs(splitTotal - grandTotal) > 0.01) {
+      if (splitPayments.length === 0) {
+        setSplitError('Add each payment method and amount, then pay');
         return;
       }
-      onPay(splitPayments);
-    } else {
-      onPay([
-        {
-          method: selectedMethod,
-          amount:
-            selectedMethod === 'CREDIT' ? grandTotal : parseFloat(amountPaid) || grandTotal,
-        },
-      ]);
+      if (!splitIsComplete) {
+        setSplitError(
+          `Split is ₹${splitTotal.toFixed(2)} — must equal bill ₹${grandTotal.toFixed(2)} (remaining ₹${splitRemaining.toFixed(2)})`
+        );
+        return;
+      }
+      setSplitError(null);
+      payingRef.current = true;
+      onPay(splitPayments.map((p) => ({ method: p.method, amount: roundMoney(p.amount) })));
+      return;
     }
+
+    payingRef.current = true;
+    onPay([
+      {
+        method: selectedMethod,
+        amount:
+          selectedMethod === 'CREDIT' ? grandTotal : parseFloat(amountPaid) || grandTotal,
+      },
+    ]);
   }, [
     isProcessing,
     isSplitPayment,
+    splitIsComplete,
     splitTotal,
+    splitRemaining,
     grandTotal,
     splitPayments,
     selectedMethod,
@@ -110,6 +129,7 @@ export default function CartPaymentModal({
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      if ((e.target as HTMLElement).tagName === 'SELECT') return;
 
       if (e.key === 'Escape') {
         if (!isProcessing) onClose();
@@ -139,16 +159,58 @@ export default function CartPaymentModal({
     amountInputRef.current?.focus();
   };
 
-  const addSplitPayment = () => {
-    if (splitRemaining > 0 && selectedMethod) {
-      const amount = Math.min(parseFloat(amountPaid) || splitRemaining, splitRemaining);
-      setSplitPayments([...splitPayments, { method: selectedMethod, amount }]);
-      setAmountPaid(splitRemaining > amount ? (splitRemaining - amount).toString() : '');
+  const toggleSplitPayment = () => {
+    const next = !isSplitPayment;
+    setIsSplitPayment(next);
+    setSplitPayments([]);
+    setSplitError(null);
+    // Empty amount in split mode so the first "Add" does not take the full bill.
+    setAmountPaid(next ? '' : grandTotal.toString());
+    if (next) {
+      setTimeout(() => amountInputRef.current?.focus(), 50);
     }
   };
 
+  const addSplitPayment = () => {
+    setSplitError(null);
+    if (splitRemaining <= 0.01) {
+      setSplitError('Bill is already fully split');
+      return;
+    }
+    const parsed = parseFloat(amountPaid);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setSplitError('Enter how much for this method, then tap Add');
+      amountInputRef.current?.focus();
+      return;
+    }
+    const amount = roundMoney(Math.min(parsed, splitRemaining));
+    if (amount <= 0) {
+      setSplitError('Amount must be greater than zero');
+      return;
+    }
+    const next = [...splitPayments, { method: selectedMethod, amount }];
+    setSplitPayments(next);
+    const remaining = roundMoney(grandTotal - next.reduce((s, p) => s + p.amount, 0));
+    // Prefill remaining for the next method (cashier can edit).
+    setAmountPaid(remaining > 0.01 ? remaining.toFixed(2) : '');
+    amountInputRef.current?.focus();
+  };
+
+  const addSplitRemaining = () => {
+    if (splitRemaining <= 0.01) return;
+    setSplitError(null);
+    const amount = splitRemaining;
+    const next = [...splitPayments, { method: selectedMethod, amount }];
+    setSplitPayments(next);
+    setAmountPaid('');
+  };
+
   const removeSplitPayment = (index: number) => {
-    setSplitPayments(splitPayments.filter((_, i) => i !== index));
+    const next = splitPayments.filter((_, i) => i !== index);
+    setSplitPayments(next);
+    setSplitError(null);
+    const remaining = roundMoney(grandTotal - next.reduce((s, p) => s + p.amount, 0));
+    setAmountPaid(remaining > 0.01 ? remaining.toFixed(2) : '');
   };
 
   return (
@@ -256,13 +318,17 @@ export default function CartPaymentModal({
           </div>
 
           <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Split Payment</span>
+            <div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Split Payment</span>
+              {isSplitPayment && (
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                  Add each method + amount (e.g. Cash ₹500, then UPI rest)
+                </p>
+              )}
+            </div>
             <button
               type="button"
-              onClick={() => {
-                setIsSplitPayment(!isSplitPayment);
-                setSplitPayments([]);
-              }}
+              onClick={toggleSplitPayment}
               disabled={isProcessing}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                 isSplitPayment ? 'bg-brand-500' : 'bg-gray-300 dark:bg-gray-600'
@@ -319,6 +385,7 @@ export default function CartPaymentModal({
                   <select
                     value={selectedMethod}
                     onChange={(e) => setSelectedMethod(e.target.value)}
+                    disabled={isProcessing || splitRemaining <= 0.01}
                     className="flex-1 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
                   >
                     {paymentMethods.map((m) => (
@@ -328,28 +395,57 @@ export default function CartPaymentModal({
                     ))}
                   </select>
                   <input
+                    ref={amountInputRef}
                     type="number"
                     value={amountPaid}
-                    onChange={(e) => setAmountPaid(e.target.value)}
-                    placeholder={`₹${splitRemaining}`}
-                    className="w-24 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right font-semibold"
+                    onChange={(e) => {
+                      setAmountPaid(e.target.value);
+                      setSplitError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addSplitPayment();
+                      }
+                    }}
+                    placeholder={`₹${splitRemaining.toFixed(2)}`}
+                    disabled={isProcessing || splitRemaining <= 0.01}
+                    className="w-28 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right font-semibold"
+                    min={0}
+                    step="0.01"
                   />
                   <button
                     type="button"
                     onClick={addSplitPayment}
-                    disabled={splitRemaining <= 0 || !amountPaid}
+                    disabled={isProcessing || splitRemaining <= 0.01}
                     className="px-3 py-2 bg-brand-500 text-white rounded-lg text-sm font-semibold hover:bg-brand-600 disabled:opacity-50"
                   >
                     Add
                   </button>
                 </div>
+                {splitRemaining > 0.01 && (
+                  <button
+                    type="button"
+                    onClick={addSplitRemaining}
+                    disabled={isProcessing}
+                    className="mt-1.5 text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Add remaining ₹{splitRemaining.toFixed(2)} as {selectedMethod}
+                  </button>
+                )}
               </div>
+
+              {splitError && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                  {splitError}
+                </div>
+              )}
 
               {splitPayments.length > 0 && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 space-y-1.5 max-h-32 overflow-y-auto">
                   {splitPayments.map((payment, index) => (
                     <div
-                      key={index}
+                      key={`${payment.method}-${index}`}
                       className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded-lg"
                     >
                       <div className="flex items-center gap-2">
@@ -358,12 +454,13 @@ export default function CartPaymentModal({
                         </span>
                         <div>
                           <div className="font-semibold text-xs text-gray-900 dark:text-white">{payment.method}</div>
-                          <div className="text-[10px] text-gray-500">₹{payment.amount}</div>
+                          <div className="text-[10px] text-gray-500">₹{payment.amount.toFixed(2)}</div>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeSplitPayment(index)}
+                        disabled={isProcessing}
                         className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -373,11 +470,13 @@ export default function CartPaymentModal({
                     </div>
                   ))}
                   <div className="flex justify-between items-center pt-1.5 border-t border-gray-200 dark:border-gray-600">
-                    <span className="text-xs font-semibold">Remaining:</span>
+                    <span className="text-xs font-semibold">
+                      {splitIsComplete ? 'Ready to pay' : 'Remaining:'}
+                    </span>
                     <span
-                      className={`text-base font-bold ${splitRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}
+                      className={`text-base font-bold ${splitRemaining > 0.01 ? 'text-orange-600' : 'text-green-600'}`}
                     >
-                      ₹{splitRemaining}
+                      {splitIsComplete ? `₹${splitTotal.toFixed(2)}` : `₹${splitRemaining.toFixed(2)}`}
                     </span>
                   </div>
                 </div>
@@ -474,7 +573,7 @@ export default function CartPaymentModal({
               onClick={handlePayment}
               disabled={
                 isProcessing ||
-                (isSplitPayment && Math.abs(splitTotal - grandTotal) > 0.01) ||
+                (isSplitPayment && !splitIsComplete) ||
                 (!isSplitPayment && selectedMethod !== 'CREDIT' && change < 0) ||
                 (!isSplitPayment && selectedMethod === 'CREDIT' && !customerId)
               }
@@ -483,7 +582,11 @@ export default function CartPaymentModal({
               {isProcessing ? (
                 <span>Processing...</span>
               ) : isSplitPayment ? (
-                <span>Pay ₹{Math.round(splitTotal)}</span>
+                <span>
+                  {splitIsComplete
+                    ? `Pay split ₹${splitTotal.toFixed(2)}`
+                    : `Add ₹${splitRemaining.toFixed(2)} more`}
+                </span>
               ) : selectedMethod === 'CREDIT' ? (
                 <span>Credit ₹{grandTotal}</span>
               ) : (
