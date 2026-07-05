@@ -2,9 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { publishPaymentMode } from '@/lib/customerDisplay/publishHelpers';
+import type { PendingSettlementLine } from '@/lib/pendingCreditCheckout';
 
 export interface CartPaymentModalProps {
+  /** Amount to collect (cart + optional pending credit). */
   grandTotal: number;
+  /** Today's cart-only total — shown as a line when pending credit is included. */
+  cartGrandTotal?: number;
+  pendingSettlementLines?: PendingSettlementLine[];
   subTotal: number;
   taxTotal: number;
   discountTotal: number;
@@ -20,6 +25,8 @@ export interface CartPaymentModalProps {
 
 export default function CartPaymentModal({
   grandTotal,
+  cartGrandTotal,
+  pendingSettlementLines = [],
   subTotal,
   taxTotal,
   discountTotal,
@@ -291,6 +298,24 @@ export default function CartPaymentModal({
 
         <div className="p-4 space-y-3">
           <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-xl p-4 transition-all duration-200">
+            {(cartGrandTotal != null && cartGrandTotal !== grandTotal) || pendingSettlementLines.some((l) => l.selected && l.amount > 0) ? (
+              <div className="space-y-1.5 mb-3 pb-3 border-b border-brand-200/60 dark:border-brand-800/40">
+                {cartGrandTotal != null && (
+                  <div className="flex justify-between text-xs text-gray-700 dark:text-gray-300">
+                    <span>Today&apos;s items</span>
+                    <span className="font-semibold">₹{cartGrandTotal}</span>
+                  </div>
+                )}
+                {pendingSettlementLines
+                  .filter((l) => l.selected && l.amount > 0)
+                  .map((l) => (
+                    <div key={l.saleId} className="flex justify-between text-xs text-amber-800 dark:text-amber-300">
+                      <span>Credit bill #{l.saleNo}</span>
+                      <span className="font-semibold">₹{Math.round(l.amount)}</span>
+                    </div>
+                  ))}
+              </div>
+            ) : null}
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
               <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>

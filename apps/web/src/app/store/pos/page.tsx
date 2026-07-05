@@ -12,7 +12,7 @@ import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
 import { SkeletonProductCard } from "@/components/ui";
-import { normalizeBarcodeForLookup, normalizePaymentsForSale } from "@azela-pos/shared";
+import { normalizeBarcodeForLookup } from "@azela-pos/shared";
 import {
   saveHeldCart,
   listHeldCarts,
@@ -28,7 +28,11 @@ import {
   isOfflineForCheckout,
   queueOfflineCheckout,
 } from "@/lib/offlineCheckout";
-import { shouldTreatDuplicateCreditPayAsSuccess } from "@/lib/checkoutPayRecovery";
+import PendingCreditSettlement from "@/components/PendingCreditSettlement";
+import {
+  completeNewSaleCheckout,
+  checkoutPaymentMismatch,
+} from "@/lib/pendingCreditCheckout";
 import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
 import {
   publishPaymentMode,
@@ -197,6 +201,10 @@ export default function StorePOSPage() {
     setDiscountType,
     setDiscountPercentage,
   } = useCartStore();
+  const checkoutGrandTotal = useCartStore((s) => s.getCheckoutTotal());
+  const cartGrandTotal = useCartStore((s) => s.getTotal().grandTotal);
+  const pendingSettlementTotal = useCartStore((s) => s.getPendingSettlementTotal());
+  const pendingSettlements = useCartStore((s) => s.pendingSettlements);
   const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1046,7 +1054,7 @@ export default function StorePOSPage() {
         discountTotal,
       } = useCartStore.getState();
 
-      const payableTotal = useCartStore.getState().getTotal().grandTotal;
+      const payableTotal = useCartStore.getState().getCheckoutTotal();
       // Cash/card/credit → no UPI QR; UPI/online → QR for full amount only.
       publishPaymentMode(payableTotal, null, {
         payments: [{ method, amount: payableTotal }],
@@ -1102,6 +1110,14 @@ export default function StorePOSPage() {
       };
 
       if (isOfflineForCheckout()) {
+        if (useCartStore.getState().getPendingSettlementTotal() > 0) {
+          showNotification(
+            "Settling old credit needs internet. Uncheck previous credit or go online.",
+            "warning",
+            6000
+          );
+          return;
+        }
         await finishOfflineCheckout(
           "Bill saved offline. It will sync automatically when internet is back."
         );
@@ -1142,16 +1158,32 @@ export default function StorePOSPage() {
         throw new Error("Invalid sale response");
       }
 
-      const roundedSaleGrandTotal = Math.round(sale.grandTotal);
-      const paymentData = {
-        payments: normalizePaymentsForSale(
-          [{ method, amount: roundedSaleGrandTotal }],
-          sale.grandTotal
-        ),
-      };
+      const checkoutTotal = useCartStore.getState().getCheckoutTotal();
+      const paymentInput = [{ method, amount: checkoutTotal }];
+      if (checkoutPaymentMismatch(paymentInput, checkoutTotal)) {
+        showNotification(
+          `Payment total must match checkout amount ₹${checkoutTotal}`,
+          "error"
+        );
+        return;
+      }
+
+      const pendingLines = useCartStore.getState().getSelectedPendingSettlements();
 
       try {
-        await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+        const { settledSaleNos } = await completeNewSaleCheckout(
+          api,
+          sale,
+          paymentInput,
+          pendingLines
+        );
+        if (settledSaleNos.length > 0) {
+          showNotification(
+            `Settled previous credit: ${settledSaleNos.map((n) => `#${n}`).join(", ")}`,
+            "success",
+            5000
+          );
+        }
       } catch (payErr: any) {
         const payData = payErr?.response?.data;
         if (
@@ -1161,10 +1193,7 @@ export default function StorePOSPage() {
           await finishPendingDiscountApproval(sale.saleNo || sale.id);
           return;
         }
-        if (!shouldTreatDuplicateCreditPayAsSuccess(payErr, paymentData.payments || [])) {
-          throw payErr;
-        }
-        console.warn("[POS] Credit bill already paid on server; showing success");
+        throw payErr;
       }
 
       const fulfillType = useCartStore.getState().fulfillmentType;
@@ -1194,23 +1223,23 @@ export default function StorePOSPage() {
 
       setCompletedSale({
         saleNo: sale.saleNo || "N/A",
-        grandTotal: roundedSaleGrandTotal,
+        grandTotal: checkoutTotal,
       });
       setShowSuccessAnimation(true);
 
       // Reflect the completed payment on the customer display.
-      publishSuccessMode(roundedSaleGrandTotal, sale.saleNo || null, sale.id || null);
+      publishSuccessMode(checkoutTotal, sale.saleNo || null, sale.id || null);
 
       window.dispatchEvent(
         new CustomEvent("sale-created", {
-          detail: { saleId: sale.id, payments: paymentData.payments },
+          detail: { saleId: sale.id, payments: paymentInput },
         })
       );
 
       if (method === "CASH") {
         window.dispatchEvent(
           new CustomEvent("cash-sale-completed", {
-            detail: { amount: roundedSaleGrandTotal },
+            detail: { amount: checkoutTotal },
           })
         );
       }
@@ -1312,9 +1341,9 @@ export default function StorePOSPage() {
   // While Quick Pay is open, keep the display total in sync (no UPI until method chosen).
   useEffect(() => {
     if (!showQuickCheckout) return;
-    let lastTotal = useCartStore.getState().getTotal().grandTotal;
+    let lastTotal = useCartStore.getState().getCheckoutTotal();
     const unsub = useCartStore.subscribe(() => {
-      const total = useCartStore.getState().getTotal().grandTotal;
+      const total = useCartStore.getState().getCheckoutTotal();
       if (total !== lastTotal) {
         lastTotal = total;
         publishPaymentMode(total, null);
@@ -1412,7 +1441,7 @@ export default function StorePOSPage() {
                 }
                 // Move the customer display into payment mode (dynamic UPI QR).
                 publishPaymentMode(
-                  useCartStore.getState().getTotal().grandTotal,
+                  useCartStore.getState().getCheckoutTotal(),
                   null
                 );
                 setShowQuickCheckout(true);
@@ -1939,14 +1968,35 @@ export default function StorePOSPage() {
                 </div>
               </div>
 
+              <PendingCreditSettlement customerId={customerId} compact />
+
               {/* Total Summary */}
               <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-lg p-3">
+                {pendingSettlementTotal > 0 && (
+                  <div className="space-y-1 mb-2 pb-2 border-b border-brand-200/50 dark:border-brand-800/30">
+                    <div className="flex justify-between text-xs text-gray-700 dark:text-gray-300">
+                      <span>Today&apos;s items</span>
+                      <span className="font-semibold">₹{cartGrandTotal}</span>
+                    </div>
+                    {pendingSettlements
+                      .filter((l) => l.selected && l.amount > 0)
+                      .map((l) => (
+                        <div
+                          key={l.saleId}
+                          className="flex justify-between text-xs text-amber-800 dark:text-amber-300"
+                        >
+                          <span>Credit #{l.saleNo}</span>
+                          <span className="font-semibold">₹{Math.round(l.amount)}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    Total Amount
+                    {pendingSettlementTotal > 0 ? "Total to pay" : "Total Amount"}
                   </span>
                   <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
-                    ₹{useCartStore.getState().getTotal().grandTotal}
+                    ₹{checkoutGrandTotal}
                   </span>
                 </div>
               </div>

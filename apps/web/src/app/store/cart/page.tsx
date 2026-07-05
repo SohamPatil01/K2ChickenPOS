@@ -17,8 +17,12 @@ import {
 } from '@/lib/offlineCheckout';
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
-import { normalizePaymentsForSale, LOYALTY_POINT_VALUE } from '@azela-pos/shared';
-import { shouldTreatDuplicateCreditPayAsSuccess } from '@/lib/checkoutPayRecovery';
+import PendingCreditSettlement from '@/components/PendingCreditSettlement';
+import {
+  completeNewSaleCheckout,
+  checkoutPaymentMismatch,
+} from '@/lib/pendingCreditCheckout';
+import { LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 import CustomerDisplayButton from '@/components/customerDisplay/CustomerDisplayButton';
 import {
   publishPaymentMode,
@@ -55,6 +59,10 @@ export default function StoreCartPage() {
   const clearCart = useCartStore((state) => state.clearCart);
   const loyaltyRedeemPoints = useCartStore((state) => state.loyaltyRedeemPoints);
   const setLoyaltyRedeemPoints = useCartStore((state) => state.setLoyaltyRedeemPoints);
+  const pendingSettlements = useCartStore((state) => state.pendingSettlements);
+  const getCheckoutTotal = useCartStore((state) => state.getCheckoutTotal);
+  const getPendingSettlementTotal = useCartStore((state) => state.getPendingSettlementTotal);
+  const getSelectedPendingSettlements = useCartStore((state) => state.getSelectedPendingSettlements);
 
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -368,6 +376,14 @@ export default function StoreCartPage() {
       const { grandTotal } = getTotal();
 
       if (isOfflineForCheckout()) {
+        if (getPendingSettlementTotal() > 0) {
+          showNotification(
+            'Settling old credit needs internet. Uncheck previous credit or go online.',
+            'warning',
+            6000
+          );
+          return;
+        }
         await finishOfflineCheckout(
           'Bill saved offline. It will sync automatically when internet is back.'
         );
@@ -413,13 +429,31 @@ export default function StoreCartPage() {
         throw new Error('Invalid sale response: Sale ID not found');
       }
 
-      const roundedSaleGrandTotal = Math.round(sale.grandTotal);
-      
-      const normalizedPayments = normalizePaymentsForSale(payments, sale.grandTotal);
-      const paymentData = { payments: normalizedPayments };
+      const checkoutGrandTotal = getCheckoutTotal();
+      if (checkoutPaymentMismatch(payments, checkoutGrandTotal)) {
+        showNotification(
+          `Payment total must match checkout amount ₹${checkoutGrandTotal}`,
+          'error'
+        );
+        return;
+      }
+
+      const pendingLines = getSelectedPendingSettlements();
 
       try {
-        await api.post(`/api/v1/sales/${sale.id}/pay`, paymentData);
+        const { settledSaleNos } = await completeNewSaleCheckout(
+          api,
+          sale,
+          payments,
+          pendingLines
+        );
+        if (settledSaleNos.length > 0) {
+          showNotification(
+            `Settled previous credit: ${settledSaleNos.map((n) => `#${n}`).join(', ')}`,
+            'success',
+            5000
+          );
+        }
       } catch (payErr: any) {
         const payData = payErr?.response?.data;
         if (
@@ -429,10 +463,7 @@ export default function StoreCartPage() {
           await finishPendingDiscountApproval(sale.saleNo || sale.id);
           return;
         }
-        if (!shouldTreatDuplicateCreditPayAsSuccess(payErr, normalizedPayments)) {
-          throw payErr;
-        }
-        console.warn('[Cart] Credit bill already paid on server; showing success');
+        throw payErr;
       }
 
       const fulfillType = useCartStore.getState().fulfillmentType;
@@ -459,12 +490,12 @@ export default function StoreCartPage() {
       
       setCompletedSale({
         saleNo: sale.saleNo || 'N/A',
-        grandTotal: roundedSaleGrandTotal,
+        grandTotal: checkoutGrandTotal,
       });
       setShowSuccessAnimation(true);
 
       // Reflect the completed payment on the customer display.
-      publishSuccessMode(roundedSaleGrandTotal, sale.saleNo || null, sale.id || null);
+      publishSuccessMode(checkoutGrandTotal, sale.saleNo || null, sale.id || null);
 
       window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments } }));
       
@@ -475,7 +506,7 @@ export default function StoreCartPage() {
           detail: { 
             saleId: sale.id, 
             amount: cashPayment.amount,
-            grandTotal: roundedSaleGrandTotal 
+            grandTotal: checkoutGrandTotal 
           } 
         }));
       }
@@ -549,11 +580,11 @@ export default function StoreCartPage() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         if (items.length > 0 && !isProcessingPayment && !showPaymentModal) {
-          const { grandTotal } = getTotal();
-          publishPaymentMode(grandTotal, null, {
-            payments: [{ method: 'CASH', amount: grandTotal }],
+          const total = useCartStore.getState().getCheckoutTotal();
+          publishPaymentMode(total, null, {
+            payments: [{ method: 'CASH', amount: total }],
           });
-          handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
+          handleCreateSale([{ method: 'CASH', amount: total }]);
         }
       }
     };
@@ -562,10 +593,12 @@ export default function StoreCartPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items.length, isProcessingPayment, showPaymentModal, handleCreateSale, getTotal]);
 
-  const { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal, loyaltyDiscount } = getTotal();
+  const { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal: cartGrandTotal, loyaltyDiscount } = getTotal();
+  const pendingSettlementTotal = getPendingSettlementTotal();
+  const checkoutGrandTotal = getCheckoutTotal();
   // Loyalty redeem caps (1 point = ₹LOYALTY_POINT_VALUE). The bill before redemption
   // is the net grand total plus whatever is currently being redeemed.
-  const billBeforeRedeem = grandTotal + loyaltyDiscount;
+  const billBeforeRedeem = cartGrandTotal + loyaltyDiscount;
   const maxRedeemablePoints = Math.max(
     0,
     Math.min(
@@ -911,6 +944,7 @@ export default function StoreCartPage() {
                     </p>
                   </div>
                 )}
+
               </div>
               )}
             </div>
@@ -1167,6 +1201,9 @@ export default function StoreCartPage() {
                       )}
                     </div>
                   )}
+                  
+                  {/* Settle previous customer credit with this checkout */}
+                  <PendingCreditSettlement customerId={customerId} hidden={skipCustomer} />
 
                   {fulfillmentType === 'DELIVERY' && customerId && (
                     <div className="pt-3">
@@ -1198,17 +1235,35 @@ export default function StoreCartPage() {
                         <span>−₹{loyaltyDiscount}</span>
                       </div>
                     )}
+                    {pendingSettlements
+                      .filter((l) => l.selected && l.amount > 0)
+                      .map((l) => (
+                        <div
+                          key={l.saleId}
+                          className="flex justify-between items-center text-sm text-amber-800 dark:text-amber-300"
+                        >
+                          <span>Credit bill #{l.saleNo}</span>
+                          <span className="font-semibold">₹{Math.round(l.amount)}</span>
+                        </div>
+                      ))}
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold text-gray-900 dark:text-white">Grand Total</span>
-                      <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</span>
+                      <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {pendingSettlementTotal > 0 ? 'Total to pay' : 'Grand Total'}
+                      </span>
+                      <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">₹{checkoutGrandTotal}</span>
                     </div>
+                    {pendingSettlementTotal > 0 && (
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 text-right">
+                        Includes ₹{cartGrandTotal} today + ₹{pendingSettlementTotal} previous credit
+                      </p>
+                    )}
                   </div>
                 </div>
                 
                 {/* Enhanced Checkout Button */}
                 <button
                   onClick={() => {
-                    publishPaymentMode(grandTotal, null);
+                    publishPaymentMode(checkoutGrandTotal, null);
                     setShowPaymentModal(true);
                   }}
                   disabled={items.length === 0}
@@ -1221,17 +1276,17 @@ export default function StoreCartPage() {
                   </svg>
                   <div className="flex flex-col items-start">
                     <span>Checkout Now</span>
-                    <span className="text-white/90 text-sm font-semibold">₹{grandTotal}</span>
+                    <span className="text-white/90 text-sm font-semibold">₹{checkoutGrandTotal}</span>
                   </div>
                 </button>
 
                 {/* Quick Pay Button */}
                 <button
                   onClick={() => {
-                    publishPaymentMode(grandTotal, null, {
-                      payments: [{ method: 'CASH', amount: grandTotal }],
+                    publishPaymentMode(checkoutGrandTotal, null, {
+                      payments: [{ method: 'CASH', amount: checkoutGrandTotal }],
                     });
-                    handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
+                    handleCreateSale([{ method: 'CASH', amount: checkoutGrandTotal }]);
                   }}
                   disabled={items.length === 0 || isProcessingPayment}
                   className="w-full py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98]"
@@ -1239,7 +1294,7 @@ export default function StoreCartPage() {
                   <span className="text-2xl">⚡</span>
                   <div className="flex flex-col items-start">
                     <span>Quick Pay (Cash)</span>
-                    <span className="text-green-100 text-sm font-semibold">₹{grandTotal} exact</span>
+                    <span className="text-green-100 text-sm font-semibold">₹{checkoutGrandTotal} exact</span>
                   </div>
                 </button>
 
@@ -1266,11 +1321,11 @@ export default function StoreCartPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Total</div>
-                    <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{grandTotal}</div>
+                    <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{checkoutGrandTotal}</div>
                   </div>
                   <button
                     onClick={() => {
-                      publishPaymentMode(grandTotal, null);
+                      publishPaymentMode(checkoutGrandTotal, null);
                       setShowPaymentModal(true);
                     }}
                     disabled={items.length === 0}
@@ -1281,16 +1336,16 @@ export default function StoreCartPage() {
                 </div>
                 <button
                   onClick={() => {
-                    publishPaymentMode(grandTotal, null, {
-                      payments: [{ method: 'CASH', amount: grandTotal }],
+                    publishPaymentMode(checkoutGrandTotal, null, {
+                      payments: [{ method: 'CASH', amount: checkoutGrandTotal }],
                     });
-                    handleCreateSale([{ method: 'CASH', amount: grandTotal }]);
+                    handleCreateSale([{ method: 'CASH', amount: checkoutGrandTotal }]);
                   }}
                   disabled={items.length === 0 || isProcessingPayment}
                   className="w-full py-3.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-sm shadow-md active:scale-[0.98] transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <span>⚡</span>
-                  <span>Quick Pay (Cash ₹{grandTotal})</span>
+                  <span>Quick Pay (Cash ₹{checkoutGrandTotal})</span>
                 </button>
               </div>
             </div>
@@ -1301,7 +1356,9 @@ export default function StoreCartPage() {
       {/* Modals */}
       {showPaymentModal && (
         <CartPaymentModal
-          grandTotal={grandTotal}
+          grandTotal={checkoutGrandTotal}
+          cartGrandTotal={cartGrandTotal}
+          pendingSettlementLines={pendingSettlements}
           subTotal={subTotal}
           taxTotal={taxTotal}
           discountTotal={discountTotal}

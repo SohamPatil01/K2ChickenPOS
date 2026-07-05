@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { offlineDB, CartItem } from '@azela-pos/offline';
 import { LOYALTY_POINT_VALUE } from '@azela-pos/shared';
+import type { PendingSettlementLine } from '@/lib/pendingCreditCheckout';
+import {
+  getSelectedPendingSettlements,
+  sumSelectedPendingSettlements,
+} from '@/lib/pendingCreditCheckout';
 
 export type FulfillmentType = 'PICKUP' | 'DELIVERY';
 
@@ -52,6 +57,8 @@ interface CartState {
   deliveryFee: number;
   /** Loyalty points the customer is redeeming on this bill (1 point = ₹1). */
   loyaltyRedeemPoints: number;
+  /** Old credit bills the cashier chose to settle in this checkout. */
+  pendingSettlements: PendingSettlementLine[];
   loadCart: () => Promise<void>;
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
@@ -63,6 +70,14 @@ interface CartState {
   setFulfillmentType: (type: FulfillmentType) => void;
   setDeliveryFee: (fee: number) => void;
   setLoyaltyRedeemPoints: (points: number) => void;
+  initPendingSettlements: (lines: PendingSettlementLine[]) => void;
+  togglePendingSettlement: (saleId: string, selected: boolean) => void;
+  setPendingSettlementAmount: (saleId: string, amount: number) => void;
+  clearPendingSettlements: () => void;
+  getPendingSettlementTotal: () => number;
+  getSelectedPendingSettlements: () => PendingSettlementLine[];
+  /** Cart bill + selected pending credit (checkout total). Cart-only total stays in getTotal().grandTotal. */
+  getCheckoutTotal: () => number;
   clearCart: () => Promise<void>;
   getTotal: () => {
     subTotal: number;
@@ -88,6 +103,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   fulfillmentType: 'PICKUP',
   deliveryFee: 0,
   loyaltyRedeemPoints: 0,
+  pendingSettlements: [],
   loadCart: async () => {
     try {
       const items = await offlineDB.cart.toArray();
@@ -175,10 +191,18 @@ export const useCartStore = create<CartState>((set, get) => ({
     // Points belong to a specific customer — clear any pending redemption when
     // the attached customer changes (or is removed).
     if (!customerId) {
-      set({ customerId, customerPhone, customerName: name, ...areaUpdate, fulfillmentType: 'PICKUP', loyaltyRedeemPoints: 0 });
+      set({
+        customerId,
+        customerPhone,
+        customerName: name,
+        ...areaUpdate,
+        fulfillmentType: 'PICKUP',
+        loyaltyRedeemPoints: 0,
+        pendingSettlements: [],
+      });
       return;
     }
-    set({ customerId, customerPhone, customerName: name, ...areaUpdate, loyaltyRedeemPoints: 0 });
+    set({ customerId, customerPhone, customerName: name, ...areaUpdate, loyaltyRedeemPoints: 0, pendingSettlements: [] });
   },
   setDiscount: (discountTotal) => {
     set({ discountTotal });
@@ -215,9 +239,54 @@ export const useCartStore = create<CartState>((set, get) => ({
     const safe = Math.max(0, Math.floor(Number(points) || 0));
     set({ loyaltyRedeemPoints: safe });
   },
+  initPendingSettlements: (lines) => {
+    set({ pendingSettlements: lines });
+  },
+  togglePendingSettlement: (saleId, selected) => {
+    set((state) => ({
+      pendingSettlements: state.pendingSettlements.map((line) =>
+        line.saleId === saleId
+          ? {
+              ...line,
+              selected,
+              amount: selected ? line.amount || line.maxPending : line.maxPending,
+            }
+          : line
+      ),
+    }));
+  },
+  setPendingSettlementAmount: (saleId, amount) => {
+    const safe = Math.max(0, Math.round(Number(amount) || 0));
+    set((state) => ({
+      pendingSettlements: state.pendingSettlements.map((line) =>
+        line.saleId === saleId
+          ? { ...line, amount: Math.min(safe, line.maxPending), selected: safe > 0 ? line.selected : false }
+          : line
+      ),
+    }));
+  },
+  clearPendingSettlements: () => {
+    set({ pendingSettlements: [] });
+  },
+  getPendingSettlementTotal: () => sumSelectedPendingSettlements(get().pendingSettlements),
+  getSelectedPendingSettlements: () => getSelectedPendingSettlements(get().pendingSettlements),
+  getCheckoutTotal: () => get().getTotal().grandTotal + get().getPendingSettlementTotal(),
   clearCart: async () => {
     await offlineDB.cart.clear();
-    set({ items: [], customerId: null, customerPhone: null, customerName: null, customerArea: null, discountTotal: 0, discountType: 'amount', discountPercentage: 0, fulfillmentType: 'PICKUP', deliveryFee: 0, loyaltyRedeemPoints: 0 });
+    set({
+      items: [],
+      customerId: null,
+      customerPhone: null,
+      customerName: null,
+      customerArea: null,
+      discountTotal: 0,
+      discountType: 'amount',
+      discountPercentage: 0,
+      fulfillmentType: 'PICKUP',
+      deliveryFee: 0,
+      loyaltyRedeemPoints: 0,
+      pendingSettlements: [],
+    });
   },
   getTotal: () => {
     const { items, discountTotal, discountType, discountPercentage, deliveryFee, fulfillmentType, loyaltyRedeemPoints } = get();
