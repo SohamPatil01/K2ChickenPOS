@@ -125,8 +125,8 @@ export default function OrdersPage() {
       alert('This bill is already cancelled');
       return;
     }
-    if (sale.status !== 'PAID') {
-      alert('Only paid bills can be cancelled');
+    if (sale.status !== 'PAID' && sale.status !== 'OPEN') {
+      alert('Only paid or open bills can be cancelled');
       return;
     }
     setCancellingSale(sale);
@@ -355,7 +355,7 @@ export default function OrdersPage() {
                               Complete
                             </button>
                           )}
-                          {sale.status === 'PAID' && (
+                          {(sale.status === 'PAID' || sale.status === 'OPEN') && (
                             <button
                               onClick={() => handleCancelBill(sale)}
                               className="text-red-600 hover:text-red-800 dark:text-red-400"

@@ -600,12 +600,12 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // Then get all sales with CREDIT payments (even if PAID)
-      // First get all sales for this store/storeIds, then filter for credit payments in JavaScript
-      // This avoids complex Prisma queries that might fail
-      const allStoreSales = await prisma.sale.findMany({
+      // Then get OPEN/PAID sales with CREDIT payments (excludes cancelled/refunded).
+      const creditSales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
+          status: { in: ['OPEN', 'PAID'] },
+          payments: { some: { method: 'CREDIT' } },
         },
         include: {
           customer: true,
@@ -626,11 +626,6 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      // Filter for sales with CREDIT payments
-      const creditSales = allStoreSales.filter(sale => 
-        sale.payments && sale.payments.some((p: any) => p.method === 'CREDIT')
-      );
-
       console.log('[Pending Payments API] Found', openSales.length, 'OPEN sales and', creditSales.length, 'credit sales');
 
       // Combine and deduplicate by sale ID
@@ -648,6 +643,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const customerMap = new Map();
 
       for (const sale of openCreditSales) {
+        if (sale.status === 'VOID' || sale.status === 'REFUNDED') continue;
+
         const allPayments = sale.payments || [];
         const hasCreditPayment = allPayments.some((p) => p.method === 'CREDIT');
         

@@ -908,6 +908,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const existingPayments = sale.payments || [];
       const hasCreditPayment = existingPayments.some((p) => p.method === 'CREDIT');
 
+      if (sale.status === 'VOID' || sale.status === 'REFUNDED') {
+        reply.code(400).send({ error: 'Sale is cancelled and cannot accept payments' });
+        return;
+      }
+
       // Allow payment if:
       // 1. Sale is OPEN, OR
       // 2. Sale has CREDIT payment (even if fully paid, customer can pay off credit balance)

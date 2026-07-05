@@ -87,6 +87,14 @@ export default function PendingPaymentsPage() {
     loadPendingPayments();
   }, [user, router]);
 
+  useEffect(() => {
+    const onSaleDeleted = () => {
+      void loadPendingPayments();
+    };
+    window.addEventListener('sale-deleted', onSaleDeleted);
+    return () => window.removeEventListener('sale-deleted', onSaleDeleted);
+  }, []);
+
   const loadPendingPayments = async () => {
     setLoading(true);
     try {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useCartStore } from '@/store/cart';
 import { fetchCustomerPendingOrders } from '@/lib/fetchCustomerPendingOrders';
 import { openOrdersToSettlementLines } from '@/lib/pendingCreditCheckout';
@@ -25,33 +25,35 @@ export default function PendingCreditSettlement({ customerId, hidden, compact }:
     setExpanded(false);
   }, [customerId]);
 
-  useEffect(() => {
+  const reloadPending = useCallback(async () => {
     if (hidden || !customerId) {
       initPendingSettlements([]);
       setExpanded(false);
       return;
     }
-
-    let cancelled = false;
     setLoading(true);
-    (async () => {
-      try {
-        const orders = await fetchCustomerPendingOrders(customerId);
-        if (!cancelled) {
-          initPendingSettlements(openOrdersToSettlementLines(orders));
-        }
-      } catch (err) {
-        console.error('[PendingCreditSettlement] Failed to load pending orders:', err);
-        if (!cancelled) initPendingSettlements([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const orders = await fetchCustomerPendingOrders(customerId);
+      initPendingSettlements(openOrdersToSettlementLines(orders));
+    } catch (err) {
+      console.error('[PendingCreditSettlement] Failed to load pending orders:', err);
+      initPendingSettlements([]);
+    } finally {
+      setLoading(false);
+    }
   }, [customerId, hidden, initPendingSettlements]);
+
+  useEffect(() => {
+    void reloadPending();
+  }, [reloadPending]);
+
+  useEffect(() => {
+    const onSaleDeleted = () => {
+      void reloadPending();
+    };
+    window.addEventListener('sale-deleted', onSaleDeleted);
+    return () => window.removeEventListener('sale-deleted', onSaleDeleted);
+  }, [reloadPending]);
 
   if (hidden || !customerId) return null;
   if (!loading && pendingSettlements.length === 0) return null;
