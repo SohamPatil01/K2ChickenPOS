@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema } from '@azela-pos/shared';
+import { loginSchema, APP_NAME } from '@azela-pos/shared';
 import type { z } from 'zod';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
@@ -202,7 +202,7 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 px-4 py-8 safe-top safe-bottom">
       <div className="bg-white p-5 sm:p-6 lg:p-8 rounded-lg shadow-md w-full max-w-4xl">
-        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-3 sm:mb-4 lg:mb-6">AzelaPOS</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-3 sm:mb-4 lg:mb-6">{APP_NAME}</h1>
         <h2 className="text-lg sm:text-xl text-center mb-4 sm:mb-6 text-gray-600">
           {selectedProfile ? 'Enter PIN' : 'Select User'}
         </h2>

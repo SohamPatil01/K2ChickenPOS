@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
 import StoreRegionSwitcher from './StoreRegionSwitcher';
+import { APP_NAME_HQ } from '@azela-pos/shared';
 
 interface HQLayoutProps {
   children: React.ReactNode;
@@ -80,7 +81,7 @@ export default function HQLayout({
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
           {sidebarOpen && (
-            <h1 className="text-xl font-bold text-primary-600 dark:text-brand-400">AzelaPOS HQ</h1>
+            <h1 className="text-xl font-bold text-primary-600 dark:text-brand-400">{APP_NAME_HQ}</h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}

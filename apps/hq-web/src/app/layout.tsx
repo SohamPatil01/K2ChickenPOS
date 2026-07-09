@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
+import { APP_NAME_HQ } from '@azela-pos/shared';
 import './globals.css';
 import AuthHandoff from '@/components/AuthHandoff';
 
 export const metadata: Metadata = {
-  title: 'AzelaPOS HQ - Franchise Management',
+  title: `${APP_NAME_HQ} - Franchise Management`,
   description: 'Headquarters Dashboard for Franchise Management',
 };
 

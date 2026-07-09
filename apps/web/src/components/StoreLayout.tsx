@@ -13,6 +13,7 @@ import {
   flushPendingPosSync,
   getPendingSyncCount,
 } from "@/lib/posSync";
+import { APP_NAME } from "@azela-pos/shared";
 import { refreshOfflineCatalog } from "@/lib/offlineBootstrap";
 import { useCustomerDisplayPublisher } from "@/lib/customerDisplay/useCustomerDisplayPublisher";
 
@@ -414,7 +415,7 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
             {!isSidebarCollapsed && (
               <Link href="/store" className="flex items-center">
                 <span className="text-xl font-bold text-brand-600 dark:text-brand-400">
-                  AzelaPOS
+                  {APP_NAME}
                 </span>
               </Link>
             )}

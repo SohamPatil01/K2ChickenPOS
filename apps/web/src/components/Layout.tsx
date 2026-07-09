@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
 import { getHQConsoleUrl } from '@/lib/hq';
+import { APP_NAME } from '@azela-pos/shared';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -65,7 +66,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <Link href="/store" className="text-xl font-bold text-primary-600 hover:text-primary-700">
-                  AzelaPOS
+                  {APP_NAME}
                 </Link>
               </div>
               {/* Desktop Navigation */}

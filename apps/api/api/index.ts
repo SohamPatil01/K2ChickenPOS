@@ -4,6 +4,7 @@ import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { prisma } from '@azela-pos/db';
+import { APP_NAME } from '@azela-pos/shared';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -240,7 +241,7 @@ async function build() {
 
   // Root — browsers and uptime tools often hit GET /; this is the REST API, not the web app.
   fastify.get('/', async () => ({
-    name: 'K2 Chicken POS API',
+    name: `${APP_NAME} API`,
     ok: true,
     docs: 'REST routes are under /api/v1/…',
     health: '/health',

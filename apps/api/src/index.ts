@@ -12,6 +12,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { prisma } from '@azela-pos/db';
+import { APP_NAME } from '@azela-pos/shared';
 import { authenticate } from './utils/auth.js';
 import { authRoutes } from './routes/auth.js';
 import { productRoutes } from './routes/products.js';
@@ -88,7 +89,7 @@ async function build() {
   });
 
   fastify.get('/', async () => ({
-    name: 'K2 Chicken POS API',
+    name: `${APP_NAME} API`,
     ok: true,
     docs: 'REST routes are under /api/v1/…',
     health: '/health',

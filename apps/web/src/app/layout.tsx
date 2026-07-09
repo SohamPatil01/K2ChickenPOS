@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import { APP_NAME } from '@azela-pos/shared';
 import './globals.css';
 import RootWrapper from '@/components/RootWrapper';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AzelaPOS',
+  title: APP_NAME,
   description: 'Production-ready POS system for chicken butcher franchise',
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
