@@ -81,7 +81,9 @@ export default function HQLayout({
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
           {sidebarOpen && (
-            <h1 className="text-xl font-bold text-primary-600 dark:text-brand-400">{APP_NAME_HQ}</h1>
+            <h1 className="text-xl font-bold text-primary-600 dark:text-brand-400">
+              {APP_NAME_HQ || 'AzeelaAiPos HQ'}
+            </h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}

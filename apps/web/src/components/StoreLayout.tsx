@@ -415,7 +415,7 @@ export default function StoreLayout({ children }: StoreLayoutProps) {
             {!isSidebarCollapsed && (
               <Link href="/store" className="flex items-center">
                 <span className="text-xl font-bold text-brand-600 dark:text-brand-400">
-                  {APP_NAME}
+                  {APP_NAME || 'AzeelaAiPos'}
                 </span>
               </Link>
             )}

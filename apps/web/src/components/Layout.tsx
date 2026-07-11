@@ -66,7 +66,7 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <Link href="/store" className="text-xl font-bold text-primary-600 hover:text-primary-700">
-                  {APP_NAME}
+                  {APP_NAME || 'AzeelaAiPos'}
                 </Link>
               </div>
               {/* Desktop Navigation */}

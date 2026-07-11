@@ -60,7 +60,9 @@ export default function Home() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
       <div className="text-center">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4 text-gray-900">{APP_NAME}</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4 text-gray-900">
+          {APP_NAME || 'AzeelaAiPos'}
+        </h1>
         <p className="text-sm sm:text-base text-gray-600">Loading...</p>
       </div>
     </div>
