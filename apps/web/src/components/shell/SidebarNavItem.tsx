@@ -25,10 +25,10 @@ export default function SidebarNavItem({
   const isExternalHQ = item.href.startsWith("http");
 
   const className = cn(
-    "flex items-center relative touch-target w-full group rounded-xl text-sm font-medium transition-colors py-1.5",
+    "sidebar-link flex items-center relative touch-target w-full group rounded-xl text-sm font-medium transition-colors py-1.5",
     isCollapsed ? "justify-center px-2" : "gap-3 px-3",
     isActive
-      ? "text-brand-600 dark:text-brand-400"
+      ? "sidebar-link-active text-brand-600 dark:text-brand-400"
       : "text-ink-secondary hover:bg-surface-2/60 hover:text-ink active:bg-surface-2"
   );
 

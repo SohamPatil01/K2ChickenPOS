@@ -16,6 +16,7 @@ interface DashboardOverviewProps {
   pendingPaymentsTotal: number;
   pendingPaymentsCount: number;
   userRole: string;
+  salesTrendLast7?: Array<{ date: string; total: number }>;
 }
 
 export default function DashboardOverview({
@@ -24,8 +25,10 @@ export default function DashboardOverview({
   pendingPaymentsTotal,
   pendingPaymentsCount,
   userRole,
+  salesTrendLast7 = [],
 }: DashboardOverviewProps) {
   const motionSafe = useMotionSafe();
+  const revenueTrend = salesTrendLast7.map((d) => d.total);
 
   const perfUp = stats.yesterday.revenue > 0 && stats.today.revenue > stats.yesterday.revenue;
   const perfDown = stats.yesterday.revenue > 0 && stats.today.revenue < stats.yesterday.revenue;
@@ -135,6 +138,7 @@ export default function DashboardOverview({
                 subtitle={`${stats.today.count} sales today`}
                 icon="💰"
                 tone="green"
+                trend={revenueTrend}
                 comparison={{
                   label: 'vs yesterday',
                   value: stats.yesterday.revenue,
@@ -183,6 +187,7 @@ export default function DashboardOverview({
                 subtitle={`${stats.month.count} total sales`}
                 icon="📈"
                 tone="purple"
+                trend={revenueTrend}
               />
             </motion.div>
           </>

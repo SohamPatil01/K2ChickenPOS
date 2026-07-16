@@ -17,9 +17,44 @@ export interface StatCardGlassProps {
   comparison?: { label: string; value: number; change: number };
   /** Accent tint for the icon chip. */
   tone?: 'brand' | 'green' | 'blue' | 'purple' | 'orange';
+  /** Optional mini trend (e.g. last 7 days) rendered as a sparkline strip. */
+  trend?: number[];
   className?: string;
   style?: React.CSSProperties;
 }
+
+function Sparkline({ points, className }: { points: number[]; className?: string }) {
+  if (points.length < 2) return null;
+  const w = 100;
+  const h = 28;
+  const pad = 2;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const span = max - min || 1;
+  const step = (w - pad * 2) / (points.length - 1);
+  const coords = points.map((v, i) => ({
+    x: pad + i * step,
+    y: pad + (h - pad * 2) * (1 - (v - min) / span),
+  }));
+  const line = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+  const area = `${line} L${coords[coords.length - 1].x.toFixed(1)},${h} L${coords[0].x.toFixed(1)},${h} Z`;
+  const last = coords[coords.length - 1];
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={cn('w-full h-7', className)} aria-hidden>
+      <path d={area} fill="currentColor" opacity={0.12} />
+      <path d={line} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={last.x} cy={last.y} r={2.5} fill="currentColor" />
+    </svg>
+  );
+}
+
+const toneText = {
+  brand: 'text-brand-500',
+  green: 'text-green-600 dark:text-green-400',
+  blue: 'text-blue-600 dark:text-blue-400',
+  purple: 'text-purple-600 dark:text-purple-400',
+  orange: 'text-orange-600 dark:text-orange-400',
+};
 
 const tones = {
   brand: 'bg-brand-500/15 text-brand-600 dark:text-brand-400',
@@ -38,6 +73,7 @@ export default function StatCardGlass({
   icon,
   comparison,
   tone = 'brand',
+  trend,
   className = '',
   style,
 }: StatCardGlassProps) {
@@ -86,6 +122,11 @@ export default function StatCardGlass({
       </p>
       {subtitle && <p className="text-sm text-ink-secondary truncate">{subtitle}</p>}
       {comparison && <p className="text-xs text-ink-muted mt-2">{comparison.label}</p>}
+      {trend && trend.length >= 2 && (
+        <div className={cn('mt-3 -mb-1', toneText[tone])}>
+          <Sparkline points={trend} />
+        </div>
+      )}
     </div>
   );
 }

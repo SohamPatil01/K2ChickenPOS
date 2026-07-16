@@ -8,16 +8,17 @@ import { exportToCSV } from '@/lib/exportCSV';
 import { BrandLoader } from '@/components/ui';
 import { useDashboardStats } from '@/app/store/dashboard/hooks/useDashboardStats';
 import DashboardOverview from '@/app/store/dashboard/components/DashboardOverview';
-import DashboardToday from '@/app/store/dashboard/components/DashboardToday';
 import DashboardHistory from '@/app/store/dashboard/components/DashboardHistory';
 import DashboardQuickActions from '@/app/store/dashboard/components/DashboardQuickActions';
-
-type TabId = 'overview' | 'today' | 'history' | 'actions';
+import RevenueHero, { type DashboardRange } from '@/app/store/dashboard/components/RevenueHero';
+import PaymentDonut from '@/app/store/dashboard/components/PaymentDonut';
+import LiveSalesFeed from '@/app/store/dashboard/components/LiveSalesFeed';
+import TopProducts from '@/app/store/dashboard/components/TopProducts';
 
 export default function StoreDashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [range, setRange] = useState<DashboardRange>('today');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [showUpdatedFeedback, setShowUpdatedFeedback] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -110,16 +111,17 @@ export default function StoreDashboardPage() {
   }
 
   const userRole = (user.role as string) || '';
+  const isManager = userRole === 'MANAGER' || userRole === 'OWNER';
 
-  const tabs: { id: TabId; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
+  const ranges: { id: DashboardRange; label: string }[] = [
     { id: 'today', label: 'Today' },
-    { id: 'history', label: 'History & reports' },
-    { id: 'actions', label: 'Quick actions' },
+    { id: '7d', label: '7 days' },
+    { id: 'month', label: 'This month' },
   ];
 
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col relative">
+      {/* Sticky header */}
       <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 glass-panel-strong py-2 -mx-2 px-2 rounded-xl">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div className="flex-1 min-w-0">
@@ -139,7 +141,32 @@ export default function StoreDashboardPage() {
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            {/* Range pill */}
+            <nav className="flex gap-1 p-1 rounded-xl bg-surface-2/60" aria-label="Date range">
+              {ranges.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setRange(id)}
+                  className={`relative px-3 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap rounded-lg transition-colors touch-target ${
+                    range === id
+                      ? 'text-brand-600 dark:text-brand-400'
+                      : 'text-ink-secondary hover:text-ink'
+                  }`}
+                >
+                  {range === id && (
+                    <motion.span
+                      layoutId="dash-range"
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute inset-0 rounded-lg bg-surface shadow-card border border-brand-500/20"
+                      aria-hidden
+                    />
+                  )}
+                  <span className="relative">{label}</span>
+                </button>
+              ))}
+            </nav>
             <button
               type="button"
               onClick={() => {
@@ -184,84 +211,54 @@ export default function StoreDashboardPage() {
               <span className="hidden sm:inline">{autoRefresh ? 'Auto ✓' : 'Auto ✗'}</span>
               <span className="sm:hidden">{autoRefresh ? '⟳' : '⊗'}</span>
             </button>
-            {userRole && (
-              <div className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-100 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 rounded-xl font-medium text-xs sm:text-sm lg:text-base touch-target">
-                {userRole}
-              </div>
-            )}
           </div>
         </div>
-
-        <nav className="flex gap-1 overflow-x-auto p-1 rounded-xl bg-surface-2/60">
-          {tabs.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`relative px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors touch-target ${
-                activeTab === id
-                  ? 'text-brand-600 dark:text-brand-400'
-                  : 'text-ink-secondary hover:text-ink'
-              }`}
-            >
-              {activeTab === id && (
-                <motion.span
-                  layoutId="dash-tab"
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute inset-0 rounded-lg bg-surface shadow-card border border-brand-500/20"
-                  aria-hidden
-                />
-              )}
-              <span className="relative">{label}</span>
-            </button>
-          ))}
-        </nav>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
-        {activeTab === 'overview' && (
-          <div key="overview" className="animate-fade-in">
-            <DashboardOverview
-              stats={stats}
-              loading={loading}
-              pendingPaymentsTotal={pendingPaymentsTotal}
-              pendingPaymentsCount={pendingPaymentsCount}
-              userRole={userRole}
-            />
-          </div>
+      {/* Single scrolling page */}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6 space-y-4 sm:space-y-6">
+        {/* Hero revenue chart (managers/owners get the 7-day trend) */}
+        {isManager && (
+          <RevenueHero stats={stats} salesTrendLast7={salesTrendLast7} range={range} />
         )}
-        {activeTab === 'today' && (
-          <div key="today" className="animate-fade-in">
-            <DashboardToday
-              stats={stats}
-              salesTrendLast7={salesTrendLast7}
-              userRole={userRole}
-            />
-          </div>
-        )}
-        {activeTab === 'history' && (
-          <div key="history" className="animate-fade-in">
-            <DashboardHistory
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-              onLoad={() => loadHistoricalData(selectedDate)}
-              loading={loading}
-              historicalData={historicalData}
-              userRole={userRole}
-            />
-          </div>
-        )}
-        {activeTab === 'actions' && (
-          <div key="actions" className="animate-fade-in">
-            <div className="glass-panel rounded-2xl p-4 lg:p-6">
-              <h2 className="text-base sm:text-lg font-bold text-ink mb-4">Quick Actions</h2>
-              <DashboardQuickActions
-                pendingPaymentsCount={pendingPaymentsCount}
-                userRole={userRole}
-              />
-            </div>
-          </div>
-        )}
+
+        {/* KPI cards + alerts */}
+        <DashboardOverview
+          stats={stats}
+          loading={loading}
+          pendingPaymentsTotal={pendingPaymentsTotal}
+          pendingPaymentsCount={pendingPaymentsCount}
+          userRole={userRole}
+          salesTrendLast7={salesTrendLast7}
+        />
+
+        {/* Payments + live feed */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch">
+          <PaymentDonut breakdown={stats.paymentBreakdown} />
+          <LiveSalesFeed sales={stats.recentSales} />
+        </div>
+
+        {/* Top products */}
+        <TopProducts stats={stats} userRole={userRole} />
+
+        {/* Quick actions */}
+        <div className="glass-panel rounded-2xl p-4 lg:p-6">
+          <h2 className="text-base sm:text-lg font-bold text-ink mb-4">Quick Actions</h2>
+          <DashboardQuickActions
+            pendingPaymentsCount={pendingPaymentsCount}
+            userRole={userRole}
+          />
+        </div>
+
+        {/* Historical day lookup */}
+        <DashboardHistory
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          onLoad={() => loadHistoricalData(selectedDate)}
+          loading={loading}
+          historicalData={historicalData}
+          userRole={userRole}
+        />
       </div>
     </div>
   );

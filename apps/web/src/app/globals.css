@@ -555,3 +555,17 @@ html.no-blur .app-gradient-wash {
     display: none !important;
   }
 }
+
+/* Sidebar nav links opt out of the legacy `.dark a` recolor
+   (dark-legacy.css) — placed here, after the shim, so it wins. */
+.dark a.sidebar-link {
+  color: var(--text-secondary);
+}
+
+.dark a.sidebar-link:hover {
+  color: var(--text-primary);
+}
+
+.dark a.sidebar-link.sidebar-link-active {
+  color: var(--brand-400);
+}
