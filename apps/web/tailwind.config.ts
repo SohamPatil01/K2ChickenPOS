@@ -54,11 +54,33 @@ const config: Config = {
           gray100: '#F5F5F5',
           white: '#FFFFFF',
         },
+        // Semantic surfaces/text (glass design system — flip under .dark via CSS vars)
+        surface: {
+          DEFAULT: 'var(--surface)',
+          2: 'var(--surface-2)',
+        },
+        ink: {
+          DEFAULT: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
+        },
+      },
+      borderColor: {
+        subtle: 'var(--border-subtle)',
+        strong: 'var(--border-strong)',
+        glass: 'var(--border-glass)',
+      },
+      backgroundImage: {
+        'gradient-brand': 'var(--gradient-brand)',
+        'app-glow': 'var(--bg-app-glow)',
       },
       borderRadius: {
         xl2: '16px',
       },
       boxShadow: {
+        glass: 'var(--shadow-glass)',
+        'glow-brand': 'var(--glow-brand)',
+        'glow-brand-lg': 'var(--glow-brand-lg)',
         card: '0px 6px 20px rgba(0, 0, 0, 0.08)',
         orangeGlow: '0px 10px 30px rgba(255, 106, 0, 0.4)',
         inputFocus: '0px 0px 0px 3px rgba(255, 106, 0, 0.35)',

@@ -22,19 +22,13 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log('API request with token:', config.url);
-  } else {
-    console.warn('API request without token:', config.url);
   }
   return config;
 });
 
 // Handle token refresh
 api.interceptors.response.use(
-  (response) => {
-    console.log('API response success:', response.config.url, response.status);
-    return response;
-  },
+  (response) => response,
   async (error) => {
     // Enhanced error logging
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {

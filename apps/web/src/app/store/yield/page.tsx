@@ -78,45 +78,9 @@ export default function YieldTrackingPage() {
       const response = await api.get('/api/v1/products');
       const allProducts = response.data || [];
       
-      // Filter for KG products first (chicken cuts)
+      // Filter for KG products (chicken cuts); productMaster already on list payload
       const kgProducts = allProducts.filter((p: Product) => p.unitType === 'KG');
-      
-      // Load productMaster data in batches to avoid too many requests
-      // Process 5 products at a time with a small delay between batches
-      const batchSize = 5;
-      const delayBetweenBatches = 100; // 100ms delay
-      
-      const productsWithMaster: Product[] = [];
-      
-      for (let i = 0; i < kgProducts.length; i += batchSize) {
-        const batch = kgProducts.slice(i, i + batchSize);
-        
-        const batchResults = await Promise.all(
-          batch.map(async (p: any) => {
-            try {
-              const masterRes = await api.get(`/api/v1/hq/product-master?productId=${p.id}`).catch(() => null);
-              return {
-                ...p,
-                productMaster: masterRes?.data?.[0] || null,
-              };
-            } catch {
-              return {
-                ...p,
-                productMaster: null,
-              };
-            }
-          })
-        );
-        
-        productsWithMaster.push(...batchResults);
-        
-        // Add delay between batches (except for the last batch)
-        if (i + batchSize < kgProducts.length) {
-          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
-        }
-      }
-      
-      setProducts(productsWithMaster);
+      setProducts(kgProducts);
       setProductsLoaded(true);
     } catch (error: any) {
       console.error('Failed to load data:', error);

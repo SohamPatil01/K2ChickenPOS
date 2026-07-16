@@ -61,13 +61,21 @@ async function build() {
 
         // Register rate limiting with higher limits to prevent blocking legitimate requests
         await fastify.register(rateLimit as any, {
-          max: 1000, // Increased from 100 to 1000 requests per minute
+          // POS fires many parallel GETs (products, HQ master, etc.) + CORS OPTIONS.
+          max: process.env.NODE_ENV === 'production' ? 2000 : 10000,
           timeWindow: '1 minute',
           skipOnError: true,
-          // Skip rate limiting for health check and login endpoints
+          // Skip health, auth bootstrap, and CORS preflight (OPTIONS must not burn the budget).
           skip: ((request: any): boolean => {
-            const u = (request as any).url || '';
-            return u === '/health' || u === '/' || u === '/api/v1/auth/login';
+            if ((request as any).method === 'OPTIONS') return true;
+            const u = String((request as any).url || '').split('?')[0];
+            return (
+              u === '/health' ||
+              u === '/' ||
+              u === '/api/v1/auth/login' ||
+              u === '/api/v1/auth/profiles' ||
+              u === '/api/v1/auth/refresh'
+            );
           }) as any,
           addHeaders: {
             'x-ratelimit-limit': true,

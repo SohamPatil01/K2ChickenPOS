@@ -31,9 +31,9 @@ export default function AlertsPage() {
       return;
     }
     loadAlerts();
-    
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(loadAlerts, 60000);
+
+    // 5 min — alerts endpoint runs many inventory/sales queries (Neon egress)
+    const interval = setInterval(loadAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [user, router]);
 

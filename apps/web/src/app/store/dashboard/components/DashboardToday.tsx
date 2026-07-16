@@ -95,7 +95,7 @@ export default function DashboardToday({
 
       {(userRole === 'MANAGER' || userRole === 'OWNER') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+          <div className="glass-panel rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">📈</span>
@@ -178,7 +178,7 @@ export default function DashboardToday({
             )}
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+          <div className="glass-panel rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 <span className="text-2xl">🥧</span>
@@ -273,7 +273,7 @@ export default function DashboardToday({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 lg:p-6">
+        <div className="glass-panel-strong rounded-2xl p-3 sm:p-4 lg:p-6">
           <div className="flex justify-between items-center mb-3 sm:mb-4">
             <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white">Recent Sales</h2>
             <Link
@@ -285,9 +285,9 @@ export default function DashboardToday({
           </div>
           <div className="space-y-2 sm:space-y-3">
             {stats.recentSales.length > 0 ? (
-              stats.recentSales.map((sale) => (
+              stats.recentSales.map((sale, idx) => (
                 <div
-                  key={sale.id}
+                  key={sale.id ?? `sale-${idx}`}
                   className="flex justify-between items-center p-2.5 sm:p-3 bg-gray-50 dark:bg-gray-700 rounded gap-2"
                 >
                   <div className="flex-1 min-w-0">
@@ -321,7 +321,7 @@ export default function DashboardToday({
         </div>
 
         {(userRole === 'MANAGER' || userRole === 'OWNER') && stats.topItems.length > 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] p-3 sm:p-4 lg:p-6">
+          <div className="glass-panel-strong rounded-2xl p-3 sm:p-4 lg:p-6">
             <div className="flex justify-between items-center mb-3 sm:mb-4">
               <h2 className="text-base sm:text-lg lg:text-xl font-semibold dark:text-white">
                 Top Products (Last 7 Days)
@@ -336,7 +336,7 @@ export default function DashboardToday({
             <div className="space-y-3">
               {stats.topItems.slice(0, 5).map((item, idx) => (
                 <div
-                  key={item.productId}
+                  key={`${item.productId ?? 'item'}-${idx}`}
                   className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded"
                 >
                   <div className="flex items-center gap-3">
@@ -370,7 +370,7 @@ export default function DashboardToday({
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+          <div className="glass-panel-strong rounded-2xl p-3 sm:p-4 lg:p-6">
             <h2 className="text-base sm:text-lg lg:text-xl font-bold dark:text-white mb-3 sm:mb-4">
               Top Products Today
             </h2>
@@ -378,7 +378,7 @@ export default function DashboardToday({
               {stats.topProducts.length > 0 ? (
                 stats.topProducts.map((product, index) => (
                   <div
-                    key={product.productId}
+                    key={`${product.productId ?? 'product'}-${index}`}
                     className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-md"
                   >
                     <div className="flex items-center gap-3">

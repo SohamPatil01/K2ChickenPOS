@@ -15,6 +15,20 @@ const RLS_PUBLIC_TABLES = [
   'ReplenishmentRequest', 'DiscountOverride', 'DailyClosing', 'LoyaltyTransaction',
 ];
 
+/**
+ * Cron backups only pull recent transactional rows by default to stay within
+ * Neon Free public network transfer (5 GB/mo). Config / master data is still full.
+ * Override with BACKUP_TXN_DAYS (1–90). Use POST /create-full for a full dump.
+ */
+function backupTxnSince(): { since: Date; days: number } {
+  const raw = parseInt(process.env.BACKUP_TXN_DAYS || '14', 10);
+  const days = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 1), 90) : 14;
+  return {
+    days,
+    since: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+  };
+}
+
 function isBackupAdminRequest(request: any): boolean {
   const backupSecret = process.env.BACKUP_SECRET;
   const providedSecret =
@@ -208,9 +222,12 @@ export async function backupRoutes(fastify: FastifyInstance) {
       fastify.log.info(`[Backup] Authentication successful - RequestID: ${requestId}, Source: ${hasVercelCronIndicator ? 'Vercel Cron' : 'Manual'}`);
 
       const timestamp = new Date().toISOString();
-      fastify.log.info(`[Backup] Starting database backup - RequestID: ${requestId}, Timestamp: ${timestamp}`);
+      const { since: txnSince, days: txnDays } = backupTxnSince();
+      fastify.log.info(
+        `[Backup] Starting lean database backup - RequestID: ${requestId}, Timestamp: ${timestamp}, txnDays: ${txnDays}`
+      );
 
-      // Fetch all critical data from database
+      // Master/config tables: full. Transactional tables: last BACKUP_TXN_DAYS only (Neon egress).
       // Use try-catch for queries that might fail due to missing columns in older database schemas
       const [
         stores,
@@ -218,8 +235,6 @@ export async function backupRoutes(fastify: FastifyInstance) {
         products,
         customers,
         sales,
-        saleItems,
-        payments,
         inventoryLedger,
         purchaseOrders,
         purchaseOrderItems,
@@ -247,25 +262,29 @@ export async function backupRoutes(fastify: FastifyInstance) {
         }).catch((err) => { console.error('Error fetching users:', err); return []; }),
         prisma.product.findMany().catch((err) => { console.error('Error fetching products:', err); return []; }),
         prisma.customer.findMany().catch((err) => { console.error('Error fetching customers:', err); return []; }),
-        prisma.sale.findMany().catch((err) => { console.error('Error fetching sales:', err); return []; }),
-        prisma.saleItem.findMany().catch((err) => { console.error('Error fetching saleItems:', err); return []; }),
-        prisma.payment.findMany().catch((err) => { console.error('Error fetching payments:', err); return []; }),
-        prisma.inventoryLedger.findMany().catch((err) => { console.error('Error fetching inventoryLedger:', err); return []; }),
-        prisma.purchaseOrder.findMany().catch((err) => { console.error('Error fetching purchaseOrders:', err); return []; }),
+        prisma.sale.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching sales:', err); return []; }),
+        prisma.inventoryLedger.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching inventoryLedger:', err); return []; }),
+        prisma.purchaseOrder.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching purchaseOrders:', err); return []; }),
         // PurchaseOrderItem might have missing columns (receivedQtyKg, receivedQtyPcs, updatedAt) in older schemas
         // Try with all columns first, fallback to basic query if columns don't exist
         (async () => {
           try {
-            return await prisma.purchaseOrderItem.findMany();
+            return await prisma.purchaseOrderItem.findMany({
+              where: { createdAt: { gte: txnSince } },
+            });
           } catch (err: any) {
             // If error is about missing columns, try with raw SQL selecting only existing columns
             if (err.message?.includes('does not exist') || err.message?.includes('column')) {
               console.warn('[Backup] PurchaseOrderItem missing new columns, using fallback query');
               try {
-                const result = await prisma.$queryRawUnsafe(`
+                const result = await prisma.$queryRawUnsafe(
+                  `
                   SELECT id, "poId", "productId", "qtyKg", "qtyPcs", "requestedRate", "createdAt"
                   FROM "PurchaseOrderItem"
-                `);
+                  WHERE "createdAt" >= $1
+                `,
+                  txnSince
+                );
                 return result || [];
               } catch (fallbackErr) {
                 console.error('[Backup] Error fetching purchaseOrderItems (fallback failed):', fallbackErr);
@@ -276,21 +295,40 @@ export async function backupRoutes(fastify: FastifyInstance) {
             return [];
           }
         })(),
-        prisma.deliveryOrder.findMany().catch((err) => { console.error('Error fetching deliveryOrders:', err); return []; }),
+        prisma.deliveryOrder.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching deliveryOrders:', err); return []; }),
         prisma.franchiseConfig.findMany().catch((err) => { console.error('Error fetching franchiseConfigs:', err); return []; }),
-        prisma.royaltyInvoice.findMany().catch((err) => { console.error('Error fetching royaltyInvoices:', err); return []; }),
-        prisma.royaltyLedger.findMany().catch((err) => { console.error('Error fetching royaltyLedgers:', err); return []; }),
-        prisma.complianceRecord.findMany().catch((err) => { console.error('Error fetching complianceRecords:', err); return []; }),
-        prisma.discountOverride.findMany().catch((err) => { console.error('Error fetching discountOverrides:', err); return []; }),
-        prisma.dailyClosing.findMany().catch((err) => { console.error('Error fetching dailyClosings:', err); return []; })
+        prisma.royaltyInvoice.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching royaltyInvoices:', err); return []; }),
+        prisma.royaltyLedger.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching royaltyLedgers:', err); return []; }),
+        prisma.complianceRecord.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching complianceRecords:', err); return []; }),
+        prisma.discountOverride.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching discountOverrides:', err); return []; }),
+        prisma.dailyClosing.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching dailyClosings:', err); return []; })
+      ]);
+
+      const saleIds = sales.map((s: { id: string }) => s.id);
+      const [saleItems, payments] = await Promise.all([
+        saleIds.length
+          ? prisma.saleItem.findMany({ where: { saleId: { in: saleIds } } }).catch((err) => {
+              console.error('Error fetching saleItems:', err);
+              return [];
+            })
+          : Promise.resolve([]),
+        saleIds.length
+          ? prisma.payment.findMany({ where: { saleId: { in: saleIds } } }).catch((err) => {
+              console.error('Error fetching payments:', err);
+              return [];
+            })
+          : Promise.resolve([]),
       ]);
 
       // Create backup object
       const backup = {
         metadata: {
-          version: '1.0',
+          version: '1.1',
           timestamp,
           source: 'vercel-cron-backup',
+          kind: 'lean-txn-window',
+          txnDays,
+          txnSince: txnSince.toISOString(),
           databaseUrl: process.env.DATABASE_URL?.split('@')[1] || 'unknown' // Only include host part
         },
         data: {

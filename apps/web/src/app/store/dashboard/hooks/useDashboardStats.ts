@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { tallyPaymentsFromSales, paymentBreakdownBuckets } from '@azela-pos/shared';
 import api from '@/lib/api';
-import { localDateRangeToApiBounds, parseLocalYmd, todayLocalYmd, defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
-import { format, startOfMonth, subDays } from 'date-fns';
+import { localDateRangeToApiBounds, todayLocalYmd, defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
+import { format, subDays, parseISO } from 'date-fns';
 
 export interface DashboardStats {
   today: {
@@ -68,6 +68,13 @@ interface UseDashboardStatsOptions {
   user: { storeId?: string; role?: string } | null;
 }
 
+const emptyStock = {
+  openingStock: 0,
+  receivedStock: 0,
+  soldStock: 0,
+  currentStock: 0,
+};
+
 export function useDashboardStats({ user }: UseDashboardStatsOptions) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +83,8 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
   const [salesTrendLast7, setSalesTrendLast7] = useState<Array<{ date: string; total: number }>>([]);
   const [historicalData, setHistoricalData] = useState<HistoricalData | null>(null);
+  const statsRef = useRef<DashboardStats | null>(null);
+  statsRef.current = stats;
 
   const loadPendingPayments = useCallback(async () => {
     try {
@@ -90,220 +99,176 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
     }
   }, []);
 
-  const refetch = useCallback(async () => {
-    if (!user?.storeId) return;
-    setLoading(true);
-    setError(null);
-    const userRole = user.role as string;
-    try {
+  const loadSecondary = useCallback(
+    async (userRole: string) => {
       const todayYmd = todayLocalYmd();
       const { startDate, endDate } = localDateRangeToApiBounds(todayYmd, todayYmd);
 
-      const promises: Promise<any>[] = [
-        api.get('/api/v1/sales/dashboard').catch(() => ({ data: null })),
+      const tasks: Promise<void>[] = [
+        (async () => {
+          try {
+            const inventoryRes = await api.get('/api/v1/inventory/ledger', {
+              params: { startDate, endDate },
+            });
+            const ledgers = inventoryRes.data || [];
+            const receivedStock = ledgers
+              .filter((l: any) => l.type === 'IN' && l.reason === 'RECEIVE')
+              .reduce((s: number, l: any) => s + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+            const soldStock = ledgers
+              .filter((l: any) => l.type === 'OUT' && l.reason === 'SALE')
+              .reduce((s: number, l: any) => s + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
+            setStats((prev) => {
+              if (!prev) return prev;
+              const next = {
+                ...prev,
+                todayStock: {
+                  ...prev.todayStock,
+                  receivedStock,
+                  soldStock,
+                },
+              };
+              statsRef.current = next;
+              return next;
+            });
+          } catch {
+            /* ignore secondary */
+          }
+        })(),
+        loadPendingPayments(),
       ];
+
       if (userRole === 'MANAGER' || userRole === 'OWNER') {
-        promises.push(
-          api.get(
-            '/api/v1/analytics/top-items?startDate=' + defaultDateRangeLast7Days().start
-          ).catch(() => ({ data: null }))
+        tasks.push(
+          (async () => {
+            try {
+              const topItemsRes = await api.get(
+                '/api/v1/analytics/top-items?startDate=' + defaultDateRangeLast7Days().start
+              );
+              const topItems = topItemsRes.data || [];
+              setStats((prev) => {
+                if (!prev) return prev;
+                const next = { ...prev, topItems };
+                statsRef.current = next;
+                return next;
+              });
+            } catch {
+              /* ignore */
+            }
+          })(),
+          (async () => {
+            try {
+              const trendStartYmd = format(subDays(parseISO(todayYmd), 6), 'yyyy-MM-dd');
+              const res = await api.get('/api/v1/analytics/sales-trend', {
+                params: { startDate: trendStartYmd, endDate: todayYmd },
+              });
+              setSalesTrendLast7(Array.isArray(res?.data) ? res.data : []);
+            } catch {
+              setSalesTrendLast7([]);
+            }
+          })()
         );
-      }
-
-      const results = await Promise.all(promises);
-      const dashboardData = results[0].data;
-      const topItems = results[1]?.data || [];
-
-      const monthStartYmd = format(startOfMonth(parseLocalYmd(todayYmd)), 'yyyy-MM-dd');
-      const { startDate: monthStartIso } = localDateRangeToApiBounds(monthStartYmd, todayYmd);
-      const monthSalesRes = await api.get('/api/v1/sales', {
-        params: { startDate: monthStartIso, endDate, status: 'PAID' },
-      }).catch(() => ({ data: [] }));
-      const monthSales = monthSalesRes.data || [];
-      const monthRevenue = monthSales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
-
-      const yesterdayYmd = format(subDays(parseLocalYmd(todayYmd), 1), 'yyyy-MM-dd');
-      const { startDate: yStart, endDate: yEnd } = localDateRangeToApiBounds(
-        yesterdayYmd,
-        yesterdayYmd
-      );
-      const yesterdaySalesRes = await api.get('/api/v1/sales', {
-        params: {
-          startDate: yStart,
-          endDate: yEnd,
-          status: 'PAID',
-        },
-      }).catch(() => ({ data: [] }));
-      const yesterdaySales = yesterdaySalesRes.data || [];
-      const yesterdayRevenue = yesterdaySales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
-
-      const lastWeekYmd = format(subDays(parseLocalYmd(todayYmd), 7), 'yyyy-MM-dd');
-      const { startDate: lwStart, endDate: lwEnd } = localDateRangeToApiBounds(
-        lastWeekYmd,
-        lastWeekYmd
-      );
-      const lastWeekSalesRes = await api.get('/api/v1/sales', {
-        params: {
-          startDate: lwStart,
-          endDate: lwEnd,
-          status: 'PAID',
-        },
-      }).catch(() => ({ data: [] }));
-      const lastWeekSales = lastWeekSalesRes.data || [];
-      const lastWeekRevenue = lastWeekSales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
-
-      const salesRes = await api.get('/api/v1/sales', {
-        params: {
-          startDate,
-          endDate,
-          status: 'PAID',
-        },
-      }).catch(() => ({ data: [] }));
-      const paidSales = salesRes.data || [];
-
-      const tallied = tallyPaymentsFromSales(paidSales);
-      const paymentBreakdown = {
-        cash: tallied.cash,
-        upi: tallied.upi,
-        card: tallied.card,
-        other: tallied.other + tallied.credit,
-      };
-      const totalPayments = tallied.total;
-
-      const todayRevenue = paidSales.reduce((s: number, x: any) => s + (x.grandTotal || 0), 0);
-      const todayWeight = paidSales.reduce((s: number, x: any) => {
-        return s + (x.items || []).reduce((is: number, i: any) => is + (i.qtyKg || 0) + (i.qtyPcs || 0), 0);
-      }, 0);
-
-      const inventoryRes = await api.get('/api/v1/inventory/ledger', {
-        params: { startDate, endDate },
-      }).catch(() => ({ data: [] }));
-      const ledgers = inventoryRes.data || [];
-      const receivedStock = ledgers
-        .filter((l: any) => l.type === 'IN' && l.reason === 'RECEIVE')
-        .reduce((s: number, l: any) => s + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-      const soldStock = ledgers
-        .filter((l: any) => l.type === 'OUT' && l.reason === 'SALE')
-        .reduce((s: number, l: any) => s + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-      const productsRes = await api.get('/api/v1/products').catch(() => ({ data: [] }));
-      const products = productsRes.data || [];
-      const currentStock = products.reduce((s: number, p: any) => s + (p.currentStock || 0), 0);
-
-      const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
-      paidSales.forEach((sale: any) => {
-        (sale.items || []).forEach((item: any) => {
-          const pid = item.productId;
-          if (!pid) return;
-          const name = item.product?.name ?? 'Unknown';
-          const qty = (item.qtyKg ?? 0) || (item.qtyPcs ?? 0);
-          const revenue = item.lineTotal ?? 0;
-          if (!productSales[pid]) productSales[pid] = { name, qty: 0, revenue: 0 };
-          productSales[pid].name = name;
-          productSales[pid].qty += qty;
-          productSales[pid].revenue += revenue;
-        });
-      });
-      const topProducts = Object.entries(productSales)
-        .map(([productId, data]) => ({
-          productId,
-          productName: data.name,
-          qtySold: data.qty,
-          revenue: data.revenue,
-        }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
-
-      // Always use store-local sales queries for today (dashboard API historically used UTC midnight).
-      const newStats: DashboardStats = {
-        today: {
-          revenue: todayRevenue,
-          count: paidSales.length,
-          avgBill: paidSales.length > 0 ? todayRevenue / paidSales.length : 0,
-        },
-        yesterday: { revenue: yesterdayRevenue, count: yesterdaySales.length },
-        lastWeek: { revenue: lastWeekRevenue, count: lastWeekSales.length },
-        month: { revenue: monthRevenue, count: monthSales.length },
-        todaySales: {
-          count: paidSales.length,
-          revenue: todayRevenue,
-          weightKg: todayWeight,
-        },
-        paymentBreakdown: {
-          ...paymentBreakdown,
-          total: totalPayments,
-        },
-        todayStock: {
-          openingStock: 0,
-          receivedStock,
-          soldStock,
-          currentStock,
-        },
-        topProducts,
-        topItems,
-        recentSales: (dashboardData?.recentSales || paidSales.slice(0, 10)).map((s: any) => ({
-          id: s.id,
-          saleNo: s.saleNo,
-          grandTotal: s.grandTotal,
-          status: s.status,
-          createdAt: s.createdAt,
-          customerName: s.customerName || s.customer?.name || 'Walk-in',
-          itemCount: s.itemCount ?? s.items?.length ?? 0,
-        })),
-      };
-      setStats(newStats);
-
-      if (userRole === 'MANAGER' || userRole === 'OWNER') {
-        const trendStartYmd = format(subDays(parseLocalYmd(todayYmd), 6), 'yyyy-MM-dd');
-        api
-          .get('/api/v1/analytics/sales-trend', {
-            params: {
-              startDate: trendStartYmd,
-              endDate: todayYmd,
-            },
-          })
-          .then((res: any) => {
-            setSalesTrendLast7(Array.isArray(res?.data) ? res.data : []);
-          })
-          .catch(() => setSalesTrendLast7([]));
       } else {
         setSalesTrendLast7([]);
       }
 
-      await loadPendingPayments();
-    } catch (e: any) {
-      console.error('[Dashboard] Failed to load:', e);
-      setError(e.response?.data?.error || 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.storeId, user?.role, loadPendingPayments]);
+      await Promise.all(tasks);
+    },
+    [loadPendingPayments]
+  );
+
+  const refetch = useCallback(
+    async (opts?: { light?: boolean }) => {
+      if (!user?.storeId) return;
+      const light = opts?.light === true && !!statsRef.current;
+      const userRole = user.role as string;
+      setLoading(true);
+      setError(null);
+
+      try {
+        // One fast endpoint replaces month/yesterday/lastWeek/today/products waterfall
+        const dashboardRes = await api.get('/api/v1/sales/dashboard');
+        const d = dashboardRes.data || {};
+
+        const paymentBreakdown = d.paymentBreakdown || {
+          cash: 0,
+          upi: 0,
+          card: 0,
+          other: 0,
+          total: 0,
+        };
+
+        const core: DashboardStats = {
+          today: d.today || { revenue: 0, count: 0, avgBill: 0 },
+          yesterday: d.yesterday || { revenue: 0, count: 0 },
+          lastWeek: d.lastWeek || { revenue: 0, count: 0 },
+          month: d.month || { revenue: 0, count: 0 },
+          todaySales: d.todaySales || {
+            count: d.today?.count || 0,
+            revenue: d.today?.revenue || 0,
+            weightKg: 0,
+          },
+          paymentBreakdown: {
+            cash: paymentBreakdown.cash || 0,
+            upi: paymentBreakdown.upi || 0,
+            card: paymentBreakdown.card || 0,
+            other: paymentBreakdown.other || 0,
+            total: paymentBreakdown.total || 0,
+          },
+          todayStock: light ? statsRef.current!.todayStock : emptyStock,
+          topProducts: d.topProducts || [],
+          topItems: light ? statsRef.current!.topItems : [],
+          recentSales: (d.recentSales || []).map((s: any) => ({
+            id: s.id,
+            saleNo: s.saleNo,
+            grandTotal: s.grandTotal,
+            status: s.status,
+            createdAt: s.createdAt,
+            customerName: s.customerName || 'Walk-in',
+            itemCount: s.itemCount ?? 0,
+          })),
+        };
+
+        statsRef.current = core;
+        setStats(core);
+        setLoading(false);
+
+        if (!light) {
+          // Secondary widgets — do not block first paint
+          void loadSecondary(userRole);
+        } else {
+          void loadPendingPayments();
+        }
+      } catch (e: any) {
+        console.error('[Dashboard] Failed to load:', e);
+        setError(e.response?.data?.error || 'Failed to load dashboard');
+        setLoading(false);
+      }
+    },
+    [user?.storeId, user?.role, loadPendingPayments, loadSecondary]
+  );
 
   const loadHistoricalData = useCallback(async (date: string) => {
     setLoading(true);
     try {
       const { startDate, endDate } = localDateRangeToApiBounds(date, date);
 
-      const salesRes = await api.get('/api/v1/sales', {
-        params: {
-          startDate,
-          endDate,
-          status: 'PAID',
-        },
-      });
+      const [salesRes, openSalesRes] = await Promise.all([
+        api.get('/api/v1/sales', {
+          params: { startDate, endDate, status: 'PAID' },
+        }),
+        api.get('/api/v1/sales', {
+          params: { startDate, endDate, status: 'OPEN' },
+        }),
+      ]);
       const sales = salesRes.data || [];
       const { cash, upi, card, other } = paymentBreakdownBuckets(
         tallyPaymentsFromSales(sales)
       );
-
-      const openSalesRes = await api.get('/api/v1/sales', {
-        params: {
-          startDate,
-          endDate,
-          status: 'OPEN',
-        },
-      });
       const openSales = openSalesRes.data || [];
-      const pendingAmount = openSales.reduce((s: number, x: any) => s + ((x.grandTotal || 0) - (x.totalPaid || 0)), 0);
+      const pendingAmount = openSales.reduce(
+        (s: number, x: any) => s + ((x.grandTotal || 0) - (x.totalPaid || 0)),
+        0
+      );
 
       setHistoricalData({
         date,

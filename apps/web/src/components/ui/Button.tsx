@@ -4,7 +4,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'glass' | 'soft';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   children: React.ReactNode;
@@ -26,10 +26,12 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = 'font-semibold rounded-xl transition-all duration-180 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed';
     
     const variants = {
-      primary: 'bg-brand-500 text-white hover:bg-brand-600 hover:shadow-buttonHover hover:-translate-y-0.5 active:bg-brand-700 active:shadow-[inset_0px_2px_6px_rgba(0,0,0,0.25)] disabled:bg-brand-200 disabled:text-brand-400 dark:disabled:bg-gray-700 dark:disabled:text-gray-400 dark:hover:shadow-[0px_8px_24px_rgba(255,106,0,0.5)]',
+      primary: 'bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:-translate-y-0.5 hover:brightness-105 active:translate-y-0 active:brightness-95 disabled:bg-none disabled:bg-brand-200 disabled:text-brand-400 disabled:shadow-none dark:disabled:bg-gray-700 dark:disabled:text-gray-400',
       secondary: 'bg-transparent border-[1.5px] border-brand-500 text-brand-500 hover:bg-brand-100 active:bg-brand-200 disabled:border-brand-200 disabled:text-brand-400 dark:hover:bg-brand-900/30 dark:active:bg-brand-900/50 dark:disabled:border-gray-600 dark:disabled:text-gray-500',
       ghost: 'bg-transparent text-brand-500 hover:bg-brand-100 active:bg-brand-200 disabled:text-brand-400 dark:hover:bg-brand-900/30 dark:active:bg-brand-900/50 dark:disabled:text-gray-500',
       danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400',
+      glass: 'glass-panel text-ink hover:-translate-y-0.5 hover:shadow-glow-brand active:translate-y-0 disabled:opacity-50',
+      soft: 'bg-brand-100 text-brand-700 hover:bg-brand-200 active:bg-brand-300 dark:bg-brand-900/30 dark:text-brand-300 dark:hover:bg-brand-900/50 disabled:opacity-50',
     };
 
     const sizes = {

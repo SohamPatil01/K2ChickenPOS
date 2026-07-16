@@ -56,6 +56,16 @@ export async function productRoutes(fastify: FastifyInstance) {
         where,
         include: {
           category: true,
+          productMaster: {
+            select: {
+              id: true,
+              isHQLocked: true,
+              hqLockedPrice: true,
+              productType: true,
+              expectedYieldPercent: true,
+              wastageTolerancePercent: true,
+            },
+          },
           storeProductPrices: {
             where: {
               storeId,
@@ -89,6 +99,7 @@ export async function productRoutes(fastify: FastifyInstance) {
           pricePerUnit,
           imageUrl: p.imageUrl,
           isActive: p.isActive,
+          productMaster: p.productMaster || null,
         };
       });
 

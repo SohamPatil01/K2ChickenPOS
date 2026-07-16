@@ -124,16 +124,16 @@ export default function NumPad({
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 safe-top safe-bottom p-2 sm:p-3">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-[280px] sm:max-w-xs rounded-xl sm:rounded-2xl shadow-2xl animate-fade-in-up border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+      <div className="glass-panel-strong w-full max-w-[280px] sm:max-w-xs rounded-xl sm:rounded-2xl animate-fade-in-up flex flex-col overflow-hidden">
         {/* Header - compact */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate pr-2">{placeholder}</h3>
+        <div className="flex items-center justify-between px-3 py-2 border-b border-subtle flex-shrink-0">
+          <h3 className="text-sm font-semibold text-ink truncate pr-2">{placeholder}</h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+            className="p-1.5 rounded-lg hover:bg-surface-2/70 transition-colors flex-shrink-0"
             aria-label="Close"
           >
-            <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -151,10 +151,10 @@ export default function NumPad({
               onChange={handleInputChange}
               placeholder={placeholder}
               maxLength={maxLength}
-              className="w-full px-3 py-2 text-base font-semibold text-gray-900 dark:text-white text-center bg-gray-50 dark:bg-gray-700/50 rounded-lg border-2 border-gray-300 dark:border-gray-600 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none transition-all"
+              className="input-glass w-full px-3 py-2 text-base font-semibold text-center rounded-lg transition-all"
               autoFocus
             />
-            <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-1">
+            <p className="text-[10px] text-ink-muted text-center mt-1">
               Type or use pad • Enter to confirm
             </p>
           </div>
@@ -171,7 +171,7 @@ export default function NumPad({
           {/* Quick Presets - smaller */}
           {quickPresets.length > 0 && (
             <div>
-              <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-1 text-center">Quick</label>
+              <label className="block text-[10px] font-medium text-ink-muted mb-1 text-center">Quick</label>
               <div className="grid grid-cols-4 gap-1">
                 {quickPresets.map((preset) => (
                   <button
@@ -192,7 +192,7 @@ export default function NumPad({
               <button
                 key={num}
                 onClick={() => handleNumberClick(num.toString())}
-                className="aspect-square min-h-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-base font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-brand-400 active:scale-95 transition-all duration-200"
+                className="aspect-square min-h-0 bg-surface border border-strong rounded-lg text-base font-semibold text-ink hover:border-brand-400 hover:shadow-glow-brand active:scale-95 transition-all duration-200"
               >
                 {num}
               </button>
@@ -201,37 +201,37 @@ export default function NumPad({
               <button
                 onClick={handleDecimalClick}
                 disabled={displayValue.includes('.')}
-                className="aspect-square min-h-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-base font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                className="aspect-square min-h-0 bg-surface border border-strong rounded-lg text-base font-semibold text-ink hover:border-brand-400 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 .
               </button>
             ) : (
               <button
                 onClick={handleClear}
-                className="aspect-square min-h-0 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95"
+                className="aspect-square min-h-0 bg-surface-2 border border-strong rounded-lg text-xs font-medium text-ink-secondary hover:text-ink active:scale-95"
               >
                 Clear
               </button>
             )}
             <button
               onClick={() => handleNumberClick('0')}
-              className="aspect-square min-h-0 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-base font-semibold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95"
+              className="aspect-square min-h-0 bg-surface border border-strong rounded-lg text-base font-semibold text-ink hover:border-brand-400 active:scale-95"
             >
               0
             </button>
             {allowDecimal ? (
               <button
                 onClick={handleClear}
-                className="aspect-square min-h-0 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95"
+                className="aspect-square min-h-0 bg-surface-2 border border-strong rounded-lg text-xs font-medium text-ink-secondary hover:text-ink active:scale-95"
               >
                 Clear
               </button>
             ) : (
               <button
                 onClick={handleBackspace}
-                className="aspect-square min-h-0 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95"
+                className="aspect-square min-h-0 bg-surface-2 border border-strong rounded-lg flex items-center justify-center hover:text-ink active:scale-95"
               >
-                <svg className="w-4 h-4 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-ink-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z" />
                 </svg>
               </button>
@@ -242,13 +242,13 @@ export default function NumPad({
           <div className="flex gap-2 pt-1">
             <button
               onClick={onClose}
-              className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              className="flex-1 px-3 py-2 bg-surface-2 text-ink-secondary rounded-lg text-sm font-medium hover:text-ink transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
-              className="flex-1 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium shadow-sm hover:shadow transition-all duration-200"
+              className="flex-1 px-3 py-2 bg-gradient-brand text-white rounded-lg text-sm font-medium shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 transition-all duration-200"
             >
               Done
             </button>

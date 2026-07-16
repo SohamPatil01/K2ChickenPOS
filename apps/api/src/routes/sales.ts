@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
-import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz } from '@azela-pos/shared';
+import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -214,27 +214,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
   });
 
   // Dashboard summary
-  fastify.get('/dashboard', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/dashboard', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      // Try to get user's store from authentication, fallback to default store
-      let storeId = '';
-      let userRole = '';
-
-      try {
-        const user = getUser(request as any);
-        storeId = user?.storeId || '';
-        userRole = (user as any).role || '';
-      } catch (error) {
-        // Not authenticated, use oldest OWNER store as fallback
-        console.log('[Sales Dashboard] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({
-          where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-        });
-        storeId = defaultStore?.id || '';
-        userRole = 'OWNER';
-      }
+      const user = getUser(request as any);
+      let storeId = user?.storeId || '';
+      let userRole = (user as any).role || '';
 
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
@@ -267,48 +251,134 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Use store calendar day (IST) for "today" — matches daily closing & reports.
       const todayStr = ymdInStoreTz();
+      const yesterdayStr = ymdDaysAgoInStoreTz(1);
+      const lastWeekStr = ymdDaysAgoInStoreTz(7);
       const todayBounds = parseStoreDateRange(todayStr, todayStr)!;
+      const yesterdayBounds = parseStoreDateRange(yesterdayStr, yesterdayStr)!;
+      const lastWeekBounds = parseStoreDateRange(lastWeekStr, lastWeekStr)!;
+      const monthStartYmd = `${todayStr.slice(0, 8)}01`;
+      const monthBounds = parseStoreDateRange(monthStartYmd, todayStr)!;
       const storeScope =
         userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId;
 
-      const todaySales = await prisma.sale.findMany({
-        where: {
-          storeId: storeScope,
-          status: 'PAID',
-          ...salesInDateRangeWhere(todayBounds.gte, todayBounds.lte),
-        },
-      });
+      const paidBase = { storeId: storeScope, status: 'PAID' as const };
+      const todayWhere = { ...paidBase, ...salesInDateRangeWhere(todayBounds.gte, todayBounds.lte) };
+      const yesterdayWhere = { ...paidBase, ...salesInDateRangeWhere(yesterdayBounds.gte, yesterdayBounds.lte) };
+      const lastWeekWhere = { ...paidBase, ...salesInDateRangeWhere(lastWeekBounds.gte, lastWeekBounds.lte) };
+      const monthWhere = { ...paidBase, ...salesInDateRangeWhere(monthBounds.gte, monthBounds.lte) };
 
-      const todayRevenue = Math.round(todaySales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
-      const todayCount = todaySales.length;
-      const todayAvgBill = todayCount > 0 ? Math.round((todayRevenue / todayCount) * 1000) / 1000 : 0;
+      const [
+        todayAgg,
+        yesterdayAgg,
+        lastWeekAgg,
+        monthAgg,
+        todaySalesLite,
+        recentSales,
+      ] = await Promise.all([
+        prisma.sale.aggregate({
+          where: todayWhere,
+          _sum: { grandTotal: true },
+          _count: { _all: true },
+        }),
+        prisma.sale.aggregate({
+          where: yesterdayWhere,
+          _sum: { grandTotal: true },
+          _count: { _all: true },
+        }),
+        prisma.sale.aggregate({
+          where: lastWeekWhere,
+          _sum: { grandTotal: true },
+          _count: { _all: true },
+        }),
+        prisma.sale.aggregate({
+          where: monthWhere,
+          _sum: { grandTotal: true },
+          _count: { _all: true },
+        }),
+        // Only today's rows (for payment mix + top products) — not the whole month
+        prisma.sale.findMany({
+          where: todayWhere,
+          select: {
+            id: true,
+            saleNo: true,
+            grandTotal: true,
+            status: true,
+            createdAt: true,
+            payments: { select: { method: true, amount: true } },
+            items: {
+              select: {
+                productId: true,
+                qtyKg: true,
+                qtyPcs: true,
+                lineTotal: true,
+                product: { select: { name: true } },
+              },
+            },
+            customer: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.sale.findMany({
+          where: { storeId: storeScope },
+          select: {
+            id: true,
+            saleNo: true,
+            grandTotal: true,
+            status: true,
+            createdAt: true,
+            customer: { select: { name: true } },
+            _count: { select: { items: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+      ]);
 
-      // This month — IST month start through end of today
-      const monthStartYmd = `${todayStr.slice(0, 8)}01`;
-      const monthBounds = parseStoreDateRange(monthStartYmd, todayStr)!;
-      const monthSales = await prisma.sale.findMany({
-        where: {
-          storeId: storeScope,
-          status: 'PAID',
-          ...salesInDateRangeWhere(monthBounds.gte, monthBounds.lte),
-        },
-      });
+      const round3 = (n: number) => Math.round(n * 1000) / 1000;
+      const todayRevenue = round3(todayAgg._sum.grandTotal || 0);
+      const todayCount = todayAgg._count._all || 0;
+      const todayAvgBill = todayCount > 0 ? round3(todayRevenue / todayCount) : 0;
+      const monthRevenue = round3(monthAgg._sum.grandTotal || 0);
+      const monthCount = monthAgg._count._all || 0;
+      const yesterdayRevenue = round3(yesterdayAgg._sum.grandTotal || 0);
+      const yesterdayCount = yesterdayAgg._count._all || 0;
+      const lastWeekRevenue = round3(lastWeekAgg._sum.grandTotal || 0);
+      const lastWeekCount = lastWeekAgg._count._all || 0;
 
-      const monthRevenue = Math.round(monthSales.reduce((sum: any, s: any) => sum + s.grandTotal, 0) * 1000) / 1000;
-      const monthCount = monthSales.length;
+      const tallied = tallyPaymentsFromSales(todaySalesLite as any);
+      const todayWeight = todaySalesLite.reduce((s, sale) => {
+        return (
+          s +
+          (sale.items || []).reduce(
+            (is, i) => is + (i.qtyKg || 0) + (i.qtyPcs || 0),
+            0
+          )
+        );
+      }, 0);
 
-      // Recent sales
-      const recentSales = await prisma.sale.findMany({
-        where: {
-          storeId: userRole === 'OWNER' && store.type === 'OWNER' ? { in: storeIds } : storeId
-        },
-        include: {
-          items: { include: { product: true } },
-          customer: customerWithAreaInclude,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      });
+      const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
+      for (const sale of todaySalesLite) {
+        for (const item of sale.items || []) {
+          const pid = item.productId;
+          if (!pid) continue;
+          const name = item.product?.name ?? 'Unknown';
+          const qty = (item.qtyKg ?? 0) || (item.qtyPcs ?? 0);
+          const revenue = item.lineTotal ?? 0;
+          if (!productSales[pid]) productSales[pid] = { name, qty: 0, revenue: 0 };
+          productSales[pid].name = name;
+          productSales[pid].qty += qty;
+          productSales[pid].revenue += revenue;
+        }
+      }
+      const topProducts = Object.entries(productSales)
+        .map(([productId, data]) => ({
+          productId,
+          productName: data.name,
+          qtySold: data.qty,
+          revenue: data.revenue,
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
 
       return {
         today: {
@@ -316,10 +386,31 @@ export async function saleRoutes(fastify: FastifyInstance) {
           count: todayCount,
           avgBill: todayAvgBill,
         },
+        yesterday: {
+          revenue: yesterdayRevenue,
+          count: yesterdayCount,
+        },
+        lastWeek: {
+          revenue: lastWeekRevenue,
+          count: lastWeekCount,
+        },
         month: {
           revenue: monthRevenue,
           count: monthCount,
         },
+        todaySales: {
+          count: todayCount,
+          revenue: todayRevenue,
+          weightKg: todayWeight,
+        },
+        paymentBreakdown: {
+          cash: tallied.cash,
+          upi: tallied.upi,
+          card: tallied.card,
+          other: tallied.other + tallied.credit,
+          total: tallied.total,
+        },
+        topProducts,
         recentSales: recentSales.map((s) => ({
           id: s.id,
           saleNo: s.saleNo,
@@ -327,7 +418,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           status: s.status,
           createdAt: s.createdAt,
           customerName: s.customer?.name || 'Walk-in',
-          itemCount: s.items.length,
+          itemCount: s._count?.items ?? 0,
         })),
       };
     } catch (error: any) {

@@ -77,43 +77,9 @@ export default function WastageManagementPage() {
         }),
       ]);
 
-      // Load products with productMaster data in batches to avoid too many requests
+      // productMaster is included on GET /products
       const productsData = productsRes.data || [];
-      
-      // Process in batches of 5 with delay between batches
-      const batchSize = 5;
-      const delayBetweenBatches = 100;
-      const productsWithMaster: Product[] = [];
-      
-      for (let i = 0; i < productsData.length; i += batchSize) {
-        const batch = productsData.slice(i, i + batchSize);
-        
-        const batchResults = await Promise.all(
-          batch.map(async (p: any) => {
-            try {
-              const masterRes = await api.get(`/api/v1/hq/product-master?productId=${p.id}`).catch(() => null);
-              return {
-                ...p,
-                productMaster: masterRes?.data?.[0] || null,
-              };
-            } catch {
-              return {
-                ...p,
-                productMaster: null,
-              };
-            }
-          })
-        );
-        
-        productsWithMaster.push(...batchResults);
-        
-        // Add delay between batches (except for the last batch)
-        if (i + batchSize < productsData.length) {
-          await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
-        }
-      }
-      
-      setProducts(productsWithMaster);
+      setProducts(productsData);
 
       // Handle both single config object (from franchise-config endpoint) and array (from HQ endpoint)
       const config = configRes.data && !Array.isArray(configRes.data) 

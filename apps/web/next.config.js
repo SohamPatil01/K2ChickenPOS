@@ -2,7 +2,14 @@ const path = require('path');
 // Load root .env so NEXT_PUBLIC_* (e.g. NEXT_PUBLIC_HQ_CONSOLE_URL) work when defined at repo root
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+// In local next dev, always proxy to the local API (ignore production NEXT_PUBLIC_API_URL in .env).
+// Client still uses same-origin /api via getApiBaseUrl() on localhost.
+const rewriteApiUrl =
+  process.env.API_REWRITE_URL ||
+  (process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3003'
+    : process.env.NEXT_PUBLIC_API_URL) ||
+  'http://localhost:3003';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -14,7 +21,7 @@ const nextConfig = {
       // Browsers probe /favicon.ico even when metadata points at SVG
       { source: '/favicon.ico', destination: '/favicon.svg' },
       { source: '/favicon.png', destination: '/favicon.svg' },
-      { source: '/api/:path*', destination: `${apiUrl}/api/:path*` },
+      { source: '/api/:path*', destination: `${rewriteApiUrl}/api/:path*` },
     ];
   },
   // ESM in @azela-pos/shared uses ./foo.js specifiers; sources are .ts — map for webpack
@@ -36,4 +43,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-

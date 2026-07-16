@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { APP_NAME } from '@azela-pos/shared';
+// Legacy dark-mode shim must load BEFORE globals.css so the glass
+// design system (end of globals.css) wins equal-specificity ties.
+import '../styles/dark-legacy.css';
 import './globals.css';
 import RootWrapper from '@/components/RootWrapper';
 
@@ -37,6 +40,17 @@ export default function RootLayout({
                 } else {
                   document.documentElement.classList.add('light');
                 }
+
+                // Glass blur kill switch for low-end POS hardware.
+                // Override via localStorage['fx'] = 'on' | 'off'.
+                try {
+                  const fx = localStorage.getItem('fx');
+                  const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 ||
+                    (navigator.deviceMemory || 8) <= 4;
+                  if (fx === 'off' || (fx !== 'on' && lowEnd)) {
+                    document.documentElement.classList.add('no-blur');
+                  }
+                } catch (e) {}
               })();
             `,
           }}

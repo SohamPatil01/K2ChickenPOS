@@ -1,8 +1,12 @@
 import api from '@/lib/api';
 import { saveLocalProducts, saveLocalCustomers } from '@azela-pos/offline';
 
+const CATALOG_REFRESH_KEY = 'azela-offline-catalog-refreshed-at';
+/** Avoid re-pulling full product/customer catalog from Neon more than once per hour. */
+const CATALOG_REFRESH_TTL_MS = 60 * 60 * 1000;
+
 /** Pull catalog from GET /api/v1/sync/bootstrap into IndexedDB for offline POS. */
-export async function refreshOfflineCatalog(): Promise<void> {
+export async function refreshOfflineCatalog(opts?: { force?: boolean }): Promise<void> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return;
   }
@@ -10,6 +14,13 @@ export async function refreshOfflineCatalog(): Promise<void> {
     typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   if (!token) {
     return;
+  }
+
+  if (typeof window !== 'undefined' && !opts?.force) {
+    const last = Number(localStorage.getItem(CATALOG_REFRESH_KEY) || 0);
+    if (last > 0 && Date.now() - last < CATALOG_REFRESH_TTL_MS) {
+      return;
+    }
   }
 
   try {
@@ -41,6 +52,9 @@ export async function refreshOfflineCatalog(): Promise<void> {
           email: c.email ? String(c.email) : undefined,
         }))
       );
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CATALOG_REFRESH_KEY, String(Date.now()));
     }
   } catch (error) {
     console.warn('[offline] Bootstrap catalog refresh failed:', error);

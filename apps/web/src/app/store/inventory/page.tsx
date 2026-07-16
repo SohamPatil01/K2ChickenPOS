@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/auth";
 import { useNotificationStore } from "@/store/notification";
 import api from "@/lib/api";
 import { compressImageFile } from "@/lib/compressImage";
+import { BrandLoader } from "@/components/ui";
 import Link from "next/link";
 
 interface StoreStockBreakdown {
@@ -953,8 +954,8 @@ export default function StoreInventoryPage() {
 
   if (loading && inventory.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500 dark:text-gray-400">Loading inventory...</p>
+      <div className="flex justify-center py-16">
+        <BrandLoader label="Loading inventory…" />
       </div>
     );
   }
@@ -966,7 +967,7 @@ export default function StoreInventoryPage() {
         <div>
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink mb-1 sm:mb-2">
                 Inventory
               </h1>
               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
@@ -985,7 +986,7 @@ export default function StoreInventoryPage() {
             <button
               onClick={() => loadInventory(true)}
               disabled={loading}
-              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:bg-gray-400 flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-gradient-brand text-white rounded-xl shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 disabled:opacity-60 disabled:shadow-none flex items-center gap-2 text-sm transition-all"
               title="Refresh inventory"
             >
               <span>🔄</span>
@@ -995,13 +996,13 @@ export default function StoreInventoryPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className="flex gap-1 p-1 rounded-xl bg-surface-2/60 w-fit">
           <button
             onClick={() => setActiveTab("inventory")}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
               activeTab === "inventory"
-                ? "border-b-2 border-brand-500 text-brand-600 dark:text-brand-400"
-                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                ? "bg-surface shadow-card border border-brand-500/20 text-brand-600 dark:text-brand-400"
+                : "text-ink-secondary hover:text-ink"
             }`}
           >
             Inventory List
@@ -1013,10 +1014,10 @@ export default function StoreInventoryPage() {
                 loadStockProducts();
               }
             }}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
               activeTab === "addStock"
-                ? "border-b-2 border-brand-500 text-brand-600 dark:text-brand-400"
-                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                ? "bg-surface shadow-card border border-brand-500/20 text-brand-600 dark:text-brand-400"
+                : "text-ink-secondary hover:text-ink"
             }`}
           >
             Add Stock
@@ -1051,14 +1052,14 @@ export default function StoreInventoryPage() {
       {/* Content based on active tab */}
       {activeTab === "inventory" ? (
         /* Table Container - Responsive with horizontal scroll on mobile and vertical scroll on iPad */
-        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden animate-fade-in">
           <p className="text-xs text-gray-500 dark:text-gray-400 px-3 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-700">
             Order: meat / raw chicken by PLU, then masale &amp; spices by date added (newest first).
           </p>
           <div className="flex-1 overflow-y-auto overflow-x-auto -mx-3 sm:mx-0 min-h-0">
             <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900/50">
+              <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-surface-2/80 sticky top-0 z-10 backdrop-blur-sm">
                   <tr>
                     <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Image
@@ -1089,7 +1090,7 @@ export default function StoreInventoryPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {loading ? (
                     <tr>
                       <td colSpan={9} className="px-6 py-4 text-center">
@@ -1121,7 +1122,7 @@ export default function StoreInventoryPage() {
                     displayInventory.map((item) => (
                       <tr
                         key={item.productId}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        className="hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors"
                       >
                         <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
                           {item.imageUrl ? (
@@ -1259,7 +1260,7 @@ export default function StoreInventoryPage() {
         </div>
       ) : (
         /* Add Stock Tab */
-        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden animate-fade-in">
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             <div className="max-w-4xl mx-auto space-y-6">
               {/* Add Item Form */}
@@ -1382,15 +1383,15 @@ export default function StoreInventoryPage() {
 
               {/* Stock Items List */}
               {stockItems.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+                <div className="glass-panel-strong rounded-2xl overflow-hidden">
                   <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-lg font-semibold dark:text-white">
                       Items to Add ({stockItems.length})
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-surface-2/80 sticky top-0 z-10 backdrop-blur-sm">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                             Product
@@ -1406,11 +1407,11 @@ export default function StoreInventoryPage() {
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {stockItems.map((item, index) => (
                           <tr
                             key={index}
-                            className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            className="hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors"
                           >
                             <td className="px-4 py-3 text-sm font-medium dark:text-white">
                               {item.productName}
@@ -1479,8 +1480,8 @@ export default function StoreInventoryPage() {
 
       {/* Adjust Inventory Modal */}
       {showAdjustModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white">
               Adjust Inventory
             </h2>
@@ -1674,8 +1675,8 @@ export default function StoreInventoryPage() {
 
       {/* Add Product Modal */}
       {showAddProductModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white">
               Add New Product
             </h2>
@@ -1902,8 +1903,8 @@ export default function StoreInventoryPage() {
 
       {/* Edit Product Modal */}
       {showEditModal && editingProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl p-4 sm:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white">
               Edit Product
             </h2>
@@ -2112,8 +2113,8 @@ export default function StoreInventoryPage() {
 
       {/* Edit Stock Modal */}
       {showEditStockModal && editStockProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white">
               Edit Stock
             </h2>
@@ -2248,8 +2249,8 @@ export default function StoreInventoryPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && productToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
+          <div className="glass-panel-strong rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white text-red-600 dark:text-red-400">
               Delete Product
             </h2>

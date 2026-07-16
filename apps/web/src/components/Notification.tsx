@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
 
 interface NotificationProps {
   message: string;
@@ -27,36 +28,35 @@ export default function Notification({ message, type = 'info', duration = 3000, 
     setTimeout(() => onClose?.(), 300);
   };
 
-  const bgColors = {
-    success: 'bg-green-500 dark:bg-green-600',
-    error: 'bg-red-500 dark:bg-red-600',
-    info: 'bg-blue-500 dark:bg-blue-600',
-    warning: 'bg-yellow-500 dark:bg-yellow-600',
+  const accentColors = {
+    success: 'border-green-500/40 text-green-600 dark:text-green-400',
+    error: 'border-red-500/40 text-red-600 dark:text-red-400',
+    info: 'border-blue-500/40 text-blue-600 dark:text-blue-400',
+    warning: 'border-yellow-500/40 text-yellow-600 dark:text-yellow-400',
   };
 
   const icons = {
-    success: '✅',
-    error: '❌',
-    info: 'ℹ️',
-    warning: '⚠️',
+    success: CheckCircle2,
+    error: XCircle,
+    info: Info,
+    warning: AlertTriangle,
   };
+  const Icon = icons[type];
 
   if (!isVisible) return null;
 
   return (
     <div
-      className={`fixed top-4 right-4 z-[9999] ${bgColors[type]} text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 min-w-[300px] max-w-[500px] animate-slide-in-right ${
-        !isVisible ? 'animate-slide-out-right' : ''
-      }`}
+      className={`fixed top-4 right-4 z-[9999] glass-panel-strong ${accentColors[type]} px-5 py-4 rounded-2xl flex items-center gap-3 min-w-[300px] max-w-[500px]`}
       style={{
         animation: isVisible ? 'slideInRight 0.3s ease-out' : 'slideOutRight 0.3s ease-out',
       }}
     >
-      <span className="text-xl flex-shrink-0">{icons[type]}</span>
-      <p className="flex-1 text-sm font-medium leading-relaxed">{message}</p>
+      <Icon className="h-5 w-5 flex-shrink-0" />
+      <p className="flex-1 text-sm font-medium leading-relaxed text-ink">{message}</p>
       <button
         onClick={handleClose}
-        className="flex-shrink-0 text-white hover:text-gray-200 text-xl font-bold leading-none"
+        className="flex-shrink-0 text-ink-muted hover:text-ink text-xl font-bold leading-none"
         aria-label="Close"
       >
         ×

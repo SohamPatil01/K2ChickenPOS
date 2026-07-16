@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/auth';
 import { exportToCSV } from '@/lib/exportCSV';
-import { Skeleton, SkeletonCard, SkeletonStatCard } from '@/components/ui';
+import { BrandLoader } from '@/components/ui';
 import { useDashboardStats } from '@/app/store/dashboard/hooks/useDashboardStats';
 import DashboardOverview from '@/app/store/dashboard/components/DashboardOverview';
 import DashboardToday from '@/app/store/dashboard/components/DashboardToday';
@@ -34,13 +35,16 @@ export default function StoreDashboardPage() {
     loadHistoricalData,
   } = useDashboardStats({ user: user ?? null });
 
-  const handleRefetch = useCallback(() => {
-    refetch().then(() => {
-      setLastRefresh(new Date());
-      setShowUpdatedFeedback(true);
-      setTimeout(() => setShowUpdatedFeedback(false), 2000);
-    });
-  }, [refetch]);
+  const handleRefetch = useCallback(
+    (opts?: { light?: boolean }) => {
+      refetch(opts).then(() => {
+        setLastRefresh(new Date());
+        setShowUpdatedFeedback(true);
+        setTimeout(() => setShowUpdatedFeedback(false), 2000);
+      });
+    },
+    [refetch]
+  );
 
   useEffect(() => {
     if (!user) {
@@ -56,9 +60,9 @@ export default function StoreDashboardPage() {
 
   useEffect(() => {
     if (!user?.storeId) return;
-    const handleSaleCreated = () => handleRefetch();
-    const handleSaleUpdated = () => handleRefetch();
-    const handleSaleDeleted = () => handleRefetch();
+    const handleSaleCreated = () => handleRefetch({ light: true });
+    const handleSaleUpdated = () => handleRefetch({ light: true });
+    const handleSaleDeleted = () => handleRefetch({ light: true });
     window.addEventListener('sale-created', handleSaleCreated);
     window.addEventListener('sale-updated', handleSaleUpdated);
     window.addEventListener('sale-deleted', handleSaleDeleted);
@@ -71,38 +75,15 @@ export default function StoreDashboardPage() {
 
   useEffect(() => {
     if (!user?.storeId || !autoRefresh) return;
-    // 2 min default reduces API / Fast Origin Transfer vs 1 min (still fresh enough for POS)
-    const interval = setInterval(() => handleRefetch(), 120000);
+    // 5 min light refresh (today only) — cuts Neon public transfer vs full dashboard every 2 min
+    const interval = setInterval(() => handleRefetch({ light: true }), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [user?.storeId, autoRefresh, handleRefetch]);
 
   if (!user) return null;
 
   if (loading && !stats) {
-    return (
-      <div className="w-full max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <Skeleton variant="text" height={32} width={200} className="mb-2" />
-            <Skeleton variant="text" height={16} width={150} />
-          </div>
-          <div className="flex gap-2">
-            <Skeleton variant="rectangular" height={40} width={120} className="rounded-xl" />
-            <Skeleton variant="rectangular" height={40} width={120} className="rounded-xl" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <SkeletonStatCard />
-          <SkeletonStatCard />
-          <SkeletonStatCard />
-          <SkeletonStatCard />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SkeletonCard className="h-64 rounded-2xl" />
-          <SkeletonCard className="h-64 rounded-2xl" />
-        </div>
-      </div>
-    );
+    return <BrandLoader fullscreen label="Loading dashboard…" />;
   }
 
   if (error || !stats) {
@@ -139,17 +120,17 @@ export default function StoreDashboardPage() {
 
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col relative">
-      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm py-2 -mx-2 px-2 rounded-xl border border-gray-200 dark:border-gray-700">
+      <div className="sticky top-0 z-20 mb-3 sm:mb-4 flex flex-col gap-3 flex-shrink-0 glass-panel-strong py-2 -mx-2 px-2 rounded-xl">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">
               {userRole === 'OWNER'
                 ? 'Admin Console'
                 : userRole === 'MANAGER'
                   ? 'Manager Console'
                   : 'Store Dashboard'}
             </h1>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+            <p className="text-xs sm:text-sm text-ink-muted mt-1 flex items-center gap-2 flex-wrap">
               <span>Welcome, {user.name} • Last updated: {lastRefresh.toLocaleTimeString()}</span>
               {showUpdatedFeedback && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium">
@@ -174,7 +155,7 @@ export default function StoreDashboardPage() {
                   filename: `dashboard_export_${new Date().toISOString().split('T')[0]}.csv`,
                 });
               }}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs sm:text-sm font-medium transition-all touch-target flex items-center gap-1 active:scale-95"
+              className="px-3 py-1.5 glass-panel text-ink rounded-xl text-xs sm:text-sm font-medium transition-all touch-target flex items-center gap-1 active:scale-95 hover:shadow-glow-brand"
               title="Export dashboard data"
             >
               <span>📥</span>
@@ -182,9 +163,9 @@ export default function StoreDashboardPage() {
             </button>
             <button
               type="button"
-              onClick={handleRefetch}
+              onClick={() => handleRefetch()}
               disabled={loading}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl text-xs sm:text-sm font-medium transition-all touch-target flex items-center gap-1 active:scale-95 disabled:active:scale-100"
+              className="px-3 py-1.5 bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 disabled:opacity-60 disabled:shadow-none rounded-xl text-xs sm:text-sm font-medium transition-all touch-target flex items-center gap-1 active:scale-95 disabled:active:scale-100"
               title="Refresh dashboard"
             >
               <span className={loading ? 'animate-spin' : ''}>↻</span>
@@ -195,10 +176,10 @@ export default function StoreDashboardPage() {
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all touch-target active:scale-95 ${
                 autoRefresh
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200'
+                  ? 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30'
+                  : 'glass-panel text-ink-secondary'
               }`}
-              title={autoRefresh ? 'Auto-refresh enabled (60s)' : 'Auto-refresh disabled'}
+              title={autoRefresh ? 'Auto-refresh enabled (5 min, today only)' : 'Auto-refresh disabled'}
             >
               <span className="hidden sm:inline">{autoRefresh ? 'Auto ✓' : 'Auto ✗'}</span>
               <span className="sm:hidden">{autoRefresh ? '⟳' : '⊗'}</span>
@@ -211,19 +192,27 @@ export default function StoreDashboardPage() {
           </div>
         </div>
 
-        <nav className="flex gap-1 border-b border-gray-200 dark:border-gray-700 -mb-px overflow-x-auto rounded-t-lg">
+        <nav className="flex gap-1 overflow-x-auto p-1 rounded-xl bg-surface-2/60">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors touch-target ${
+              className={`relative px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg transition-colors touch-target ${
                 activeTab === id
-                  ? 'border-brand-600 text-brand-600 dark:text-brand-400 dark:border-brand-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  ? 'text-brand-600 dark:text-brand-400'
+                  : 'text-ink-secondary hover:text-ink'
               }`}
             >
-              {label}
+              {activeTab === id && (
+                <motion.span
+                  layoutId="dash-tab"
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute inset-0 rounded-lg bg-surface shadow-card border border-brand-500/20"
+                  aria-hidden
+                />
+              )}
+              <span className="relative">{label}</span>
             </button>
           ))}
         </nav>
@@ -231,7 +220,7 @@ export default function StoreDashboardPage() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         {activeTab === 'overview' && (
-          <div key="overview">
+          <div key="overview" className="animate-fade-in">
             <DashboardOverview
               stats={stats}
               loading={loading}
@@ -242,7 +231,7 @@ export default function StoreDashboardPage() {
           </div>
         )}
         {activeTab === 'today' && (
-          <div key="today">
+          <div key="today" className="animate-fade-in">
             <DashboardToday
               stats={stats}
               salesTrendLast7={salesTrendLast7}
@@ -251,7 +240,7 @@ export default function StoreDashboardPage() {
           </div>
         )}
         {activeTab === 'history' && (
-          <div key="history">
+          <div key="history" className="animate-fade-in">
             <DashboardHistory
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
@@ -263,9 +252,9 @@ export default function StoreDashboardPage() {
           </div>
         )}
         {activeTab === 'actions' && (
-          <div key="actions">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg shadow-gray-200/50 dark:shadow-none p-4 lg:p-6 border border-gray-100 dark:border-gray-700">
-              <h2 className="text-base sm:text-lg font-bold dark:text-white mb-4">Quick Actions</h2>
+          <div key="actions" className="animate-fade-in">
+            <div className="glass-panel rounded-2xl p-4 lg:p-6">
+              <h2 className="text-base sm:text-lg font-bold text-ink mb-4">Quick Actions</h2>
               <DashboardQuickActions
                 pendingPaymentsCount={pendingPaymentsCount}
                 userRole={userRole}

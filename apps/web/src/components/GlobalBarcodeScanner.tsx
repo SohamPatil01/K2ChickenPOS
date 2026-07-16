@@ -54,31 +54,11 @@ export default function GlobalBarcodeScanner() {
   const loadProducts = async () => {
     try {
       const response = await api.get('/api/v1/products', {
-        params: { _t: Date.now() },
         headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
       });
       const productsData = response.data || [];
-
-      // Make SKU/PLU scans work immediately; HQ master enrichment can take a long time
+      // productMaster comes from GET /products — avoid N+1 HQ calls
       setProducts(productsData);
-
-      const productsWithMaster = await Promise.all(
-        productsData.map(async (p: any) => {
-          try {
-            const masterRes = await api
-              .get(`/api/v1/hq/product-master?productId=${p.id}`)
-              .catch(() => null);
-            return {
-              ...p,
-              productMaster: masterRes?.data?.[0] || null,
-            };
-          } catch {
-            return p;
-          }
-        })
-      );
-
-      setProducts(productsWithMaster);
     } catch (error: any) {
       console.error('Failed to load products:', error);
     }

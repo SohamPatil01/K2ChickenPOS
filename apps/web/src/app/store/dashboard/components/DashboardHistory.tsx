@@ -22,7 +22,7 @@ export default function DashboardHistory({
   if (userRole !== 'MANAGER' && userRole !== 'OWNER') return null;
 
   return (
-    <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 dark:border-gray-700">
+    <div className="glass-panel-strong rounded-2xl p-6 mb-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
           <span className="text-2xl">📅</span>
@@ -39,7 +39,7 @@ export default function DashboardHistory({
           <button
             onClick={onLoad}
             disabled={loading}
-            className="px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-400 text-white rounded-xl font-semibold transition-all active:scale-95 disabled:active:scale-100"
+            className="px-4 py-2 bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 disabled:opacity-60 disabled:shadow-none rounded-xl font-semibold transition-all active:scale-95 disabled:active:scale-100"
           >
             {loading ? 'Loading...' : 'Load'}
           </button>

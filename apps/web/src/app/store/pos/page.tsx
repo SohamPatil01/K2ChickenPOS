@@ -11,7 +11,7 @@ import Link from "next/link";
 import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
-import { SkeletonProductCard } from "@/components/ui";
+import { SkeletonProductCard, AnimatedNumber } from "@/components/ui";
 import { normalizeBarcodeForLookup } from "@azela-pos/shared";
 import {
   saveHeldCart,
@@ -428,31 +428,14 @@ export default function StorePOSPage() {
 
     try {
       const response = await api.get("/api/v1/products", {
-        params: { _t: Date.now() },
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
       const productsData = response.data || [];
 
-      // Load productMaster data for each product
-      const productsWithMaster = await Promise.all(
-        productsData.map(async (p: any) => {
-          try {
-            const masterRes = await api
-              .get(`/api/v1/hq/product-master?productId=${p.id}`)
-              .catch(() => null);
-            return {
-              ...p,
-              productMaster: masterRes?.data?.[0] || null,
-            };
-          } catch {
-            return p;
-          }
-        })
-      );
-
-      setProducts(productsWithMaster);
+      // productMaster is included on GET /products — no per-product HQ round-trips
+      setProducts(productsData);
       await saveLocalProducts(
-        productsWithMaster.map((p: Product) => ({
+        productsData.map((p: Product) => ({
           productId: p.id,
           sku: p.sku || "",
           plu: p.plu || "",
@@ -1410,9 +1393,9 @@ export default function StorePOSPage() {
 
       {/* Header */}
       <div className="mb-2 flex-shrink-0 px-2">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 p-3 glass-panel rounded-2xl">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+            <h1 className="text-xl sm:text-2xl font-bold text-ink">
               Point of Sale
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -1429,7 +1412,7 @@ export default function StorePOSPage() {
                 setAddItemModalFocusWeightFirst(false);
                 setShowAddItemModal(true);
               }}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              className="px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
               <span>+</span> Add Item
             </button>
@@ -1446,32 +1429,32 @@ export default function StorePOSPage() {
                 );
                 setShowQuickCheckout(true);
               }}
-              className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              className="px-4 py-2.5 bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
               ⚡ Quick Pay
             </button>
             <button
               type="button"
               onClick={() => void holdCurrentCart()}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              className="px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
               ⏸ Hold
             </button>
             <button
               type="button"
               onClick={() => void openHoldModal()}
-              className="px-4 py-2.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-900 dark:text-indigo-100 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              className="px-4 py-2.5 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
               📋 Held
             </button>
             <Link
               href="/store/cart"
-              className="px-4 py-2.5 bg-gray-800 hover:bg-gray-900 dark:bg-gray-600 dark:hover:bg-gray-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 relative"
+              className="px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-sm font-medium flex items-center justify-center gap-2 relative transition-all active:scale-[0.98]"
             >
               🛒 Cart
               <span
                 className={`ml-1 rounded-full px-2 py-0.5 text-xs font-bold min-w-[20px] text-center ${
-                  items.length > 0 ? "bg-white text-gray-800" : "hidden"
+                  items.length > 0 ? "bg-gradient-brand text-white" : "hidden"
                 }`}
               >
                 {items.length}
@@ -1484,7 +1467,7 @@ export default function StorePOSPage() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-1.5 min-h-0 overflow-hidden px-2">
-        <div className="flex-1 relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 overflow-hidden flex flex-col min-h-0">
+        <div className="flex-1 relative glass-panel rounded-2xl p-3 sm:p-4 overflow-hidden flex flex-col min-h-0">
           <div className="relative flex flex-col min-h-0 h-full">
             {/* Barcode + search — always visible */}
             <div className="mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 flex-shrink-0">
@@ -1500,7 +1483,7 @@ export default function StorePOSPage() {
                     placeholder="Scan or type, then Enter"
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
-                    className="w-full min-h-[48px] px-4 py-3 pr-11 text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 placeholder:text-gray-400 touch-manipulation"
+                    className="w-full min-h-[48px] px-4 py-3 pr-11 text-base border-2 border-strong rounded-xl text-ink bg-surface focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 placeholder:text-ink-muted touch-manipulation"
                   />
                   <button type="submit" className="sr-only" tabIndex={-1}>
                     Add barcode
@@ -1533,7 +1516,7 @@ export default function StorePOSPage() {
                     placeholder="Name or SKU…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full min-h-[48px] px-4 py-3 pl-11 text-base border-2 border-gray-300 dark:border-gray-600 dark:text-white rounded-xl bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 touch-manipulation"
+                    className="w-full min-h-[48px] px-4 py-3 pl-11 text-base border-2 border-strong text-ink rounded-xl bg-surface placeholder:text-ink-muted focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 touch-manipulation"
                   />
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                     <svg
@@ -1700,7 +1683,7 @@ export default function StorePOSPage() {
                     return (
                       <div
                         key={product.id}
-                        className="relative flex flex-col rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md transition-all overflow-hidden"
+                        className="relative flex flex-col rounded-2xl border border-subtle bg-surface hover:border-brand-400 hover:shadow-glow-brand transition-all duration-150 overflow-hidden active:scale-[0.98]"
                       >
                         <button
                           type="button"
@@ -1716,7 +1699,7 @@ export default function StorePOSPage() {
                         <button
                           type="button"
                           onClick={() => handleAddProduct(product)}
-                          className="flex flex-col flex-1 text-left p-2 pt-1.5 active:scale-[0.99] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 rounded-xl"
+                          className="flex flex-col flex-1 text-left p-2 pt-1.5 active:scale-[0.99] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 rounded-2xl"
                         >
                           <PosProductTileImage
                             src={product.imageUrl}
@@ -1829,7 +1812,7 @@ export default function StorePOSPage() {
       {/* Price Override Modal */}
       {showPriceOverrideModal && priceOverrideData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-3 md:p-4 safe-top safe-bottom">
-          <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 w-full max-w-sm sm:max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] mx-2 sm:mx-4">
+          <div className="glass-panel-strong rounded-2xl p-3 sm:p-4 md:p-6 w-full max-w-sm sm:max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto animate-scale-in mx-2 sm:mx-4">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold dark:text-white mb-3 sm:mb-4">
               Price Override Required
             </h2>
@@ -1900,7 +1883,7 @@ export default function StorePOSPage() {
       {/* Quick Checkout Modal */}
       {showQuickCheckout && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-3 md:p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 animate-in zoom-in-95 duration-200 mx-2 sm:mx-0">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-sm sm:max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto animate-scale-in mx-2 sm:mx-0">
             {/* Header */}
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between z-10">
               <div>
@@ -1995,8 +1978,12 @@ export default function StorePOSPage() {
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
                     {pendingSettlementTotal > 0 ? "Total to pay" : "Total Amount"}
                   </span>
-                  <span className="text-2xl font-bold text-brand-600 dark:text-brand-400">
-                    ₹{checkoutGrandTotal}
+                  <span className="text-2xl font-bold text-brand-600 dark:text-brand-400 tabular-nums">
+                    <AnimatedNumber
+                      value={Number(checkoutGrandTotal) || 0}
+                      format={(v) => `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+                      duration={0.15}
+                    />
                   </span>
                 </div>
               </div>
@@ -2117,8 +2104,8 @@ export default function StorePOSPage() {
       )}
 
       {showHoldModal && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-gray-800">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl glass-panel-strong animate-scale-in">
             <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
               <h2 className="text-lg font-semibold dark:text-white">
                 Held carts
@@ -2252,7 +2239,7 @@ function AddItemModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-3 md:p-4 safe-top safe-bottom">
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-lg sm:rounded-xl md:rounded-2xl shadow-lg dark:shadow-xl w-full max-w-sm sm:max-w-md md:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto border border-gray-200/50 dark:border-gray-700/50 mx-2 sm:mx-0">
+      <div className="glass-panel-strong rounded-2xl w-full max-w-sm sm:max-w-md md:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto animate-scale-in mx-2 sm:mx-0">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 flex items-center justify-between">
           <h2 className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 dark:text-gray-100">
