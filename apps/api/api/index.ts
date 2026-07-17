@@ -113,6 +113,7 @@ async function build() {
         'https://k2-chicken-pos-hq-web.vercel.app',
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://localhost:3002',
       ];
       
       // Allow requests with no origin (like mobile apps or curl requests)
@@ -317,6 +318,7 @@ export default async function handler(req: any, res: any) {
         'https://k2-chicken-pos-hq-web.vercel.app',
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://localhost:3002',
       ];
       
       if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
@@ -522,4 +524,3 @@ export default async function handler(req: any, res: any) {
     }
   }
 }
-

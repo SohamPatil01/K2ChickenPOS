@@ -22,6 +22,8 @@ export interface QueuedEvent {
   ackedAt?: string;
   retryCount: number;
   lastError?: string;
+  lastAttemptAt?: string;
+  nextRetryAt?: string;
 }
 
 export interface LocalSale {
@@ -105,8 +107,15 @@ export class OfflineDB extends Dexie {
       localCustomers: '++id, customerId, phone, lastSyncedAt',
       heldCarts: '++id, label, createdAt',
     });
+    this.version(3).stores({
+      cart: '++id, productId, createdAt',
+      queuedEvents: '++id, eventType, clientCreatedAt, ackedAt, nextRetryAt',
+      localSales: '++id, localSaleId, serverSaleId, status, createdAt',
+      localProducts: '++id, productId, sku, plu, lastSyncedAt',
+      localCustomers: '++id, customerId, phone, lastSyncedAt',
+      heldCarts: '++id, label, createdAt',
+    });
   }
 }
 
 export const offlineDB = new OfflineDB();
-

@@ -13,7 +13,7 @@ const prisma = new PrismaClient();
 // Get API URL from command line argument, environment, or use default
 const args = process.argv.slice(2);
 const API_URL_ARG = args.find(arg => arg.startsWith('--api-url='))?.split('=')[1];
-const API_URL = API_URL_ARG || process.env.LIVE_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API_URL = API_URL_ARG || process.env.LIVE_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 async function main() {
   console.log('🔄 Fetching product images from live application...\n');
@@ -141,4 +141,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

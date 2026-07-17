@@ -103,7 +103,7 @@ export default function EnhancedDashboardPage() {
         return;
       }
       if (err?.isNetworkError || err?.code === 'ERR_NETWORK') {
-        setError('Cannot connect to the API. Make sure the server is running (e.g. port 3003).');
+        setError('Cannot connect to the API. Make sure the server is running on port 3001.');
       } else {
         setError(err?.response?.data?.error || 'Failed to load dashboard');
       }
@@ -461,4 +461,3 @@ export default function EnhancedDashboardPage() {
     </HQLayout>
   );
 }
-

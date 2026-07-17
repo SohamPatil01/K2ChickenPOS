@@ -1,6 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -19,4 +19,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-

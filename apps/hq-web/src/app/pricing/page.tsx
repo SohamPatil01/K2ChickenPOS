@@ -112,7 +112,7 @@ export default function PricingPage() {
     } catch (error: any) {
       console.error('Failed to load pricing data:', error);
       if (error?.isNetworkError || error?.code === 'ERR_NETWORK') {
-        setLoadError('Cannot connect to the API. Make sure the server is running (e.g. port 3003).');
+        setLoadError('Cannot connect to the API. Make sure the server is running on port 3001.');
       } else if (error?.response?.status === 401) {
         setLoadError('Session expired or not logged in. Use Retry after logging in, or open the Log in link below.');
       } else {
@@ -629,4 +629,3 @@ export default function PricingPage() {
     </HQLayout>
   );
 }
-

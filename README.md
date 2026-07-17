@@ -97,6 +97,7 @@ pnpm dev
 
 The API server will run on `http://localhost:3001`
 The Web app will run on `http://localhost:3000`
+The HQ app will run on `http://localhost:3002`
 
 ## Test Credentials
 

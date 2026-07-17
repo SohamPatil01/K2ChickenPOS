@@ -7,9 +7,9 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const rewriteApiUrl =
   process.env.API_REWRITE_URL ||
   (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3003'
+    ? 'http://localhost:3001'
     : process.env.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:3003';
+  'http://localhost:3001';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
