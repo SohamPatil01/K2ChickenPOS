@@ -497,10 +497,10 @@ export default function AdvancedAnalyticsPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-ink">
               Advanced Analytics
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-sm text-ink-secondary mt-1">
               Predictive insights and recommendations (UTC day boundaries; peak hour UTC)
             </p>
           </div>
@@ -570,9 +570,9 @@ export default function AdvancedAnalyticsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-end gap-3 p-4 bg-surface-2/60 rounded-xl border border-subtle">
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-ink-secondary mb-1">
               Start date
             </label>
             <input
@@ -581,11 +581,11 @@ export default function AdvancedAnalyticsPage() {
               onChange={(e) =>
                 setDateRange((r) => ({ ...r, startDateStr: e.target.value }))
               }
-              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+              className="rounded-md border border-gray-300 dark:border-gray-600 glass-panel px-2 py-1.5 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            <label className="block text-xs font-medium text-ink-secondary mb-1">
               End date
             </label>
             <input
@@ -594,18 +594,18 @@ export default function AdvancedAnalyticsPage() {
               onChange={(e) =>
                 setDateRange((r) => ({ ...r, endDateStr: e.target.value }))
               }
-              className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+              className="rounded-md border border-gray-300 dark:border-gray-600 glass-panel px-2 py-1.5 text-sm"
             />
           </div>
           {isOwner && (
             <div className="min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-medium text-ink-secondary mb-1">
                 Store scope
               </label>
               <select
                 value={franchiseStoreId}
                 onChange={(e) => setFranchiseStoreId(e.target.value)}
-                className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
+                className="w-full rounded-md border border-gray-300 dark:border-gray-600 glass-panel px-2 py-1.5 text-sm"
               >
                 <option value="">All locations (owner + franchises)</option>
                 <option value={user?.storeId || ""}>
@@ -620,7 +620,7 @@ export default function AdvancedAnalyticsPage() {
             </div>
           )}
           {isOwner && !franchiseStoreId && (
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer">
               <input
                 type="checkbox"
                 checked={demandByStore}
@@ -647,8 +647,7 @@ export default function AdvancedAnalyticsPage() {
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 flex-wrap">
         <button
           onClick={() => setActiveTab("sales-overview")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === "sales-overview"
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="sales-overview"
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
@@ -657,8 +656,7 @@ export default function AdvancedAnalyticsPage() {
         </button>
         <button
           onClick={() => setActiveTab("profit-margin")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === "profit-margin"
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="profit-margin"
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
@@ -667,8 +665,7 @@ export default function AdvancedAnalyticsPage() {
         </button>
         <button
           onClick={() => setActiveTab("forecast")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === "forecast"
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="forecast"
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
@@ -677,8 +674,7 @@ export default function AdvancedAnalyticsPage() {
         </button>
         <button
           onClick={() => setActiveTab("demand")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === "demand"
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="demand"
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
@@ -687,8 +683,7 @@ export default function AdvancedAnalyticsPage() {
         </button>
         <button
           onClick={() => setActiveTab("inventory")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === "inventory"
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="inventory"
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
@@ -697,8 +692,7 @@ export default function AdvancedAnalyticsPage() {
         </button>
         <button
           onClick={() => setActiveTab("insights")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
-            activeTab === "insights"
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="insights"
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
@@ -758,8 +752,8 @@ export default function AdvancedAnalyticsPage() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Daily Revenue</h3>
+              <div className="glass-panel rounded-2xl p-6">
+                <h3 className="text-lg font-semibold text-ink mb-4">Daily Revenue</h3>
                 {salesOverview.dailyRevenue.some((r) => r.total > 0) ? (
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -773,13 +767,13 @@ export default function AdvancedAnalyticsPage() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No daily sales in this period</p>
+                  <p className="text-ink-muted text-center py-8">No daily sales in this period</p>
                 )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Revenue by Day of Week</h3>
+                <div className="glass-panel rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-ink mb-4">Revenue by Day of Week</h3>
                   {salesOverview.revenueByDayOfWeek.some((d) => d.value > 0) ? (
                     <div className="h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
@@ -793,11 +787,11 @@ export default function AdvancedAnalyticsPage() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data</p>
+                    <p className="text-ink-muted text-center py-8">No data</p>
                   )}
                 </div>
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Mix</h3>
+                <div className="glass-panel rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-ink mb-4">Payment Mix</h3>
                   {salesOverview.paymentMix.length > 0 ? (
                     <div className="h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
@@ -820,29 +814,29 @@ export default function AdvancedAnalyticsPage() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">No payment data</p>
+                    <p className="text-ink-muted text-center py-8">No payment data</p>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="glass-panel-strong rounded-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Top 10 Products by Revenue</h3>
+                  <h3 className="text-lg font-semibold text-ink">Top 10 Products by Revenue</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-900">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Product</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Revenue</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Product</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Revenue</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {salesOverview.topProducts.length > 0 ? (
                         salesOverview.topProducts.map((p, i) => (
                           <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{p.name}</td>
-                            <td className="px-4 py-3 text-sm text-right font-medium text-gray-700 dark:text-gray-300">
+                            <td className="px-4 py-3 text-sm text-ink">{p.name}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium text-ink-secondary">
                               ₹{p.revenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                             </td>
                           </tr>
@@ -858,8 +852,8 @@ export default function AdvancedAnalyticsPage() {
               </div>
             </>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">Could not load sales overview. Please try again.</p>
+            <div className="glass-panel rounded-2xl p-12 text-center">
+              <p className="text-ink-secondary mb-4">Could not load sales overview. Please try again.</p>
               <button onClick={loadSalesOverview} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                 Retry
               </button>
@@ -872,8 +866,8 @@ export default function AdvancedAnalyticsPage() {
       {activeTab === "forecast" && (
         <div className="space-y-6">
           {!forecast ? (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <div className="glass-panel rounded-2xl p-12 text-center">
+              <p className="text-ink-secondary mb-4">
                 Could not load sales forecast. Please try again.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -885,7 +879,7 @@ export default function AdvancedAnalyticsPage() {
                 </button>
                 <button
                   onClick={() => loadSalesFallback("forecast")}
-                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   Show from sales data
                 </button>
@@ -936,8 +930,8 @@ export default function AdvancedAnalyticsPage() {
           </div>
 
           {/* Historical Chart with Moving Averages */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="glass-panel rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-ink mb-4">
               Historical sales (recent window)
             </h3>
             {forecast.historical && forecast.historical.length > 0 ? (
@@ -1070,9 +1064,7 @@ export default function AdvancedAnalyticsPage() {
                   return (
                     <>
                       <p
-                        className={`text-2xl font-bold ${
-                          change >= 0
-                            ? "text-violet-900 dark:text-violet-100"
+                        className={`text-2xl font-bold ${ change >= 0 ?"text-violet-900 dark:text-violet-100"
                             : "text-red-600 dark:text-red-400"
                         }`}
                       >
@@ -1090,9 +1082,9 @@ export default function AdvancedAnalyticsPage() {
           )}
 
           {/* Forecast Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="glass-panel-strong rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-ink">
                 Forecast (next days)
               </h3>
             </div>
@@ -1100,16 +1092,16 @@ export default function AdvancedAnalyticsPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
                       Date
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Predicted Sales
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Low / High
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-center text-xs font-medium text-ink-secondary uppercase">
                       Confidence
                     </th>
                   </tr>
@@ -1121,23 +1113,22 @@ export default function AdvancedAnalyticsPage() {
                         key={index}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
                       >
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-ink">
                           {formatForecastDate(f?.date ?? "")}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
                           {typeof f.predicted === "number" && !Number.isNaN(f.predicted)
                             ? `₹${f.predicted.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
                             : "₹0"}
                         </td>
-                        <td className="px-4 py-3 text-right text-xs text-gray-600 dark:text-gray-400">
+                        <td className="px-4 py-3 text-right text-xs text-ink-secondary">
                           {f.predictedLow != null && f.predictedHigh != null
                             ? `₹${Math.round(f.predictedLow).toLocaleString("en-IN")} – ₹${Math.round(f.predictedHigh).toLocaleString("en-IN")}`
                             : "—"}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              f?.confidence === "high"
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${ f?.confidence ==="high"
                                 ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
                                 : f?.confidence === "medium"
                                 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200"
@@ -1166,8 +1157,8 @@ export default function AdvancedAnalyticsPage() {
 
           {/* Forecast preview: last 7 days actual + next 7 days predicted */}
           {forecast.forecast?.length > 0 && forecast.historical?.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="glass-panel rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-ink mb-4">
                 Forecast (next 7 days)
               </h3>
               <div className="h-[280px]">
@@ -1214,7 +1205,7 @@ export default function AdvancedAnalyticsPage() {
         demand ? (
         <div className="space-y-6">
           {demand.abcSummary && (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3 text-sm text-ink-secondary">
               <strong>ABC mix:</strong> A={demand.abcSummary.A}, B={demand.abcSummary.B}, C=
               {demand.abcSummary.C}. {demand.abcSummary.note}
             </div>
@@ -1250,9 +1241,9 @@ export default function AdvancedAnalyticsPage() {
           </div>
 
           {/* Fast Moving Products */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="glass-panel-strong rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-ink">
                 Fast movers (ABC class A — top revenue share)
               </h3>
             </div>
@@ -1260,13 +1251,13 @@ export default function AdvancedAnalyticsPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
                       Product
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Revenue
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Orders
                     </th>
                   </tr>
@@ -1278,15 +1269,15 @@ export default function AdvancedAnalyticsPage() {
                         key={index}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
                       >
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-ink">
                           {product.productName}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
                           {typeof product.totalRevenue === "number" && !Number.isNaN(product.totalRevenue)
                             ? `₹${product.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
                             : "₹0"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                           {product.frequency || 0}
                         </td>
                       </tr>
@@ -1307,9 +1298,9 @@ export default function AdvancedAnalyticsPage() {
           </div>
 
           {/* Slow Moving Products */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="glass-panel-strong rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-ink">
                 Slow movers (ABC class C — tail revenue)
               </h3>
             </div>
@@ -1317,13 +1308,13 @@ export default function AdvancedAnalyticsPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
                       Product
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Revenue
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Orders
                     </th>
                   </tr>
@@ -1335,15 +1326,15 @@ export default function AdvancedAnalyticsPage() {
                         key={index}
                         className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
                       >
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-ink">
                           {product.productName}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
                           {typeof product.totalRevenue === "number" && !Number.isNaN(product.totalRevenue)
                             ? `₹${product.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
                             : "₹0"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                           {product.frequency || 0}
                         </td>
                       </tr>
@@ -1364,9 +1355,9 @@ export default function AdvancedAnalyticsPage() {
           </div>
 
           {demand.categories && demand.categories.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="glass-panel-strong rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-semibold text-ink">
                   Category revenue
                 </h3>
               </div>
@@ -1374,13 +1365,13 @@ export default function AdvancedAnalyticsPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
                         Category
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                      <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                         Revenue
                       </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                      <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                         Lines
                       </th>
                     </tr>
@@ -1388,13 +1379,13 @@ export default function AdvancedAnalyticsPage() {
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {demand.categories.map((c, i) => (
                       <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-ink">
                           {c.categoryName}
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
                           ₹{c.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                           {c.lineCount}
                         </td>
                       </tr>
@@ -1407,13 +1398,13 @@ export default function AdvancedAnalyticsPage() {
 
           {demand.byStore && demand.byStore.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-ink">
                 Per-store products (owner)
               </h3>
               {demand.byStore.map((s) => (
                 <div
                   key={s.storeId}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
+                  className="glass-panel-strong rounded-2xl overflow-hidden"
                 >
                   <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 font-medium">
                     {s.storeName}
@@ -1444,8 +1435,8 @@ export default function AdvancedAnalyticsPage() {
           )}
         </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+          <div className="glass-panel rounded-2xl p-12 text-center">
+            <p className="text-ink-secondary mb-4">
               Could not load demand analysis. Please try again.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -1457,7 +1448,7 @@ export default function AdvancedAnalyticsPage() {
               </button>
               <button
                 onClick={() => loadSalesFallback("demand")}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 Show from sales data
               </button>
@@ -1471,12 +1462,12 @@ export default function AdvancedAnalyticsPage() {
         inventory ? (
         <div className="space-y-6">
           {inventory.mode === "multi" && inventory.note && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-900/40">
+            <p className="text-sm text-ink-secondary border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-900/40">
               {inventory.note}
             </p>
           )}
           {(inventory.leadTimeDays != null || inventory.historyDays != null) && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-ink-muted">
               Lead time {inventory.leadTimeDays ?? "—"}d · History window {inventory.historyDays ?? "—"}d · EOQ uses
               ordering cost ₹{inventory.orderingCost ?? "—"} / holding ₹
               {inventory.holdingCostPerUnit ?? "—"} per unit (env overrides).
@@ -1511,9 +1502,9 @@ export default function AdvancedAnalyticsPage() {
           </div>
 
           {/* Recommendations Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="glass-panel-strong rounded-2xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-ink">
                 Inventory Actions Required
               </h3>
             </div>
@@ -1522,29 +1513,29 @@ export default function AdvancedAnalyticsPage() {
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
                     {inventory.mode === "multi" && (
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
                         Store
                       </th>
                     )}
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
                       Product
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Current
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       On order
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Reorder Point
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
                       Suggested Qty
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-center text-xs font-medium text-ink-secondary uppercase">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <th className="px-4 py-3 text-center text-xs font-medium text-ink-secondary uppercase">
                       Action
                     </th>
                   </tr>
@@ -1558,37 +1549,36 @@ export default function AdvancedAnalyticsPage() {
                         className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
                       >
                         {inventory.mode === "multi" && (
-                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          <td className="px-4 py-3 text-sm text-ink-secondary">
                             {rec.storeName || rec.storeId || "—"}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        <td className="px-4 py-3 text-sm text-ink">
                           {rec.productName}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                           {typeof rec.currentStock === "number" && !Number.isNaN(rec.currentStock)
                             ? rec.currentStock.toFixed(2)
                             : "0.00"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                           {rec.inboundOpenQty != null && !Number.isNaN(rec.inboundOpenQty)
                             ? rec.inboundOpenQty.toFixed(2)
                             : "—"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                           {typeof rec.reorderPoint === "number" && !Number.isNaN(rec.reorderPoint)
                             ? rec.reorderPoint.toFixed(2)
                             : "0.00"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300 font-medium">
+                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
                           {typeof rec.suggestedOrderQty === "number" && !Number.isNaN(rec.suggestedOrderQty)
                             ? rec.suggestedOrderQty.toFixed(2)
                             : "0.00"}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              rec.status === "out-of-stock"
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${ rec.status ==="out-of-stock"
                                 ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
                                 : rec.status === "low-stock"
                                 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200"
@@ -1600,7 +1590,7 @@ export default function AdvancedAnalyticsPage() {
                               : "adequate"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300 capitalize">
+                        <td className="px-4 py-3 text-center text-sm text-ink-secondary capitalize">
                           {rec.action ? rec.action.replace("-", " ") : "none"}
                         </td>
                       </tr>
@@ -1621,8 +1611,8 @@ export default function AdvancedAnalyticsPage() {
           </div>
         </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+          <div className="glass-panel rounded-2xl p-12 text-center">
+            <p className="text-ink-secondary mb-4">
               Could not load inventory recommendations. Please try again.
             </p>
             <button
@@ -1640,51 +1630,49 @@ export default function AdvancedAnalyticsPage() {
           {profitMargin ? (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="rounded-2xl glass-panel p-4">
                   <p className="text-xs uppercase text-gray-500">Sales</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl font-bold text-ink mt-1">
                     {formatINR(profitMargin.summary.totalSales)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="rounded-2xl glass-panel p-4">
                   <p className="text-xs uppercase text-gray-500">Purchases</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl font-bold text-ink mt-1">
                     {formatINR(profitMargin.summary.totalPurchases)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="rounded-2xl glass-panel p-4">
                   <p className="text-xs uppercase text-gray-500">Expenses</p>
                   <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
                     {profitMargin.summary.expensesLabel}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="rounded-2xl glass-panel p-4">
                   <p className="text-xs uppercase text-gray-500">Net profit</p>
                   <p
-                    className={`text-xl font-bold mt-1 ${
-                      profitMargin.summary.netProfit >= 0
-                        ? "text-emerald-600 dark:text-emerald-400"
+                    className={`text-xl font-bold mt-1 ${ profitMargin.summary.netProfit >= 0 ?"text-emerald-600 dark:text-emerald-400"
                         : "text-red-600 dark:text-red-400"
                     }`}
                   >
                     {formatINR(profitMargin.summary.netProfit)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="rounded-2xl glass-panel p-4">
                   <p className="text-xs uppercase text-gray-500">Margin %</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl font-bold text-ink mt-1">
                     {profitMargin.summary.profitMarginPct.toFixed(1)}%
                   </p>
                 </div>
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+                <div className="rounded-2xl glass-panel p-4">
                   <p className="text-xs uppercase text-gray-500">Est. COGS (sold)</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl font-bold text-ink mt-1">
                     {formatINR(profitMargin.summary.estimatedCogsFromSales)}
                   </p>
                 </div>
               </div>
 
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-ink-secondary">
                 Net profit uses paid sales minus purchase orders in range. Expenses are not tracked
                 yet. Product costs use the average of the last 10 closed franchise POs.
               </p>
@@ -1696,38 +1684,38 @@ export default function AdvancedAnalyticsPage() {
                 </div>
               )}
 
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="glass-panel-strong rounded-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-semibold text-ink">
                     Product gross margin
                   </h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <thead className="bg-surface-2/80 backdrop-blur-sm">
                       <tr>
-                        <th className="text-left px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-left px-4 py-3 font-medium text-ink-secondary">
                           Product
                         </th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
                           Revenue
                         </th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
                           Qty sold
                         </th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
                           Avg cost
                         </th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
                           Est. COGS
                         </th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
                           Gross profit
                         </th>
-                        <th className="text-right px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
                           Margin %
                         </th>
-                        <th className="text-center px-4 py-3 font-medium text-gray-600 dark:text-gray-400">
+                        <th className="text-center px-4 py-3 font-medium text-ink-secondary">
                           Status
                         </th>
                       </tr>
@@ -1735,7 +1723,7 @@ export default function AdvancedAnalyticsPage() {
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {profitMargin.products.map((p) => (
                         <tr key={p.productId} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                          <td className="px-4 py-3 text-gray-900 dark:text-white">
+                          <td className="px-4 py-3 text-ink">
                             <div className="font-medium">{p.productName}</div>
                             <div className="text-xs text-gray-500">{p.sku}</div>
                           </td>
@@ -1772,7 +1760,7 @@ export default function AdvancedAnalyticsPage() {
               </div>
             </>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-gray-600 dark:text-gray-400">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
               {profitMarginError || "No profit data for this range."}
             </div>
           )}
@@ -1786,28 +1774,27 @@ export default function AdvancedAnalyticsPage() {
               {insights.insights.map((ins, i) => (
                 <div
                   key={i}
-                  className={`rounded-lg border px-4 py-3 ${
-                    ins.severity === "high"
+                  className={`rounded-lg border px-4 py-3 ${ ins.severity ==="high"
                       ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
                       : ins.severity === "medium"
                       ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
-                      : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      : "border-subtle bg-surface"
                   }`}
                 >
-                  <p className="font-semibold text-gray-900 dark:text-white">{ins.title}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{ins.detail}</p>
+                  <p className="font-semibold text-ink">{ins.title}</p>
+                  <p className="text-sm text-ink-secondary mt-1">{ins.detail}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-gray-600 dark:text-gray-400">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
               {insights
                 ? "No insights for this range — try widening dates or adding more sales."
                 : "Load failed or no data. Use Refresh or check errors above."}
             </div>
           )}
           {insights?.period && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-ink-muted">
               Compared current {insights.period.start}–{insights.period.end} vs prior{" "}
               {insights.period.priorStart}–{insights.period.priorEnd}.
             </p>

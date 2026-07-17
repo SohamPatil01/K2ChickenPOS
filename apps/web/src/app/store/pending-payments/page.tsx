@@ -255,7 +255,7 @@ export default function PendingPaymentsPage() {
       <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
-          <p className="mt-4 text-gray-500 dark:text-gray-400">Loading pending payments...</p>
+          <p className="mt-4 text-ink-muted">Loading pending payments...</p>
         </div>
       </div>
     );
@@ -293,10 +293,10 @@ export default function PendingPaymentsPage() {
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       {/* Header */}
       <div className="mb-3 sm:mb-4 flex-shrink-0">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink mb-1 sm:mb-2">
           Pending Payments
         </h1>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-xs sm:text-sm text-ink-muted">
           Manage customer credit and pending payments
         </p>
       </div>
@@ -304,7 +304,7 @@ export default function PendingPaymentsPage() {
       {/* Search and Filter Bar */}
       {customers.length > 0 && (
         <div className="mb-4 sm:mb-6 flex-shrink-0">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <div className="flex flex-col sm:flex-row gap-3">
               {/* Search Input */}
               <div className="flex-1 relative">
@@ -349,7 +349,7 @@ export default function PendingPaymentsPage() {
 
             {/* Results count */}
             {searchQuery && (
-              <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+              <div className="mt-3 text-sm text-ink-secondary">
                 Found {filteredCustomers.length} of {customers.length} customer{filteredCustomers.length !== 1 ? 's' : ''}
               </div>
             )}
@@ -419,7 +419,7 @@ export default function PendingPaymentsPage() {
       )}
 
       {/* Customers List */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-gray-700">
+      <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden">
         <div className="flex-1 overflow-y-auto min-h-0">
           {filteredCustomers.length === 0 && customers.length === 0 ? (
             <div className="text-center py-16">
@@ -429,7 +429,7 @@ export default function PendingPaymentsPage() {
                 </svg>
               </div>
               <p className="text-gray-600 dark:text-gray-300 font-semibold text-lg mb-1">No pending payments</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500">All customers are up to date</p>
+              <p className="text-sm text-ink-muted">All customers are up to date</p>
             </div>
           ) : filteredCustomers.length === 0 ? (
             <div className="text-center py-16">
@@ -439,7 +439,7 @@ export default function PendingPaymentsPage() {
                 </svg>
               </div>
               <p className="text-gray-600 dark:text-gray-300 font-semibold text-lg mb-1">No customers found</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500">Try adjusting your search criteria</p>
+              <p className="text-sm text-ink-muted">Try adjusting your search criteria</p>
               <button
                 onClick={() => setSearchQuery('')}
                 className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
@@ -481,19 +481,13 @@ export default function PendingPaymentsPage() {
                             {customer.orderCount} {customer.orderCount === 1 ? 'order' : 'orders'}
                           </span>
                           {daysSinceOldest > 7 && (
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                              urgencyColor === 'red' 
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
-                                : urgencyColor === 'orange'
-                                ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800'
-                                : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800'
-                            }`}>
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${ urgencyColor === 'red' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : urgencyColor === 'orange' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800' }`}>
                               {daysSinceOldest}d old
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        <div className="flex items-center gap-4 text-sm text-ink-secondary mb-3">
                           <div className="flex items-center gap-1.5">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -533,7 +527,7 @@ export default function PendingPaymentsPage() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => toggleCustomerExpanded(customer.id)}
-                              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-semibold text-sm flex items-center gap-2"
+                              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-semibold text-sm flex items-center gap-2"
                             >
                               {isExpanded ? 'Hide' : 'Show'} Details
                               <svg 
@@ -586,7 +580,7 @@ export default function PendingPaymentsPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  <p className="text-xs text-ink-muted">
                                     {new Date(order.createdAt).toLocaleDateString('en-IN', { 
                                       day: 'numeric', 
                                       month: 'short', 
@@ -595,10 +589,10 @@ export default function PendingPaymentsPage() {
                                   </p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-base font-bold dark:text-white">
+                                  <p className="text-base font-bold text-ink">
                                     ₹{Math.round(order.grandTotal)}
                                   </p>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5 mt-1">
+                                  <div className="text-xs text-ink-muted space-y-0.5 mt-1">
                                     {isCreditOrder && order.creditAmount ? (
                                       <>
                                         <p>Credit: ₹{Math.round(order.creditAmount)}</p>
@@ -667,37 +661,37 @@ export default function PendingPaymentsPage() {
       {/* Payment Modal */}
       {showPaymentModal && selectedCustomer && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in-up border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-md animate-fade-in-up overflow-hidden">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
                   ₹
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                <h2 className="text-2xl font-bold text-ink">
                   Record Payment
                 </h2>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Customer</p>
+                  <p className="text-sm text-ink-secondary mb-1">Customer</p>
                   <p className="font-medium dark:text-white">{selectedCustomer.name}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{selectedCustomer.phone}</p>
+                  <p className="text-sm text-ink-muted">{selectedCustomer.phone}</p>
                 </div>
 
                 {selectedOrder ? (
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Order</p>
+                    <p className="text-sm text-ink-secondary mb-1">Order</p>
                     <p className="font-medium dark:text-white">
                       {selectedCustomer.openOrders.find(o => o.id === selectedOrder)?.saleNo}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-ink-muted">
                       Pending: ₹{Math.round(selectedCustomer.openOrders.find(o => o.id === selectedOrder)?.pending || 0)}
                     </p>
                   </div>
                 ) : (
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Pending</p>
+                    <p className="text-sm text-ink-secondary mb-1">Total Pending</p>
                     <p className="text-lg font-semibold text-red-600 dark:text-red-400">
                       ₹{Math.round(selectedCustomer.totalPending)}
                     </p>
@@ -705,7 +699,7 @@ export default function PendingPaymentsPage() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-semibold text-ink-secondary mb-2">
                     Payment Method
                   </label>
                   <select
@@ -721,7 +715,7 @@ export default function PendingPaymentsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-semibold text-ink-secondary mb-2">
                     Payment Amount
                   </label>
                   <div className="relative">
@@ -755,7 +749,7 @@ export default function PendingPaymentsPage() {
                     setPaymentAmount('');
                   }}
                   disabled={processing}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white font-semibold transition-all duration-200 disabled:opacity-50"
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-brand-100/30 dark:hover:bg-brand-900/10 dark:text-white font-semibold transition-all duration-200 disabled:opacity-50"
                 >
                   Cancel
                 </button>

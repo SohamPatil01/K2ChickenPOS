@@ -146,8 +146,8 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Analytics Dashboard</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <h1 className="text-3xl font-bold text-ink">Analytics Dashboard</h1>
+            <p className="text-sm text-ink-secondary mt-1">
               Comprehensive sales insights and performance metrics
             </p>
           </div>
@@ -232,20 +232,14 @@ export default function AnalyticsPage() {
 
         {/* Growth Indicator */}
         {salesTrend.length > 1 && (
-          <div className={`p-4 rounded-lg border ${
-            growth > 0 
-              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
-              : growth < 0
-              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-              : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-          }`}>
+          <div className={`p-4 rounded-lg border ${ growth > 0 ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : growth < 0 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700' }`}>
             <div className="flex items-center gap-2">
               <span className="text-2xl">{growth > 0 ? '📈' : growth < 0 ? '📉' : '➡️'}</span>
               <div>
-                <p className="font-semibold text-gray-900 dark:text-white">
+                <p className="font-semibold text-ink">
                   {growth > 0 ? 'Growth' : growth < 0 ? 'Decline' : 'Stable'} Trend
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-ink-secondary">
                   {Math.abs(growth).toFixed(1)}% change comparing first half vs second half of period
                 </p>
               </div>
@@ -256,8 +250,8 @@ export default function AnalyticsPage() {
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Sales Trend Chart */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Sales Trend</h2>
+          <div className="glass-panel rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-ink mb-4">Sales Trend</h2>
             {loading ? (
               <div className="h-[350px] flex items-center justify-center text-gray-500">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -318,8 +312,8 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Top Items Chart */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Top Selling Items</h2>
+          <div className="glass-panel rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-ink mb-4">Top Selling Items</h2>
             {loading ? (
               <div className="h-[350px] flex items-center justify-center text-gray-500">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -354,8 +348,8 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Time Heatmap */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Hourly Sales Pattern</h2>
+          <div className="glass-panel rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-ink mb-4">Hourly Sales Pattern</h2>
             {loading ? (
               <div className="h-[350px] flex items-center justify-center text-gray-500">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -388,8 +382,8 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Payment Mix */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Payment Methods</h2>
+          <div className="glass-panel rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-ink mb-4">Payment Methods</h2>
             {loading ? (
               <div className="h-[350px] flex items-center justify-center text-gray-500">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -431,25 +425,25 @@ export default function AnalyticsPage() {
 
         {/* Delivery KPIs */}
         {deliveryKPIs && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Delivery Performance</h2>
+          <div className="glass-panel rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-ink mb-4">Delivery Performance</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Deliveries</div>
+                <div className="text-sm text-ink-secondary">Total Deliveries</div>
                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{deliveryKPIs.total || 0}</div>
               </div>
               <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Delivered</div>
+                <div className="text-sm text-ink-secondary">Delivered</div>
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">{deliveryKPIs.delivered || 0}</div>
               </div>
               <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Success Rate</div>
+                <div className="text-sm text-ink-secondary">Success Rate</div>
                 <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                   {deliveryKPIs.successRate ? deliveryKPIs.successRate.toFixed(1) : '0.0'}%
                 </div>
               </div>
               <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">Avg Delivery Time</div>
+                <div className="text-sm text-ink-secondary">Avg Delivery Time</div>
                 <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                   {deliveryKPIs.avgDeliveryTimeMinutes || 0} min
                 </div>

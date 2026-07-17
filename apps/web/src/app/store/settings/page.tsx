@@ -62,8 +62,8 @@ export default function StoreSettingsPage() {
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-1">Settings</h1>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Manage your preferences and configurations</p>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink mb-1">Settings</h1>
+        <p className="text-xs sm:text-sm text-ink-muted">Manage your preferences and configurations</p>
       </div>
 
       {/* Tab Navigation */}
@@ -73,14 +73,7 @@ export default function StoreSettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`
-                py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap touch-target
-                ${
-                  activeTab === tab.id
-                    ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                }
-              `}
+              className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap touch-target ${ activeTab === tab.id ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-ink-muted hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600' }`}
             >
               <span className="mr-1 sm:mr-2">{tab.icon}</span>
               <span className="hidden sm:inline">{tab.label}</span>

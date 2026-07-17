@@ -125,8 +125,8 @@ export default function CashFlowReportPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Cash Flow Statement</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <h1 className="text-2xl font-bold text-ink">Cash Flow Statement</h1>
+          <p className="text-sm text-ink-secondary mt-1">
             Track cash inflows and outflows over time
           </p>
         </div>
@@ -151,7 +151,7 @@ export default function CashFlowReportPage() {
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading cash flow data...</p>
+          <p className="text-ink-muted">Loading cash flow data...</p>
         </div>
       ) : (
         <>
@@ -182,7 +182,7 @@ export default function CashFlowReportPage() {
           {/* Charts */}
           {chartData.length > 0 && (
             <div className="grid grid-cols-1 gap-6">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="glass-panel rounded-2xl p-6">
                 <SimpleLineChart
                   data={chartData}
                   dataKey="net"
@@ -193,7 +193,7 @@ export default function CashFlowReportPage() {
                 />
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="glass-panel rounded-2xl p-6">
                 <SimpleBarChart
                   data={chartData}
                   dataKey="inflows"
@@ -207,24 +207,24 @@ export default function CashFlowReportPage() {
           )}
 
           {/* Detailed Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="glass-panel-strong rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Opening</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Inflows</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Outflows</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Net Flow</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase">Closing</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Date</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Opening</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Inflows</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Outflows</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Net Flow</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Closing</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {cashFlowData.map((cf, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{cf.date}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                      <td className="px-4 py-3 text-sm text-ink">{cf.date}</td>
+                      <td className="px-4 py-3 text-sm text-right text-ink-secondary">
                         ₹{cf.openingBalance.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-green-600 dark:text-green-400 font-medium">
@@ -236,7 +236,7 @@ export default function CashFlowReportPage() {
                       <td className={`px-4 py-3 text-sm text-right font-semibold ${cf.netCashFlow >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>
                         ₹{cf.netCashFlow.toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100 font-medium">
+                      <td className="px-4 py-3 text-sm text-right text-ink font-medium">
                         ₹{cf.closingBalance.toFixed(2)}
                       </td>
                     </tr>
@@ -247,8 +247,8 @@ export default function CashFlowReportPage() {
           </div>
 
           {cashFlowData.length === 0 && (
-            <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-              <p className="text-gray-500 dark:text-gray-400">No cash flow data available for the selected period</p>
+            <div className="text-center py-12 glass-panel rounded-2xl">
+              <p className="text-ink-muted">No cash flow data available for the selected period</p>
             </div>
           )}
         </>

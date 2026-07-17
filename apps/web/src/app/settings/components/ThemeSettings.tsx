@@ -95,28 +95,18 @@ export default function ThemeSettings() {
           <div
             key={option.value}
             onClick={() => handleThemeChange(option.value)}
-            className={`
-              p-4 border-2 rounded-lg cursor-pointer transition-all
-              ${
-                theme === option.value
-                  ? 'border-brand-500 bg-brand-50 dark:bg-gray-800'
-                  : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
-              }
-            `}
+            className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${ theme === option.value ? 'border-brand-500 bg-brand-50 dark:bg-gray-800' : 'border-gray-200 hover:border-gray-300 dark:border-gray-700' }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{option.icon}</span>
                 <div>
-                  <div className="font-semibold dark:text-white">{option.label}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">{option.description}</div>
+                  <div className="font-semibold text-ink">{option.label}</div>
+                  <div className="text-sm text-ink-secondary">{option.description}</div>
                 </div>
               </div>
               <div
-                className={`
-                  w-5 h-5 rounded-full border-2 flex items-center justify-center
-                  ${theme === option.value ? 'border-brand-500' : 'border-gray-300 dark:border-gray-600'}
-                `}
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${theme === option.value ? 'border-brand-500' : 'border-gray-300 dark:border-gray-600'}`}
               >
                 {theme === option.value && (
                   <div className="w-3 h-3 rounded-full bg-brand-500" />
@@ -129,7 +119,7 @@ export default function ThemeSettings() {
 
       {theme === 'system' && (
         <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-ink-secondary">
             Current system preference: <span className="font-semibold">{systemPreference}</span>
           </p>
         </div>

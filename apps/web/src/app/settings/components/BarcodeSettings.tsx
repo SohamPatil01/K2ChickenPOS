@@ -177,8 +177,8 @@ export default function BarcodeSettings() {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="table-glass min-w-full divide-y divide-gray-200">
+            <thead className="bg-surface-2/80 backdrop-blur-sm">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
@@ -190,7 +190,7 @@ export default function BarcodeSettings() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {configs.map((config) => {
                 const isInherited =
                   !!user?.storeId &&
@@ -223,11 +223,7 @@ export default function BarcodeSettings() {
                       onClick={() => {
                         if (!isInherited) handleToggleActive(config);
                       }}
-                      className={`px-2 py-1 rounded text-xs ${
-                        isInherited ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-                      } ${
-                        config.isActive ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                      }`}
+                      className={`px-2 py-1 rounded text-xs ${ isInherited ? 'cursor-not-allowed opacity-60' : 'cursor-pointer' } ${ config.isActive ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800' }`}
                     >
                       {config.isActive ? 'Active' : 'Inactive'}
                     </span>
@@ -256,7 +252,7 @@ export default function BarcodeSettings() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">{editingConfig ? 'Edit Configuration' : 'Add Configuration'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">

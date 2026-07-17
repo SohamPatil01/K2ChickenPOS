@@ -164,7 +164,7 @@ export default function SaleDetailPanel({
     return (
       <div className={panelClass}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-          <h3 className="text-lg font-semibold dark:text-white">Bill - {sale.saleNo}</h3>
+          <h3 className="text-lg font-semibold text-ink">Bill - {sale.saleNo}</h3>
           <div className="flex items-center gap-2">
             {onSwitchToEdit && (
               <button
@@ -187,19 +187,19 @@ export default function SaleDetailPanel({
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Customer</p>
+            <p className="text-sm text-ink-secondary">Customer</p>
             <p className="font-medium dark:text-white">{sale.customer?.name || 'Walk-in'}</p>
             {sale.customer?.phone && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">{sale.customer.phone}</p>
+              <p className="text-sm text-ink-secondary mt-0.5">{sale.customer.phone}</p>
             )}
             {sale.customer?.area && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+              <p className="text-sm text-ink-secondary mt-0.5">
                 Area: {sale.customer.area}
               </p>
             )}
           </div>
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Items</p>
+            <p className="text-sm text-ink-secondary mb-2">Items</p>
             <div className="space-y-2">
               {sale.items.map((item, idx) => (
                 <div
@@ -208,7 +208,7 @@ export default function SaleDetailPanel({
                 >
                   <div>
                     <p className="font-medium dark:text-white">{item.product.name}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-ink-secondary">
                       {item.qtyKg != null ? `${item.qtyKg} kg` : `${item.qtyPcs ?? 0} pcs`} × ₹{item.rate}
                     </p>
                   </div>
@@ -219,11 +219,11 @@ export default function SaleDetailPanel({
           </div>
           {(sale.payments?.length ?? 0) > 0 && (
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Payments</p>
+              <p className="text-sm text-ink-secondary mb-2">Payments</p>
               <div className="space-y-1">
                 {sale.payments!.map((p) => (
                   <div key={p.id} className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">{p.method}</span>
+                    <span className="text-ink-secondary">{p.method}</span>
                     <span className="dark:text-white">₹{p.amount.toFixed(2)}</span>
                   </div>
                 ))}
@@ -232,22 +232,22 @@ export default function SaleDetailPanel({
           )}
           <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+              <span className="text-ink-secondary">Subtotal</span>
               <span className="font-medium dark:text-white">₹{sale.subTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Tax</span>
+              <span className="text-ink-secondary">Tax</span>
               <span className="font-medium dark:text-white">₹{sale.taxTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Discount</span>
+              <span className="text-ink-secondary">Discount</span>
               <span className="font-medium dark:text-white">₹{sale.discountTotal.toFixed(2)}</span>
             </div>
             {(() => {
               const fee = resolveSaleDeliveryFee(sale);
               return fee > 0 ? (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Delivery fee</span>
+                  <span className="text-ink-secondary">Delivery fee</span>
                   <span className="font-medium dark:text-white">₹{fee.toFixed(2)}</span>
                 </div>
               ) : null;
@@ -272,7 +272,7 @@ export default function SaleDetailPanel({
   return (
     <div className={panelClass}>
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
-        <h3 className="text-lg font-semibold dark:text-white">Edit Bill - {sale.saleNo}</h3>
+        <h3 className="text-lg font-semibold text-ink">Edit Bill - {sale.saleNo}</h3>
         <button
           type="button"
           onClick={onClose}
@@ -284,7 +284,7 @@ export default function SaleDetailPanel({
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Items</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-2">Items</label>
           <div className="space-y-3">
             {editForm.items.map((item, index) => (
               <div
@@ -294,7 +294,7 @@ export default function SaleDetailPanel({
                 <select
                   value={item.productId}
                   onChange={(e) => handleUpdateItem(index, 'productId', e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-2xl glass-panel text-ink text-sm"
                 >
                   <option value="">Select product</option>
                   {products.map((p: any) => (
@@ -308,7 +308,7 @@ export default function SaleDetailPanel({
                     placeholder="Kg"
                     value={item.qtyKg ?? ''}
                     onChange={(e) => handleUpdateItem(index, 'qtyKg', parseFloat(e.target.value) || 0)}
-                    className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-2xl glass-panel text-ink text-sm"
                   />
                 ) : (
                   <input
@@ -316,7 +316,7 @@ export default function SaleDetailPanel({
                     placeholder="Pcs"
                     value={item.qtyPcs ?? ''}
                     onChange={(e) => handleUpdateItem(index, 'qtyPcs', parseInt(e.target.value, 10) || 0)}
-                    className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                    className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-2xl glass-panel text-ink text-sm"
                   />
                 )}
                 <input
@@ -325,7 +325,7 @@ export default function SaleDetailPanel({
                   placeholder="Rate"
                   value={item.rate}
                   onChange={(e) => handleUpdateItem(index, 'rate', parseFloat(e.target.value) || 0)}
-                  className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                  className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-2xl glass-panel text-ink text-sm"
                 />
                 <button
                   type="button"
@@ -339,38 +339,38 @@ export default function SaleDetailPanel({
             <button
               type="button"
               onClick={handleAddItem}
-              className="w-full px-4 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 text-sm font-medium"
+              className="w-full px-4 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-ink-secondary hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 text-sm font-medium"
             >
               + Add item
             </button>
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Discount</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-2">Discount</label>
           <input
             type="number"
             step="0.01"
             value={editForm.discountTotal}
             onChange={(e) => setEditForm((prev) => ({ ...prev, discountTotal: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-2xl glass-panel text-ink text-sm"
           />
         </div>
         <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+            <span className="text-ink-secondary">Subtotal</span>
             <span className="font-medium dark:text-white">₹{subTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Tax</span>
+            <span className="text-ink-secondary">Tax</span>
             <span className="font-medium dark:text-white">₹{taxTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Discount</span>
+            <span className="text-ink-secondary">Discount</span>
             <span className="font-medium dark:text-white">₹{(parseFloat(editForm.discountTotal) || 0).toFixed(2)}</span>
           </div>
           {saleDeliveryFee > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Delivery fee</span>
+              <span className="text-ink-secondary">Delivery fee</span>
               <span className="font-medium dark:text-white">₹{saleDeliveryFee.toFixed(2)}</span>
             </div>
           )}
@@ -384,7 +384,7 @@ export default function SaleDetailPanel({
         <button
           type="button"
           onClick={onClose}
-          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium"
+          className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium"
         >
           Cancel
         </button>

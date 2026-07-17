@@ -582,7 +582,7 @@ export default function StoreCustomersPage() {
             aria-expanded={showSearchDropdown}
             aria-controls="customer-search-listbox"
             aria-autocomplete="list"
-            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-base"
+            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 dark:border-gray-600 glass-panel text-ink placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-base"
           />
           {searchQuery && (
             <button
@@ -604,14 +604,14 @@ export default function StoreCustomersPage() {
           <div
             id="customer-search-listbox"
             role="listbox"
-            className="absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+            className="absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-600 glass-panel-strong ring-1 ring-black/5 dark:ring-white/10"
           >
             {searchLoading ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              <div className="px-4 py-8 text-center text-sm text-ink-muted">
                 <span className="inline-block animate-pulse">Searching…</span>
               </div>
             ) : searchResults.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              <div className="px-4 py-8 text-center text-sm text-ink-muted">
                 No matches for &ldquo;{debouncedSearch}&rdquo;
               </div>
             ) : (
@@ -620,11 +620,7 @@ export default function StoreCustomersPage() {
                   <li key={row.id} role="option" aria-selected={highlightIndex === idx}>
                     <button
                       type="button"
-                      className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
-                        highlightIndex === idx
-                          ? 'bg-brand-50 dark:bg-brand-900/30'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/80'
-                      }`}
+                      className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${ highlightIndex === idx ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-brand-100/30 dark:hover:bg-brand-900/10/80' }`}
                       onMouseEnter={() => setHighlightIndex(idx)}
                       onClick={() => void pickCustomer(row)}
                     >
@@ -632,14 +628,14 @@ export default function StoreCustomersPage() {
                         {initials(row.name)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-gray-900 dark:text-white truncate">{row.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="font-semibold text-ink truncate">{row.name}</div>
+                        <div className="text-sm text-ink-muted">
                           {row.phone}
                           {row.area ? ` · ${row.area}` : ''}
                         </div>
                       </div>
                       {row._count != null && (
-                        <div className="shrink-0 text-xs text-gray-400 dark:text-gray-500 text-right">
+                        <div className="shrink-0 text-xs text-ink-muted text-right">
                           {row._count.sales ?? 0} orders
                         </div>
                       )}
@@ -654,14 +650,14 @@ export default function StoreCustomersPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-0 flex-1">
         {/* Directory */}
-        <div className="lg:col-span-2 flex flex-col min-h-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+        <div className="lg:col-span-2 flex flex-col min-h-0 rounded-2xl glass-panel-strong overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Directory</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tap a customer to open details</p>
+            <p className="text-xs text-ink-muted mt-0.5">Tap a customer to open details</p>
           </div>
           <div className="flex-1 overflow-y-auto min-h-[280px] max-h-[calc(100vh-320px)]">
             {listLoading ? (
-              <p className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 px-4">
+              <p className="text-center py-12 text-sm text-ink-muted px-4">
                 Loading customers…
               </p>
             ) : listError ? (
@@ -676,7 +672,7 @@ export default function StoreCustomersPage() {
                 </button>
               </div>
             ) : allCustomers.length === 0 ? (
-              <p className="text-center py-12 text-sm text-gray-500 dark:text-gray-400 px-4">
+              <p className="text-center py-12 text-sm text-ink-muted px-4">
                 No customers yet. Add one to get started.
               </p>
             ) : (
@@ -686,24 +682,20 @@ export default function StoreCustomersPage() {
                     <button
                       type="button"
                       onClick={() => void pickCustomer(row)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                        selectedCustomer?.id === row.id
-                          ? 'bg-brand-50 dark:bg-brand-900/25 border-l-4 border-brand-500'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
-                      }`}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${ selectedCustomer?.id === row.id ? 'bg-brand-50 dark:bg-brand-900/25 border-l-4 border-brand-500' : 'hover:bg-brand-100/30 dark:hover:bg-brand-900/10 border-l-4 border-transparent' }`}
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold">
                         {initials(row.name)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white truncate">{row.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="font-medium text-ink truncate">{row.name}</div>
+                        <div className="text-xs text-ink-muted">
                           {row.phone}
                           {row.area ? ` · ${row.area}` : ''}
                         </div>
                       </div>
                       {row._count != null && (
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 shrink-0">
+                        <span className="text-[10px] uppercase tracking-wide text-ink-muted shrink-0">
                           {row._count.sales} ord
                         </span>
                       )}
@@ -718,19 +710,19 @@ export default function StoreCustomersPage() {
         {/* Detail panel */}
         <div className="lg:col-span-3 min-h-[320px]">
           {detailLoading ? (
-            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center text-ink-muted">
               Loading customer…
             </div>
           ) : !selectedCustomer ? (
-            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center text-center p-8 text-gray-500 dark:text-gray-400">
+            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center text-center p-8 text-ink-muted">
               <div className="text-4xl mb-3 opacity-40">👤</div>
-              <p className="font-medium text-gray-700 dark:text-gray-300">Select a customer</p>
+              <p className="font-medium text-ink-secondary">Select a customer</p>
               <p className="text-sm mt-1 max-w-xs">
                 Use search above or pick from the directory to see profile, addresses, and loyalty.
               </p>
             </div>
           ) : (
-            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+            <div className="rounded-2xl glass-panel-strong overflow-hidden">
               <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-800">
                 <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white text-xl font-bold shadow-md">
@@ -739,17 +731,17 @@ export default function StoreCustomersPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                        <h2 className="text-xl font-bold text-ink truncate">
                           {selectedCustomer.name}
                         </h2>
                         <p className="text-brand-600 dark:text-brand-400 font-medium">{selectedCustomer.phone}</p>
                         {selectedCustomer.area && (
                           <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
-                            <span className="text-gray-500 dark:text-gray-400">Area:</span> {selectedCustomer.area}
+                            <span className="text-ink-muted">Area:</span> {selectedCustomer.area}
                           </p>
                         )}
                         {selectedCustomer.email && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{selectedCustomer.email}</p>
+                          <p className="text-sm text-ink-muted truncate">{selectedCustomer.email}</p>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -791,7 +783,7 @@ export default function StoreCustomersPage() {
               <div className="p-5 sm:p-6 space-y-6">
                 <section>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                    <h3 className="text-sm font-semibold text-ink uppercase tracking-wide">
                       Addresses
                     </h3>
                     <button
@@ -821,13 +813,13 @@ export default function StoreCustomersPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No saved addresses</p>
+                    <p className="text-sm text-ink-muted">No saved addresses</p>
                   )}
                 </section>
 
                 <section className="rounded-xl border border-orange-200/80 dark:border-orange-800/50 bg-gradient-to-br from-orange-50/90 to-amber-50/50 dark:from-orange-950/30 dark:to-amber-950/20 p-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-gray-900 dark:text-white">Loyalty</h3>
+                    <h3 className="font-semibold text-ink">Loyalty</h3>
                     <button
                       type="button"
                       onClick={() => void loadLoyaltyInfo()}
@@ -839,13 +831,13 @@ export default function StoreCustomersPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">Points</div>
+                      <div className="text-xs text-ink-secondary">Points</div>
                       <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                         {Math.round(selectedCustomer.loyaltyPoints ?? 0)}
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">Tier</div>
+                      <div className="text-xs text-ink-secondary">Tier</div>
                       <div className="text-lg font-semibold capitalize text-orange-700 dark:text-orange-300">
                         {selectedCustomer.loyaltyTier || 'BRONZE'}
                       </div>
@@ -877,20 +869,20 @@ export default function StoreCustomersPage() {
 
                 {selectedCustomer.sales && selectedCustomer.sales.length > 0 && (
                   <section>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Recent purchases</h3>
+                    <h3 className="text-sm font-semibold text-ink mb-2">Recent purchases</h3>
                     <ul className="space-y-2">
                       {selectedCustomer.sales.slice(0, 5).map((sale) => (
                         <li
                           key={sale.id}
-                          className="flex items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-900/50 px-3 py-2"
+                          className="flex items-center justify-between rounded-lg bg-surface-2/60 px-3 py-2"
                         >
                           <div>
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">{sale.saleNo}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="font-medium text-sm text-ink">{sale.saleNo}</div>
+                            <div className="text-xs text-ink-muted">
                               {new Date(sale.createdAt).toLocaleDateString()}
                             </div>
                           </div>
-                          <div className="font-semibold text-sm text-gray-900 dark:text-white">
+                          <div className="font-semibold text-sm text-ink">
                             ₹{sale.grandTotal.toFixed(2)}
                           </div>
                         </li>
@@ -907,13 +899,13 @@ export default function StoreCustomersPage() {
       {/* Customer Modal */}
       {showCustomerModal && (
         <div className={modalBackdrop}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
-            <h2 className="text-xl font-bold dark:text-white mb-4">
+          <div className="glass-panel-strong rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
+            <h2 className="text-xl font-bold text-ink mb-4">
               {editingCustomer ? 'Edit customer' : 'Add customer'}
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">Name *</label>
                 <input
                   type="text"
                   value={customerForm.name}
@@ -923,7 +915,7 @@ export default function StoreCustomersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone *</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">Phone *</label>
                 <input
                   type="tel"
                   value={customerForm.phone}
@@ -933,7 +925,7 @@ export default function StoreCustomersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">Email</label>
                 <input
                   type="email"
                   value={customerForm.email}
@@ -943,7 +935,7 @@ export default function StoreCustomersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Area / Locality
                 </label>
                 <input
@@ -962,7 +954,7 @@ export default function StoreCustomersPage() {
                     setEditingCustomer(null);
                     setCustomerForm({ name: '', phone: '', email: '', area: '' });
                   }}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
                 >
                   Cancel
                 </button>
@@ -982,11 +974,11 @@ export default function StoreCustomersPage() {
       {/* Address Modal */}
       {showAddressModal && (
         <div className={modalBackdrop}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
-            <h2 className="text-xl font-bold dark:text-white mb-4">Add address</h2>
+          <div className="glass-panel-strong rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
+            <h2 className="text-xl font-bold text-ink mb-4">Add address</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label *</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">Label *</label>
                 <input
                   type="text"
                   value={addressForm.label}
@@ -996,7 +988,7 @@ export default function StoreCustomersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Address line 1 *
                 </label>
                 <input
@@ -1007,7 +999,7 @@ export default function StoreCustomersPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Address line 2
                 </label>
                 <input
@@ -1019,7 +1011,7 @@ export default function StoreCustomersPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City *</label>
+                  <label className="block text-sm font-medium text-ink-secondary mb-1">City *</label>
                   <input
                     type="text"
                     value={addressForm.city}
@@ -1028,7 +1020,7 @@ export default function StoreCustomersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
+                  <label className="block text-sm font-medium text-ink-secondary mb-1">State</label>
                   <input
                     type="text"
                     value={addressForm.state}
@@ -1039,7 +1031,7 @@ export default function StoreCustomersPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN / ZIP</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">PIN / ZIP</label>
                 <input
                   type="text"
                   value={addressForm.zip}
@@ -1055,7 +1047,7 @@ export default function StoreCustomersPage() {
                     setShowAddressModal(false);
                     setAddressForm({ label: '', line1: '', line2: '', city: '', state: '', zip: '' });
                   }}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
                 >
                   Cancel
                 </button>
@@ -1075,9 +1067,9 @@ export default function StoreCustomersPage() {
       {/* Purchase History Modal */}
       {showPurchaseHistory && selectedCustomer && (
         <div className={modalBackdrop}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
+          <div className="glass-panel-strong rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold dark:text-white">Purchase history — {selectedCustomer.name}</h2>
+              <h2 className="text-xl font-bold text-ink">Purchase history — {selectedCustomer.name}</h2>
               <button
                 type="button"
                 onClick={() => setShowPurchaseHistory(false)}
@@ -1088,7 +1080,7 @@ export default function StoreCustomersPage() {
               </button>
             </div>
             {purchaseHistory.length === 0 ? (
-              <p className="text-gray-500 dark:text-gray-400">No purchase history found</p>
+              <p className="text-ink-muted">No purchase history found</p>
             ) : (
               <div className="space-y-4">
                 {purchaseHistory.map((sale) => (
@@ -1099,12 +1091,12 @@ export default function StoreCustomersPage() {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="font-semibold text-lg dark:text-white">{sale.saleNo}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-sm text-ink-secondary">
                           {new Date(sale.createdAt).toLocaleString()}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold dark:text-white">₹{sale.grandTotal.toFixed(2)}</div>
+                        <div className="text-lg font-bold text-ink">₹{sale.grandTotal.toFixed(2)}</div>
                         {sale.discountTotal > 0 && (
                           <div className="text-sm text-green-600 dark:text-green-400">
                             Discount: ₹{sale.discountTotal.toFixed(2)}
@@ -1130,7 +1122,7 @@ export default function StoreCustomersPage() {
                       {sale.payments.map((payment, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-1 bg-white dark:bg-gray-800 rounded-lg dark:text-white border border-gray-200 dark:border-gray-600"
+                          className="px-2 py-1 glass-panel rounded-2xl dark:text-white border border-gray-200 dark:border-gray-600"
                         >
                           {payment.method}: ₹{payment.amount.toFixed(2)}
                         </span>
@@ -1147,9 +1139,9 @@ export default function StoreCustomersPage() {
       {/* Loyalty Modal */}
       {showLoyaltyModal && (
         <div className={modalBackdrop}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-100 dark:border-gray-700">
+          <div className="glass-panel-strong rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold dark:text-white">Loyalty</h2>
+              <h2 className="text-xl font-bold text-ink">Loyalty</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -1164,9 +1156,9 @@ export default function StoreCustomersPage() {
             </div>
 
             {loadingLoyalty && !loyaltyInfo ? (
-              <div className="py-16 text-center text-gray-500 dark:text-gray-400">Loading loyalty…</div>
+              <div className="py-16 text-center text-ink-muted">Loading loyalty…</div>
             ) : !loyaltyInfo ? (
-              <div className="py-12 text-center text-gray-500 dark:text-gray-400">Could not load loyalty data.</div>
+              <div className="py-12 text-center text-ink-muted">Could not load loyalty data.</div>
             ) : loyaltyAction ? (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold capitalize dark:text-white">
@@ -1197,7 +1189,7 @@ export default function StoreCustomersPage() {
                   />
                 </div>
                 {loyaltyAction === 'redeem' && (
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="text-sm text-ink-secondary">
                     Current balance: {loyaltyInfo.customer?.loyaltyPoints || loyaltyInfo.points || 0} points
                   </div>
                 )}
@@ -1208,7 +1200,7 @@ export default function StoreCustomersPage() {
                       setLoyaltyAction(null);
                       setLoyaltyForm({ points: 0, description: '' });
                     }}
-                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:text-white hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
                   >
                     Cancel
                   </button>
@@ -1225,20 +1217,20 @@ export default function StoreCustomersPage() {
               <>
                 <div className="grid grid-cols-3 gap-4 mb-6 p-4 rounded-xl bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20">
                   <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Points</div>
+                    <div className="text-sm text-ink-secondary">Points</div>
                     <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
                       {loyaltyInfo.customer?.loyaltyPoints || loyaltyInfo.points || 0}
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Tier</div>
+                    <div className="text-sm text-ink-secondary">Tier</div>
                     <div className="text-xl font-semibold capitalize text-orange-600 dark:text-orange-400">
                       {loyaltyInfo.customer?.loyaltyTier || loyaltyInfo.tier || 'BRONZE'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total spent</div>
-                    <div className="text-xl font-semibold dark:text-white">
+                    <div className="text-sm text-ink-secondary">Total spent</div>
+                    <div className="text-xl font-semibold text-ink">
                       ₹{(loyaltyInfo.customer?.totalSpent || loyaltyInfo.totalSpent || 0).toFixed(2)}
                     </div>
                   </div>
@@ -1246,7 +1238,7 @@ export default function StoreCustomersPage() {
 
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold dark:text-white">Transactions</h3>
+                    <h3 className="font-semibold text-ink">Transactions</h3>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -1271,7 +1263,7 @@ export default function StoreCustomersPage() {
                     </div>
                   </div>
                   {!loyaltyInfo.transactions || loyaltyInfo.transactions.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No transactions yet</p>
+                    <p className="text-sm text-ink-muted">No transactions yet</p>
                   ) : (
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {loyaltyInfo.transactions.map((tx: LoyaltyTransaction) => (
@@ -1281,7 +1273,7 @@ export default function StoreCustomersPage() {
                         >
                           <div>
                             <div className="font-medium dark:text-white">{tx.description || tx.type}</div>
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <div className="text-sm text-ink-secondary">
                               {new Date(tx.createdAt).toLocaleString()}
                             </div>
                             {tx.sale && (
@@ -1290,17 +1282,13 @@ export default function StoreCustomersPage() {
                           </div>
                           <div className="text-right">
                             <div
-                              className={`font-semibold ${
-                                tx.points > 0
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : 'text-red-600 dark:text-red-400'
-                              }`}
+                              className={`font-semibold ${ tx.points > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }`}
                             >
                               {tx.points > 0 ? '+' : ''}
                               {tx.points}
                             </div>
                             {tx.balance !== undefined && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400">Bal: {tx.balance}</div>
+                              <div className="text-xs text-ink-muted">Bal: {tx.balance}</div>
                             )}
                           </div>
                         </div>

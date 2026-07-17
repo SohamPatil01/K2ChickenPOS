@@ -171,8 +171,8 @@ export default function StaffManagement() {
         <div className="text-center py-12">Loading staff...</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="table-glass min-w-full divide-y divide-gray-200">
+            <thead className="bg-surface-2/80 backdrop-blur-sm">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
@@ -182,7 +182,7 @@ export default function StaffManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {staff.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
@@ -209,9 +209,7 @@ export default function StaffManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleToggleActive(member)}
-                        className={`px-2 py-1 text-xs rounded ${
-                          member.isActive ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                        }`}
+                        className={`px-2 py-1 text-xs rounded ${ member.isActive ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800' }`}
                       >
                         {member.isActive ? 'Active' : 'Inactive'}
                       </button>
@@ -236,7 +234,7 @@ export default function StaffManagement() {
 
       {/* Add/Edit Staff Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">{editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">

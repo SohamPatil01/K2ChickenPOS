@@ -273,13 +273,13 @@ export default function StoreDailyClosingPage() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Daily Closing</h1>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Reconcile cash, weight, wastage, and closing stock</p>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Daily Closing</h1>
+        <p className="text-xs sm:text-sm text-ink-muted mt-1">Reconcile cash, weight, wastage, and closing stock</p>
       </div>
 
       <Card className="mb-6">
         <div className="p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Closing Date</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-2">Closing Date</label>
           <input
             type="date"
             value={closingDate}
@@ -292,7 +292,7 @@ export default function StoreDailyClosingPage() {
       {loading ? (
         <div className="text-center py-8">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
-          <p className="mt-4 text-gray-500 dark:text-gray-400">Loading data...</p>
+          <p className="mt-4 text-ink-muted">Loading data...</p>
         </div>
       ) : (
         <>
@@ -307,19 +307,19 @@ export default function StoreDailyClosingPage() {
           {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <Card>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Total Sales</p>
-            <p className="text-xl sm:text-2xl font-bold dark:text-white">{summary.totalSales}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">₹{summary.totalRevenue.toLocaleString()}</p>
+            <p className="text-xs sm:text-sm text-ink-secondary">Total Sales</p>
+            <p className="text-xl sm:text-2xl font-bold text-ink">{summary.totalSales}</p>
+            <p className="text-xs text-ink-muted mt-1">₹{summary.totalRevenue.toLocaleString()}</p>
           </Card>
           <Card>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Weight Sold</p>
-            <p className="text-xl sm:text-2xl font-bold dark:text-white">{summary.totalWeightSoldKg.toFixed(2)} kg</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total weight</p>
+            <p className="text-xs sm:text-sm text-ink-secondary">Weight Sold</p>
+            <p className="text-xl sm:text-2xl font-bold text-ink">{summary.totalWeightSoldKg.toFixed(2)} kg</p>
+            <p className="text-xs text-ink-muted mt-1">Total weight</p>
           </Card>
           <Card>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Wastage</p>
-            <p className="text-xl sm:text-2xl font-bold dark:text-white">{summary.totalWastageKg.toFixed(2)} kg</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total wastage</p>
+            <p className="text-xs sm:text-sm text-ink-secondary">Wastage</p>
+            <p className="text-xl sm:text-2xl font-bold text-ink">{summary.totalWastageKg.toFixed(2)} kg</p>
+            <p className="text-xs text-ink-muted mt-1">Total wastage</p>
           </Card>
         </div>
       )}
@@ -329,7 +329,7 @@ export default function StoreDailyClosingPage() {
           <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 dark:text-white">Cash Reconciliation</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Opening Cash</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Opening Cash</label>
               <input
                 type="number"
                 value={formData.openingCash || ''}
@@ -340,7 +340,7 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-ink-secondary mb-1">
                 Cash Sales (Generated Today)
               </label>
               <input
@@ -354,7 +354,7 @@ export default function StoreDailyClosingPage() {
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-ink-secondary mb-1">
                 Cash Received
                 <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Auto from Cash Sales)</span>
               </label>
@@ -368,7 +368,7 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Expected Cash</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Expected Cash</label>
               <input
                 type="number"
                 value={cashExpected.toFixed(3)}
@@ -377,7 +377,7 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-ink-secondary mb-1">
                 Closing Cash
                 <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(Auto-calculated: Opening + Cash Received)</span>
               </label>
@@ -391,20 +391,14 @@ export default function StoreDailyClosingPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cash Difference</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-1">Cash Difference</label>
               <input
                 type="number"
                 value={cashDifference.toFixed(2)}
                 readOnly
-                className={`w-full px-3 py-2 border rounded-md font-bold ${
-                  cashDifference === 0
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-800 dark:text-green-400'
-                    : cashDifference > 0
-                    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-400'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-400'
-                }`}
+                className={`w-full px-3 py-2 border rounded-md font-bold ${ cashDifference === 0 ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-800 dark:text-green-400' : cashDifference > 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-400' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-400' }`}
               />
-              <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+              <p className="text-xs mt-1 text-ink-muted">
                 {cashDifference === 0 ? '✓ Balanced' : cashDifference > 0 ? '↑ Excess' : '↓ Shortage'}
               </p>
             </div>
@@ -418,16 +412,16 @@ export default function StoreDailyClosingPage() {
                 <h2 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 dark:text-white">Payment Method Breakdown</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Cash</p>
-                    <p className="text-2xl font-bold dark:text-white">₹{summary.cashSales.toLocaleString()}</p>
+                    <p className="text-sm text-ink-secondary">Cash</p>
+                    <p className="text-2xl font-bold text-ink">₹{summary.cashSales.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Card</p>
-                    <p className="text-2xl font-bold dark:text-white">₹{summary.cardSales.toLocaleString()}</p>
+                    <p className="text-sm text-ink-secondary">Card</p>
+                    <p className="text-2xl font-bold text-ink">₹{summary.cardSales.toLocaleString()}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">UPI</p>
-                    <p className="text-2xl font-bold dark:text-white">₹{summary.upiSales.toLocaleString()}</p>
+                    <p className="text-sm text-ink-secondary">UPI</p>
+                    <p className="text-2xl font-bold text-ink">₹{summary.upiSales.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -436,7 +430,7 @@ export default function StoreDailyClosingPage() {
 
           <Card className="mb-6">
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>
+              <label className="block text-sm font-medium text-ink-secondary mb-2">Notes</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}

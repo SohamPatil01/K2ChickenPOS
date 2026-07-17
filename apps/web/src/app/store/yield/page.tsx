@@ -249,7 +249,7 @@ export default function YieldTrackingPage() {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+        <p className="text-ink-muted">Loading...</p>
       </div>
     );
   }
@@ -261,8 +261,8 @@ export default function YieldTrackingPage() {
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 flex-shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Yield Tracking</h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Track whole chicken to cut yield</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Yield Tracking</h1>
+          <p className="text-xs sm:text-sm text-ink-muted mt-1">Track whole chicken to cut yield</p>
         </div>
         <button
           onClick={() => setShowEntryModal(true)}
@@ -273,9 +273,9 @@ export default function YieldTrackingPage() {
       </div>
 
       {/* Daily Summary */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
+      <div className="glass-panel rounded-2xl p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 flex-shrink-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3 sm:gap-0">
-          <h2 className="text-base sm:text-lg font-semibold dark:text-white">Daily Yield Summary</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-ink">Daily Yield Summary</h2>
           <input
             type="date"
             value={selectedDate}
@@ -286,56 +286,48 @@ export default function YieldTrackingPage() {
         {dailySummary ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Whole Chicken Weight</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-sm text-ink-secondary">Total Whole Chicken Weight</p>
+              <p className="text-2xl font-bold text-ink">
                 {dailySummary.totalWholeChickenWeight > 0
                   ? `${dailySummary.totalWholeChickenWeight.toFixed(2)} kg`
                   : '—'}
               </p>
               {dailySummary.totalWholeChickenWeight === 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">Not recorded in ledger</p>
+                <p className="text-xs text-ink-muted">Not recorded in ledger</p>
               )}
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Cut Weight</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+              <p className="text-sm text-ink-secondary">Total Cut Weight</p>
+              <p className="text-2xl font-bold text-ink">
                 {dailySummary.totalCutWeight.toFixed(2)} kg
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Yield %</p>
+              <p className="text-sm text-ink-secondary">Yield %</p>
               <p
-                className={`text-2xl font-bold ${
-                  dailySummary.totalWholeChickenWeight > 0
-                    ? dailySummary.yieldPercent >= expectedYield * 0.9
-                      ? 'text-green-600 dark:text-green-400'
-                      : dailySummary.yieldPercent >= expectedYield * 0.8
-                      ? 'text-yellow-600 dark:text-yellow-400'
-                      : 'text-red-600 dark:text-red-400'
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}
+                className={`text-2xl font-bold ${ dailySummary.totalWholeChickenWeight > 0 ? dailySummary.yieldPercent >= expectedYield * 0.9 ? 'text-green-600 dark:text-green-400' : dailySummary.yieldPercent >= expectedYield * 0.8 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400' : 'text-ink-secondary' }`}
               >
                 {dailySummary.totalWholeChickenWeight > 0
                   ? `${dailySummary.yieldPercent.toFixed(2)}%`
                   : '—'}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Expected: {expectedYield}%</p>
+              <p className="text-xs text-ink-muted">Expected: {expectedYield}%</p>
             </div>
           </div>
         ) : (
-          <p className="text-gray-500 dark:text-gray-400">No yield data for selected date</p>
+          <p className="text-ink-muted">No yield data for selected date</p>
         )}
       </div>
 
       {/* Recent Entries */}
       {dailySummary && dailySummary.entries.length > 0 && (
-        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-            <h2 className="text-lg font-semibold dark:text-white">Yield Entries</h2>
+            <h2 className="text-lg font-semibold text-ink">Yield Entries</h2>
           </div>
           <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-surface-2/80 backdrop-blur-sm">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                     Time
@@ -351,33 +343,27 @@ export default function YieldTrackingPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {dailySummary.entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <tr key={entry.id} className="hover:bg-brand-100/30 dark:hover:bg-brand-900/10">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                       {new Date(entry.createdAt).toLocaleTimeString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-ink">
                       {entry.wholeChickenWeight > 0 ? `${entry.wholeChickenWeight.toFixed(2)}` : '—'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-ink">
                       {entry.totalCutWeight.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                       {entry.wholeChickenWeight > 0 ? (
                         <span
-                          className={`font-semibold ${
-                            entry.yieldPercent >= expectedYield * 0.9
-                              ? 'text-green-600 dark:text-green-400'
-                              : entry.yieldPercent >= expectedYield * 0.8
-                              ? 'text-yellow-600 dark:text-yellow-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
+                          className={`font-semibold ${ entry.yieldPercent >= expectedYield * 0.9 ? 'text-green-600 dark:text-green-400' : entry.yieldPercent >= expectedYield * 0.8 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400' }`}
                         >
                           {entry.yieldPercent.toFixed(2)}%
                         </span>
                       ) : (
-                        <span className="text-gray-500 dark:text-gray-400">—</span>
+                        <span className="text-ink-muted">—</span>
                       )}
                     </td>
                   </tr>
@@ -390,12 +376,12 @@ export default function YieldTrackingPage() {
 
       {/* Entry Modal */}
       {showEntryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-            <h2 className="text-2xl font-bold dark:text-white mb-4">Record Yield</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
+            <h2 className="text-2xl font-bold text-ink mb-4">Record Yield</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Whole Chicken Weight (kg) *
                 </label>
                 <input
@@ -413,7 +399,7 @@ export default function YieldTrackingPage() {
               {/* Cuts */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Cuts *</label>
+                  <label className="block text-sm font-medium text-ink-secondary">Cuts *</label>
                   <button
                     onClick={addCut}
                     className="px-3 py-1 text-sm bg-brand-500 text-white rounded-md hover:bg-brand-600"
@@ -463,7 +449,7 @@ export default function YieldTrackingPage() {
               {yieldEntry.wholeChickenWeight > 0 && (
                 <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-md border-2 border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Cut Weight:</span>
+                    <span className="text-sm font-medium text-ink-secondary">Total Cut Weight:</span>
                     <span className="font-bold text-lg dark:text-white">
                       {yieldEntry.cuts.reduce((sum, cut) => sum + cut.weight, 0).toFixed(2)} kg
                     </span>
@@ -471,35 +457,23 @@ export default function YieldTrackingPage() {
                   {yieldEntry.cuts.length > 0 && yieldEntry.cuts.reduce((sum, cut) => sum + cut.weight, 0) > 0 && (
                     <>
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yield %:</span>
+                        <span className="text-sm font-medium text-ink-secondary">Yield %:</span>
                         <span
-                          className={`font-bold text-2xl ${
-                            currentYield >= expectedYield * 0.9
-                              ? 'text-green-600 dark:text-green-400'
-                              : currentYield >= expectedYield * 0.8
-                              ? 'text-yellow-600 dark:text-yellow-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
+                          className={`font-bold text-2xl ${ currentYield >= expectedYield * 0.9 ? 'text-green-600 dark:text-green-400' : currentYield >= expectedYield * 0.8 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400' }`}
                         >
                           {currentYield.toFixed(2)}%
                         </span>
                       </div>
                       <div className="mb-2">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-gray-600 dark:text-gray-400">Target: {expectedYield}%</span>
-                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                          <span className="text-xs text-ink-secondary">Target: {expectedYield}%</span>
+                          <span className="text-xs text-ink-secondary">
                             {currentYield >= expectedYield ? '✅ Above Target' : '⚠️ Below Target'}
                           </span>
                         </div>
                         <div className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                           <div
-                            className={`h-full transition-all ${
-                              currentYield >= expectedYield * 0.9
-                                ? 'bg-green-500'
-                                : currentYield >= expectedYield * 0.8
-                                ? 'bg-yellow-500'
-                                : 'bg-red-500'
-                            }`}
+                            className={`h-full transition-all ${ currentYield >= expectedYield * 0.9 ? 'bg-green-500' : currentYield >= expectedYield * 0.8 ? 'bg-yellow-500' : 'bg-red-500' }`}
                             style={{ width: `${Math.min(100, (currentYield / expectedYield) * 100)}%` }}
                           />
                         </div>
@@ -507,7 +481,7 @@ export default function YieldTrackingPage() {
                     </>
                   )}
                   {yieldEntry.cuts.length === 0 && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                    <p className="text-sm text-ink-muted italic">
                       Add cuts to calculate yield percentage
                     </p>
                   )}
@@ -515,7 +489,7 @@ export default function YieldTrackingPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">Notes</label>
                 <textarea
                   value={yieldEntry.notes}
                   onChange={(e) => setYieldEntry({ ...yieldEntry, notes: e.target.value })}
@@ -535,7 +509,7 @@ export default function YieldTrackingPage() {
                       notes: '',
                     });
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
+                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-ink rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
                 >
                   Cancel
                 </button>

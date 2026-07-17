@@ -481,8 +481,8 @@ export default function StoreDeliveryPage() {
       </div>
 
       {/* Date presets */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+      <div className="glass-panel rounded-2xl p-4">
+        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">
           Date range
         </p>
         <div className="flex flex-wrap gap-2">
@@ -491,11 +491,7 @@ export default function StoreDeliveryPage() {
               key={p}
               type="button"
               onClick={() => setDatePreset(p)}
-              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                datePreset === p
-                  ? 'bg-brand-600 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
+              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${ datePreset === p ? 'bg-brand-600 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600' }`}
             >
               {PRESET_LABELS[p]}
             </button>
@@ -504,7 +500,7 @@ export default function StoreDeliveryPage() {
         {datePreset === 'custom' && (
           <div className="flex flex-wrap items-end gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From</label>
+              <label className="block text-xs font-medium text-ink-muted mb-1">From</label>
               <input
                 type="date"
                 value={customStart}
@@ -513,7 +509,7 @@ export default function StoreDeliveryPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">To</label>
+              <label className="block text-xs font-medium text-ink-muted mb-1">To</label>
               <input
                 type="date"
                 value={customEnd}
@@ -554,7 +550,7 @@ export default function StoreDeliveryPage() {
             type="button"
             onClick={() => loadDeliveries()}
             disabled={loading}
-            className="px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+            className="px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 disabled:opacity-50"
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
@@ -562,22 +558,14 @@ export default function StoreDeliveryPage() {
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`px-4 py-3 text-sm font-medium ${
-                viewMode === 'list'
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-              }`}
+              className={`px-4 py-3 text-sm font-medium ${ viewMode === 'list' ? 'bg-brand-600 text-white' : 'glass-panel text-gray-600 dark:text-gray-300' }`}
             >
               List
             </button>
             <button
               type="button"
               onClick={() => setViewMode('board')}
-              className={`px-4 py-3 text-sm font-medium border-l border-gray-200 dark:border-gray-600 ${
-                viewMode === 'board'
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300'
-              }`}
+              className={`px-4 py-3 text-sm font-medium border-l border-gray-200 dark:border-gray-600 ${ viewMode === 'board' ? 'bg-brand-600 text-white' : 'glass-panel text-gray-600 dark:text-gray-300' }`}
             >
               Board
             </button>
@@ -605,7 +593,7 @@ export default function StoreDeliveryPage() {
           </span>
         ))}
         {!loading && filteredDeliveries.length === 0 && (
-          <span className="text-sm text-gray-500 dark:text-gray-400 py-1">No orders in this view.</span>
+          <span className="text-sm text-ink-muted py-1">No orders in this view.</span>
         )}
       </div>
 
@@ -625,12 +613,12 @@ export default function StoreDeliveryPage() {
             {filteredDeliveries.map((delivery) => (
               <div
                 key={delivery.id}
-                className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow"
+                className="rounded-2xl glass-panel p-4 sm:p-5 hover: transition-shadow"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-lg text-gray-900 dark:text-white">{delivery.sale.saleNo}</span>
+                      <span className="font-bold text-lg text-ink">{delivery.sale.saleNo}</span>
                       <span
                         className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusBadgeClass(delivery.status)}`}
                       >
@@ -641,16 +629,16 @@ export default function StoreDeliveryPage() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      <span className="font-medium text-gray-900 dark:text-white">
+                      <span className="font-medium text-ink">
                         {delivery.sale.customer?.name || 'Customer'}
                       </span>
                       {delivery.sale.customer?.phone && (
-                        <span className="text-gray-500 dark:text-gray-400"> · {delivery.sale.customer.phone}</span>
+                        <span className="text-ink-muted"> · {delivery.sale.customer.phone}</span>
                       )}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatOrderTime(delivery.createdAt)}</p>
+                    <p className="text-xs text-ink-muted">{formatOrderTime(delivery.createdAt)}</p>
                     {delivery.address && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                      <p className="text-xs text-ink-secondary line-clamp-2">
                         📍 {delivery.address.line1}, {delivery.address.city}
                       </p>
                     )}
@@ -660,7 +648,7 @@ export default function StoreDeliveryPage() {
                   </div>
                   <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-stretch gap-2 lg:w-64 xl:w-auto">
                     <div className="text-right sm:text-left lg:text-right min-w-[5rem]">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Amount</p>
+                      <p className="text-xs text-ink-muted">Amount</p>
                       <p className="text-xl font-bold text-brand-600 dark:text-brand-400">
                         ₹{delivery.sale.grandTotal.toFixed(0)}
                       </p>
@@ -714,7 +702,7 @@ export default function StoreDeliveryPage() {
                   <button
                     type="button"
                     onClick={() => openDetailsModal(delivery)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
                   >
                     {delivery.address ? 'Edit customer & address' : 'Add address'}
                   </button>
@@ -730,7 +718,7 @@ export default function StoreDeliveryPage() {
                   key={status}
                   className="w-64 sm:w-72 flex-shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/50 p-3"
                 >
-                  <h2 className="font-bold text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400 mb-3 px-1">
+                  <h2 className="font-bold text-xs uppercase tracking-wide text-ink-secondary mb-3 px-1">
                     {formatStatusLabel(status)}
                     <span className="ml-1 text-gray-400">({(groupedByStatus[status] || []).length})</span>
                   </h2>
@@ -741,12 +729,12 @@ export default function StoreDeliveryPage() {
                       (groupedByStatus[status] || []).map((delivery) => (
                         <div
                           key={delivery.id}
-                          className="rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 shadow-sm"
+                          className="rounded-2xl border border-gray-200 dark:border-gray-600 glass-panel p-3"
                         >
-                          <div className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                          <div className="font-semibold text-sm text-ink truncate">
                             {delivery.sale.saleNo}
                           </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                          <div className="text-xs text-ink-secondary truncate">
                             {delivery.sale.customer?.name}
                           </div>
                           <div className="text-xs font-medium text-brand-600 dark:text-brand-400 mt-1">
@@ -786,9 +774,9 @@ export default function StoreDeliveryPage() {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
-            <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
-              <h2 className="text-lg font-bold dark:text-white">New delivery</h2>
+          <div className="glass-panel-strong rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 glass-panel z-10">
+              <h2 className="text-lg font-bold text-ink">New delivery</h2>
               <button
                 type="button"
                 onClick={() => setShowCreate(false)}
@@ -805,7 +793,7 @@ export default function StoreDeliveryPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Paid sale</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1">Paid sale</label>
                 <select
                   value={form.saleId}
                   onChange={(e) => onSelectSale(e.target.value)}
@@ -825,7 +813,7 @@ export default function StoreDeliveryPage() {
                 )}
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Type</p>
+                <p className="text-sm font-semibold text-ink-secondary mb-2">Type</p>
                 <div className="flex gap-3">
                   <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-gray-200 dark:border-gray-600 py-3 has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50 dark:has-[:checked]:bg-brand-900/20">
                     <input
@@ -858,7 +846,7 @@ export default function StoreDeliveryPage() {
               </div>
               {form.type === 'DELIVERY' && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Address</label>
+                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Address</label>
                   {!createAddNewAddress ? (
                     <>
                       <select
@@ -939,7 +927,7 @@ export default function StoreDeliveryPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Delivery fee (₹)</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1">Delivery fee (₹)</label>
                 <input
                   type="number"
                   min={0}
@@ -973,9 +961,9 @@ export default function StoreDeliveryPage() {
       {/* Details modal */}
       {editingDelivery && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
-            <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800">
-              <h2 className="text-lg font-bold dark:text-white">Order {editingDelivery.sale.saleNo}</h2>
+          <div className="glass-panel-strong rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-scale-in">
+            <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 glass-panel">
+              <h2 className="text-lg font-bold text-ink">Order {editingDelivery.sale.saleNo}</h2>
               <button
                 type="button"
                 onClick={() => setEditingDelivery(null)}

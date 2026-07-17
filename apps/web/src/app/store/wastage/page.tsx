@@ -230,7 +230,7 @@ export default function WastageManagementPage() {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+        <p className="text-ink-muted">Loading...</p>
       </div>
     );
   }
@@ -239,8 +239,8 @@ export default function WastageManagementPage() {
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 flex-shrink-0">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Wastage Management</h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Record and track wastage</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Wastage Management</h1>
+          <p className="text-xs sm:text-sm text-ink-muted mt-1">Record and track wastage</p>
         </div>
         <button
           onClick={() => setShowEntryModal(true)}
@@ -264,18 +264,18 @@ export default function WastageManagementPage() {
 
       {/* Threshold Info */}
       {franchiseConfig && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
-          <h2 className="text-base sm:text-lg font-semibold dark:text-white mb-3 sm:mb-4">Wastage Thresholds</h2>
+        <div className="glass-panel rounded-2xl p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 flex-shrink-0">
+          <h2 className="text-base sm:text-lg font-semibold text-ink mb-3 sm:mb-4">Wastage Thresholds</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Franchise Allowed Wastage:</p>
+              <p className="text-sm text-ink-secondary">Franchise Allowed Wastage:</p>
               <p className="text-2xl font-bold text-brand-600 dark:text-brand-400">
                 {franchiseConfig.allowedWastagePercent}%
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Status:</p>
-              <p className="text-lg font-semibold dark:text-white">
+              <p className="text-sm text-ink-secondary">Status:</p>
+              <p className="text-lg font-semibold text-ink">
                 {franchiseConfig.isWastageLocked ? '🔒 Locked by HQ' : '✅ Unlocked'}
               </p>
             </div>
@@ -284,13 +284,13 @@ export default function WastageManagementPage() {
       )}
 
       {/* Recent Wastage */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <h2 className="text-lg font-semibold dark:text-white">Recent Wastage Entries (Last 7 Days)</h2>
+          <h2 className="text-lg font-semibold text-ink">Recent Wastage Entries (Last 7 Days)</h2>
         </div>
         <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-surface-2/80 backdrop-blur-sm">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                   Date
@@ -309,26 +309,26 @@ export default function WastageManagementPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {recentWastage.length > 0 ? (
                 recentWastage.map((entry) => {
                   const reason = entry.metaJson?.reason || entry.reason || 'WASTAGE';
                   const wastageType = reason.includes('CUTTING_LOSS') ? 'Cutting Loss' : reason.includes('SPOILAGE') ? 'Spoilage' : 'Other';
                   return (
-                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <tr key={entry.id} className="hover:bg-brand-100/30 dark:hover:bg-brand-900/10">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                         {new Date(entry.createdAt).toLocaleString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium dark:text-white">
                         {entry.product?.name || 'Unknown'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ink">
                         {wastageType}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-ink">
                         {entry.qtyKg?.toFixed(2) || '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 text-sm text-ink">
                         {reason.replace('CUTTING_LOSS: ', '').replace('SPOILAGE: ', '')}
                       </td>
                     </tr>
@@ -336,7 +336,7 @@ export default function WastageManagementPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-ink-muted">
                     No wastage entries found
                   </td>
                 </tr>
@@ -348,12 +348,12 @@ export default function WastageManagementPage() {
 
       {/* Entry Modal */}
       {showEntryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
-            <h2 className="text-2xl font-bold dark:text-white mb-4">Record Wastage</h2>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel rounded-2xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold text-ink mb-4">Record Wastage</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Product *
                 </label>
                 <select
@@ -371,7 +371,7 @@ export default function WastageManagementPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Wastage Type *
                 </label>
                 <select
@@ -390,7 +390,7 @@ export default function WastageManagementPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Quantity (Kg) *
                 </label>
                 <input
@@ -403,7 +403,7 @@ export default function WastageManagementPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-ink-secondary mb-1">
                   Reason/Notes *
                 </label>
                 <textarea
@@ -419,11 +419,7 @@ export default function WastageManagementPage() {
               {/* Validation Result - Always show when product and quantity are entered */}
               {validationResult && wastageEntry.productId && wastageEntry.qtyKg > 0 && (
                 <div
-                  className={`p-4 rounded-md border-2 ${
-                    validationResult.isExcess
-                      ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800'
-                      : 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800'
-                  }`}
+                  className={`p-4 rounded-md border-2 ${ validationResult.isExcess ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-800' }`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">
@@ -431,28 +427,20 @@ export default function WastageManagementPage() {
                     </span>
                     <div className="flex-1">
                       <p
-                        className={`text-sm font-semibold mb-1 ${
-                          validationResult.isExcess
-                            ? 'text-red-800 dark:text-red-300'
-                            : 'text-green-800 dark:text-green-300'
-                        }`}
+                        className={`text-sm font-semibold mb-1 ${ validationResult.isExcess ? 'text-red-800 dark:text-red-300' : 'text-green-800 dark:text-green-300' }`}
                       >
                         {validationResult.isExcess ? 'Excess Wastage Detected' : 'Wastage Within Limits'}
                       </p>
                       <p
-                        className={`text-sm ${
-                          validationResult.isExcess
-                            ? 'text-red-700 dark:text-red-400'
-                            : 'text-green-700 dark:text-green-400'
-                        }`}
+                        className={`text-sm ${ validationResult.isExcess ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400' }`}
                       >
                         {validationResult.message}
                       </p>
                       <div className="mt-2 flex items-center gap-4 text-xs">
-                        <span className="text-gray-600 dark:text-gray-400">
+                        <span className="text-ink-secondary">
                           Current: <strong>{validationResult.wastagePercent.toFixed(2)}%</strong>
                         </span>
-                        <span className="text-gray-600 dark:text-gray-400">
+                        <span className="text-ink-secondary">
                           Allowed: <strong>{validationResult.allowedPercent}%</strong>
                         </span>
                         {validationResult.isExcess && (
@@ -483,7 +471,7 @@ export default function WastageManagementPage() {
                     });
                     setValidationResult(null);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
+                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-ink rounded-md hover:bg-gray-300 dark:hover:bg-gray-600"
                 >
                   Cancel
                 </button>

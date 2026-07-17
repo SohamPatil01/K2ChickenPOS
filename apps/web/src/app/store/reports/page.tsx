@@ -36,14 +36,12 @@ export default function StoreReportsPage() {
         <p className="text-sm text-brand-100 mt-1">CA-style registers for accounts & audit</p>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow-md overflow-hidden rounded-b-lg">
+      <div className="glass-panel-strong overflow-hidden rounded-b-lg">
         {CA_REPORT_ITEMS.map((item, index) => (
           <div key={item.id}>
             <button
               onClick={() => handleReportClick(item.path, item.id)}
-              className={`w-full text-left py-3 sm:py-4 px-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors touch-target ${
-                selectedReport === item.id ? 'bg-brand-50 dark:bg-brand-900/20' : ''
-              }`}
+              className={`w-full text-left py-3 sm:py-4 px-4 sm:px-6 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 active:bg-gray-100 dark:active:bg-gray-600 transition-colors touch-target ${ selectedReport === item.id ? 'bg-brand-50 dark:bg-brand-900/20' : '' }`}
             >
               <span className="text-gray-800 dark:text-gray-200 font-medium text-sm sm:text-base">
                 {item.label}

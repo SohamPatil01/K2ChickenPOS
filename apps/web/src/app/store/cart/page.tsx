@@ -629,7 +629,7 @@ export default function StoreCartPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Header - animated entrance */}
-      <div className="sticky top-0 z-40 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+      <div className="sticky top-0 z-40 glass-panel-strong border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
@@ -637,13 +637,13 @@ export default function StoreCartPage() {
                 onClick={() => router.push('/store/pos')}
                 className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 active:scale-95"
               >
-                <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-ink-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Shopping Cart</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                <h1 className="text-2xl font-bold text-ink tracking-tight">Shopping Cart</h1>
+                <p className="text-sm text-ink-muted mt-0.5">
                   <span className="inline-flex items-center gap-1 font-medium text-brand-600 dark:text-brand-400">{items.length}</span>
                   {items.length === 1 ? 'item' : 'items'}
                 </p>
@@ -653,7 +653,7 @@ export default function StoreCartPage() {
               <CustomerDisplayButton />
               <button
                 onClick={() => router.push('/store/pos')}
-                className="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
+                className="px-5 py-2.5 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -671,15 +671,15 @@ export default function StoreCartPage() {
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Section - Collapsible & Optional */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+            <div className="glass-panel rounded-2xl">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10 rounded-t-2xl">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
                     <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                     Customer Information
-                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">(Optional)</span>
+                    <span className="text-xs font-normal text-ink-muted">(Optional)</span>
                   </h2>
                   <div className="flex items-center gap-2">
                     {!showCustomerSection && !customerName && (
@@ -688,7 +688,7 @@ export default function StoreCartPage() {
                           setShowCustomerSection(true);
                           setSkipCustomer(false);
                         }}
-                        className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium transition-colors"
+                        className="px-4 py-2 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-lg text-sm font-medium transition-colors"
                       >
                         + Add Customer
                       </button>
@@ -699,7 +699,7 @@ export default function StoreCartPage() {
                           setSkipCustomer(true);
                           setCustomer(null, null, null, null);
                         }}
-                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-ink-secondary rounded-lg text-sm font-medium transition-colors"
                       >
                         Skip
                       </button>
@@ -719,7 +719,7 @@ export default function StoreCartPage() {
                   </div>
                 </div>
                 {skipCustomer && !customerName && (
-                  <div className="mt-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400">
+                  <div className="mt-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-ink-secondary">
                     Walk-in customer • No customer info will be saved
                   </div>
                 )}
@@ -757,7 +757,7 @@ export default function StoreCartPage() {
                 <div className="p-6 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Phone Number
                     </label>
                     <div className="relative">
@@ -767,11 +767,7 @@ export default function StoreCartPage() {
                         value={tempCustomerPhone}
                         readOnly
                         onClick={() => setShowNumPad(true)}
-                        className={`w-full px-4 py-3 pl-11 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${
-                          tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10
-                            ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20'
-                            : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
-                        }`}
+                        className={`w-full px-4 py-3 pl-11 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${ tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }`}
                       />
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -787,7 +783,7 @@ export default function StoreCartPage() {
                   </div>
 
                   <div className="relative z-50">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Customer Name
                     </label>
                     <div className="relative">
@@ -854,11 +850,7 @@ export default function StoreCartPage() {
                                 }
                               }
                             }}
-                            className={`p-2 rounded-lg transition-colors ${
-                              isListening 
-                                ? 'bg-red-500 text-white animate-pulse' 
-                                : 'text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
+                            className={`p-2 rounded-lg transition-colors ${ isListening ? 'bg-red-500 text-white animate-pulse' : 'text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-gray-100 dark:hover:bg-gray-700' }`}
                             title={isListening ? 'Stop listening' : 'Start voice input'}
                           >
                             {isListening ? (
@@ -886,7 +878,7 @@ export default function StoreCartPage() {
                     </div>
                     
                     {showNameDropdown && customerSearchResults.length > 0 && (
-                      <div className="absolute z-[100] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl max-h-48 overflow-y-auto">
+                      <div className="absolute z-[100] w-full mt-1 glass-panel-strong rounded-2xl max-h-48 overflow-y-auto">
                         {customerSearchResults.map((customer) => (
                           <button
                             key={customer.id}
@@ -898,10 +890,10 @@ export default function StoreCartPage() {
                               setTempCustomerArea(customer.area || '');
                               setShowNameDropdown(false);
                             }}
-                            className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                            className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">{customer.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="font-medium text-sm text-ink">{customer.name}</div>
+                            <div className="text-xs text-ink-muted">
                               {customer.phone}
                               {customer.area ? ` • ${customer.area}` : ''}
                             </div>
@@ -912,7 +904,7 @@ export default function StoreCartPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Area / Locality
                     </label>
                     <input
@@ -950,9 +942,9 @@ export default function StoreCartPage() {
             </div>
 
             {/* Cart Items */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden">
+            <div className="glass-panel-strong rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-900/10">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
                   <svg className="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
@@ -964,15 +956,15 @@ export default function StoreCartPage() {
                 {items.length === 0 ? (
                   <div className="text-center py-16">
                     <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-700 dark:to-gray-800 mb-6 animate-bounce-in">
-                      <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-12 h-12 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                     </div>
                     <p className="text-gray-600 dark:text-gray-300 font-semibold text-xl">Your cart is empty</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Add items from POS to get started</p>
+                    <p className="text-sm text-ink-muted mt-2">Add items from POS to get started</p>
                     <button
                       onClick={() => router.push('/store/pos')}
-                      className="mt-8 px-8 py-4 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98]"
+                      className="mt-8 px-8 py-4 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98]"
                     >
                       Browse Products
                     </button>
@@ -989,18 +981,16 @@ export default function StoreCartPage() {
                       return (
                         <div
                           key={item.id || `item-${index}-${item.productId || Date.now()}`}
-                          className={`group flex items-center gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-2xl hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800/50 ${
-                            isRemoving ? 'animate-slide-out-left' : ''
-                          }`}
+                          className={`group flex items-center gap-4 p-4 rounded-2xl hover:border-brand-300 dark:hover:border-brand-700 hover: transition-all duration-200 glass-panel/50 ${ isRemoving ? 'animate-slide-out-left' : '' }`}
                         >
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 dark:text-white mb-2 text-lg">{displayName}</h3>
+                            <h3 className="font-semibold text-ink mb-2 text-lg">{displayName}</h3>
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300">
+                              <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm font-medium text-ink-secondary">
                                 {qtyDisplay}
                               </span>
                               <span className="text-gray-400">×</span>
-                              <span className="text-gray-600 dark:text-gray-400 font-medium">₹{rate.toFixed(2)}</span>
+                              <span className="text-ink-secondary font-medium">₹{rate.toFixed(2)}</span>
                               {item.taxRate > 0 && (
                                 <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-medium">
                                   Tax: {item.taxRate}%
@@ -1035,7 +1025,7 @@ export default function StoreCartPage() {
 
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
-            <div className="sticky top-24 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl overflow-hidden">
+            <div className="sticky top-24 glass-panel-strong rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-500 to-brand-600">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1048,39 +1038,31 @@ export default function StoreCartPage() {
               <div className="p-6 space-y-6">
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                    <span className="font-medium text-gray-900 dark:text-white">₹{Math.round(subTotal)}</span>
+                    <span className="text-ink-secondary">Subtotal</span>
+                    <span className="font-medium text-ink">₹{Math.round(subTotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Tax</span>
-                    <span className="font-medium text-gray-900 dark:text-white">₹{Math.round(taxTotal)}</span>
+                    <span className="text-ink-secondary">Tax</span>
+                    <span className="font-medium text-ink">₹{Math.round(taxTotal)}</span>
                   </div>
                   
                   {/* Quick Discount Buttons */}
                   <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-3">
-                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Quick Discount</label>
+                        <label className="text-sm font-semibold text-ink-secondary">Quick Discount</label>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setDiscountType('amount')}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                              discountType === 'amount'
-                                ? 'bg-brand-500 text-white shadow-sm'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                            }`}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ discountType === 'amount' ? 'bg-brand-500 text-white shadow-sm' : 'bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600' }`}
                           >
                             ₹ Amount
                           </button>
                           <button
                             type="button"
                             onClick={() => setDiscountType('percentage')}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                              discountType === 'percentage'
-                                ? 'bg-brand-500 text-white shadow-sm'
-                                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                            }`}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ discountType === 'percentage' ? 'bg-brand-500 text-white shadow-sm' : 'bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600' }`}
                           >
                             % Percent
                           </button>
@@ -1129,7 +1111,7 @@ export default function StoreCartPage() {
                             placeholder="0"
                           />
                           {discountPercentage > 0 && (
-                            <div className="text-sm text-center text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 py-2 rounded-lg">
+                            <div className="text-sm text-center text-ink-secondary bg-gray-50 dark:bg-gray-700/50 py-2 rounded-lg">
                               Discount: <span className="font-semibold">₹{Math.round((subTotal * discountPercentage) / 100)}</span>
                             </div>
                           )}
@@ -1142,7 +1124,7 @@ export default function StoreCartPage() {
                   {canRedeemLoyalty && (
                     <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <label className="text-sm font-semibold text-ink-secondary flex items-center gap-1.5">
                           <svg className="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
@@ -1180,7 +1162,7 @@ export default function StoreCartPage() {
                           <button
                             type="button"
                             onClick={() => setLoyaltyRedeemPoints(0)}
-                            className="px-4 py-3 text-xs font-semibold rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                            className="px-4 py-3 text-xs font-semibold rounded-lg bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                           >
                             Clear
                           </button>
@@ -1191,11 +1173,11 @@ export default function StoreCartPage() {
                           Redeeming <span className="font-semibold">{loyaltyDiscount} pts</span> = <span className="font-semibold">−₹{loyaltyDiscount}</span> off this bill
                         </div>
                       ) : customerPoints === 0 ? (
-                        <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        <p className="mt-1 text-[10px] text-ink-muted">
                           No points to redeem yet — points are earned on each paid bill.
                         </p>
                       ) : (
-                        <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        <p className="mt-1 text-[10px] text-ink-muted">
                           1 point = ₹{LOYALTY_POINT_VALUE}. Points are deducted when the bill is paid.
                         </p>
                       )}
@@ -1207,7 +1189,7 @@ export default function StoreCartPage() {
 
                   {fulfillmentType === 'DELIVERY' && customerId && (
                     <div className="pt-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-semibold text-ink-secondary mb-1">
                         Delivery fee (₹)
                       </label>
                       <input
@@ -1224,7 +1206,7 @@ export default function StoreCartPage() {
 
                   <div className="pt-4 border-t-2 border-gray-300 dark:border-gray-600 space-y-1">
                     {effectiveDeliveryFee > 0 && (
-                      <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex justify-between items-center text-sm text-ink-secondary">
                         <span>Delivery fee</span>
                         <span>₹{effectiveDeliveryFee}</span>
                       </div>
@@ -1247,13 +1229,13 @@ export default function StoreCartPage() {
                         </div>
                       ))}
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <span className="text-lg font-semibold text-ink">
                         {pendingSettlementTotal > 0 ? 'Total to pay' : 'Grand Total'}
                       </span>
                       <span className="text-3xl font-bold text-brand-600 dark:text-brand-400">₹{checkoutGrandTotal}</span>
                     </div>
                     {pendingSettlementTotal > 0 && (
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 text-right">
+                      <p className="text-[10px] text-ink-muted text-right">
                         Includes ₹{cartGrandTotal} today + ₹{pendingSettlementTotal} previous credit
                       </p>
                     )}
@@ -1267,9 +1249,7 @@ export default function StoreCartPage() {
                     setShowPaymentModal(true);
                   }}
                   disabled={items.length === 0}
-                  className={`w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-orangeGlow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] min-h-[72px] ${
-                    items.length > 0 ? 'animate-soft-pulse' : ''
-                  }`}
+                  className={`w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-orangeGlow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] min-h-[72px] ${ items.length > 0 ? 'animate-soft-pulse' : '' }`}
                 >
                   <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -1316,11 +1296,11 @@ export default function StoreCartPage() {
             </div>
 
             {/* Mobile Sticky Checkout Bar */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-t border-gray-200 dark:border-gray-700 p-4 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-panel-strong border-t border-gray-200 dark:border-gray-700 p-4 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
               <div className="max-w-7xl mx-auto space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Total</div>
+                    <div className="text-xs font-medium text-ink-muted">Total</div>
                     <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{checkoutGrandTotal}</div>
                   </div>
                   <button
@@ -1380,8 +1360,8 @@ export default function StoreCartPage() {
       )}
 
       {showSuccessAnimation && completedSale && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="glass-panel rounded-2xl p-6 max-w-md w-full mx-4">
             <BillSuccessAnimation
               saleNo={completedSale.saleNo}
               grandTotal={completedSale.grandTotal}
@@ -1403,7 +1383,7 @@ export default function StoreCartPage() {
                   const receiptData = generateReceiptData(completedSale, user?.store);
                   printReceipt(receiptData);
                 }}
-                className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-lg transition-colors flex items-center gap-2"
               >
                 <span>🖨️</span>
                 <span>Print Receipt</span>
@@ -1415,7 +1395,7 @@ export default function StoreCartPage() {
                   publishIdleMode();
                   router.push('/store/pos');
                 }}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-ink-secondary rounded-lg transition-colors"
               >
                 Continue
               </button>

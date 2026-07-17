@@ -74,18 +74,20 @@ export default function InventoryReconciliationPage() {
   return (
     <div className="w-full max-w-7xl mx-auto flex flex-col gap-4 p-4">
       <div>
-        <h1 className="text-2xl font-bold dark:text-white">
+        <h1 className="text-2xl font-bold text-ink">
           Stock reconciliation
         </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Sale line totals vs inventory ledger (SALE / OUT) in the selected
-          range. Large deltas may indicate timing, voids, or sync issues.
+        <p className="text-sm text-ink-muted mt-1">
+          Sale lines on OPEN/PAID bills vs net stock taken for those same bills
+          (SALE deductions minus edit/void restores). Δ ≈ 0 means they match.
+          Remaining gaps usually mean a missing deduction or a bad historical
+          double-post — use inventory adjust only after checking the sale.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-3 items-end bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+      <div className="flex flex-wrap gap-3 items-end glass-panel rounded-2xl p-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          <label className="block text-xs font-medium text-ink-secondary mb-1">
             Start
           </label>
           <input
@@ -96,7 +98,7 @@ export default function InventoryReconciliationPage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          <label className="block text-xs font-medium text-ink-secondary mb-1">
             End
           </label>
           <input
@@ -124,13 +126,13 @@ export default function InventoryReconciliationPage() {
         <p className="text-gray-500">Loading…</p>
       ) : (
         <>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-ink-secondary">
             {flagged.length} product(s) with non-zero delta · {rows.length}{' '}
             total rows
           </p>
           <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="min-w-full text-sm dark:text-gray-100">
-              <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <table className="table-glass min-w-full text-sm dark:text-gray-100">
+              <thead className="bg-surface-2/80 backdrop-blur-sm">
                 <tr>
                   <th className="text-left p-3 font-semibold">Product</th>
                   <th className="text-left p-3 font-semibold">Unit</th>

@@ -417,8 +417,8 @@ export default function POPage() {
         </div>
       </div>
       <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="table-glass min-w-full divide-y divide-gray-200">
+          <thead className="bg-surface-2/80 backdrop-blur-sm">
             <tr>
               <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
               <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store</th>
@@ -429,7 +429,7 @@ export default function POPage() {
               <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky right-0 bg-gray-50 z-10">Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {loading ? (
               <tr>
                 <td colSpan={7} className="px-6 py-4 text-center">Loading...</td>
@@ -453,13 +453,7 @@ export default function POPage() {
                     {po.franchiseStore?.name || po.ownerStore?.name || 'N/A'}
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      po.status === 'APPROVED' ? 'bg-primary-100 text-primary-800' :
-                      po.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                      po.status === 'DISPATCHED' ? 'bg-primary-200 text-primary-800' :
-                      po.status === 'RECEIVED' ? 'bg-primary-100 text-primary-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={`px-2 py-1 rounded text-xs ${ po.status === 'APPROVED' ? 'bg-primary-100 text-primary-800' : po.status === 'REJECTED' ? 'bg-red-100 text-red-800' : po.status === 'DISPATCHED' ? 'bg-primary-200 text-primary-800' : po.status === 'RECEIVED' ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-800' }`}>
                       {po.status}
                     </span>
                   </td>
@@ -563,7 +557,7 @@ export default function POPage() {
 
       {/* Create PO Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">Create Purchase Order</h2>
             
@@ -645,8 +639,8 @@ export default function POPage() {
               <div className="mb-4">
                 <h3 className="font-semibold mb-2">PO Items</h3>
                 <div className="border rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="table-glass min-w-full divide-y divide-gray-200">
+                    <thead className="bg-surface-2/80 backdrop-blur-sm">
                       <tr>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Product</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Quantity</th>
@@ -655,7 +649,7 @@ export default function POPage() {
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {poItems.map((item, index) => (
                         <tr key={index}>
                           <td className="px-4 py-2 text-sm">{item.productName}</td>
@@ -722,13 +716,13 @@ export default function POPage() {
 
       {/* View PO Details Modal */}
       {showViewModal && selectedPO && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-2xl font-bold dark:text-white mb-2">Purchase Order Details</h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">PO Number: <span className="font-semibold dark:text-white">{selectedPO.poNo}</span></p>
+                  <h2 className="text-2xl font-bold text-ink mb-2">Purchase Order Details</h2>
+                  <p className="text-sm text-ink-secondary">PO Number: <span className="font-semibold text-ink">{selectedPO.poNo}</span></p>
                 </div>
                 <button
                   onClick={() => {
@@ -746,28 +740,21 @@ export default function POPage() {
               {/* PO Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Store</label>
-                  <p className="text-base font-semibold dark:text-white mt-1">
+                  <label className="text-sm font-medium text-ink-muted">Store</label>
+                  <p className="text-base font-semibold text-ink mt-1">
                     {selectedPO.franchiseStore?.name || selectedPO.ownerStore?.name || 'N/A'}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</label>
+                  <label className="text-sm font-medium text-ink-muted">Status</label>
                   <p className="mt-1">
-                    <span className={`px-3 py-1 rounded text-sm font-medium ${
-                      selectedPO.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                      selectedPO.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
-                      selectedPO.status === 'DISPATCHED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
-                      selectedPO.status === 'RECEIVED' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400' :
-                      selectedPO.status === 'SUBMITTED' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
+                    <span className={`px-3 py-1 rounded text-sm font-medium ${ selectedPO.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : selectedPO.status === 'REJECTED' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' : selectedPO.status === 'DISPATCHED' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' : selectedPO.status === 'RECEIVED' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400' : selectedPO.status === 'SUBMITTED' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }`}>
                       {selectedPO.status}
                     </span>
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date</label>
+                  <label className="text-sm font-medium text-ink-muted">Date</label>
                   <p className="text-base dark:text-white mt-1">
                     {new Date(selectedPO.createdAt).toLocaleDateString('en-US', { 
                       year: 'numeric', 
@@ -778,7 +765,7 @@ export default function POPage() {
                 </div>
                 {selectedPO.dispatch && (
                   <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Dispatch</label>
+                    <label className="text-sm font-medium text-ink-muted">Dispatch</label>
                     <p className="text-base font-semibold text-blue-600 dark:text-blue-400 mt-1">
                       {selectedPO.dispatch.dispatchNo}
                     </p>
@@ -788,21 +775,21 @@ export default function POPage() {
 
               {/* PO Items */}
               <div>
-                <h3 className="text-lg font-semibold dark:text-white mb-4">Items ({selectedPO.items.length})</h3>
+                <h3 className="text-lg font-semibold text-ink mb-4">Items ({selectedPO.items.length})</h3>
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-surface-2/80 backdrop-blur-sm">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ordered Qty</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Product</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Ordered Qty</th>
                         {(selectedPO.status === 'RECEIVED' || selectedPO.status === 'DISPATCHED' || selectedPO.status === 'CLOSED') && (
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Received Qty</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Received Qty</th>
                         )}
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Requested Rate</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Requested Rate</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {selectedPO.items.map((item, index) => {
                         const orderedQty = item.qtyKg || item.qtyPcs || 0;
                         const receivedQty = item.receivedQtyKg !== undefined && item.receivedQtyKg !== null 
@@ -815,7 +802,7 @@ export default function POPage() {
                         const total = qty * rate;
                         const hasShrinkage = receivedQty !== null && receivedQty < orderedQty;
                         return (
-                          <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <tr key={index} className="hover:bg-brand-100/30 dark:hover:bg-brand-900/10">
                             <td className="px-4 py-3 text-sm font-medium dark:text-white">
                               {item.product?.name || 'N/A'}
                             </td>
@@ -843,14 +830,14 @@ export default function POPage() {
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                               ₹{rate.toFixed(2)}
                             </td>
-                            <td className="px-4 py-3 text-sm font-semibold dark:text-white">
+                            <td className="px-4 py-3 text-sm font-semibold text-ink">
                               ₹{total.toFixed(2)}
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
-                    <tfoot className="bg-gray-50 dark:bg-gray-900/50">
+                    <tfoot className="bg-surface-2/80">
                       <tr>
                         <td colSpan={selectedPO.status === 'RECEIVED' || selectedPO.status === 'DISPATCHED' || selectedPO.status === 'CLOSED' ? 4 : 3} className="px-4 py-3 text-sm font-semibold text-right dark:text-white">
                           Grand Total:
@@ -916,14 +903,14 @@ export default function POPage() {
 
       {/* Edit Received Quantities Modal */}
       {showEditReceivedModal && selectedPO && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-2xl font-bold dark:text-white mb-2">Edit Received Quantities</h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    PO Number: <span className="font-semibold dark:text-white">{selectedPO.poNo}</span>
+                  <h2 className="text-2xl font-bold text-ink mb-2">Edit Received Quantities</h2>
+                  <p className="text-sm text-ink-secondary">
+                    PO Number: <span className="font-semibold text-ink">{selectedPO.poNo}</span>
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                     Update quantities to account for shrinkage. Both original and received quantities will be recorded.
@@ -947,15 +934,15 @@ export default function POPage() {
                 {editingReceivedItems.map((item, index) => (
                   <div key={item.itemId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold dark:text-white">{item.productName}</h4>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <h4 className="font-semibold text-ink">{item.productName}</h4>
+                      <div className="text-sm text-ink-muted">
                         Ordered: {item.originalQtyKg ? `${item.originalQtyKg} kg` : `${item.originalQtyPcs} pcs`}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       {item.unitType === 'KG' || item.originalQtyKg ? (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-ink-secondary mb-1">
                             Received Quantity (kg)
                           </label>
                           <input
@@ -979,7 +966,7 @@ export default function POPage() {
                         </div>
                       ) : (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-ink-secondary mb-1">
                             Received Quantity (pcs)
                           </label>
                           <input
@@ -1032,14 +1019,14 @@ export default function POPage() {
 
       {/* Sinkage Calculation Modal */}
       {showSinkageModal && selectedPO && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-2xl font-bold dark:text-white mb-2">Calculate Sinkage</h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    PO Number: <span className="font-semibold dark:text-white">{selectedPO.poNo}</span>
+                  <h2 className="text-2xl font-bold text-ink mb-2">Calculate Sinkage</h2>
+                  <p className="text-sm text-ink-secondary">
+                    PO Number: <span className="font-semibold text-ink">{selectedPO.poNo}</span>
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                     Enter sinkage amounts for each item. Sinkage will be subtracted from inventory.
@@ -1063,15 +1050,15 @@ export default function POPage() {
                 {sinkageItems.map((item, index) => (
                   <div key={item.itemId} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold dark:text-white">{item.productName}</h4>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <h4 className="font-semibold text-ink">{item.productName}</h4>
+                      <div className="text-sm text-ink-muted">
                         Received: {item.receivedQtyKg ? `${item.receivedQtyKg} kg` : item.receivedQtyPcs ? `${item.receivedQtyPcs} pcs` : 'N/A'}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       {(item.unitType === 'KG' || item.receivedQtyKg) && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-ink-secondary mb-1">
                             Sinkage (kg)
                           </label>
                           <input
@@ -1097,7 +1084,7 @@ export default function POPage() {
                       )}
                       {(item.unitType === 'PCS' || item.receivedQtyPcs) && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-ink-secondary mb-1">
                             Sinkage (pcs)
                           </label>
                           <input

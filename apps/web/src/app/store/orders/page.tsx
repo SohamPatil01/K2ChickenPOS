@@ -534,10 +534,10 @@ export default function OrdersPage() {
       {/* Header */}
       <div className="mb-3 sm:mb-4 flex-shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white mb-1 sm:mb-2">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink mb-1 sm:mb-2">
             Orders
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-xs sm:text-sm text-ink-muted">
             {filters?.status === "OPEN"
               ? "View and complete pending orders"
               : "View and edit all orders"}
@@ -558,7 +558,7 @@ export default function OrdersPage() {
           </button>
           <button
             onClick={() => loadSales()}
-            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
+            className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
           >
             🔄 Refresh
           </button>
@@ -574,15 +574,15 @@ export default function OrdersPage() {
       />
 
       {/* Sales List */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden">
         <div className="flex-1 overflow-y-auto min-h-0">
           {loading ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">Loading orders...</p>
+              <p className="text-ink-muted">Loading orders...</p>
             </div>
           ) : sales.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-ink-muted">
                 {sales.length === 0
                   ? "No orders found"
                   : "No orders match the selected filters"}
@@ -594,9 +594,7 @@ export default function OrdersPage() {
                 return (
                   <div
                     key={sale.id}
-                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                      selectedSale?.id === sale.id
-                        ? "bg-brand-50 dark:bg-brand-900/20"
+                    className={`p-4 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors ${ selectedSale?.id === sale.id ?"bg-brand-50 dark:bg-brand-900/20"
                         : ""
                     }`}
                     onClick={() => setSelectedSale(sale)}
@@ -608,8 +606,7 @@ export default function OrdersPage() {
                             {sale.saleNo}
                           </h3>
                           <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              sale.status === "PAID"
+                            className={`px-2 py-1 rounded text-xs font-medium ${ sale.status ==="PAID"
                                 ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
                                 : sale.status === "OPEN"
                                 ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
@@ -621,7 +618,7 @@ export default function OrdersPage() {
                             {sale.status === "VOID" ? "CANCELLED" : sale.status}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                        <div className="text-sm text-ink-secondary space-y-1">
                           <p>
                             Customer:{" "}
                             {sale.customer
@@ -715,10 +712,10 @@ export default function OrdersPage() {
 
       {/* View Details Modal */}
       {selectedSale && !showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up border border-gray-200/50 dark:border-gray-700/50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up animate-scale-in">
             <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-gray-100">
+              <h2 className="text-xl sm:text-2xl font-semibold text-ink">
                 Order Details - {selectedSale.saleNo}
               </h2>
               <button
@@ -743,7 +740,7 @@ export default function OrdersPage() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {/* Customer Info */}
               <div className="mb-4 sm:mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <h3 className="text-sm font-semibold text-ink-secondary mb-2">
                   Customer Information
                 </h3>
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4">
@@ -776,7 +773,7 @@ export default function OrdersPage() {
 
               {/* Items */}
               <div className="mb-4 sm:mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <h3 className="text-sm font-semibold text-ink-secondary mb-2">
                   Items ({selectedSale.items.length})
                 </h3>
                 <div className="space-y-2">
@@ -789,10 +786,10 @@ export default function OrdersPage() {
                         <p className="font-medium text-sm sm:text-base dark:text-white">
                           {item.product.name}
                         </p>
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="text-xs sm:text-sm text-ink-secondary mt-1">
                           SKU: {item.product.sku} • {item.product.unitType}
                         </p>
-                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                        <p className="text-xs sm:text-sm text-ink-secondary">
                           {item.qtyKg
                             ? `${item.qtyKg.toFixed(2)} kg`
                             : `${item.qtyPcs} pcs`}{" "}
@@ -812,7 +809,7 @@ export default function OrdersPage() {
 
               {/* Price Breakdown */}
               <div className="mb-4 sm:mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <h3 className="text-sm font-semibold text-ink-secondary mb-2">
                   Price Breakdown
                 </h3>
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 space-y-2">
@@ -837,7 +834,7 @@ export default function OrdersPage() {
                     </div>
                   )}
                   <div className="border-t border-gray-300 dark:border-gray-600 pt-2 mt-2">
-                    <div className="flex justify-between text-base sm:text-lg font-semibold dark:text-white">
+                    <div className="flex justify-between text-base sm:text-lg font-semibold text-ink">
                       <span>Grand Total:</span>
                       <span>₹{selectedSale.grandTotal.toFixed(2)}</span>
                     </div>
@@ -848,7 +845,7 @@ export default function OrdersPage() {
               {/* Payments */}
               {selectedSale.payments.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <h3 className="text-sm font-semibold text-ink-secondary mb-2">
                     Payments ({selectedSale.payments.length})
                   </h3>
                   <div className="space-y-2">
@@ -862,7 +859,7 @@ export default function OrdersPage() {
                             {payment.method}
                           </p>
                           {payment.txnRef && (
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                            <p className="text-xs text-ink-secondary mt-1">
                               Ref: {payment.txnRef}
                             </p>
                           )}
@@ -929,7 +926,7 @@ export default function OrdersPage() {
               </button>
               <button
                 onClick={() => setSelectedSale(null)}
-                className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"
+                className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-ink rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"
               >
                 Close
               </button>
@@ -959,10 +956,10 @@ export default function OrdersPage() {
 
       {/* Edit Modal */}
       {showEditModal && editingSale && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up border border-gray-200/50 dark:border-gray-700/50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up animate-scale-in">
             <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-gray-100">
+              <h2 className="text-xl sm:text-2xl font-semibold text-ink">
                 Edit Order - {editingSale.saleNo}
               </h2>
               <button
@@ -991,7 +988,7 @@ export default function OrdersPage() {
               {/* Items */}
               <div className="mb-4 sm:mb-6">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <h3 className="text-sm font-semibold text-ink-secondary">
                     Items
                   </h3>
                   <button
@@ -1009,7 +1006,7 @@ export default function OrdersPage() {
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3">
                         <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-xs font-medium text-ink-secondary mb-1">
                             Product *
                           </label>
                           <select
@@ -1033,7 +1030,7 @@ export default function OrdersPage() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-xs font-medium text-ink-secondary mb-1">
                             {products.find((p) => p.id === item.productId)
                               ?.unitType === "KG"
                               ? "Quantity (Kg)"
@@ -1065,7 +1062,7 @@ export default function OrdersPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-xs font-medium text-ink-secondary mb-1">
                             Rate (₹) *
                           </label>
                           <input
@@ -1085,7 +1082,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
-                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                        <div className="text-xs text-ink-secondary">
                           Line Total: ₹
                           {(
                             (item.qtyKg || item.qtyPcs || 0) * item.rate
@@ -1105,7 +1102,7 @@ export default function OrdersPage() {
 
               {/* Discount */}
               <div className="mb-4 sm:mb-6">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-ink-secondary mb-2">
                   Discount (₹)
                 </label>
                 <input
@@ -1122,7 +1119,7 @@ export default function OrdersPage() {
 
               {/* Summary */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                <h3 className="text-sm font-semibold text-ink-secondary mb-3">
                   Order Summary
                 </h3>
                 {(() => {
@@ -1144,7 +1141,7 @@ export default function OrdersPage() {
                         </div>
                       )}
                       <div className="border-t border-gray-300 dark:border-gray-600 pt-2 mt-2">
-                        <div className="flex justify-between text-base sm:text-lg font-semibold dark:text-white">
+                        <div className="flex justify-between text-base sm:text-lg font-semibold text-ink">
                           <span>Grand Total:</span>
                           <span>₹{totals.grandTotal.toFixed(2)}</span>
                         </div>
@@ -1160,7 +1157,7 @@ export default function OrdersPage() {
                   setShowEditModal(false);
                   setEditingSale(null);
                 }}
-                className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"
+                className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 dark:bg-gray-700 text-ink rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all touch-target"
                 disabled={saving}
               >
                 Cancel
@@ -1179,18 +1176,18 @@ export default function OrdersPage() {
 
       {/* Cancel Bill Modal */}
       {showCancelModal && cancellingSale && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md animate-fade-in-up border border-gray-200/50 dark:border-gray-700/50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-panel rounded-2xl w-full max-w-md animate-fade-in-up">
             <div className="p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
+              <h2 className="text-xl sm:text-2xl font-semibold text-ink mb-4">
                 Cancel Bill - {cancellingSale.saleNo}
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-sm text-ink-secondary mb-4">
                 Are you sure you want to cancel this bill? This action cannot be
                 undone.
               </p>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
                   Reason (Optional)
                 </label>
                 <textarea
@@ -1208,7 +1205,7 @@ export default function OrdersPage() {
                     setCancellingSale(null);
                     setCancelReason("");
                   }}
-                  className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
+                  className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-ink rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
                   disabled={cancelling}
                 >
                   No, Keep Bill

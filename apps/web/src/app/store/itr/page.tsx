@@ -153,23 +153,23 @@ export default function StoreITRPage() {
       </div>
 
       {/* FY / Date filter */}
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 flex flex-wrap items-end gap-4">
+      <div className="glass-panel rounded-2xl p-4 flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start date</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-1">Start date</label>
           <input
             type="date"
             value={dateRange.start}
             onChange={(e) => setDateRange((r) => ({ ...r, start: e.target.value }))}
-            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2"
+            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-ink px-3 py-2"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End date</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-1">End date</label>
           <input
             type="date"
             value={dateRange.end}
             onChange={(e) => setDateRange((r) => ({ ...r, end: e.target.value }))}
-            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2"
+            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-ink px-3 py-2"
           />
         </div>
         <button
@@ -218,7 +218,7 @@ export default function StoreITRPage() {
           </div>
 
           {summary.monthlyBreakdown && summary.monthlyBreakdown.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4">
+            <div className="glass-panel rounded-2xl p-4">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">Monthly Sales</h2>
               <SimpleBarChart
                 data={summary.monthlyBreakdown.map((m) => ({ name: m.month, value: m.sales }))}
@@ -231,10 +231,10 @@ export default function StoreITRPage() {
           )}
 
           {/* Tax method and calculate */}
-          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 space-y-4">
+          <div className="glass-panel rounded-2xl p-4 space-y-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Tax calculation</h2>
             <div className="flex flex-wrap gap-4 items-center">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Method:</span>
+              <span className="text-sm font-medium text-ink-secondary">Method:</span>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
@@ -290,24 +290,24 @@ export default function StoreITRPage() {
             <button
               type="button"
               onClick={saveReportJSON}
-              className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-ink-secondary hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
             >
               Save report (JSON)
             </button>
             <button
               type="button"
               onClick={exportPDF}
-              className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-ink-secondary hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
             >
               Export / Print
             </button>
-            <p className="text-xs text-gray-500 dark:text-gray-400 self-center">
+            <p className="text-xs text-ink-muted self-center">
               Reports are not stored in the system. Use for reference only.
             </p>
           </div>
         </>
       ) : !loading && !error && !summary ? (
-        <div className="p-6 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-center">
+        <div className="p-6 rounded-lg bg-gray-50 dark:bg-gray-800 text-ink-secondary text-center">
           No data for the selected period. Adjust dates and refresh.
         </div>
       ) : null}

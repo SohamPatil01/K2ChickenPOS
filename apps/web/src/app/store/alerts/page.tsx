@@ -103,8 +103,8 @@ export default function AlertsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">System Alerts</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <h1 className="text-2xl font-bold text-ink">System Alerts</h1>
+          <p className="text-sm text-ink-secondary mt-1">
             Real-time operational alerts and notifications
           </p>
         </div>
@@ -151,10 +151,10 @@ export default function AlertsPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div className="glass-panel rounded-2xl p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-ink-secondary mb-2">
               Alert Type
             </label>
             <select
@@ -173,7 +173,7 @@ export default function AlertsPage() {
           </div>
 
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-ink-secondary mb-2">
               Severity
             </label>
             <select
@@ -193,12 +193,12 @@ export default function AlertsPage() {
       {/* Alerts List */}
       <div className="space-y-3">
         {filteredAlerts.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+          <div className="glass-panel rounded-2xl p-12 text-center">
             <span className="text-6xl mb-4 block">✅</span>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h3 className="text-xl font-semibold text-ink mb-2">
               All Clear!
             </h3>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-ink-secondary">
               No alerts to display. Everything is running smoothly.
             </p>
           </div>

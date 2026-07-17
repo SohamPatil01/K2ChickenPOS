@@ -106,7 +106,7 @@ export default function StockLedgerPage() {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 dark:text-gray-400">Loading stock ledger...</p>
+        <p className="text-ink-muted">Loading stock ledger...</p>
       </div>
     );
   }
@@ -114,15 +114,15 @@ export default function StockLedgerPage() {
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       <div className="mb-3 sm:mb-4 flex-shrink-0">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Stock Ledger</h1>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Track all inventory movements</p>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Stock Ledger</h1>
+        <p className="text-xs sm:text-sm text-ink-muted mt-1">Track all inventory movements</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)] flex-shrink-0">
+      <div className="glass-panel rounded-2xl p-3 sm:p-4 lg:p-6 mb-3 sm:mb-4 flex-shrink-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Start Date</label>
             <input
               type="date"
               value={filters.startDate}
@@ -131,7 +131,7 @@ export default function StockLedgerPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">End Date</label>
             <input
               type="date"
               value={filters.endDate}
@@ -140,7 +140,7 @@ export default function StockLedgerPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Type</label>
             <select
               value={filters.type}
               onChange={(e) => setFilters({ ...filters, type: e.target.value })}
@@ -152,7 +152,7 @@ export default function StockLedgerPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Reason</label>
             <select
               value={filters.reason}
               onChange={(e) => setFilters({ ...filters, reason: e.target.value })}
@@ -167,7 +167,7 @@ export default function StockLedgerPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product</label>
+            <label className="block text-sm font-medium text-ink-secondary mb-1">Product</label>
             <select
               value={filters.productId}
               onChange={(e) => setFilters({ ...filters, productId: e.target.value })}
@@ -185,11 +185,11 @@ export default function StockLedgerPage() {
       </div>
 
       {/* Ledger Table */}
-      <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden dark:shadow-[0px_6px_20px_rgba(0,0,0,0.3)]">
+      <div className="flex-1 min-h-0 flex flex-col glass-panel-strong rounded-2xl overflow-hidden">
         <div className="flex-1 overflow-y-auto overflow-x-auto -mx-3 sm:mx-0 min-h-0">
           <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-surface-2/80 backdrop-blur-sm">
                 <tr>
                   <th className="px-2 sm:px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Date & Time
@@ -211,43 +211,39 @@ export default function StockLedgerPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {entries.length > 0 ? (
                   entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white">
+                    <tr key={entry.id} className="hover:bg-brand-100/30 dark:hover:bg-brand-900/10">
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-ink">
                         {new Date(entry.createdAt).toLocaleString()}
                       </td>
                       <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
-                        <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">{entry.product.name}</div>
-                        <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">SKU: {entry.product.sku}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 md:hidden mt-1">{getReasonLabel(entry.reason)}</div>
+                        <div className="text-xs sm:text-sm font-medium text-ink">{entry.product.name}</div>
+                        <div className="text-xs sm:text-sm text-ink-muted">SKU: {entry.product.sku}</div>
+                        <div className="text-xs text-ink-muted md:hidden mt-1">{getReasonLabel(entry.reason)}</div>
                       </td>
                       <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap">
                         <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            entry.type === 'IN'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                          }`}
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ entry.type === 'IN' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' }`}
                         >
                           {entry.type}
                         </span>
                       </td>
-                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-white hidden md:table-cell">
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-ink hidden md:table-cell">
                         {getReasonLabel(entry.reason)}
                       </td>
-                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-right text-gray-900 dark:text-white">
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-right text-ink">
                         {entry.qtyKg ? entry.qtyKg.toFixed(2) : '-'}
                       </td>
-                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-right text-gray-900 dark:text-white">
+                      <td className="px-2 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-right text-ink">
                         {entry.qtyPcs || '-'}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="px-6 py-4 text-center text-xs sm:text-sm text-ink-muted">
                       No ledger entries found
                     </td>
                   </tr>

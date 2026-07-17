@@ -83,7 +83,7 @@ export default function StoreDiscountApprovalsPage() {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+          <p className="text-ink-muted">Loading...</p>
         </div>
       </div>
     );
@@ -92,29 +92,21 @@ export default function StoreDiscountApprovalsPage() {
   return (
     <div className="w-full max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       <div className="mb-3 sm:mb-4 flex-shrink-0">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold dark:text-white">Discount Approvals</h1>
-        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">Review and approve discount override requests</p>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Discount Approvals</h1>
+        <p className="text-xs sm:text-sm text-ink-muted mt-1">Review and approve discount override requests</p>
       </div>
 
       <div className="border-b border-gray-200 dark:border-gray-700 mb-3 sm:mb-4 flex-shrink-0">
         <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
           <button
             onClick={() => setActiveTab('pending')}
-            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm touch-target whitespace-nowrap ${
-              activeTab === 'pending'
-                ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
+            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm touch-target whitespace-nowrap ${ activeTab === 'pending' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }`}
           >
             Pending ({pendingOverrides.length})
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm touch-target whitespace-nowrap ${
-              activeTab === 'history'
-                ? 'border-brand-500 text-brand-600 dark:text-brand-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
+            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm touch-target whitespace-nowrap ${ activeTab === 'history' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }`}
           >
             History
           </button>
@@ -127,7 +119,7 @@ export default function StoreDiscountApprovalsPage() {
           {pendingOverrides.length === 0 ? (
             <Card>
               <div className="p-6 text-center">
-                <p className="text-gray-500 dark:text-gray-400">No pending discount override requests</p>
+                <p className="text-ink-muted">No pending discount override requests</p>
               </div>
             </Card>
           ) : (
@@ -144,13 +136,13 @@ export default function StoreDiscountApprovalsPage() {
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="text-lg font-semibold dark:text-white">Sale #{override.sale.saleNo}</h3>
+                        <h3 className="text-lg font-semibold text-ink">Sale #{override.sale.saleNo}</h3>
                         {override.sale.customer && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-ink-secondary">
                             Customer: {override.sale.customer.name} ({override.sale.customer.phone})
                           </p>
                         )}
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <p className="text-xs text-ink-muted mt-1">
                           Requested by: {override.requester.name} ({override.requester.role}) on{' '}
                           {new Date(override.createdAt).toLocaleString()}
                         </p>
@@ -162,23 +154,23 @@ export default function StoreDiscountApprovalsPage() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Subtotal</p>
-                        <p className="font-semibold dark:text-white">₹{override.sale.subTotal.toLocaleString()}</p>
+                        <p className="text-sm text-ink-secondary">Subtotal</p>
+                        <p className="font-semibold text-ink">₹{override.sale.subTotal.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Original Discount</p>
-                        <p className="font-semibold dark:text-white">
+                        <p className="text-sm text-ink-secondary">Original Discount</p>
+                        <p className="font-semibold text-ink">
                           ₹{override.originalDiscount.toFixed(2)} ({originalPercent.toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Requested Discount</p>
+                        <p className="text-sm text-ink-secondary">Requested Discount</p>
                         <p className="font-semibold text-brand-600 dark:text-brand-400">
                           ₹{override.overrideDiscount.toFixed(2)} ({discountPercent.toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Difference</p>
+                        <p className="text-sm text-ink-secondary">Difference</p>
                         <p className="font-semibold text-red-600 dark:text-red-400">
                           ₹{(override.overrideDiscount - override.originalDiscount).toFixed(2)}
                         </p>
@@ -186,8 +178,8 @@ export default function StoreDiscountApprovalsPage() {
                     </div>
 
                     <div className="mb-4">
-                      <p className="text-sm font-semibold dark:text-white mb-1">Reason:</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded">
+                      <p className="text-sm font-semibold text-ink mb-1">Reason:</p>
+                      <p className="text-sm text-ink-secondary bg-gray-50 dark:bg-gray-700/50 p-3 rounded">
                         {override.reason}
                       </p>
                     </div>
@@ -213,7 +205,7 @@ export default function StoreDiscountApprovalsPage() {
           {history.length === 0 ? (
             <Card>
               <div className="p-6 text-center">
-                <p className="text-gray-500 dark:text-gray-400">No discount override history</p>
+                <p className="text-ink-muted">No discount override history</p>
               </div>
             </Card>
           ) : (
@@ -227,17 +219,17 @@ export default function StoreDiscountApprovalsPage() {
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="text-lg font-semibold dark:text-white">Sale #{override.sale.saleNo}</h3>
+                        <h3 className="text-lg font-semibold text-ink">Sale #{override.sale.saleNo}</h3>
                         {override.sale.customer && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                          <p className="text-sm text-ink-secondary">
                             Customer: {override.sale.customer.name}
                           </p>
                         )}
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        <p className="text-xs text-ink-muted mt-1">
                           Requested by: {override.requester.name} on {new Date(override.createdAt).toLocaleString()}
                         </p>
                         {override.approver && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-ink-muted">
                             {override.status === 'APPROVED' ? 'Approved' : 'Rejected'} by: {override.approver.name} on{' '}
                             {override.approvedAt ? new Date(override.approvedAt).toLocaleString() : ''}
                           </p>
@@ -250,18 +242,18 @@ export default function StoreDiscountApprovalsPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Subtotal</p>
-                        <p className="font-semibold dark:text-white">₹{override.sale.subTotal.toLocaleString()}</p>
+                        <p className="text-sm text-ink-secondary">Subtotal</p>
+                        <p className="font-semibold text-ink">₹{override.sale.subTotal.toLocaleString()}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Discount</p>
-                        <p className="font-semibold dark:text-white">
+                        <p className="text-sm text-ink-secondary">Discount</p>
+                        <p className="font-semibold text-ink">
                           ₹{override.overrideDiscount.toFixed(2)} ({discountPercent.toFixed(2)}%)
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Reason</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{override.reason}</p>
+                        <p className="text-sm text-ink-secondary">Reason</p>
+                        <p className="text-sm text-ink-muted">{override.reason}</p>
                       </div>
                     </div>
                   </div>
