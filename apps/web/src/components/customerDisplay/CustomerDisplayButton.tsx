@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useCustomerDisplayStore } from "@/lib/customerDisplay/controller";
@@ -114,15 +115,17 @@ export default function CustomerDisplayButton({
         <span className={`h-2 w-2 rounded-full ${statusColor}`} />
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setOpen(false)}
-        >
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+            onClick={() => setOpen(false)}
           >
+            <div
+              className="my-auto w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-900"
+              onClick={(e) => e.stopPropagation()}
+            >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Customer Display
@@ -217,9 +220,10 @@ export default function CustomerDisplayButton({
                 </div>
               ) : null}
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

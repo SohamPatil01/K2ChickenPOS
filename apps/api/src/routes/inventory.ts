@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { prisma } from '@azela-pos/db';
+import { prisma, Prisma } from '@azela-pos/db';
 import { inventoryAdjustSchema, wastageSchema, resolveStoreDateRange } from '@azela-pos/shared';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
@@ -127,7 +127,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       );
       const isMultiStore = ledgerStoreIds.length > 1;
 
-      // Get all products
+      // Products + prices only — do NOT nest all ledger rows (that was loading
+      // the full history per product and timing out / 500-ing under POS load).
       const products = await prisma.product.findMany({
         where: {
           ownerStoreId,
@@ -135,10 +136,6 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         },
         include: {
           category: { select: { name: true } },
-          inventoryLedgers: {
-            where: { storeId: { in: ledgerStoreIds } },
-            // Remove orderBy to get all entries, order doesn't matter for calculation
-          },
           storeProductPrices: {
             where: {
               storeId,
@@ -152,32 +149,54 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         },
       });
 
+      // One GROUP BY for on-hand qty across the relevant physical stores.
+      const balanceRows =
+        ledgerStoreIds.length === 0
+          ? []
+          : await prisma.$queryRaw<
+              Array<{ productId: string; storeId: string; qtyKg: number; qtyPcs: number }>
+            >`
+              SELECT
+                "productId",
+                "storeId",
+                COALESCE(
+                  SUM(
+                    CASE
+                      WHEN type = 'IN' THEN COALESCE("qtyKg", 0)
+                      ELSE -COALESCE("qtyKg", 0)
+                    END
+                  ),
+                  0
+                )::float AS "qtyKg",
+                COALESCE(
+                  SUM(
+                    CASE
+                      WHEN type = 'IN' THEN COALESCE("qtyPcs", 0)
+                      ELSE -COALESCE("qtyPcs", 0)
+                    END
+                  ),
+                  0
+                )::int AS "qtyPcs"
+              FROM "InventoryLedger"
+              WHERE "storeId" IN (${Prisma.join(ledgerStoreIds)})
+              GROUP BY "productId", "storeId"
+            `;
+
+      const balanceByProduct = new Map<string, Map<string, { kg: number; pcs: number }>>();
+      for (const row of balanceRows) {
+        let perStore = balanceByProduct.get(row.productId);
+        if (!perStore) {
+          perStore = new Map();
+          balanceByProduct.set(row.productId, perStore);
+        }
+        perStore.set(row.storeId, {
+          kg: Number(row.qtyKg) || 0,
+          pcs: Number(row.qtyPcs) || 0,
+        });
+      }
+
       const summary = products.map((product: any) => {
-        // Accumulate per physical store so an OWNER can see a breakdown instead of one
-        // combined number that matches no single location.
-        const perStore = new Map<string, { kg: number; pcs: number }>();
-        for (const id of ledgerStoreIds) {
-          perStore.set(id, { kg: 0, pcs: 0 });
-        }
-
-        for (const ledger of product.inventoryLedgers) {
-          if (!ledgerStoreIds.includes(ledger.storeId)) {
-            continue;
-          }
-
-          const qtyKg = ledger.qtyKg !== null && ledger.qtyKg !== undefined ? ledger.qtyKg : 0;
-          const qtyPcs = ledger.qtyPcs !== null && ledger.qtyPcs !== undefined ? ledger.qtyPcs : 0;
-          const bucket = perStore.get(ledger.storeId)!;
-
-          if (ledger.type === 'IN') {
-            bucket.kg = Math.round((bucket.kg + qtyKg) * 1000) / 1000;
-            bucket.pcs = Math.round(bucket.pcs + qtyPcs);
-          } else {
-            bucket.kg = Math.round((bucket.kg - qtyKg) * 1000) / 1000;
-            bucket.pcs = Math.round(bucket.pcs - qtyPcs);
-          }
-        }
-
+        const perStore = balanceByProduct.get(product.id);
         let totalQtyKg = 0;
         let totalQtyPcs = 0;
         const storeBreakdown: Array<{
@@ -186,8 +205,9 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           qtyKg: number;
           qtyPcs: number;
         }> = [];
+
         for (const id of ledgerStoreIds) {
-          const bucket = perStore.get(id)!;
+          const bucket = perStore?.get(id) || { kg: 0, pcs: 0 };
           const kg = Math.max(0, Math.round(bucket.kg * 1000) / 1000);
           const pcs = Math.max(0, Math.round(bucket.pcs));
           totalQtyKg = Math.round((totalQtyKg + kg) * 1000) / 1000;
@@ -208,7 +228,6 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
           unitType: product.unitType,
           currentQtyKg: totalQtyKg,
           currentQtyPcs: totalQtyPcs,
-          // Per-store breakdown (only attached when more than one store is aggregated)
           storeBreakdown: isMultiStore ? storeBreakdown : undefined,
           imageUrl: product.imageUrl,
           pricePerUnit: product.storeProductPrices[0]?.pricePerUnit || 0,
@@ -232,7 +251,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     }
   });
 
-  /** Compare sale line quantities vs SALE ledger OUT for a date range (spot mismatches). */
+  /** Compare sale line quantities vs net inventory impact for those sales. */
   fastify.get('/reconciliation', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const user = getUser(request as any);
@@ -245,6 +264,9 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       }
       const { gte: start, lte: end } = resolveStoreDateRange(startDate, endDate);
 
+      // Only live bills — VOID/REFUNDED are excluded from "sold". Their ledger
+      // rows must also be excluded (otherwise SALE OUT from voids looks like
+      // over-deduction while restores sit on ADJUSTMENT IN).
       const sales = await prisma.sale.findMany({
         where: {
           storeId,
@@ -257,6 +279,8 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
       const soldMap = new Map<string, { kg: number; pcs: number }>();
       for (const s of sales) {
         for (const it of s.items) {
+          const meta = it.metaJson as { manualLine?: boolean } | null;
+          if (meta?.manualLine) continue;
           const cur = soldMap.get(it.productId) || { kg: 0, pcs: 0 };
           cur.kg += it.qtyKg || 0;
           cur.pcs += it.qtyPcs || 0;
@@ -264,21 +288,40 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const ledgerRows = await prisma.inventoryLedger.findMany({
-        where: {
-          storeId,
-          reason: 'SALE',
-          type: 'OUT',
-          createdAt: { gte: start, lte: end },
-        },
-      });
-
+      const saleIds = sales.map((s) => s.id);
       const ledgerMap = new Map<string, { kg: number; pcs: number }>();
-      for (const L of ledgerRows) {
-        const cur = ledgerMap.get(L.productId) || { kg: 0, pcs: 0 };
-        cur.kg += L.qtyKg || 0;
-        cur.pcs += L.qtyPcs || 0;
-        ledgerMap.set(L.productId, cur);
+
+      if (saleIds.length > 0) {
+        // Net every ledger row tied to those sales (SALE OUT + ADJUSTMENT
+        // restores from edits). OUT adds to deducted; IN subtracts.
+        const ledgerRows = await prisma.inventoryLedger.findMany({
+          where: {
+            storeId,
+            refId: { in: saleIds },
+          },
+          select: {
+            productId: true,
+            type: true,
+            qtyKg: true,
+            qtyPcs: true,
+          },
+        });
+
+        for (const L of ledgerRows) {
+          const sign = L.type === 'OUT' ? 1 : -1;
+          const cur = ledgerMap.get(L.productId) || { kg: 0, pcs: 0 };
+          cur.kg = Math.round((cur.kg + sign * (L.qtyKg || 0)) * 1000) / 1000;
+          cur.pcs += sign * (L.qtyPcs || 0);
+          ledgerMap.set(L.productId, cur);
+        }
+      }
+
+      // Clamp display at 0 — over-restores shouldn't show as negative ledger
+      for (const [pid, cur] of ledgerMap) {
+        ledgerMap.set(pid, {
+          kg: Math.max(0, cur.kg),
+          pcs: Math.max(0, cur.pcs),
+        });
       }
 
       const productIds = new Set([...soldMap.keys(), ...ledgerMap.keys()]);

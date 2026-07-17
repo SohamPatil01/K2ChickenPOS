@@ -45,14 +45,20 @@ export function shouldDeductInventoryForProduct(productId: string | null | undef
 type LedgerDb = {
   inventoryLedger: {
     findMany: (args: any) => Promise<
-      Array<{ productId: string; qtyKg: number | null; qtyPcs: number | null }>
+      Array<{
+        productId: string;
+        qtyKg: number | null;
+        qtyPcs: number | null;
+        type?: string;
+      }>
     >;
     create: (args: any) => Promise<unknown>;
   };
 };
 
 /**
- * Idempotent sale inventory sync: compares SALE OUT totals per product to sale lines
+ * Idempotent sale inventory sync: compares net ledger impact for this sale
+ * (SALE OUT minus any ADJUSTMENT/restore IN on the same refId) to sale lines
  * and writes OUT (or IN adjustment) for any missing/excess quantity.
  */
 export async function ensureInventoryDeductedForSale(
@@ -67,21 +73,23 @@ export async function ensureInventoryDeductedForSale(
   }>,
   unitTypeByProductId: Map<string, 'KG' | 'PCS'>
 ): Promise<void> {
+  // Net ALL ledger rows for this sale — edits/voids restore via ADJUSTMENT IN
+  // on the same refId. Counting only SALE OUT caused repeated restores and
+  // made stock reconciliation look like over-deduction.
   const existing = await db.inventoryLedger.findMany({
     where: {
       refId: saleId,
-      reason: 'SALE',
-      type: 'OUT',
       storeId,
     },
-    select: { productId: true, qtyKg: true, qtyPcs: true },
+    select: { productId: true, qtyKg: true, qtyPcs: true, type: true },
   });
 
   const deductedByProduct = new Map<string, { kg: number; pcs: number }>();
   for (const row of existing) {
+    const sign = row.type === 'OUT' ? 1 : -1;
     const cur = deductedByProduct.get(row.productId) || { kg: 0, pcs: 0 };
-    cur.kg += Number(row.qtyKg) || 0;
-    cur.pcs += Number(row.qtyPcs) || 0;
+    cur.kg = Math.round((cur.kg + sign * (Number(row.qtyKg) || 0)) * 1000) / 1000;
+    cur.pcs += sign * (Number(row.qtyPcs) || 0);
     deductedByProduct.set(row.productId, cur);
   }
 
@@ -107,8 +115,10 @@ export async function ensureInventoryDeductedForSale(
   for (const productId of allProductIds) {
     const expected = expectedByProduct.get(productId) || { kg: 0, pcs: 0 };
     const deducted = deductedByProduct.get(productId) || { kg: 0, pcs: 0 };
-    const deltaKg = Math.round((expected.kg - deducted.kg) * 1000) / 1000;
-    const deltaPcs = Math.round(expected.pcs - deducted.pcs);
+    const netDeductedKg = Math.max(0, deducted.kg);
+    const netDeductedPcs = Math.max(0, deducted.pcs);
+    const deltaKg = Math.round((expected.kg - netDeductedKg) * 1000) / 1000;
+    const deltaPcs = Math.round(expected.pcs - netDeductedPcs);
 
     if (Math.abs(deltaKg) < 0.001 && deltaPcs === 0) continue;
 
