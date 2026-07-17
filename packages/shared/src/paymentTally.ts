@@ -8,8 +8,60 @@ export interface PaymentTotals {
   total: number;
 }
 
+export interface PaymentRow {
+  method?: string;
+  amount?: number;
+}
+
+export interface SaleWithPayments {
+  grandTotal?: number | null;
+  payments?: PaymentRow[] | null;
+}
+
 function roundMoney(n: number): number {
   return Math.round(n * 1000) / 1000;
+}
+
+/**
+ * Return payment rows with CREDIT reduced to the amount still outstanding.
+ *
+ * CREDIT records the unpaid part of a bill, not money received. Settlement
+ * appends CASH/UPI/CARD rows while retaining CREDIT for audit/idempotency, so
+ * summing the raw rows double-counts a settled bill.
+ */
+export function effectivePaymentRowsForSale(
+  sale: SaleWithPayments
+): Array<{ method: string; amount: number }> {
+  const actualRows: Array<{ method: string; amount: number }> = [];
+  let actualTotal = 0;
+  let declaredCredit = 0;
+
+  for (const payment of sale.payments || []) {
+    const method = String(payment.method || '').toUpperCase();
+    const amount = Number(payment.amount) || 0;
+    if (!method || amount <= 0) continue;
+
+    if (method === 'CREDIT') {
+      declaredCredit += amount;
+    } else {
+      actualRows.push({ method, amount });
+      actualTotal += amount;
+    }
+  }
+
+  if (declaredCredit <= 0) return actualRows;
+
+  const billTotal = Number(sale.grandTotal);
+  const outstandingCredit =
+    Number.isFinite(billTotal) && billTotal >= 0
+      ? Math.min(declaredCredit, Math.max(0, billTotal - actualTotal))
+      : declaredCredit;
+
+  if (outstandingCredit > 0) {
+    actualRows.push({ method: 'CREDIT', amount: roundMoney(outstandingCredit) });
+  }
+
+  return actualRows;
 }
 
 /**
@@ -17,7 +69,7 @@ function roundMoney(n: number): number {
  * so UPI bank/app totals match what staff see in daily closing & dashboard.
  */
 export function tallyPaymentsFromSales(
-  sales: Array<{ payments?: Array<{ method?: string; amount?: number }> | null }>
+  sales: SaleWithPayments[]
 ): PaymentTotals {
   const totals: PaymentTotals = {
     cash: 0,
@@ -30,7 +82,7 @@ export function tallyPaymentsFromSales(
   };
 
   for (const sale of sales) {
-    for (const p of sale.payments || []) {
+    for (const p of effectivePaymentRowsForSale(sale)) {
       const method = String(p.method || '').toUpperCase();
       const amount = Number(p.amount) || 0;
       if (amount <= 0) continue;
@@ -82,7 +134,7 @@ export function tallyToClosingFields(totals: PaymentTotals) {
 
 /** Chart / analytics rows with ONLINE rolled into UPI. */
 export function paymentMixChartRows(
-  sales: Array<{ payments?: Array<{ method?: string; amount?: number }> | null }>
+  sales: SaleWithPayments[]
 ): Array<{ name: string; total: number }> {
   const t = tallyPaymentsFromSales(sales);
   const rows: Array<{ name: string; total: number }> = [

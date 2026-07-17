@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
-import { addToMasaleSplit, emptyMasaleSplit, isMasaleProduct, masaleSplitFromRows, parseStoreDateRange, resolveStoreDateRange, salesInDateRangeWhere } from '@azela-pos/shared';
+import { addToMasaleSplit, effectivePaymentRowsForSale, emptyMasaleSplit, isMasaleProduct, masaleSplitFromRows, parseStoreDateRange, resolveStoreDateRange, salesInDateRangeWhere } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
 
 interface QueryParams {
@@ -755,7 +755,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         lines: 0,
       });
 
-      for (const payment of sale.payments) {
+      for (const payment of effectivePaymentRowsForSale(sale)) {
         if (!paymentStats[payment.method]) {
           paymentStats[payment.method] = {
             method: payment.method,
@@ -1166,7 +1166,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
     const paymentBreakdown: Record<string, number> = {};
     sales.forEach((sale) => {
-      sale.payments.forEach((payment: any) => {
+      effectivePaymentRowsForSale(sale).forEach((payment) => {
         paymentBreakdown[payment.method] = Math.round(((paymentBreakdown[payment.method] || 0) + payment.amount) * 1000) / 1000;
       });
     });

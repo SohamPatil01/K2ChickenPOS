@@ -1170,6 +1170,7 @@ export class AnalyticsService {
           ],
         },
         select: {
+          grandTotal: true,
           createdAt: true,
           businessDate: true,
           payments: true,
