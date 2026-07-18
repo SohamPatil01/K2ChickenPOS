@@ -11,6 +11,7 @@ import DashboardOverview from '@/app/store/dashboard/components/DashboardOvervie
 import DashboardHistory from '@/app/store/dashboard/components/DashboardHistory';
 import DashboardQuickActions from '@/app/store/dashboard/components/DashboardQuickActions';
 import RevenueHero, { type DashboardRange } from '@/app/store/dashboard/components/RevenueHero';
+import { useRevenueSeries } from '@/app/store/dashboard/hooks/useRevenueSeries';
 import PaymentDonut from '@/app/store/dashboard/components/PaymentDonut';
 import LiveSalesFeed from '@/app/store/dashboard/components/LiveSalesFeed';
 import TopProducts from '@/app/store/dashboard/components/TopProducts';
@@ -23,6 +24,7 @@ export default function StoreDashboardPage() {
   const [showUpdatedFeedback, setShowUpdatedFeedback] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [trendRefreshKey, setTrendRefreshKey] = useState(0);
 
   const {
     stats,
@@ -36,11 +38,22 @@ export default function StoreDashboardPage() {
     loadHistoricalData,
   } = useDashboardStats({ user: user ?? null });
 
+  const userRole = (user?.role as string) || '';
+  const isManager = userRole === 'MANAGER' || userRole === 'OWNER';
+
+  const { series, seriesLoading } = useRevenueSeries({
+    range,
+    salesTrendLast7,
+    refreshKey: trendRefreshKey,
+    enabled: isManager,
+  });
+
   const handleRefetch = useCallback(
     (opts?: { light?: boolean }) => {
       refetch(opts).then(() => {
         setLastRefresh(new Date());
         setShowUpdatedFeedback(true);
+        setTrendRefreshKey((k) => k + 1);
         setTimeout(() => setShowUpdatedFeedback(false), 2000);
       });
     },
@@ -109,9 +122,6 @@ export default function StoreDashboardPage() {
       </div>
     );
   }
-
-  const userRole = (user.role as string) || '';
-  const isManager = userRole === 'MANAGER' || userRole === 'OWNER';
 
   const ranges: { id: DashboardRange; label: string }[] = [
     { id: 'today', label: 'Today' },
@@ -219,7 +229,7 @@ export default function StoreDashboardPage() {
       <div className="flex-1 min-h-0 overflow-y-auto pb-6 space-y-4 sm:space-y-6">
         {/* Hero revenue chart (managers/owners get the 7-day trend) */}
         {isManager && (
-          <RevenueHero stats={stats} salesTrendLast7={salesTrendLast7} range={range} />
+          <RevenueHero stats={stats} series={series} seriesLoading={seriesLoading} range={range} />
         )}
 
         {/* KPI cards + alerts */}

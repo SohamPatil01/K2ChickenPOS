@@ -17,6 +17,8 @@ interface DailyTotal {
   revenue: number;
   chickenRevenue: number;
   masaleRevenue: number;
+  discount: number;
+  billCount: number;
   qtyKg: number;
   qtyPcs: number;
   masaleQtyPcs: number;
@@ -36,6 +38,8 @@ interface ReportPayload {
   period: { startDate: string; endDate: string };
   summary: {
     totalRevenue: number;
+    totalDiscount: number;
+    totalBills: number;
     totalQtyKg: number;
     totalQtyPcs: number;
     daysCount: number;
@@ -105,8 +109,10 @@ export default function DailyProductTransactionPage() {
       kind: 'data' as const,
       cells: [
         formatDayLabel(day.date),
+        day.billCount,
         formatCurrency(day.chickenRevenue),
         formatCurrency(day.masaleRevenue),
+        formatCurrency(day.discount),
         formatCurrency(day.revenue),
         day.qtyKg > 0 ? day.qtyKg.toFixed(2) : '-',
         day.masaleQtyPcs > 0 ? day.masaleQtyPcs : '-',
@@ -118,8 +124,10 @@ export default function DailyProductTransactionPage() {
       bold: true,
       cells: [
         'GRAND TOTAL',
+        summary.totalBills,
         formatCurrency(summary.otherRevenue ?? dailyTotals.reduce((s, d) => s + d.chickenRevenue, 0)),
         formatCurrency(summary.masaleRevenue ?? dailyTotals.reduce((s, d) => s + d.masaleRevenue, 0)),
+        formatCurrency(summary.totalDiscount ?? 0),
         formatCurrency(summary.totalRevenue),
         summary.totalQtyKg.toFixed(2),
         String(summary.masaleQtyPcs ?? dailyTotals.reduce((s, d) => s + d.masaleQtyPcs, 0)),
@@ -132,7 +140,9 @@ export default function DailyProductTransactionPage() {
       period: formatReportPeriod(startDate, endDate),
       summary: [
         { label: 'Trading Days', value: String(summary.daysCount) },
-        { label: 'Total Sales', value: formatCurrency(summary.totalRevenue) },
+        { label: 'Total Bills', value: String(summary.totalBills) },
+        { label: 'Total Sales (bill total)', value: formatCurrency(summary.totalRevenue) },
+        { label: 'Discount Given', value: formatCurrency(summary.totalDiscount ?? 0) },
         {
           label: 'Chicken / Meat Sales',
           value: formatCurrency(summary.otherRevenue ?? 0),
@@ -142,8 +152,17 @@ export default function DailyProductTransactionPage() {
       tables: [
         {
           title: 'Day-wise Sales',
-          headers: ['Date', 'Chicken / Meat', 'Masale', 'Day Total', 'Qty (KG)', 'Masale (PCS)'],
-          columnAlign: ['left', 'right', 'right', 'right', 'right', 'right'],
+          headers: [
+            'Date',
+            'Bills',
+            'Chicken / Meat',
+            'Masale',
+            'Discount',
+            'Day Total',
+            'Qty (KG)',
+            'Masale (PCS)',
+          ],
+          columnAlign: ['left', 'right', 'right', 'right', 'right', 'right', 'right', 'right'],
           rows: dailyRows,
         },
       ],
@@ -168,11 +187,12 @@ export default function DailyProductTransactionPage() {
         ) : (
           <>
             <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-              Day-wise totals for accounting review. Export sends a clean summary suitable for your CA.
+              Day-wise bill totals (PAID + OPEN), after discount — matches Bill Wise Sale. Product
+              amounts are allocated from each bill total.
             </p>
 
             <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Trading days
@@ -181,10 +201,24 @@ export default function DailyProductTransactionPage() {
                 </div>
                 <div>
                   <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Total bills
+                  </div>
+                  <div className="text-2xl font-bold dark:text-white">{summary!.totalBills}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Total sales
                   </div>
                   <div className="text-2xl font-bold dark:text-white">
                     ₹{summary!.totalRevenue.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Discount given
+                  </div>
+                  <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                    ₹{(summary!.totalDiscount ?? 0).toFixed(2)}
                   </div>
                 </div>
                 <div>
@@ -215,10 +249,16 @@ export default function DailyProductTransactionPage() {
                       Date
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Bills
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Chicken / Meat
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Masale
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Discount
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Day total
@@ -238,10 +278,16 @@ export default function DailyProductTransactionPage() {
                         {formatDayLabel(day.date)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
+                        {day.billCount}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-gray-300">
                         ₹{day.chickenRevenue.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-brand-700 dark:text-brand-300">
                         {day.masaleRevenue > 0 ? `₹${day.masaleRevenue.toFixed(2)}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-amber-700 dark:text-amber-400">
+                        {day.discount > 0 ? `₹${day.discount.toFixed(2)}` : '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900 dark:text-white">
                         ₹{day.revenue.toFixed(2)}
@@ -257,10 +303,16 @@ export default function DailyProductTransactionPage() {
                   <tr className="bg-gray-100 dark:bg-gray-900/50 font-semibold">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">Grand total</td>
                     <td className="px-4 py-3 text-sm text-right dark:text-white">
+                      {summary!.totalBills}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right dark:text-white">
                       ₹{(summary!.otherRevenue ?? 0).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-sm text-right text-brand-700 dark:text-brand-300">
                       ₹{(summary!.masaleRevenue ?? 0).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-right text-amber-700 dark:text-amber-400">
+                      ₹{(summary!.totalDiscount ?? 0).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-sm text-right dark:text-white">
                       ₹{summary!.totalRevenue.toFixed(2)}

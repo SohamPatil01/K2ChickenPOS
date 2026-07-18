@@ -16,20 +16,15 @@ import { exportToCSV } from '@/lib/exportCSV';
 import { formatInr } from '@/lib/utils';
 import { useIsDark } from '@/lib/useIsDark';
 import type { DashboardStats } from '../hooks/useDashboardStats';
+import type { RevenuePoint } from '../hooks/useRevenueSeries';
 
 export type DashboardRange = 'today' | '7d' | 'month';
 
 interface RevenueHeroProps {
   stats: DashboardStats;
-  salesTrendLast7: Array<{ date: string; total: number }>;
+  series: RevenuePoint[];
+  seriesLoading?: boolean;
   range: DashboardRange;
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function dayLabel(ymd: string): string {
-  const [, m, d] = ymd.split('-').map(Number);
-  return `${d} ${MONTHS[(m || 1) - 1]}`;
 }
 
 function HeroTooltip({ active, payload, label }: any) {
@@ -42,25 +37,35 @@ function HeroTooltip({ active, payload, label }: any) {
   );
 }
 
-export default function RevenueHero({ stats, salesTrendLast7, range }: RevenueHeroProps) {
+export default function RevenueHero({ stats, series, seriesLoading = false, range }: RevenueHeroProps) {
   const isDark = useIsDark();
 
-  const data = salesTrendLast7.map((d, i) => ({
-    day: dayLabel(d.date),
+  const data = series.map((d) => ({
+    day: d.label,
     revenue: d.total,
-    isToday: i === salesTrendLast7.length - 1,
+    isToday: d.isCurrent,
   }));
   const hasData = data.some((d) => d.revenue > 0);
 
-  const week = salesTrendLast7.reduce((s, d) => s + d.total, 0);
   const headline =
-    range === 'today' ? stats.today.revenue : range === '7d' ? week : stats.month.revenue;
+    range === 'today'
+      ? stats.today.revenue
+      : range === '7d'
+        ? series.reduce((s, d) => s + d.total, 0)
+        : stats.month.revenue;
   const sub =
     range === 'today'
       ? `${stats.today.count} sales · avg ${formatInr(stats.today.avgBill, { maxFractionDigits: 0 })}`
       : range === '7d'
         ? 'last 7 days'
         : `${stats.month.count} sales this month`;
+
+  const emptyLabel =
+    range === 'today'
+      ? 'No revenue yet today'
+      : range === '7d'
+        ? 'No revenue data for the last 7 days'
+        : 'No revenue data this month';
 
   const vsYesterday =
     stats.yesterday.revenue > 0
@@ -95,8 +100,8 @@ export default function RevenueHero({ stats, salesTrendLast7, range }: RevenueHe
           type="button"
           onClick={() =>
             exportToCSV({
-              data: salesTrendLast7.map((d) => ({ day: d.date, revenue: d.total })),
-              filename: `revenue_${new Date().toISOString().split('T')[0]}.csv`,
+              data: series.map((d) => ({ period: d.label, revenue: d.total })),
+              filename: `revenue_${range}_${new Date().toISOString().split('T')[0]}.csv`,
             })
           }
           className="self-start inline-flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink transition-colors touch-target"
@@ -105,9 +110,13 @@ export default function RevenueHero({ stats, salesTrendLast7, range }: RevenueHe
         </button>
       </div>
 
-      {!hasData ? (
+      {seriesLoading ? (
+        <div className="flex items-center justify-center rounded-xl min-h-[220px]">
+          <p className="text-ink-muted text-sm animate-pulse">Loading chart…</p>
+        </div>
+      ) : !hasData ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-strong min-h-[220px]">
-          <p className="text-ink-muted font-medium mb-3">No revenue data for the last 7 days</p>
+          <p className="text-ink-muted font-medium mb-3">{emptyLabel}</p>
           <Link
             href="/store/pos"
             className="px-4 py-2 bg-gradient-brand text-white rounded-xl text-sm font-medium shadow-glow-brand hover:brightness-105 transition-all"
@@ -132,6 +141,8 @@ export default function RevenueHero({ stats, salesTrendLast7, range }: RevenueHe
                 tick={{ fontSize: 11, fill: tick }}
                 tickLine={false}
                 axisLine={false}
+                interval="preserveStartEnd"
+                minTickGap={24}
               />
               <YAxis
                 stroke="transparent"

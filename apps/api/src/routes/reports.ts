@@ -153,11 +153,12 @@ function mapBillWiseRow(sale: any) {
     saleNo: sale.saleNo,
     status: sale.status,
     date: sale.createdAt,
+    businessDate: sale.businessDate || null,
     customerName: sale.customer?.name || 'Walk-in',
     customerPhone: sale.customer?.phone || 'N/A',
     itemsCount: sale.items.length,
     subTotal: sale.subTotal,
-    discount: sale.discountTotal,
+    discount: sale.discountTotal || 0,
     tax: sale.taxTotal,
     grandTotal: sale.grandTotal,
     masaleRevenue: masale.masaleRevenue,
@@ -450,15 +451,22 @@ export async function reportRoutes(fastify: FastifyInstance) {
       const rangeStartKey = (startDate || ymdInReportTz(dateFilter.gte)).split('T')[0];
       const rangeEndKey = (endDate || ymdInReportTz(dateFilter.lte)).split('T')[0];
 
-      const sales = await fetchReportableSales(
+      // Same PAID+OPEN set as bill-wise. Totals use bill grandTotal (after discount),
+      // with line amounts scaled so product rows still sum to the bill total.
+      const sales = await fetchBillWiseSales(
         storeIds.length > 1 ? { in: storeIds } : storeIds[0],
         startDate,
         endDate,
         {
           select: {
             id: true,
+            status: true,
             businessDate: true,
             createdAt: true,
+            subTotal: true,
+            discountTotal: true,
+            taxTotal: true,
+            grandTotal: true,
             items: {
               include: {
                 product: {
@@ -472,13 +480,64 @@ export async function reportRoutes(fastify: FastifyInstance) {
 
       const stats: Record<string, any> = {};
       const masaleByDate: Record<string, { revenue: number; qtyKg: number; qtyPcs: number; lineCount: number }> = {};
+      const dailyTotalsMap: Record<
+        string,
+        {
+          date: string;
+          revenue: number;
+          chickenRevenue: number;
+          masaleRevenue: number;
+          discount: number;
+          billCount: number;
+          qtyKg: number;
+          qtyPcs: number;
+          masaleQtyPcs: number;
+        }
+      > = {};
+
+      const round3 = (n: number) => Math.round(n * 1000) / 1000;
+      const round2 = (n: number) => Math.round(n * 100) / 100;
 
       for (const sale of sales) {
         const dateKey = saleDateKey(sale);
+        const billTotal = Number(sale.grandTotal) || 0;
+        const discount = Number(sale.discountTotal) || 0;
+        const items = (sale.items || []).filter((item: any) => item?.product);
+        const lineSum = items.reduce((s: number, item: any) => s + (Number(item.lineTotal) || 0), 0);
 
-        for (const item of sale.items) {
-          if (!item.product) continue;
+        if (!dailyTotalsMap[dateKey]) {
+          dailyTotalsMap[dateKey] = {
+            date: dateKey,
+            revenue: 0,
+            chickenRevenue: 0,
+            masaleRevenue: 0,
+            discount: 0,
+            billCount: 0,
+            qtyKg: 0,
+            qtyPcs: 0,
+            masaleQtyPcs: 0,
+          };
+        }
+        const day = dailyTotalsMap[dateKey];
+        day.revenue = round3(day.revenue + billTotal);
+        day.discount = round3(day.discount + discount);
+        day.billCount += 1;
+
+        items.forEach((item: any, index: number) => {
           const isMasale = isMasaleProduct(item.product.category?.name, item.product.name);
+          const lineTotal = Number(item.lineTotal) || 0;
+          // Allocate bill grandTotal across lines so product detail matches bill-wise.
+          let allocated =
+            lineSum > 0 ? (lineTotal / lineSum) * billTotal : index === 0 ? billTotal : 0;
+          // Last line absorbs rounding so allocated sums exactly to billTotal.
+          if (index === items.length - 1 && lineSum > 0) {
+            const prior = items
+              .slice(0, -1)
+              .reduce((s: number, it: any) => s + ((Number(it.lineTotal) || 0) / lineSum) * billTotal, 0);
+            allocated = billTotal - prior;
+          }
+          allocated = round3(allocated);
+
           const key = `${dateKey}:${item.productId}`;
           if (!stats[key]) {
             stats[key] = {
@@ -495,22 +554,31 @@ export async function reportRoutes(fastify: FastifyInstance) {
               lineCount: 0,
             };
           }
-          stats[key].qtyKg = Math.round((stats[key].qtyKg + (item.qtyKg || 0)) * 100) / 100;
+          stats[key].qtyKg = round2(stats[key].qtyKg + (item.qtyKg || 0));
           stats[key].qtyPcs += item.qtyPcs || 0;
-          stats[key].revenue = Math.round((stats[key].revenue + item.lineTotal) * 1000) / 1000;
+          stats[key].revenue = round3(stats[key].revenue + allocated);
           stats[key].lineCount += 1;
 
+          day.qtyKg = round2(day.qtyKg + (item.qtyKg || 0));
+          day.qtyPcs += item.qtyPcs || 0;
           if (isMasale) {
+            day.masaleRevenue = round3(day.masaleRevenue + allocated);
+            day.masaleQtyPcs += item.qtyPcs || 0;
             if (!masaleByDate[dateKey]) {
               masaleByDate[dateKey] = { revenue: 0, qtyKg: 0, qtyPcs: 0, lineCount: 0 };
             }
-            masaleByDate[dateKey].revenue =
-              Math.round((masaleByDate[dateKey].revenue + item.lineTotal) * 1000) / 1000;
-            masaleByDate[dateKey].qtyKg =
-              Math.round((masaleByDate[dateKey].qtyKg + (item.qtyKg || 0)) * 100) / 100;
+            masaleByDate[dateKey].revenue = round3(masaleByDate[dateKey].revenue + allocated);
+            masaleByDate[dateKey].qtyKg = round2(masaleByDate[dateKey].qtyKg + (item.qtyKg || 0));
             masaleByDate[dateKey].qtyPcs += item.qtyPcs || 0;
             masaleByDate[dateKey].lineCount += 1;
+          } else {
+            day.chickenRevenue = round3(day.chickenRevenue + allocated);
           }
+        });
+
+        // Bills with no product lines still count in day revenue/discount above.
+        if (items.length === 0) {
+          day.chickenRevenue = round3(day.chickenRevenue + billTotal);
         }
       }
 
@@ -520,62 +588,26 @@ export async function reportRoutes(fastify: FastifyInstance) {
         return b.revenue - a.revenue;
       });
 
-      const dailyTotalsMap: Record<
-        string,
-        {
-          date: string;
-          revenue: number;
-          chickenRevenue: number;
-          masaleRevenue: number;
-          qtyKg: number;
-          qtyPcs: number;
-          masaleQtyPcs: number;
-        }
-      > = {};
-
-      for (const row of rows) {
-        if (!dailyTotalsMap[row.date]) {
-          dailyTotalsMap[row.date] = {
-            date: row.date,
-            revenue: 0,
-            chickenRevenue: 0,
-            masaleRevenue: 0,
-            qtyKg: 0,
-            qtyPcs: 0,
-            masaleQtyPcs: 0,
-          };
-        }
-        const day = dailyTotalsMap[row.date];
-        day.revenue = Math.round((day.revenue + row.revenue) * 1000) / 1000;
-        day.qtyKg = Math.round((day.qtyKg + row.qtyKg) * 100) / 100;
-        day.qtyPcs += row.qtyPcs || 0;
-        if (row.isMasale) {
-          day.masaleRevenue = Math.round((day.masaleRevenue + row.revenue) * 1000) / 1000;
-          day.masaleQtyPcs += row.qtyPcs || 0;
-        } else {
-          day.chickenRevenue = Math.round((day.chickenRevenue + row.revenue) * 1000) / 1000;
-        }
-      }
-
       const dailyTotals = Object.values(dailyTotalsMap).sort((a, b) =>
         b.date.localeCompare(a.date)
       );
 
-      const uniqueDays = new Set(rows.map((r: any) => r.date));
-      const masaleSplit = masaleSplitFromRows(rows);
+      const uniqueDays = new Set(dailyTotals.map((d) => d.date));
       const summary = {
-        totalRevenue: Math.round(rows.reduce((s: number, r: any) => s + r.revenue, 0) * 1000) / 1000,
-        totalQtyKg: Math.round(rows.reduce((s: number, r: any) => s + r.qtyKg, 0) * 100) / 100,
-        totalQtyPcs: rows.reduce((s: number, r: any) => s + r.qtyPcs, 0),
+        totalRevenue: round3(dailyTotals.reduce((s, d) => s + d.revenue, 0)),
+        totalDiscount: round3(dailyTotals.reduce((s, d) => s + d.discount, 0)),
+        totalBills: dailyTotals.reduce((s, d) => s + d.billCount, 0),
+        totalQtyKg: round2(dailyTotals.reduce((s, d) => s + d.qtyKg, 0)),
+        totalQtyPcs: dailyTotals.reduce((s, d) => s + d.qtyPcs, 0),
         productDayCount: rows.length,
         daysCount: uniqueDays.size,
-        masaleRevenue: masaleSplit.masaleRevenue,
-        masaleQtyKg: masaleSplit.masaleQtyKg,
-        masaleQtyPcs: masaleSplit.masaleQtyPcs,
-        masaleLineCount: masaleSplit.masaleLineCount,
-        otherRevenue: masaleSplit.otherRevenue,
-        otherQtyKg: masaleSplit.otherQtyKg,
-        otherQtyPcs: masaleSplit.otherQtyPcs,
+        masaleRevenue: round3(dailyTotals.reduce((s, d) => s + d.masaleRevenue, 0)),
+        masaleQtyKg: round2(rows.filter((r: any) => r.isMasale).reduce((s: number, r: any) => s + r.qtyKg, 0)),
+        masaleQtyPcs: dailyTotals.reduce((s, d) => s + d.masaleQtyPcs, 0),
+        masaleLineCount: rows.filter((r: any) => r.isMasale).reduce((s: number, r: any) => s + r.lineCount, 0),
+        otherRevenue: round3(dailyTotals.reduce((s, d) => s + d.chickenRevenue, 0)),
+        otherQtyKg: round2(rows.filter((r: any) => !r.isMasale).reduce((s: number, r: any) => s + r.qtyKg, 0)),
+        otherQtyPcs: rows.filter((r: any) => !r.isMasale).reduce((s: number, r: any) => s + r.qtyPcs, 0),
       };
 
       return {
@@ -659,6 +691,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
     const openRows = rows.filter((r) => r.status === 'OPEN');
     const realisedRevenue = Math.round(paidRows.reduce((s, r) => s + r.grandTotal, 0) * 1000) / 1000;
     const outstandingRevenue = Math.round(openRows.reduce((s, r) => s + r.grandTotal, 0) * 1000) / 1000;
+    const totalDiscount = Math.round(rows.reduce((s, r) => s + (r.discount || 0), 0) * 1000) / 1000;
     const masaleRevenue = Math.round(rows.reduce((s, r) => s + (r.masaleRevenue || 0), 0) * 1000) / 1000;
     const masaleQtyPcs = rows.reduce((s, r) => s + (r.masaleQtyPcs || 0), 0);
 
@@ -668,8 +701,10 @@ export async function reportRoutes(fastify: FastifyInstance) {
         totalBills: rows.length,
         paidBills: paidRows.length,
         openBills: openRows.length,
+        totalRevenue: Math.round((realisedRevenue + outstandingRevenue) * 1000) / 1000,
         realisedRevenue,
         outstandingRevenue,
+        totalDiscount,
         masaleRevenue,
         masaleQtyPcs,
       },

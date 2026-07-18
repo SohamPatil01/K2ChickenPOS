@@ -17,8 +17,10 @@ interface BillWiseSummary {
   totalBills: number;
   paidBills: number;
   openBills: number;
+  totalRevenue: number;
   realisedRevenue: number;
   outstandingRevenue: number;
+  totalDiscount: number;
   masaleRevenue: number;
   masaleQtyPcs: number;
 }
@@ -27,8 +29,10 @@ const emptySummary = (): BillWiseSummary => ({
   totalBills: 0,
   paidBills: 0,
   openBills: 0,
+  totalRevenue: 0,
   realisedRevenue: 0,
   outstandingRevenue: 0,
+  totalDiscount: 0,
   masaleRevenue: 0,
   masaleQtyPcs: 0,
 });
@@ -58,12 +62,16 @@ export default function BillWiseSalePage() {
         setRows(payload);
         const paid = payload.filter((r) => r.status === 'PAID');
         const open = payload.filter((r) => r.status === 'OPEN');
+        const realisedRevenue = paid.reduce((s, r) => s + r.grandTotal, 0);
+        const outstandingRevenue = open.reduce((s, r) => s + r.grandTotal, 0);
         setSummary({
           totalBills: payload.length,
           paidBills: paid.length,
           openBills: open.length,
-          realisedRevenue: paid.reduce((s, r) => s + r.grandTotal, 0),
-          outstandingRevenue: open.reduce((s, r) => s + r.grandTotal, 0),
+          totalRevenue: realisedRevenue + outstandingRevenue,
+          realisedRevenue,
+          outstandingRevenue,
+          totalDiscount: payload.reduce((s, r) => s + (r.discount || 0), 0),
           masaleRevenue: payload.reduce((s, r) => s + (r.masaleRevenue || 0), 0),
           masaleQtyPcs: payload.reduce((s, r) => s + (r.masaleQtyPcs || 0), 0),
         });
@@ -93,12 +101,14 @@ export default function BillWiseSalePage() {
         { label: 'Total Bills', value: String(summary.totalBills) },
         { label: 'Paid Bills', value: String(summary.paidBills) },
         { label: 'Open / Credit Bills', value: String(summary.openBills) },
+        { label: 'Total Sales (PAID + OPEN)', value: formatCurrency(summary.totalRevenue) },
         { label: 'Realised Revenue (PAID)', value: formatCurrency(summary.realisedRevenue) },
         { label: 'Outstanding (OPEN)', value: formatCurrency(summary.outstandingRevenue) },
+        { label: 'Discount Given', value: formatCurrency(summary.totalDiscount) },
         { label: 'Masale Revenue', value: formatCurrency(summary.masaleRevenue) },
       ],
-      headers: ['Sale No', 'Status', 'Date', 'Customer', 'Items', 'Total', 'Payment'],
-      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'left'],
+      headers: ['Sale No', 'Status', 'Date', 'Customer', 'Items', 'Discount', 'Total', 'Payment'],
+      columnAlign: ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'left'],
       rows: rows.map((item) => ({
         kind: 'data' as const,
         cells: [
@@ -107,6 +117,7 @@ export default function BillWiseSalePage() {
           formatDisplayDate(item.date),
           item.customerName,
           item.itemsCount,
+          formatCurrency(item.discount || 0),
           formatCurrency(item.grandTotal),
           item.payments.map((p: any) => p.method).join(', '),
         ],
@@ -131,7 +142,7 @@ export default function BillWiseSalePage() {
         ) : (
           <>
             <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900/40 rounded-lg">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Total Bills</div>
                   <div className="text-2xl font-bold dark:text-white">{summary.totalBills}</div>
@@ -140,18 +151,29 @@ export default function BillWiseSalePage() {
                   </div>
                 </div>
                 <div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Sales</div>
+                  <div className="text-2xl font-bold dark:text-white">
+                    ₹{summary.totalRevenue.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-gray-500">PAID + OPEN</div>
+                </div>
+                <div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Realised (PAID)</div>
                   <div className="text-2xl font-bold text-green-700 dark:text-green-400">
                     ₹{summary.realisedRevenue.toFixed(2)}
                   </div>
-                  <div className="text-xs text-gray-500">Matches dashboard</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Outstanding (OPEN)</div>
                   <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
                     ₹{summary.outstandingRevenue.toFixed(2)}
                   </div>
-                  <div className="text-xs text-gray-500">Credit / unpaid</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Discount Given</div>
+                  <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                    ₹{summary.totalDiscount.toFixed(2)}
+                  </div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Avg Paid Bill</div>
@@ -162,17 +184,11 @@ export default function BillWiseSalePage() {
                       : '0.00'}
                   </div>
                 </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Period</div>
-                  <div className="text-sm font-medium dark:text-white mt-1">
-                    {formatReportPeriod(startDate, endDate)}
-                  </div>
-                </div>
               </div>
               <ReportMasaleSummary
                 masaleRevenue={summary.masaleRevenue}
                 masaleQtyPcs={summary.masaleQtyPcs}
-                otherRevenue={Math.max(0, summary.realisedRevenue - summary.masaleRevenue)}
+                otherRevenue={Math.max(0, summary.totalRevenue - summary.masaleRevenue)}
               />
             </div>
             <div className="overflow-x-auto">
