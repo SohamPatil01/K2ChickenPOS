@@ -9,7 +9,12 @@ import api from '@/lib/api';
 import NumPad from '@/components/NumPad';
 import PaymentSuccessAnimation from '@/components/PaymentSuccessAnimation';
 import CustomerBill from '@/components/CustomerBill';
+import PendingBillsStatement from '@/components/PendingBillsStatement';
 import { downloadCustomerBill, type BillSale } from '@/lib/customerBill';
+import {
+  downloadPendingStatement,
+  type PendingStatementData,
+} from '@/lib/pendingStatement';
 
 interface PendingOrder {
   id: string;
@@ -95,6 +100,43 @@ function toBillSale(order: PendingOrder, customer: CustomerWithPending): BillSal
   };
 }
 
+function toPendingStatement(
+  customer: CustomerWithPending,
+  orderIds?: Set<string> | null
+): PendingStatementData {
+  const orders =
+    orderIds && orderIds.size > 0
+      ? customer.openOrders.filter((o) => orderIds.has(o.id))
+      : customer.openOrders;
+  const totalPending = orders.reduce((sum, order) => {
+    const pending = order.remainingBalance !== undefined ? order.remainingBalance : order.pending;
+    return sum + pending;
+  }, 0);
+
+  return {
+    customerName: customer.name,
+    customerPhone: customer.phone,
+    customerArea: customer.area,
+    totalPending,
+    orders: orders.map((order) => ({
+      saleNo: order.saleNo,
+      createdAt: order.createdAt,
+      grandTotal: order.grandTotal,
+      totalPaid: order.totalPaid || 0,
+      pending: Math.round(
+        order.remainingBalance !== undefined ? order.remainingBalance : order.pending
+      ),
+      items: (order.items || []).map((item) => ({
+        product: { name: item.product.name },
+        qtyKg: item.qtyKg,
+        qtyPcs: item.qtyPcs,
+        rate: item.rate,
+        lineTotal: item.lineTotal,
+      })),
+    })),
+  };
+}
+
 export default function PendingPaymentsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -111,10 +153,12 @@ export default function PendingPaymentsPage() {
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [successData, setSuccessData] = useState<{ amount: number; customerName: string; orderNo?: string } | null>(null);
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
+  const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'amount' | 'orders' | 'name'>('amount');
   const receiptRef = useRef<HTMLDivElement>(null);
   const [billForPrint, setBillForPrint] = useState<BillSale | null>(null);
+  const [statementForPrint, setStatementForPrint] = useState<PendingStatementData | null>(null);
 
   const storeBillInfo = {
     name: user?.store?.name || 'K2 Chicken',
@@ -123,8 +167,13 @@ export default function PendingPaymentsPage() {
 
   const handlePrint = useReactToPrint({
     content: () => receiptRef.current,
-    documentTitle: `Bill-${billForPrint?.saleNo || 'Receipt'}`,
-    onAfterPrint: () => setBillForPrint(null),
+    documentTitle: statementForPrint
+      ? `Pending-${statementForPrint.customerName || 'Statement'}`
+      : `Bill-${billForPrint?.saleNo || 'Receipt'}`,
+    onAfterPrint: () => {
+      setBillForPrint(null);
+      setStatementForPrint(null);
+    },
     pageStyle: `
       @page {
         size: A4;
@@ -147,6 +196,7 @@ export default function PendingPaymentsPage() {
   });
 
   const triggerPrintBill = (order: PendingOrder, customer: CustomerWithPending) => {
+    setStatementForPrint(null);
     setBillForPrint(toBillSale(order, customer));
     setTimeout(() => handlePrint(), 150);
   };
@@ -156,16 +206,101 @@ export default function PendingPaymentsPage() {
     showNotification(`Bill ${order.saleNo} downloaded`, 'success');
   };
 
+  const selectedIdsForCustomer = (customer: CustomerWithPending) => {
+    const ids = customer.openOrders.map((o) => o.id).filter((id) => selectedPrintIds.has(id));
+    return new Set(ids);
+  };
+
+  const triggerPrintClubbed = (customer: CustomerWithPending, onlySelected: boolean) => {
+    if (!customer.openOrders.length) {
+      showNotification('No pending bills to print', 'error');
+      return;
+    }
+    const selected = selectedIdsForCustomer(customer);
+    if (onlySelected && selected.size === 0) {
+      showNotification('Select at least one bill to print', 'error');
+      return;
+    }
+    const statement = toPendingStatement(customer, onlySelected ? selected : null);
+    if (!statement.orders.length) {
+      showNotification('No pending bills to print', 'error');
+      return;
+    }
+    setBillForPrint(null);
+    setStatementForPrint(statement);
+    setTimeout(() => handlePrint(), 150);
+  };
+
+  const triggerDownloadClubbed = (customer: CustomerWithPending, onlySelected: boolean) => {
+    if (!customer.openOrders.length) {
+      showNotification('No pending bills to download', 'error');
+      return;
+    }
+    const selected = selectedIdsForCustomer(customer);
+    if (onlySelected && selected.size === 0) {
+      showNotification('Select at least one bill to download', 'error');
+      return;
+    }
+    const statement = toPendingStatement(customer, onlySelected ? selected : null);
+    if (!statement.orders.length) {
+      showNotification('No pending bills to download', 'error');
+      return;
+    }
+    downloadPendingStatement(statement, storeBillInfo);
+    showNotification(
+      onlySelected
+        ? `Downloaded ${statement.orders.length} selected bill${statement.orders.length === 1 ? '' : 's'} for ${customer.name}`
+        : `Pending statement for ${customer.name} downloaded`,
+      'success'
+    );
+  };
+
+  const togglePrintOrder = (orderId: string) => {
+    setSelectedPrintIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
+
+  const selectAllPrintOrders = (customer: CustomerWithPending) => {
+    setSelectedPrintIds((prev) => {
+      const next = new Set(prev);
+      for (const o of customer.openOrders) next.add(o.id);
+      return next;
+    });
+  };
+
+  const clearPrintOrders = (customer: CustomerWithPending) => {
+    setSelectedPrintIds((prev) => {
+      const next = new Set(prev);
+      for (const o of customer.openOrders) next.delete(o.id);
+      return next;
+    });
+  };
+
   const toggleCustomerExpanded = (customerId: string) => {
-    setExpandedCustomers(prev => {
+    const willExpand = !expandedCustomers.has(customerId);
+    setExpandedCustomers((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(customerId)) {
-        newSet.delete(customerId);
-      } else {
-        newSet.add(customerId);
-      }
+      if (newSet.has(customerId)) newSet.delete(customerId);
+      else newSet.add(customerId);
       return newSet;
     });
+    if (willExpand) {
+      const customer = customers.find((c) => c.id === customerId);
+      if (customer) {
+        setSelectedPrintIds((ids) => {
+          const next = new Set(ids);
+          const alreadyAny = customer.openOrders.some((o) => next.has(o.id));
+          if (!alreadyAny) {
+            for (const o of customer.openOrders) next.add(o.id);
+          }
+          return next;
+        });
+      }
+    }
   };
 
   useEffect(() => {
@@ -599,7 +734,7 @@ export default function PendingPaymentsPage() {
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <button
                               onClick={() => toggleCustomerExpanded(customer.id)}
                               className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-semibold text-sm flex items-center gap-2"
@@ -615,6 +750,30 @@ export default function PendingPaymentsPage() {
                               </svg>
                             </button>
                             <button
+                              onClick={() => triggerPrintClubbed(customer, true)}
+                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 font-semibold text-sm"
+                              title="Print selected pending bills as one statement"
+                            >
+                              Print Selected
+                              {selectedIdsForCustomer(customer).size > 0
+                                ? ` (${selectedIdsForCustomer(customer).size})`
+                                : ''}
+                            </button>
+                            <button
+                              onClick={() => triggerDownloadClubbed(customer, true)}
+                              className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all duration-200 font-semibold text-sm"
+                              title="Download selected pending bills as one statement"
+                            >
+                              Download Selected
+                            </button>
+                            <button
+                              onClick={() => triggerPrintClubbed(customer, false)}
+                              className="px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-all duration-200 font-semibold text-sm"
+                              title="Print all pending bills as one statement"
+                            >
+                              Print All
+                            </button>
+                            <button
                               onClick={() => handlePayPending(customer)}
                               className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-bold text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
                             >
@@ -628,40 +787,79 @@ export default function PendingPaymentsPage() {
                     {/* Expandable Orders Section */}
                     {isExpanded && (
                       <div className="mt-4 space-y-3 animate-fade-in-up pl-0 sm:pl-18">
-                        {customer.openOrders.map((order, orderIndex) => {
+                        <div className="flex items-center justify-between gap-3 flex-wrap px-1">
+                          <p className="text-sm text-ink-secondary">
+                            Select bills to club for printing
+                            {selectedIdsForCustomer(customer).size > 0 && (
+                              <span className="ml-2 font-semibold text-ink">
+                                ({selectedIdsForCustomer(customer).size}/{customer.openOrders.length})
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => selectAllPrintOrders(customer)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-gray-700 text-ink-secondary hover:bg-gray-200 dark:hover:bg-gray-600"
+                            >
+                              Select all
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => clearPrintOrders(customer)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-gray-700 text-ink-secondary hover:bg-gray-200 dark:hover:bg-gray-600"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                        {customer.openOrders.map((order) => {
                           const isCreditOrder = order.hasCreditPayment || false;
-                          // For credit orders, remaining balance is grandTotal - actual payments (credit doesn't count)
-                          // For regular orders, remaining balance is grandTotal - totalPaid
                           const remainingBalance = order.remainingBalance !== undefined 
                             ? order.remainingBalance 
                             : (isCreditOrder ? order.grandTotal : (order.grandTotal - order.totalPaid));
-                          // Calculate paid percent based on actual payments only
                           const actualPaid = order.totalPaid || 0;
                           const paidPercent = order.grandTotal > 0 ? (actualPaid / order.grandTotal) * 100 : 0;
+                          const isPrintSelected = selectedPrintIds.has(order.id);
                           return (
                             <div
                               key={order.id}
-                              className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl p-4 border-2 border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-lg transition-all duration-200"
+                              className={`bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl p-4 border-2 shadow-sm hover:shadow-lg transition-all duration-200 ${
+                                isPrintSelected
+                                  ? 'border-blue-400 dark:border-blue-500 ring-1 ring-blue-300/50'
+                                  : 'border-gray-200 dark:border-gray-600'
+                              }`}
                             >
-                              <div className="flex justify-between items-start mb-3">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <p className="font-bold text-sm dark:text-white">
-                                      {order.saleNo}
+                              <div className="flex justify-between items-start mb-3 gap-3">
+                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                  <label className="flex items-center pt-0.5 cursor-pointer shrink-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isPrintSelected}
+                                      onChange={() => togglePrintOrder(order.id)}
+                                      className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      aria-label={`Select ${order.saleNo} for print`}
+                                    />
+                                  </label>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="font-bold text-sm dark:text-white">
+                                        {order.saleNo}
+                                      </p>
+                                      {isCreditOrder && (
+                                        <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-bold border border-blue-200 dark:border-blue-800">
+                                          💳 Credit
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-ink-muted">
+                                      {new Date(order.createdAt).toLocaleDateString('en-IN', { 
+                                        day: 'numeric', 
+                                        month: 'short', 
+                                        year: 'numeric' 
+                                      })}
                                     </p>
-                                    {isCreditOrder && (
-                                      <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-bold border border-blue-200 dark:border-blue-800">
-                                        💳 Credit
-                                      </span>
-                                    )}
                                   </div>
-                                  <p className="text-xs text-ink-muted">
-                                    {new Date(order.createdAt).toLocaleDateString('en-IN', { 
-                                      day: 'numeric', 
-                                      month: 'short', 
-                                      year: 'numeric' 
-                                    })}
-                                  </p>
                                 </div>
                                 <div className="text-right">
                                   <p className="text-base font-bold text-ink">
@@ -875,8 +1073,8 @@ export default function PendingPaymentsPage() {
         />
       )}
 
-      {/* Bill for printing — hidden off-screen */}
-      {billForPrint && (
+      {/* Bill / statement for printing — hidden off-screen */}
+      {(billForPrint || statementForPrint) && (
         <div
           ref={receiptRef}
           className="customer-bill-print-root"
@@ -887,7 +1085,11 @@ export default function PendingPaymentsPage() {
             width: '210mm',
           }}
         >
-          <CustomerBill sale={billForPrint} store={storeBillInfo} />
+          {statementForPrint ? (
+            <PendingBillsStatement data={statementForPrint} store={storeBillInfo} />
+          ) : (
+            billForPrint && <CustomerBill sale={billForPrint} store={storeBillInfo} />
+          )}
         </div>
       )}
     </div>
