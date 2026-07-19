@@ -133,7 +133,7 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
               {formatINR(bill.grandTotal)}
             </motion.span>
           </div>
-          <div className="mt-2 flex items-center justify-between text-base sm:text-lg">
+          <div className="mt-2 flex items-center justify-between gap-3 text-base sm:text-lg">
             {bill.savings > 0 ? (
               <span className="rounded-full bg-emerald-500/15 px-4 py-1.5 font-semibold text-emerald-300">
                 You saved {formatINR(bill.savings)}
@@ -141,9 +141,15 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
             ) : (
               <span />
             )}
-            <span className="rounded-full bg-amber-500/15 px-4 py-1.5 font-semibold text-amber-300">
-              + {bill.loyaltyPointsEst} loyalty points
-            </span>
+            {bill.customerName ? (
+              <span className="rounded-full bg-amber-500/15 px-4 py-1.5 font-semibold text-amber-300">
+                + {bill.loyaltyPointsEst} loyalty points
+              </span>
+            ) : (
+              <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200">
+                Add phone · earn {bill.loyaltyPointsEst} pts (1.25% back)
+              </span>
+            )}
           </div>
         </div>
       </div>

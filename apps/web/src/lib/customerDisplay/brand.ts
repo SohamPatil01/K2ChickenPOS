@@ -8,9 +8,30 @@ export const BRAND = {
     "Shop No. 4, 24K Glitterati, New DP Rd, Kolte Patil, Vishal Nagar, Pimple Nilakh, Pimpri-Chinchwad, Maharashtra 411027",
   logoPath: "/chicken-vicken-logo.png",
   promos: [
-    "Earn loyalty points on every purchase",
     "Ask about today's fresh cuts & combos",
     "Home delivery available — ask the counter",
+    "Share your phone number to start earning points",
+  ],
+} as const;
+
+/**
+ * Loyalty scheme advertised on the customer display.
+ * Keep these in sync with:
+ * - apps/api/src/routes/sales.ts (earn rate 1.25%)
+ * - packages/shared/src/schemas.ts (LOYALTY_POINT_VALUE = ₹1)
+ */
+export const LOYALTY = {
+  title: "K2 Loyalty Rewards",
+  headline: "Earn points on every purchase",
+  earnPercentLabel: "1.25%",
+  earnDetail: "of your bill back as points",
+  redeemLabel: "1 point = ₹1",
+  redeemDetail: "off your next bill",
+  howToJoin: "Share your mobile number at the counter to join — free",
+  tips: [
+    "Points credited when you pay with your linked number",
+    "Redeem anytime at checkout",
+    "Silver · Gold · Platinum as you spend more",
   ],
 } as const;
 
