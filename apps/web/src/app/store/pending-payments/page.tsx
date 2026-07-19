@@ -1,12 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useReactToPrint } from 'react-to-print';
 import { useAuthStore } from '@/store/auth';
 import { useNotificationStore } from '@/store/notification';
 import api from '@/lib/api';
 import NumPad from '@/components/NumPad';
 import PaymentSuccessAnimation from '@/components/PaymentSuccessAnimation';
+import CustomerBill from '@/components/CustomerBill';
+import { downloadCustomerBill, type BillSale } from '@/lib/customerBill';
+
+interface PendingOrder {
+  id: string;
+  saleNo: string;
+  status?: string;
+  subTotal?: number;
+  discountTotal?: number;
+  taxTotal?: number;
+  deliveryFee?: number;
+  grandTotal: number;
+  totalPaid: number;
+  creditAmount?: number;
+  pending: number;
+  remainingBalance?: number;
+  createdAt: string;
+  createdBy?: { name: string };
+  hasCreditPayment?: boolean;
+  payments?: Array<{ method: string; amount: number }>;
+  items: Array<{
+    id: string;
+    product: {
+      id: string;
+      name: string;
+      unitType?: 'KG' | 'PCS';
+    };
+    qtyKg?: number;
+    qtyPcs?: number;
+    rate: number;
+    lineTotal: number;
+  }>;
+}
 
 interface CustomerWithPending {
   id: string;
@@ -16,28 +50,49 @@ interface CustomerWithPending {
   email?: string;
   totalPending: number;
   orderCount: number;
-  openOrders: Array<{
-    id: string;
-    saleNo: string;
-    grandTotal: number;
-    totalPaid: number;
-    creditAmount?: number;
-    pending: number;
-    remainingBalance?: number;
-    createdAt: string;
-    hasCreditPayment?: boolean;
-    items: Array<{
-      id: string;
+  openOrders: PendingOrder[];
+}
+
+function toBillSale(order: PendingOrder, customer: CustomerWithPending): BillSale {
+  const items = order.items || [];
+  const lineSum = items.reduce((s, i) => s + (i.lineTotal || 0), 0);
+  return {
+    id: order.id,
+    saleNo: order.saleNo,
+    status: order.status || 'OPEN',
+    subTotal: order.subTotal ?? lineSum,
+    discountTotal: order.discountTotal ?? 0,
+    taxTotal: order.taxTotal ?? 0,
+    deliveryFee: order.deliveryFee ?? 0,
+    grandTotal: order.grandTotal,
+    createdAt: order.createdAt,
+    createdBy: order.createdBy,
+    customer: {
+      name: customer.name,
+      phone: customer.phone,
+      area: customer.area,
+    },
+    items: items.map((item) => ({
       product: {
-        id: string;
-        name: string;
-      };
-      qtyKg?: number;
-      qtyPcs?: number;
-      rate: number;
-      lineTotal: number;
-    }>;
-  }>;
+        name: item.product.name,
+        unitType: item.product.unitType,
+      },
+      qtyKg: item.qtyKg,
+      qtyPcs: item.qtyPcs,
+      rate: item.rate,
+      lineTotal: item.lineTotal,
+    })),
+    payments:
+      order.payments ||
+      [
+        ...(order.totalPaid > 0 ? [{ method: 'CASH', amount: order.totalPaid }] : []),
+        ...(order.creditAmount && order.creditAmount > 0
+          ? [{ method: 'CREDIT', amount: order.creditAmount }]
+          : order.pending > 0
+            ? [{ method: 'CREDIT', amount: order.pending }]
+            : []),
+      ],
+  };
 }
 
 export default function PendingPaymentsPage() {
@@ -58,6 +113,48 @@ export default function PendingPaymentsPage() {
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'amount' | 'orders' | 'name'>('amount');
+  const receiptRef = useRef<HTMLDivElement>(null);
+  const [billForPrint, setBillForPrint] = useState<BillSale | null>(null);
+
+  const storeBillInfo = {
+    name: user?.store?.name || 'K2 Chicken',
+    phone: '8484978622',
+  };
+
+  const handlePrint = useReactToPrint({
+    content: () => receiptRef.current,
+    documentTitle: `Bill-${billForPrint?.saleNo || 'Receipt'}`,
+    onAfterPrint: () => setBillForPrint(null),
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 12mm;
+      }
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+          background: white;
+        }
+        .customer-bill-print-root {
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+        }
+      }
+    `,
+  });
+
+  const triggerPrintBill = (order: PendingOrder, customer: CustomerWithPending) => {
+    setBillForPrint(toBillSale(order, customer));
+    setTimeout(() => handlePrint(), 150);
+  };
+
+  const triggerDownloadBill = (order: PendingOrder, customer: CustomerWithPending) => {
+    downloadCustomerBill(toBillSale(order, customer), storeBillInfo);
+    showNotification(`Bill ${order.saleNo} downloaded`, 'success');
+  };
 
   const toggleCustomerExpanded = (customerId: string) => {
     setExpandedCustomers(prev => {
@@ -165,66 +262,44 @@ export default function PendingPaymentsPage() {
           showNotification(`Payment of ₹${Math.round(amount)} recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
         }
       } else {
-        // Pay all pending orders (distribute payment across orders)
-        let remainingAmount = amount;
-        const ordersToPay = [...selectedCustomer.openOrders].sort((a, b) => 
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-
-        const completedOrders: string[] = [];
-        const partiallyPaidOrders: Array<{ saleNo: string; remaining: number }> = [];
-
-        for (const order of ordersToPay) {
-          if (remainingAmount <= 0) break;
-
-          const orderRemaining = order.remainingBalance !== undefined
-            ? order.remainingBalance
-            : order.pending;
-          if (orderRemaining <= 0.01) continue;
-          const paymentForThisOrder = Math.min(remainingAmount, orderRemaining);
-          
-          // Calculate if this order will be fully paid
-          const totalPaidBefore = order.totalPaid || 0;
-          const totalPaidAfter = totalPaidBefore + paymentForThisOrder;
-          const willBeFullyPaid = totalPaidAfter >= order.grandTotal - 0.01;
-
-          await api.post(`/api/v1/sales/${order.id}/pay`, {
-            payments: [
-              {
-                method: paymentMethod,
-                amount: Math.round(paymentForThisOrder),
-              },
-            ],
-          });
-
-          if (willBeFullyPaid) {
-            completedOrders.push(order.saleNo);
-          } else {
-            const remaining = order.grandTotal - totalPaidAfter;
-            partiallyPaidOrders.push({ saleNo: order.saleNo, remaining: Math.round(remaining) });
+        // Pay all pending orders in one server-side settlement (FIFO)
+        const res = await api.post(
+          `/api/v1/customers/${selectedCustomer.id}/settle-pending`,
+          {
+            amount: Math.round(amount),
+            method: paymentMethod,
           }
+        );
+        const applied = Math.round(Number(res.data?.applied) || 0);
+        const unallocated = Math.round(Number(res.data?.unallocated) || 0);
+        const allocations = (res.data?.allocations || []) as Array<{
+          saleNo: string;
+          amount: number;
+          fullyPaid: boolean;
+          remainingAfter: number;
+        }>;
+        const completed = allocations.filter((a) => a.fullyPaid).map((a) => a.saleNo);
+        const partial = allocations.filter((a) => !a.fullyPaid);
 
-          remainingAmount -= paymentForThisOrder;
-        }
-
-        // Show success animation
         setSuccessData({
-          amount: Math.round(amount),
+          amount: applied,
           customerName: selectedCustomer.name,
         });
         setShowSuccessAnimation(true);
 
-        // Build success message
-        let successMessage = `Payment of ₹${Math.round(amount)} processed successfully`;
-        if (completedOrders.length > 0) {
-          successMessage += `. ${completedOrders.length} order${completedOrders.length > 1 ? 's' : ''} completed: ${completedOrders.join(', ')}`;
+        let successMessage = `Payment of ₹${applied} applied`;
+        if (completed.length > 0) {
+          successMessage += `. ${completed.length} order${completed.length > 1 ? 's' : ''} completed`;
         }
-        if (partiallyPaidOrders.length > 0 && remainingAmount <= 0) {
-          const remainingTotal = partiallyPaidOrders.reduce((sum, o) => sum + o.remaining, 0);
-          successMessage += `. ₹${remainingTotal} still pending across ${partiallyPaidOrders.length} order${partiallyPaidOrders.length > 1 ? 's' : ''}`;
+        if (partial.length > 0) {
+          const rem = partial.reduce((s, a) => s + Math.round(a.remainingAfter || 0), 0);
+          successMessage += `. ₹${rem} still pending on ${partial.length} order${partial.length > 1 ? 's' : ''}`;
         }
-        if (remainingAmount > 0) {
-          successMessage += `. ₹${Math.round(remainingAmount)} remaining (excess payment)`;
+        if (unallocated > 0) {
+          successMessage += `. ₹${unallocated} not allocated (no more pending bills)`;
+        }
+        if (applied < Math.round(amount) && unallocated === 0) {
+          successMessage += ` (requested ₹${Math.round(amount)})`;
         }
 
         showNotification(successMessage, 'success');
@@ -626,12 +701,26 @@ export default function PendingPaymentsPage() {
                                   style={{ width: `${Math.min(100, paidPercent)}%` }}
                                 ></div>
                               </div>
-                              <button
-                                onClick={() => handlePayPending(customer, order.id)}
-                                className="w-full px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]"
-                              >
-                                Pay ₹{Math.round(remainingBalance)}
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => triggerPrintBill(order, customer)}
+                                  className="flex-1 px-3 py-2.5 text-sm font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                                >
+                                  Print
+                                </button>
+                                <button
+                                  onClick={() => triggerDownloadBill(order, customer)}
+                                  className="flex-1 px-3 py-2.5 text-sm font-semibold bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                                >
+                                  Download
+                                </button>
+                                <button
+                                  onClick={() => handlePayPending(customer, order.id)}
+                                  className="flex-[1.4] px-3 py-2.5 text-sm font-semibold bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 transition-all duration-200 shadow-md hover:shadow-lg"
+                                >
+                                  Pay ₹{Math.round(remainingBalance)}
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -784,6 +873,22 @@ export default function PendingPaymentsPage() {
           onClose={() => setShowNumPad(false)}
           onSubmit={() => setShowNumPad(false)}
         />
+      )}
+
+      {/* Bill for printing — hidden off-screen */}
+      {billForPrint && (
+        <div
+          ref={receiptRef}
+          className="customer-bill-print-root"
+          style={{
+            position: 'absolute',
+            left: '-9999px',
+            top: 0,
+            width: '210mm',
+          }}
+        >
+          <CustomerBill sale={billForPrint} store={storeBillInfo} />
+        </div>
       )}
     </div>
   );

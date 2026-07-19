@@ -575,26 +575,31 @@ export async function customerRoutes(fastify: FastifyInstance) {
       // Get all sales that are credit orders:
       // 1. OPEN status orders (unpaid), OR
       // 2. Orders with CREDIT payment method (even if marked PAID, check for pending balance)
+      const pendingSaleInclude = {
+        customer: true,
+        payments: true,
+        createdBy: { select: { name: true } },
+        deliveryOrder: { select: { deliveryFee: true } },
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                unitType: true,
+              },
+            },
+          },
+        },
+      } as const;
+
       // First get all OPEN sales
       const openSales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
           status: 'OPEN',
         },
-        include: {
-          customer: true,
-          payments: true,
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
+        include: pendingSaleInclude,
         orderBy: {
           createdAt: 'desc',
         },
@@ -607,20 +612,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           status: { in: ['OPEN', 'PAID'] },
           payments: { some: { method: 'CREDIT' } },
         },
-        include: {
-          customer: true,
-          payments: true,
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
+        include: pendingSaleInclude,
         orderBy: {
           createdAt: 'desc',
         },
@@ -686,12 +678,22 @@ export async function customerRoutes(fastify: FastifyInstance) {
           customer.openOrders.push({
             id: sale.id,
             saleNo: sale.saleNo,
+            status: sale.status,
+            subTotal: sale.subTotal,
+            discountTotal: sale.discountTotal,
+            taxTotal: sale.taxTotal,
+            deliveryFee: sale.deliveryOrder?.deliveryFee ?? 0,
             grandTotal: sale.grandTotal,
             totalPaid: totalPaidActual, // Only actual payments, not credit
             creditAmount: totalCreditAmount, // Total credit amount
             pending: Math.round(displayPending * 100) / 100,
             remainingBalance: Math.round(remainingBalance * 100) / 100, // Remaining after actual payments
             createdAt: sale.createdAt,
+            createdBy: sale.createdBy,
+            payments: allPayments.map((p) => ({
+              method: p.method,
+              amount: p.amount,
+            })),
             items: sale.items,
             hasCreditPayment,
           });
@@ -715,12 +717,22 @@ export async function customerRoutes(fastify: FastifyInstance) {
           walkIn.openOrders.push({
             id: sale.id,
             saleNo: sale.saleNo,
+            status: sale.status,
+            subTotal: sale.subTotal,
+            discountTotal: sale.discountTotal,
+            taxTotal: sale.taxTotal,
+            deliveryFee: sale.deliveryOrder?.deliveryFee ?? 0,
             grandTotal: sale.grandTotal,
             totalPaid: totalPaidActual, // Only actual payments, not credit
             creditAmount: totalCreditAmount, // Total credit amount
             pending: Math.round(displayPending * 100) / 100,
             remainingBalance: Math.round(remainingBalance * 100) / 100, // Remaining after actual payments
             createdAt: sale.createdAt,
+            createdBy: sale.createdBy,
+            payments: allPayments.map((p) => ({
+              method: p.method,
+              amount: p.amount,
+            })),
             items: sale.items,
             hasCreditPayment,
           });
@@ -748,6 +760,177 @@ export async function customerRoutes(fastify: FastifyInstance) {
       reply.code(500).send({ error: 'Failed to get pending payments', details: error.message });
     }
   });
+
+  // Settle pending balance for one customer in a single request (FIFO across open bills).
+  // Avoids mid-loop failures from the old client-side Pay All (N sequential /sales/:id/pay calls).
+  fastify.post(
+    '/:customerId/settle-pending',
+    { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
+    async (request: any, reply: FastifyReply) => {
+      try {
+        const { customerId } = request.params as { customerId: string };
+        const body = (request.body as any) || {};
+        const amount = Math.round(Number(body.amount) || 0);
+        const methodRaw = String(body.method || 'CASH').toUpperCase().trim();
+        const validMethods = ['CASH', 'CARD', 'UPI', 'ONLINE'];
+        if (!validMethods.includes(methodRaw)) {
+          reply.code(400).send({ error: `Invalid payment method. Use one of: ${validMethods.join(', ')}` });
+          return;
+        }
+        if (amount <= 0) {
+          reply.code(400).send({ error: 'Payment amount must be greater than 0' });
+          return;
+        }
+
+        const userId = (getUser(request) as any).userId;
+        const userStoreId = (getUser(request) as any).storeId;
+        const userRole = (getUser(request) as any).role || '';
+
+        if (customerId === 'WALK_IN_CREDIT') {
+          reply.code(400).send({ error: 'Settle walk-in credit bills individually from the order list' });
+          return;
+        }
+
+        const customer = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, name: true, storeId: true },
+        });
+        if (!customer) {
+          reply.code(404).send({ error: 'Customer not found' });
+          return;
+        }
+
+        let storeIds: string[] = [userStoreId].filter(Boolean);
+        if (userRole === 'OWNER') {
+          const userStore = await prisma.store.findUnique({
+            where: { id: userStoreId },
+            select: { id: true, type: true },
+          });
+          if (userStore?.type === 'OWNER') {
+            const franchises = await prisma.store.findMany({
+              where: { type: 'FRANCHISE', parentOwnerStoreId: userStoreId },
+              select: { id: true },
+            });
+            storeIds = [userStoreId, ...franchises.map((f) => f.id)];
+          }
+        }
+
+        if (!storeIds.includes(customer.storeId) && userRole !== 'OWNER') {
+          reply.code(403).send({ error: 'Customer is not in your store' });
+          return;
+        }
+
+        const sales = await prisma.sale.findMany({
+          where: {
+            customerId,
+            storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+            status: { in: ['OPEN', 'PAID'] },
+            OR: [{ status: 'OPEN' }, { payments: { some: { method: 'CREDIT' } } }],
+          },
+          include: { payments: true },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        type Allocation = {
+          saleId: string;
+          saleNo: string;
+          amount: number;
+          fullyPaid: boolean;
+          remainingAfter: number;
+        };
+        const allocations: Allocation[] = [];
+        let pool = amount;
+
+        for (const sale of sales) {
+          if (pool <= 0) break;
+          if (sale.status === 'VOID' || sale.status === 'REFUNDED') continue;
+
+          const actualPaid = (sale.payments || [])
+            .filter((p) => p.method !== 'CREDIT')
+            .reduce((s, p) => s + p.amount, 0);
+          const remaining = sale.grandTotal - actualPaid;
+          if (remaining <= 0.01) continue;
+
+          const payAmt = Math.min(pool, Math.round(remaining));
+          if (payAmt <= 0) continue;
+
+          const newActual = actualPaid + payAmt;
+          const roundedGrand = Math.round(sale.grandTotal);
+          const fullyPaid = newActual >= roundedGrand - 0.5;
+          const remainingAfter = Math.max(0, Math.round(sale.grandTotal - newActual));
+
+          allocations.push({
+            saleId: sale.id,
+            saleNo: sale.saleNo,
+            amount: payAmt,
+            fullyPaid,
+            remainingAfter,
+          });
+          pool -= payAmt;
+        }
+
+        if (allocations.length === 0) {
+          reply.code(400).send({ error: 'No pending balance found for this customer' });
+          return;
+        }
+
+        const applied = allocations.reduce((s, a) => s + a.amount, 0);
+
+        await prisma.$transaction(async (tx) => {
+          for (const a of allocations) {
+            await tx.payment.create({
+              data: {
+                saleId: a.saleId,
+                method: methodRaw,
+                amount: a.amount,
+              },
+            });
+            await tx.sale.update({
+              where: { id: a.saleId },
+              data: { status: a.fullyPaid ? 'PAID' : 'OPEN' },
+            });
+          }
+        });
+
+        try {
+          await prisma.auditLog.create({
+            data: {
+              storeId: customer.storeId || userStoreId,
+              actorUserId: userId,
+              action: 'CUSTOMER_SETTLE_PENDING',
+              entityType: 'Customer',
+              entityId: customerId,
+              metaJson: {
+                requested: amount,
+                applied,
+                unallocated: amount - applied,
+                method: methodRaw,
+                allocations,
+              },
+            },
+          });
+        } catch (auditErr) {
+          console.warn('[settle-pending] audit log failed:', auditErr);
+        }
+
+        return {
+          customerId,
+          customerName: customer.name,
+          requested: amount,
+          applied,
+          unallocated: amount - applied,
+          method: methodRaw,
+          allocations,
+        };
+      } catch (error: any) {
+        console.error('Failed to settle pending payments:', error);
+        reply.code(500).send({
+          error: 'Failed to settle pending payments',
+          details: error?.message,
+        });
+      }
+    }
+  );
 
   // Get customer loyalty information
   fastify.get('/:customerId/loyalty', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {

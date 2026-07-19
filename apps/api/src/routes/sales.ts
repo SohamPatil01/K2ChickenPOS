@@ -1197,53 +1197,59 @@ export async function saleRoutes(fastify: FastifyInstance) {
         console.error('[Payment API] Inventory sync failed for sale:', id, inventoryError);
       }
 
-      // Award loyalty points if customer exists
-      if (sale.customerId) {
+      // Award loyalty once when the bill first settles with actual payment
+      // (skip partial pays and re-settlement so Pay All / credit payoffs don't double-count).
+      const becameSettled =
+        isSettledWithActual &&
+        sale.status !== 'PAID' &&
+        existingSums.actual < Math.round(sale.grandTotal) - 0.5;
+      if (sale.customerId && becameSettled) {
         try {
-          // Calculate points: 1.25% of the purchase total.
-          const pointsRate = 0.0125; // 1.25% of grand total
-          const pointsEarned = Math.floor(sale.grandTotal * pointsRate);
+          const alreadyEarned = await prisma.loyaltyTransaction.findFirst({
+            where: { saleId: id, type: 'EARN' },
+            select: { id: true },
+          });
+          if (!alreadyEarned) {
+            const pointsRate = 0.0125; // 1.25% of grand total
+            const pointsEarned = Math.floor(sale.grandTotal * pointsRate);
 
-          if (pointsEarned > 0) {
-            const customer = await prisma.customer.findFirst({
-              where: { id: sale.customerId },
-            });
-
-            if (customer) {
-              const newBalance = (customer.loyaltyPoints || 0) + pointsEarned;
-              const newTotalSpent = (customer.totalSpent || 0) + sale.grandTotal;
-
-              // Update customer
-              await prisma.customer.update({
+            if (pointsEarned > 0) {
+              const customer = await prisma.customer.findFirst({
                 where: { id: sale.customerId },
-                data: {
-                  loyaltyPoints: newBalance,
-                  totalSpent: newTotalSpent,
-                },
               });
 
-              // Create loyalty transaction (optional, handle gracefully if model doesn't exist)
-              try {
-                await prisma.loyaltyTransaction.create({
+              if (customer) {
+                const newBalance = (customer.loyaltyPoints || 0) + pointsEarned;
+                const newTotalSpent = (customer.totalSpent || 0) + sale.grandTotal;
+
+                await prisma.customer.update({
+                  where: { id: sale.customerId },
                   data: {
-                    customerId: sale.customerId,
-                    storeId: sale.storeId, // Use sale's storeId, not user's storeId
-                    type: 'EARN',
-                    points: pointsEarned,
-                    balance: newBalance,
-                    description: `Earned ${pointsEarned} points from purchase ${sale.saleNo}`,
-                    saleId: id,
-                    createdBy: userId,
+                    loyaltyPoints: newBalance,
+                    totalSpent: newTotalSpent,
                   },
                 });
-              } catch (loyaltyErr) {
-                // If loyaltyTransaction model doesn't exist, continue without it
-                console.warn('Could not create loyalty transaction:', loyaltyErr);
+
+                try {
+                  await prisma.loyaltyTransaction.create({
+                    data: {
+                      customerId: sale.customerId,
+                      storeId: sale.storeId,
+                      type: 'EARN',
+                      points: pointsEarned,
+                      balance: newBalance,
+                      description: `Earned ${pointsEarned} points from purchase ${sale.saleNo}`,
+                      saleId: id,
+                      createdBy: userId,
+                    },
+                  });
+                } catch (loyaltyErr) {
+                  console.warn('Could not create loyalty transaction:', loyaltyErr);
+                }
               }
             }
           }
         } catch (loyaltyErr) {
-          // If loyalty features fail, continue without them
           console.warn('Could not process loyalty points:', loyaltyErr);
         }
       }
