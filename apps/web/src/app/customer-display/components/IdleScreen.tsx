@@ -79,6 +79,12 @@ export default function IdleScreen() {
         <p className="mt-5 text-base font-semibold text-amber-100 sm:mt-6 sm:text-xl">
           {LOYALTY.howToJoin}
         </p>
+        <p className="mt-2 text-sm font-medium text-amber-200/90 sm:text-base">
+          {LOYALTY.portalHint}
+        </p>
+        <p className="mt-1 text-xs text-white/50 sm:text-sm">
+          {LOYALTY.portalUrl.replace(/^https?:\/\//, "")} · {BRAND.website}
+        </p>
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {LOYALTY.tips.map((tip) => (

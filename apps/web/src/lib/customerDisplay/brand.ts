@@ -28,9 +28,17 @@ export const LOYALTY = {
   redeemLabel: "1 point = ₹1",
   redeemDetail: "off your next bill",
   howToJoin: "Share your mobile number at the counter to join — free",
+  /** Customer portal (not POS). Override with NEXT_PUBLIC_LOYALTY_PORTAL_URL. */
+  portalUrl:
+    (typeof process !== "undefined" &&
+      (process.env.NEXT_PUBLIC_LOYALTY_PORTAL_URL || "").trim()) ||
+    "https://loyalty.k2chicken.com",
+  portalHint: "Check your points anytime at loyalty.k2chicken.com",
+  websiteUrl: "https://www.k2chicken.com",
   tips: [
     "Points credited when you pay with your linked number",
-    "Redeem anytime at checkout",
+    "Redeem anytime at checkout in our shop",
+    "Check balance online — redeem only in store",
     "Silver · Gold · Platinum as you spend more",
   ],
 } as const;

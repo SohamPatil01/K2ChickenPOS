@@ -69,10 +69,15 @@ export const createSaleSchema = z.object({
   couponCode: z.string().optional(),
   /** Loyalty points the customer chooses to redeem at checkout (1 point = ₹1). */
   loyaltyPointsRedeemed: z.number().int().min(0).default(0),
+  /** Optional: referrer's mobile number (friend naming them at the counter). */
+  referredByPhone: z.string().optional(),
 });
 
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */
 export const LOYALTY_POINT_VALUE = 1;
+
+/** Points awarded to each side after a referred friend's first settled bill. */
+export const REFERRAL_BONUS_POINTS = 50;
 
 const paymentMethodEnum = z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']);
 

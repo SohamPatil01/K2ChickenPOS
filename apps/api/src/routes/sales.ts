@@ -2,6 +2,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales } from '@azela-pos/shared';
+import { linkReferredByPhone, maybeAwardReferralBonus } from '../lib/referral';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -549,6 +550,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       } else if (customerId && data.customerArea !== undefined) {
         await upsertCustomerArea(prisma, customerId, data.customerArea);
+      }
+
+      // Optional counter referral: link once if friend named referrer's phone
+      if (customerId && data.referredByPhone) {
+        try {
+          await linkReferredByPhone(prisma, customerId, data.referredByPhone);
+        } catch (refErr) {
+          console.warn('[Sales] referredByPhone link failed (non-critical):', refErr);
+        }
       }
 
       // Generate sale number - retry if duplicate
@@ -1248,6 +1258,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
                 }
               }
             }
+          }
+
+          // Referral bonus (additive; no-op if not referred / already awarded)
+          try {
+            await maybeAwardReferralBonus(prisma, {
+              customerId: sale.customerId,
+              storeId: sale.storeId,
+              saleId: id,
+              userId,
+            });
+          } catch (refErr) {
+            console.warn('Could not process referral bonus:', refErr);
           }
         } catch (loyaltyErr) {
           console.warn('Could not process loyalty points:', loyaltyErr);

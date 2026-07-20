@@ -1062,6 +1062,7 @@ export default function StorePOSPage() {
         loyaltyPointsRedeemed: customerId
           ? useCartStore.getState().getTotal().loyaltyPointsApplied
           : 0,
+        referredByPhone: useCartStore.getState().referredByPhone || undefined,
         items: cartItems.map((item) => ({
           productId: item.productId,
           qtyKg: item.qtyKg || undefined,
@@ -1276,6 +1277,7 @@ export default function StorePOSPage() {
             loyaltyPointsRedeemed: customerId
               ? useCartStore.getState().getTotal().loyaltyPointsApplied
               : 0,
+            referredByPhone: useCartStore.getState().referredByPhone || undefined,
             items: cartItems.map((item) => ({
               productId: item.productId,
               qtyKg: item.qtyKg || undefined,

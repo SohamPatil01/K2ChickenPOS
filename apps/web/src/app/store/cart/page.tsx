@@ -45,6 +45,8 @@ export default function StoreCartPage() {
   const customerName = useCartStore((state) => state.customerName);
   const customerArea = useCartStore((state) => state.customerArea);
   const setCustomer = useCartStore((state) => state.setCustomer);
+  const referredByPhone = useCartStore((state) => state.referredByPhone);
+  const setReferredByPhone = useCartStore((state) => state.setReferredByPhone);
   const discountTotal = useCartStore((state) => state.discountTotal);
   const discountType = useCartStore((state) => state.discountType);
   const discountPercentage = useCartStore((state) => state.discountPercentage);
@@ -340,6 +342,8 @@ export default function StoreCartPage() {
         discountTotal: discountTotal || 0,
         deliveryFee: ft === 'DELIVERY' ? fee || 0 : 0,
         loyaltyPointsRedeemed,
+        referredByPhone:
+          !skipCustomer && state.referredByPhone ? state.referredByPhone : undefined,
       };
     };
 
@@ -780,6 +784,23 @@ export default function StoreCartPage() {
                         Phone number must be at least 10 digits
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
+                      Referrer phone <span className="font-normal text-ink-muted">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Friend who referred them"
+                      value={referredByPhone || ''}
+                      onChange={(e) => setReferredByPhone(e.target.value || null)}
+                      className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    />
+                    <p className="mt-1 text-xs text-ink-muted">
+                      Loyalty: both get 50 pts after this customer&apos;s first paid bill
+                    </p>
                   </div>
 
                   <div className="relative z-50">

@@ -18,6 +18,8 @@ export type OfflineCreateSalePayload = {
   deliveryFee?: number;
   /** Loyalty points redeemed at checkout (1 point = ₹1). */
   loyaltyPointsRedeemed?: number;
+  /** Optional referrer phone for loyalty referral at counter. */
+  referredByPhone?: string;
 };
 
 /** True when the browser reports no connectivity. */

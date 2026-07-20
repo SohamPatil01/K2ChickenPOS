@@ -266,7 +266,8 @@ export function buildCustomerBillHtml(sale: BillSale, store?: BillStoreInfo): st
     <div class="footer">
       <div style="font-weight:600;color:#374151;margin-bottom:4px;">Thank you for shopping with us!</div>
       <div>Fresh chicken & quality products — visit again soon.</div>
-      <div style="margin-top:8px;font-size:11px;">This is a computer-generated bill.</div>
+      <div style="margin-top:8px;font-size:11px;">Check loyalty points: loyalty.k2chicken.com · Shop site: www.k2chicken.com</div>
+      <div style="margin-top:4px;font-size:11px;">Redeem points only at our shop. This is a computer-generated bill.</div>
     </div>
   </div>
 

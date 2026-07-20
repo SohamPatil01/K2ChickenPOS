@@ -268,6 +268,13 @@ model Customer {
   loyaltyPoints Float    @default(0)
   loyaltyTier   String   @default("BRONZE") // BRONZE, SILVER, GOLD, PLATINUM
   totalSpent    Float    @default(0)
+  // Hashed PIN for customer loyalty portal (loyalty.k2chicken.com)
+  portalPinHash String?
+  portalRegisteredAt DateTime?
+  // Loyalty portal referral (additive; all nullable — safe for existing rows)
+  referralCode            String?   @unique
+  referredByCustomerId    String?
+  referralBonusAwardedAt  DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

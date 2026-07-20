@@ -95,6 +95,7 @@ import { hqReplenishmentRoutes } from '../src/routes/hq-replenishment.js';
 import { backupRoutes } from '../src/routes/backup.js';
 import { customerDisplayRoutes } from '../src/routes/customerDisplay.js';
 import { publicBillRoutes } from '../src/routes/publicBill.js';
+import { portalRoutes } from '../src/routes/portal.js';
 
 let app: any = null;
 
@@ -111,9 +112,13 @@ async function build() {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://loyalty.k2chicken.com',
+        'https://www.k2chicken.com',
+        'https://k2chicken.com',
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:3002',
+        'http://localhost:3004',
       ];
       
       // Allow requests with no origin (like mobile apps or curl requests)
@@ -292,6 +297,7 @@ async function build() {
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(publicBillRoutes, { prefix: '/api/v1/public' });
+  await fastify.register(portalRoutes, { prefix: '/api/v1/portal' });
 
   // 404 handler for undefined routes
   fastify.setNotFoundHandler(async (request: any, reply: FastifyReply) => {
@@ -316,9 +322,13 @@ export default async function handler(req: any, res: any) {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://loyalty.k2chicken.com',
+        'https://www.k2chicken.com',
+        'https://k2chicken.com',
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:3002',
+        'http://localhost:3004',
       ];
       
       if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
@@ -404,6 +414,9 @@ export default async function handler(req: any, res: any) {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://loyalty.k2chicken.com',
+        'https://www.k2chicken.com',
+        'https://k2chicken.com',
         'http://localhost:3000',
         'http://localhost:3001',
       ];
@@ -493,6 +506,9 @@ export default async function handler(req: any, res: any) {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://loyalty.k2chicken.com',
+        'https://www.k2chicken.com',
+        'https://k2chicken.com',
         'http://localhost:3000',
         'http://localhost:3001',
       ];

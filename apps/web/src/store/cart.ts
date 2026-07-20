@@ -50,6 +50,8 @@ interface CartState {
   customerPhone: string | null;
   customerName: string | null;
   customerArea: string | null;
+  /** Optional referrer mobile (friend naming them at counter). */
+  referredByPhone: string | null;
   discountTotal: number;
   discountType: 'amount' | 'percentage';
   discountPercentage: number;
@@ -64,6 +66,7 @@ interface CartState {
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
+  setReferredByPhone: (phone: string | null) => void;
   setDiscount: (amount: number) => void;
   setDiscountType: (type: 'amount' | 'percentage') => void;
   setDiscountPercentage: (percentage: number) => void;
@@ -97,6 +100,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerPhone: null,
   customerName: null,
   customerArea: null,
+  referredByPhone: null,
   discountTotal: 0,
   discountType: 'amount',
   discountPercentage: 0,
@@ -199,10 +203,15 @@ export const useCartStore = create<CartState>((set, get) => ({
         fulfillmentType: 'PICKUP',
         loyaltyRedeemPoints: 0,
         pendingSettlements: [],
+        referredByPhone: null,
       });
       return;
     }
     set({ customerId, customerPhone, customerName: name, ...areaUpdate, loyaltyRedeemPoints: 0, pendingSettlements: [] });
+  },
+  setReferredByPhone: (phone) => {
+    const cleaned = phone ? String(phone).replace(/\D/g, '').slice(0, 12) : null;
+    set({ referredByPhone: cleaned || null });
   },
   setDiscount: (discountTotal) => {
     set({ discountTotal });
@@ -286,6 +295,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       deliveryFee: 0,
       loyaltyRedeemPoints: 0,
       pendingSettlements: [],
+      referredByPhone: null,
     });
   },
   getTotal: () => {

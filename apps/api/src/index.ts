@@ -45,6 +45,7 @@ import { hqReplenishmentRoutes } from './routes/hq-replenishment.js';
 import { backupRoutes } from './routes/backup.js';
 import { customerDisplayRoutes } from './routes/customerDisplay.js';
 import { cronRoutes } from './routes/cron.js';
+import { portalRoutes } from './routes/portal.js';
 
 const fastify = Fastify({
   logger: true,
@@ -136,6 +137,7 @@ async function build() {
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
+  await fastify.register(portalRoutes, { prefix: '/api/v1/portal' });
   await fastify.register(cronRoutes);
 
   return fastify;
