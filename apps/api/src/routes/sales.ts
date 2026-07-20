@@ -2,7 +2,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales } from '@azela-pos/shared';
-import { linkReferredByPhone, maybeAwardReferralBonus } from '../lib/referral.js';
+import { linkReferredByCode, linkReferredByPhone, maybeAwardReferralBonus } from '../lib/referral.js';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -552,12 +552,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
         await upsertCustomerArea(prisma, customerId, data.customerArea);
       }
 
-      // Optional counter referral: link once if friend named referrer's phone
-      if (customerId && data.referredByPhone) {
+      // Optional counter referral: link once via phone and/or referral code
+      if (customerId && (data.referredByPhone || data.referredByCode)) {
         try {
-          await linkReferredByPhone(prisma, customerId, data.referredByPhone);
+          if (data.referredByPhone) {
+            await linkReferredByPhone(prisma, customerId, data.referredByPhone);
+          }
+          if (data.referredByCode) {
+            await linkReferredByCode(prisma, customerId, data.referredByCode);
+          }
         } catch (refErr) {
-          console.warn('[Sales] referredByPhone link failed (non-critical):', refErr);
+          console.warn('[Sales] referral link failed (non-critical):', refErr);
         }
       }
 

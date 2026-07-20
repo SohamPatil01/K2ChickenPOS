@@ -52,6 +52,8 @@ interface CartState {
   customerArea: string | null;
   /** Optional referrer mobile (friend naming them at counter). */
   referredByPhone: string | null;
+  /** Optional referrer loyalty code (alternate to phone at counter). */
+  referredByCode: string | null;
   discountTotal: number;
   discountType: 'amount' | 'percentage';
   discountPercentage: number;
@@ -67,6 +69,7 @@ interface CartState {
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
   setReferredByPhone: (phone: string | null) => void;
+  setReferredByCode: (code: string | null) => void;
   setDiscount: (amount: number) => void;
   setDiscountType: (type: 'amount' | 'percentage') => void;
   setDiscountPercentage: (percentage: number) => void;
@@ -101,6 +104,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerName: null,
   customerArea: null,
   referredByPhone: null,
+  referredByCode: null,
   discountTotal: 0,
   discountType: 'amount',
   discountPercentage: 0,
@@ -204,6 +208,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         loyaltyRedeemPoints: 0,
         pendingSettlements: [],
         referredByPhone: null,
+        referredByCode: null,
       });
       return;
     }
@@ -212,6 +217,16 @@ export const useCartStore = create<CartState>((set, get) => ({
   setReferredByPhone: (phone) => {
     const cleaned = phone ? String(phone).replace(/\D/g, '').slice(0, 12) : null;
     set({ referredByPhone: cleaned || null });
+  },
+  setReferredByCode: (code) => {
+    const cleaned = code
+      ? String(code)
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '')
+          .slice(0, 12)
+      : null;
+    set({ referredByCode: cleaned || null });
   },
   setDiscount: (discountTotal) => {
     set({ discountTotal });
@@ -296,6 +311,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       loyaltyRedeemPoints: 0,
       pendingSettlements: [],
       referredByPhone: null,
+      referredByCode: null,
     });
   },
   getTotal: () => {

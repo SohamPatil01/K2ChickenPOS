@@ -1063,6 +1063,7 @@ export default function StorePOSPage() {
           ? useCartStore.getState().getTotal().loyaltyPointsApplied
           : 0,
         referredByPhone: useCartStore.getState().referredByPhone || undefined,
+        referredByCode: useCartStore.getState().referredByCode || undefined,
         items: cartItems.map((item) => ({
           productId: item.productId,
           qtyKg: item.qtyKg || undefined,
@@ -1278,6 +1279,7 @@ export default function StorePOSPage() {
               ? useCartStore.getState().getTotal().loyaltyPointsApplied
               : 0,
             referredByPhone: useCartStore.getState().referredByPhone || undefined,
+            referredByCode: useCartStore.getState().referredByCode || undefined,
             items: cartItems.map((item) => ({
               productId: item.productId,
               qtyKg: item.qtyKg || undefined,

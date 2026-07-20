@@ -8,7 +8,7 @@ export const SHOP = {
   hoursLines: [
     'Mon — Closed',
     'Tue, Wed, Fri, Sat, Sun — 8:00 AM – 8:00 PM',
-    'Thu — Half day · 8:00 AM – 2:00 PM',
+    'Thu — Half day · 8:00 AM – 1:00 PM',
   ],
   mapsUrl:
     'https://www.google.com/maps/search/?api=1&query=' +

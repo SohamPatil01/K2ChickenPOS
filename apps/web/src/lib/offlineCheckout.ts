@@ -20,6 +20,8 @@ export type OfflineCreateSalePayload = {
   loyaltyPointsRedeemed?: number;
   /** Optional referrer phone for loyalty referral at counter. */
   referredByPhone?: string;
+  /** Optional referrer loyalty code for loyalty referral at counter. */
+  referredByCode?: string;
 };
 
 /** True when the browser reports no connectivity. */

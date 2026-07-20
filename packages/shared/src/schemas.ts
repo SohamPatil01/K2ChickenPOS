@@ -71,6 +71,8 @@ export const createSaleSchema = z.object({
   loyaltyPointsRedeemed: z.number().int().min(0).default(0),
   /** Optional: referrer's mobile number (friend naming them at the counter). */
   referredByPhone: z.string().optional(),
+  /** Optional: referrer's loyalty referral code (alternate to phone at the counter). */
+  referredByCode: z.string().optional(),
 });
 
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */

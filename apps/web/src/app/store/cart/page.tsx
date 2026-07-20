@@ -47,6 +47,8 @@ export default function StoreCartPage() {
   const setCustomer = useCartStore((state) => state.setCustomer);
   const referredByPhone = useCartStore((state) => state.referredByPhone);
   const setReferredByPhone = useCartStore((state) => state.setReferredByPhone);
+  const referredByCode = useCartStore((state) => state.referredByCode);
+  const setReferredByCode = useCartStore((state) => state.setReferredByCode);
   const discountTotal = useCartStore((state) => state.discountTotal);
   const discountType = useCartStore((state) => state.discountType);
   const discountPercentage = useCartStore((state) => state.discountPercentage);
@@ -344,6 +346,8 @@ export default function StoreCartPage() {
         loyaltyPointsRedeemed,
         referredByPhone:
           !skipCustomer && state.referredByPhone ? state.referredByPhone : undefined,
+        referredByCode:
+          !skipCustomer && state.referredByCode ? state.referredByCode : undefined,
       };
     };
 
@@ -798,8 +802,23 @@ export default function StoreCartPage() {
                       onChange={(e) => setReferredByPhone(e.target.value || null)}
                       className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
+                      Referral code <span className="font-normal text-ink-muted">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="text"
+                      autoCapitalize="characters"
+                      placeholder="e.g. B42W8K"
+                      value={referredByCode || ''}
+                      onChange={(e) => setReferredByCode(e.target.value || null)}
+                      className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase tracking-wider"
+                    />
                     <p className="mt-1 text-xs text-ink-muted">
-                      Loyalty: both get 50 pts after this customer&apos;s first paid bill
+                      Use phone or code — both get 50 pts after this customer&apos;s first paid bill
                     </p>
                   </div>
 
