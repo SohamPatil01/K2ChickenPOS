@@ -2,6 +2,9 @@
 export const BRAND = {
   name: "K2 Chicken",
   tagline: "Fresh. Hygienic. Delivered with care.",
+  /** Idle-screen header line (light Fresh Market edition). */
+  displayTagline: "Fresh every morning · Cut to order",
+  openPill: "Open now · Home delivery",
   phone: "8484978622",
   website: "www.k2chicken.com",
   address:
@@ -10,7 +13,8 @@ export const BRAND = {
   promos: [
     "Ask about today's fresh cuts & combos",
     "Home delivery available — ask the counter",
-    "Share your phone number to start earning points",
+    "Share your phone to earn points on every bill",
+    "Invite a friend — both get 50 points free",
   ],
 } as const;
 
@@ -21,26 +25,61 @@ export const BRAND = {
  * - packages/shared/src/schemas.ts (LOYALTY_POINT_VALUE = ₹1)
  */
 export const LOYALTY = {
-  title: "K2 Loyalty Rewards",
-  headline: "Earn points on every purchase",
+  title: "K2 Rewards",
+  /** Full line shown on the idle loyalty slide. */
+  headline: "Every bill pays you back",
+  /** Substring of headline highlighted in brand orange. */
+  headlineAccent: "pays you back",
+  subhead:
+    "Points on every order, spent like cash. No app, no card — just your phone number.",
+  earnPercent: 1.25,
   earnPercentLabel: "1.25%",
-  earnDetail: "of your bill back as points",
-  redeemLabel: "1 point = ₹1",
-  redeemDetail: "off your next bill",
-  howToJoin: "Share your mobile number at the counter to join — free",
+  earnDetail: "back on every bill",
+  redeemLabel: "1 pt = ₹1",
+  redeemDetail: "off your next order",
+  howToJoin: "Just share your mobile number at the counter — free to join",
   /** Customer portal (not POS). Override with NEXT_PUBLIC_LOYALTY_PORTAL_URL. */
   portalUrl:
     (typeof process !== "undefined" &&
       (process.env.NEXT_PUBLIC_LOYALTY_PORTAL_URL || "").trim()) ||
     "https://points.k2chicken.com",
-  portalHint: "Check your points anytime at points.k2chicken.com",
+  portalHint: "Scan to check your balance",
   websiteUrl: "https://www.k2chicken.com",
   tips: [
-    "Points credited when you pay with your linked number",
-    "Redeem anytime at checkout in our shop",
-    "Check balance online — redeem only in store",
-    "Silver · Gold · Platinum as you spend more",
+    "📱 Just your number",
+    "🏪 Redeem in shop",
+    "⭐ Silver · Gold · Platinum",
   ],
+} as const;
+
+/**
+ * Referral pitch on the idle customer display.
+ * Keep bonus in sync with packages/shared REFERRAL_BONUS_POINTS (= 50).
+ */
+export const REFERRAL = {
+  title: "Bring a friend",
+  /** Full line shown on the idle referral slide. */
+  headline: "Invite Friends. Earn Together.",
+  /** Substring of headline highlighted in brand green. */
+  headlineAccent: "Earn Together.",
+  subhead:
+    "Every friend who places their first order rewards both of you.",
+  bonusPoints: 50,
+  bonusLabel: "₹50",
+  youLabel: "for You",
+  friendLabel: "for Your Friend",
+  howItWorks: [
+    "Share your code or number",
+    "They order once & pay",
+    "You both get 50 points instantly",
+  ],
+  cta: "Get your code at points.k2chicken.com — or tell them your number here",
+  portalHint: "Scan to grab your invite code",
+  /** QR target for invite flow (falls back to portal root). */
+  inviteUrl:
+    ((typeof process !== "undefined" &&
+      (process.env.NEXT_PUBLIC_LOYALTY_PORTAL_URL || "").trim()) ||
+      "https://points.k2chicken.com") + "/invite",
 } as const;
 
 /**

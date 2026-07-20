@@ -36,6 +36,8 @@ export default function CustomerDisplayPage() {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  /** `?preview=1` — show idle carousel without pairing (design preview only). */
+  const [previewIdle, setPreviewIdle] = useState(false);
 
   const [mode, setMode] = useState<DisplayMode>("idle");
   const [bill, setBill] = useState<BillUpdatePayload | null>(null);
@@ -52,6 +54,11 @@ export default function CustomerDisplayPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
+    if (params.get("preview") === "1" || params.get("preview") === "idle") {
+      setPreviewIdle(true);
+      setPhase("connected");
+      return;
+    }
     const pair = params.get("pair");
     let token = pair || loadDisplaySession();
 
@@ -156,7 +163,9 @@ export default function CustomerDisplayPage() {
   }, [mode]);
 
   const showReconnecting =
-    phase === "connected" && (status === "reconnecting" || status === "failed");
+    !previewIdle &&
+    phase === "connected" &&
+    (status === "reconnecting" || status === "failed");
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white">

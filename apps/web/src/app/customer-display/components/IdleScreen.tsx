@@ -1,121 +1,248 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { BRAND, LOYALTY } from "@/lib/customerDisplay/brand";
-import BrandMark from "@/components/customerDisplay/BrandMark";
+import { AnimatePresence, motion } from "framer-motion";
+import { BRAND, LOYALTY, REFERRAL } from "@/lib/customerDisplay/brand";
+import QrCode from "@/components/customerDisplay/QrCode";
+import styles from "./IdleScreen.module.css";
+
+const SLIDE_MS = 9000;
+type SlideId = "loyalty" | "referral";
+const SLIDES: SlideId[] = ["loyalty", "referral"];
 
 export default function IdleScreen() {
-  const [promoIndex, setPromoIndex] = useState(0);
+  const [slide, setSlide] = useState(0);
+  const active = SLIDES[slide];
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setPromoIndex((i) => (i + 1) % BRAND.promos.length);
-    }, 4500);
-    return () => clearInterval(id);
-  }, []);
+    const id = setTimeout(() => {
+      setSlide((i) => (i + 1) % SLIDES.length);
+    }, SLIDE_MS);
+    return () => clearTimeout(id);
+  }, [slide]);
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden px-6 text-center sm:px-10">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute -top-1/4 left-1/2 h-[60vh] w-[60vh] -translate-x-1/2 rounded-full bg-amber-500/20 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-[40vh] w-[40vh] rounded-full bg-rose-500/10 blur-[120px]" />
+    <div className={styles.root}>
+      <div className={styles.burst} aria-hidden />
 
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="flex flex-col items-center"
-      >
-        <motion.div
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <BrandMark
-            logoSizeClass="h-28 w-28 sm:h-36 sm:w-36"
-            nameSizeClass="text-4xl sm:text-6xl"
-            badgePadClass="p-4"
-            className="drop-shadow-2xl"
-          />
-        </motion.div>
-        <p className="mt-3 text-lg text-amber-200/80 sm:text-xl">{BRAND.tagline}</p>
-      </motion.div>
-
-      {/* Loyalty scheme advertisement */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.25, duration: 0.55, ease: "easeOut" }}
-        className="relative mt-8 w-full max-w-4xl overflow-hidden rounded-3xl border border-amber-400/25 bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-transparent p-5 shadow-2xl shadow-amber-950/40 backdrop-blur-md sm:mt-10 sm:p-7"
-      >
-        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-amber-400/20 blur-3xl" />
-
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-300/90 sm:text-sm">
-          {LOYALTY.title}
-        </p>
-        <h2 className="mt-2 text-2xl font-black text-white sm:text-4xl">
-          {LOYALTY.headline}
-        </h2>
-
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4">
-          <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 text-left sm:px-5">
-            <p className="text-3xl font-black text-amber-300 sm:text-4xl">
-              {LOYALTY.earnPercentLabel}
-            </p>
-            <p className="mt-1 text-base font-medium text-white/90 sm:text-lg">
-              {LOYALTY.earnDetail}
-            </p>
+      <main className={styles.stage}>
+        <header className={styles.header}>
+          <div className={styles.brand}>
+            <div className={styles.brandMark}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={BRAND.logoPath} alt="" />
+            </div>
+            <div>
+              <div className={styles.brandName}>{BRAND.name}</div>
+              <div className={styles.brandTag}>{BRAND.displayTagline}</div>
+            </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 text-left sm:px-5">
-            <p className="text-3xl font-black text-amber-300 sm:text-4xl">
-              {LOYALTY.redeemLabel}
-            </p>
-            <p className="mt-1 text-base font-medium text-white/90 sm:text-lg">
-              {LOYALTY.redeemDetail}
-            </p>
+          <div className={styles.openPill}>
+            <span className={styles.openDot} />
+            {BRAND.openPill}
           </div>
+        </header>
+
+        <section className={styles.carousel}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={active}
+              className={`${styles.slide} ${
+                active === "loyalty" ? styles.themeRewards : styles.themeReferral
+              }`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+            >
+              {active === "loyalty" ? <LoyaltySlide /> : <ReferralSlide />}
+            </motion.div>
+          </AnimatePresence>
+        </section>
+
+        <div className={styles.controls}>
+          {SLIDES.map((id, i) => (
+            <button
+              key={id}
+              type="button"
+              aria-label={id === "loyalty" ? "Loyalty rewards" : "Referral bonus"}
+              className={`${styles.dot} ${i === slide ? styles.dotActive : ""}`}
+              style={{ ["--dur" as string]: `${SLIDE_MS / 1000}s` }}
+              onClick={() => setSlide(i)}
+            >
+              {i === slide && (
+                <span key={`fill-${slide}`} className={styles.dotFill} />
+              )}
+            </button>
+          ))}
         </div>
 
-        <p className="mt-5 text-base font-semibold text-amber-100 sm:mt-6 sm:text-xl">
-          {LOYALTY.howToJoin}
-        </p>
-        <p className="mt-2 text-sm font-medium text-amber-200/90 sm:text-base">
-          {LOYALTY.portalHint}
-        </p>
-        <p className="mt-1 text-xs text-white/50 sm:text-sm">
-          {LOYALTY.portalUrl.replace(/^https?:\/\//, "")} · {BRAND.website}
-        </p>
+        <div className={styles.orderbar}>
+          <span className={styles.orderLabel}>
+            <b>Welcome!</b> Your order will appear here
+          </span>
+        </div>
+      </main>
+    </div>
+  );
+}
 
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+function LoyaltySlide() {
+  const accent = LOYALTY.headlineAccent;
+  const full = LOYALTY.headline;
+  const accentAt = full.lastIndexOf(accent);
+  const lead = accentAt > 0 ? full.slice(0, accentAt) : full;
+  const accentText = accentAt >= 0 ? full.slice(accentAt) : "";
+
+  return (
+    <>
+      <div className={styles.slideBody}>
+        <span className={styles.eyebrow}>{LOYALTY.title}</span>
+        <h1 className={styles.headline}>
+          {lead ? <span className={styles.headlineLead}>{lead}</span> : null}
+          {accentText ? (
+            <span className={styles.accent}>{accentText}</span>
+          ) : null}
+        </h1>
+        <p className={styles.sub}>{LOYALTY.subhead}</p>
+        <div className={styles.stats}>
+          <div className={styles.stat}>
+            <div className={styles.statBig}>
+              <CountUp value={LOYALTY.earnPercent} decimals={2} />%
+            </div>
+            <div className={styles.statCap}>{LOYALTY.earnDetail}</div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statBig}>{LOYALTY.redeemLabel}</div>
+            <div className={styles.statCap}>{LOYALTY.redeemDetail}</div>
+          </div>
+        </div>
+        <div className={styles.chips}>
           {LOYALTY.tips.map((tip) => (
-            <span
-              key={tip}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 sm:text-sm"
-            >
+            <span key={tip} className={styles.chip}>
               {tip}
             </span>
           ))}
         </div>
-      </motion.div>
-
-      <div className="mt-6 h-12 sm:mt-8 sm:h-14">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={promoIndex}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.45 }}
-            className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-base font-medium text-white/80 backdrop-blur sm:px-8 sm:text-lg"
-          >
-            {BRAND.promos[promoIndex]}
-          </motion.div>
-        </AnimatePresence>
       </div>
-
-      <p className="absolute bottom-6 text-sm text-white/35 sm:bottom-8 sm:text-base">
-        Welcome! Your order will appear here.
-      </p>
-    </div>
+      <QrPanel
+        url={LOYALTY.portalUrl}
+        hint={LOYALTY.portalHint}
+        host={LOYALTY.portalUrl.replace(/^https?:\/\//, "")}
+      />
+    </>
   );
+}
+
+function ReferralSlide() {
+  const accent = REFERRAL.headlineAccent;
+  const full = REFERRAL.headline;
+  const accentAt = full.lastIndexOf(accent);
+  const lead = accentAt > 0 ? full.slice(0, accentAt) : full;
+  const accentText = accentAt >= 0 ? full.slice(accentAt) : "";
+
+  return (
+    <>
+      <div className={styles.slideBody}>
+        <span className={styles.eyebrow}>{REFERRAL.title}</span>
+        <h1 className={styles.headline}>
+          {lead ? <span className={styles.headlineLead}>{lead}</span> : null}
+          {accentText ? (
+            <span className={styles.accent}>{accentText}</span>
+          ) : null}
+        </h1>
+        <p className={styles.sub}>{REFERRAL.subhead}</p>
+        <div className={styles.rewardPair}>
+          <div className={styles.rewardCard}>
+            <div className={styles.rewardAmt}>{REFERRAL.bonusLabel}</div>
+            <div className={styles.rewardWho}>{REFERRAL.youLabel}</div>
+          </div>
+          <div className={styles.rewardPlus} aria-hidden>
+            +
+          </div>
+          <div className={styles.rewardCard}>
+            <div className={styles.rewardAmt}>{REFERRAL.bonusLabel}</div>
+            <div className={styles.rewardWho}>{REFERRAL.friendLabel}</div>
+          </div>
+        </div>
+        <div className={styles.steps}>
+          {REFERRAL.howItWorks.map((step, i) => (
+            <div key={step} className={styles.step}>
+              <span className={styles.stepN}>{i + 1}</span>
+              {step}
+            </div>
+          ))}
+        </div>
+      </div>
+      <QrPanel
+        url={REFERRAL.inviteUrl}
+        hint={REFERRAL.portalHint}
+        host={LOYALTY.portalUrl.replace(/^https?:\/\//, "")}
+      />
+    </>
+  );
+}
+
+function QrPanel({
+  url,
+  hint,
+  host,
+}: {
+  url: string;
+  hint: string;
+  host: string;
+}) {
+  return (
+    <aside className={styles.qrPanel}>
+      <div className={styles.qrFrame}>
+        <i className={styles.qrC3} />
+        <i className={styles.qrC4} />
+        <QrCode value={url} size={160} margin={1} alt={hint} />
+      </div>
+      <div className={styles.qrCta}>
+        <div className={styles.qrLead}>{hint}</div>
+        <div className={styles.qrUrl}>{host}</div>
+      </div>
+      <div className={styles.phoneHint}>
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
+          <rect x="6" y="2" width="12" height="20" rx="3" />
+          <line x1="10" y1="18" x2="14" y2="18" />
+        </svg>
+        Point your camera here
+      </div>
+    </aside>
+  );
+}
+
+function CountUp({ value, decimals }: { value: number; decimals: number }) {
+  const [n, setN] = useState(0);
+
+  useEffect(() => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setN(value);
+      return;
+    }
+    const start = performance.now();
+    const dur = 1100;
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min((now - start) / dur, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      setN(value * e);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <>{n.toFixed(decimals)}</>;
 }
