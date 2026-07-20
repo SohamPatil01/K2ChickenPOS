@@ -5,16 +5,28 @@ try {
 
 /**
  * Loyalty portal must talk to the Fastify API.
- * Root .env often has API_PORT / NEXT_PUBLIC_API_URL aimed at an old POS port (3001).
- * Prefer an explicit override, else default local API to 3003 (current monorepo default).
+ * Locally: rewrite /api → localhost API.
+ * On Vercel: client usually calls NEXT_PUBLIC_API_URL directly; rewrites still
+ * need a valid absolute URL at build time or `next build` fails.
  */
-const rewriteApiUrl =
-  process.env.API_REWRITE_URL ||
-  (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:3003'
-    : process.env.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:3003';
+function resolveRewriteApiUrl() {
+  const isDev = process.env.NODE_ENV === 'development';
+  const raw =
+    process.env.API_REWRITE_URL ||
+    (isDev ? 'http://localhost:3003' : process.env.NEXT_PUBLIC_API_URL) ||
+    '';
 
+  const cleaned = String(raw).trim().replace(/\/+$/, '');
+
+  if (/^https?:\/\//i.test(cleaned)) {
+    return cleaned;
+  }
+
+  // Dev default, or production fallback if env is missing/malformed
+  return isDev ? 'http://localhost:3003' : 'https://k2-chicken-pos-api.vercel.app';
+}
+
+const rewriteApiUrl = resolveRewriteApiUrl();
 console.log(`[loyalty-web] API rewrite → ${rewriteApiUrl}`);
 
 /** @type {import('next').NextConfig} */
