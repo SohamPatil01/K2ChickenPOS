@@ -5,7 +5,7 @@ import { prisma } from '@azela-pos/db';
 import {
   ensureReferralCode,
   linkReferredByCode,
-} from '../lib/referral';
+} from '../lib/referral.js';
 
 const PIN_MIN = 4;
 const PIN_MAX = 6;
