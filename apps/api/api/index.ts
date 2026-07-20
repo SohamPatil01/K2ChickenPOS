@@ -112,6 +112,7 @@ async function build() {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://points.k2chicken.com',
         'https://loyalty.k2chicken.com',
         'https://www.k2chicken.com',
         'https://k2chicken.com',
@@ -322,6 +323,7 @@ export default async function handler(req: any, res: any) {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://points.k2chicken.com',
         'https://loyalty.k2chicken.com',
         'https://www.k2chicken.com',
         'https://k2chicken.com',
@@ -414,6 +416,7 @@ export default async function handler(req: any, res: any) {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://points.k2chicken.com',
         'https://loyalty.k2chicken.com',
         'https://www.k2chicken.com',
         'https://k2chicken.com',
@@ -506,6 +509,7 @@ export default async function handler(req: any, res: any) {
       const allowedOrigins = [
         'https://k2-chicken-pos-web.vercel.app',
         'https://k2-chicken-pos-hq-web.vercel.app',
+        'https://points.k2chicken.com',
         'https://loyalty.k2chicken.com',
         'https://www.k2chicken.com',
         'https://k2chicken.com',

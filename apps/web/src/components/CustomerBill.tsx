@@ -175,7 +175,7 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
         <div style={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}>Thank you for shopping with us!</div>
         <div>Fresh chicken & quality products — visit again soon.</div>
         <div style={{ marginTop: 8, fontSize: 11 }}>
-          Check points: loyalty.k2chicken.com · www.k2chicken.com — redeem in shop only
+          Check points: points.k2chicken.com · www.k2chicken.com — redeem in shop only
         </div>
       </div>
     </div>

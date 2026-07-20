@@ -56,7 +56,7 @@ export default function PointsPage() {
 
   const shareReferral = async () => {
     if (!customer?.referralCode) return;
-    const text = `Join K2 Chicken loyalty with my code ${customer.referralCode} — or tell them my number ${customer.phone} at the counter. Both get 50 points after your first paid bill. https://loyalty.k2chicken.com`;
+    const text = `Join K2 Chicken loyalty with my code ${customer.referralCode} — or tell them my number ${customer.phone} at the counter. Both get 50 points after your first paid bill. https://points.k2chicken.com`;
     try {
       if (navigator.share) {
         await navigator.share({ title: 'K2 Chicken Loyalty', text });

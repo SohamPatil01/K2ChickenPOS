@@ -32,8 +32,8 @@ export const LOYALTY = {
   portalUrl:
     (typeof process !== "undefined" &&
       (process.env.NEXT_PUBLIC_LOYALTY_PORTAL_URL || "").trim()) ||
-    "https://loyalty.k2chicken.com",
-  portalHint: "Check your points anytime at loyalty.k2chicken.com",
+    "https://points.k2chicken.com",
+  portalHint: "Check your points anytime at points.k2chicken.com",
   websiteUrl: "https://www.k2chicken.com",
   tips: [
     "Points credited when you pay with your linked number",

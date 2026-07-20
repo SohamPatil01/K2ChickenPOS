@@ -3,15 +3,15 @@
 Customer-facing loyalty page (not the POS app).
 
 - **Local:** `pnpm --filter @azela-pos/loyalty-web dev` → http://localhost:3004  
-- **Production domain:** `loyalty.k2chicken.com` (CNAME to this Vercel project)  
+- **Production domain:** `points.k2chicken.com` (CNAME to this Vercel project)  
 - **API:** uses `NEXT_PUBLIC_API_URL` (or Next rewrites to local API in development)
 
 ## Deploy (Vercel Free)
 
 1. Create a Vercel project rooted at `apps/loyalty-web` (or monorepo with filter).
 2. Set `NEXT_PUBLIC_API_URL` to your production API URL.
-3. Add custom domain `loyalty.k2chicken.com` and DNS CNAME at the registrar that manages k2chicken.com.
-4. Ensure the API CORS allowlist includes `https://loyalty.k2chicken.com` (already added in `apps/api/api/index.ts`).
+3. Add custom domain `points.k2chicken.com` and DNS CNAME at the registrar that manages k2chicken.com.
+4. Ensure the API CORS allowlist includes `https://points.k2chicken.com` (already added in `apps/api/api/index.ts`).
 
 ## Behaviour
 
