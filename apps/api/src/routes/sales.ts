@@ -60,7 +60,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
   // Get sales list
   fastify.get('/', async (request: any, reply: FastifyReply) => {
     try {
-      const limit = Math.min(Math.max(parseInt((request.query as any).limit || '50', 10) || 50, 1), 200);
+      const limit = Math.min(Math.max(parseInt((request.query as any).limit || '50', 10) || 50, 1), 500);
       const status = (request.query as any).status;
       const startDate = (request.query as any).startDate;
       const endDate = (request.query as any).endDate;
