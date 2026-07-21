@@ -173,7 +173,7 @@ export default function OrdersPage() {
         endDate: bounds.endDate,
         businessDayStart: bounds.businessDayStart,
         businessDayEnd: bounds.businessDayEnd,
-        limit: 200,
+        limit: 500,
       };
 
       if (filters.status && filters.status.trim() !== "") {
