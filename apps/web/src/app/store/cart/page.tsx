@@ -279,7 +279,7 @@ export default function StoreCartPage() {
 
   /** Common localities for one-tap area (edit list anytime). */
   const QUICK_AREAS = [
-    'Kothrud',
+    'Vishal Nagar',
     'Baner',
     'Aundh',
     'Wakad',
@@ -287,6 +287,7 @@ export default function StoreCartPage() {
     'Pimple Saudagar',
     'Shivaji Nagar',
     'Deccan',
+
   ];
 
   const pickExistingCustomer = (customer: {
