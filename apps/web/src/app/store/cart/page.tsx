@@ -91,6 +91,7 @@ export default function StoreCartPage() {
   const phoneSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const areaInputRef = useRef<HTMLInputElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const paymentInFlightRef = useRef(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -314,6 +315,13 @@ export default function StoreCartPage() {
         : `${customer.name || 'Customer'} selected`,
       'success'
     );
+  };
+
+  const focusNameField = () => {
+    setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
   };
 
   const focusAreaField = () => {
@@ -935,7 +943,11 @@ export default function StoreCartPage() {
                     </label>
                     <div className="relative">
                       <input
+                        ref={nameInputRef}
                         type="text"
+                        inputMode="text"
+                        autoComplete="name"
+                        enterKeyHint="next"
                         placeholder="Enter customer name"
                         value={tempCustomerName}
                         onChange={(e) => {
@@ -947,6 +959,12 @@ export default function StoreCartPage() {
                         onFocus={() => {
                           if (tempCustomerName.length >= 1) {
                             searchCustomersByName(tempCustomerName);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            focusAreaField();
                           }
                         }}
                         onBlur={() => {
@@ -995,7 +1013,7 @@ export default function StoreCartPage() {
                           type="button"
                           onClick={() => setShowKeyboard(true)}
                           className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          title="Open keyboard"
+                          title="On-screen keyboard (device keyboard also works)"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1686,7 +1704,8 @@ export default function StoreCartPage() {
               tempCustomerPhone.replace(/\D/g, '').length >= 10 &&
               !(tempCustomerName || '').trim()
             ) {
-              setShowKeyboard(true);
+              // Prefer device keyboard on the name field; use + for on-screen keys
+              focusNameField();
             } else if (
               numPadTarget === 'customer' &&
               tempCustomerPhone.replace(/\D/g, '').length >= 10 &&
@@ -1701,7 +1720,7 @@ export default function StoreCartPage() {
             if (numPadTarget !== 'customer') return;
             if (tempCustomerPhone.replace(/\D/g, '').length < 10) return;
             if (!(tempCustomerName || '').trim()) {
-              setShowKeyboard(true);
+              focusNameField();
             } else {
               focusAreaField();
             }

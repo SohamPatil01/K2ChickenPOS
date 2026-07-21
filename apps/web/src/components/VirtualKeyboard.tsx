@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface VirtualKeyboardProps {
   value: string;
@@ -13,14 +13,27 @@ interface VirtualKeyboardProps {
 export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, placeholder = 'Enter name' }: VirtualKeyboardProps) {
   const [displayValue, setDisplayValue] = useState(value);
   const [isShift, setIsShift] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync with value prop when it changes, but only if displayValue is empty or value is different
   useEffect(() => {
-    // Only sync if the value prop has changed externally (not from our own updates)
     if (value !== displayValue) {
       setDisplayValue(value);
     }
   }, [value]);
+
+  // Keep focus so the device (bottom) keyboard stays available alongside on-screen keys
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      inputRef.current?.focus();
+      // Place caret at end
+      const el = inputRef.current;
+      if (el) {
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+      }
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, []);
 
   const rows = [
     ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
@@ -28,48 +41,45 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
     ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
   ];
 
+  const commit = (next: string) => {
+    setDisplayValue(next);
+    onChange(next);
+  };
+
   const handleKeyClick = (key: string) => {
-    const newValue = displayValue + (isShift ? key.toUpperCase() : key);
-    setDisplayValue(newValue);
-    // Call onChange with the new value immediately
-    onChange(newValue);
+    commit(displayValue + (isShift ? key.toUpperCase() : key));
     setIsShift(false);
+    inputRef.current?.focus();
   };
 
   const handleSpace = () => {
-    const newValue = displayValue + ' ';
-    setDisplayValue(newValue);
-    onChange(newValue);
+    commit(displayValue + ' ');
+    inputRef.current?.focus();
   };
 
   const handleBackspace = () => {
-    const newValue = displayValue.slice(0, -1);
-    setDisplayValue(newValue);
-    onChange(newValue);
+    commit(displayValue.slice(0, -1));
+    inputRef.current?.focus();
   };
 
   const handleClear = () => {
-    setDisplayValue('');
-    onChange('');
+    commit('');
+    inputRef.current?.focus();
   };
 
   const handleClose = () => {
-    // Always sync the current displayValue before closing
     if (displayValue !== value) {
       onChange(displayValue);
     }
-    // Small delay to ensure onChange has been processed by parent
     setTimeout(() => {
       onClose();
     }, 100);
   };
 
   const handleSubmit = () => {
-    // Ensure onChange is called with the final value before submitting
     if (displayValue !== value) {
       onChange(displayValue);
     }
-    // Small delay to ensure onChange has been processed by parent
     setTimeout(() => {
       if (onSubmit) {
         onSubmit();
@@ -80,8 +90,7 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-50 safe-top safe-bottom">
-      <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-t-2xl shadow-2xl animate-fade-in-up border-t border-gray-200 dark:border-gray-700">
-        {/* Header */}
+      <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-t-2xl shadow-2xl animate-fade-in-up border-t border-gray-200 dark:border-gray-700 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Enter Name</h3>
           <button
@@ -95,21 +104,38 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
           </button>
         </div>
 
-        {/* Display */}
         <div className="p-4">
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4">
-            <div className="text-xl font-medium text-gray-900 dark:text-white text-center min-h-[2rem] flex items-center justify-center">
-              {displayValue || <span className="text-gray-400 dark:text-gray-500">{placeholder}</span>}
-            </div>
-          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="text"
+            autoComplete="name"
+            autoCorrect="off"
+            autoCapitalize="words"
+            enterKeyHint="done"
+            value={displayValue}
+            placeholder={placeholder}
+            onChange={(e) => commit(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            className="w-full bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-4 mb-2 text-xl font-medium text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Use the device keyboard below or the on-screen keys
+          </p>
 
-          {/* Keyboard */}
           <div className="space-y-2">
             {rows.map((row, rowIndex) => (
               <div key={rowIndex} className="flex gap-1.5 justify-center">
                 {row.map((key) => (
                   <button
                     key={key}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleKeyClick(key)}
                     className="px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-base font-medium text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target min-w-[2.5rem]"
                   >
@@ -119,9 +145,10 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
               </div>
             ))}
 
-            {/* Bottom Row */}
             <div className="flex gap-1.5 justify-center">
               <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setIsShift(!isShift)}
                 className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 touch-target ${
                   isShift
@@ -132,12 +159,16 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
                 ⇧
               </button>
               <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={handleSpace}
                 className="flex-1 max-w-xs px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
               >
                 Space
               </button>
               <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={handleBackspace}
                 className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all duration-200 touch-target"
               >
@@ -147,21 +178,24 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
               </button>
             </div>
 
-            {/* Action Buttons */}
             <div className="mt-4 flex gap-3">
               <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={handleClear}
                 className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-target"
               >
                 Clear
               </button>
               <button
+                type="button"
                 onClick={handleClose}
                 className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-target"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
                 className="flex-1 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium shadow-sm hover:shadow transition-all duration-200 touch-target"
               >
@@ -174,4 +208,3 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
     </div>
   );
 }
-
