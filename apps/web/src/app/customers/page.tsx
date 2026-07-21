@@ -115,7 +115,7 @@ export default function CustomersPage() {
 
   const loadCustomers = async () => {
     try {
-      const response = await api.get('/api/v1/customers');
+      const response = await api.get('/api/v1/customers', { params: { limit: 500 } });
       const totalHeader =
         response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
       const { customers } = parseCustomerListResponse<Customer>(

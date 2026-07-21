@@ -89,9 +89,14 @@ export default function StoreDashboardPage() {
 
   useEffect(() => {
     if (!user?.storeId || !autoRefresh) return;
-    // 5 min light refresh (today only) — cuts Neon public transfer vs full dashboard every 2 min
-    const interval = setInterval(() => handleRefetch({ light: true }), 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    // 5GB Neon budget: no timed polling — refresh on sale events + when tab becomes visible
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        handleRefetch({ light: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [user?.storeId, autoRefresh, handleRefetch]);
 
   if (!user) return null;

@@ -168,11 +168,12 @@ export default function OrdersPage() {
         filters.dateRange.end
       );
 
-      const params: Record<string, string> = {
+      const params: Record<string, string | number> = {
         startDate: bounds.startDate,
         endDate: bounds.endDate,
         businessDayStart: bounds.businessDayStart,
         businessDayEnd: bounds.businessDayEnd,
+        limit: 200,
       };
 
       if (filters.status && filters.status.trim() !== "") {
@@ -251,15 +252,11 @@ export default function OrdersPage() {
     window.addEventListener("sale-updated", handleSaleUpdated);
     window.addEventListener("sale-deleted", handleSaleDeleted);
 
-    const refreshInterval = setInterval(() => {
-      loadSalesRef.current();
-    }, 5 * 60 * 1000);
-
+    // 5GB Neon budget: event-driven only (no 5-min full sales list poll)
     return () => {
       window.removeEventListener("sale-created", handleSaleCreated);
       window.removeEventListener("sale-updated", handleSaleUpdated);
       window.removeEventListener("sale-deleted", handleSaleDeleted);
-      clearInterval(refreshInterval);
     };
   }, [user]);
 

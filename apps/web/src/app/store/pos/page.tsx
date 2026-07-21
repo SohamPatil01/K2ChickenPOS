@@ -270,12 +270,7 @@ export default function StorePOSPage() {
     if (!user?.storeId) return;
     try {
       const res = await api.get("/api/v1/inventory/summary", {
-        params: { _t: Date.now(), storeId: user.storeId },
-        headers: {
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
+        params: { storeId: user.storeId },
       });
       const map: Record<string, { kg: number; pcs: number }> = {};
       for (const row of res.data || []) {
@@ -401,16 +396,18 @@ export default function StorePOSPage() {
     setLoading((prev) => ({ ...prev, products: true }));
     setError((prev) => ({ ...prev, products: undefined }));
 
-    const applyCachedProducts = async (): Promise<boolean> => {
+    const applyCachedProducts = async (opts?: { silent?: boolean }): Promise<boolean> => {
       const offlineProducts = await loadProductsFromCache();
       if (offlineProducts.length === 0) return false;
       setProducts(offlineProducts);
       setCategories(categoriesFromProducts(offlineProducts));
-      showNotification(
-        `Offline catalog: ${offlineProducts.length} products loaded`,
-        "warning",
-        4500
-      );
+      if (!opts?.silent) {
+        showNotification(
+          `Offline catalog: ${offlineProducts.length} products loaded`,
+          "warning",
+          4500
+        );
+      }
       return true;
     };
 
@@ -426,10 +423,9 @@ export default function StorePOSPage() {
       return;
     }
 
+    // Always fetch when online so prices stay current; IndexedDB is offline fallback only
     try {
-      const response = await api.get("/api/v1/products", {
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      });
+      const response = await api.get("/api/v1/products", {});
       const productsData = response.data || [];
 
       // productMaster is included on GET /products — no per-product HQ round-trips
@@ -494,10 +490,7 @@ export default function StorePOSPage() {
     }
 
     try {
-      const response = await api.get("/api/v1/products/categories", {
-        params: { _t: Date.now() },
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      });
+      const response = await api.get("/api/v1/products/categories");
       setCategories(response.data || []);
     } catch (error: any) {
       console.error("Failed to load categories:", error);

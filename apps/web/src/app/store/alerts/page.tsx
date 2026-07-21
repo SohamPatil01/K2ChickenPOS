@@ -32,9 +32,12 @@ export default function AlertsPage() {
     }
     loadAlerts();
 
-    // 5 min — alerts endpoint runs many inventory/sales queries (Neon egress)
-    const interval = setInterval(loadAlerts, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    // 5GB Neon budget: no timed poll — refresh when tab is focused
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadAlerts();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [user, router]);
 
   const loadAlerts = async () => {

@@ -1,4 +1,4 @@
-import { prisma } from '@azela-pos/db';
+import { prisma, Prisma } from '@azela-pos/db';
 import {
   salesInStoreDayWhere,
   storeDayBoundsFromYmd,
@@ -105,20 +105,34 @@ export class AlertService {
         select: { id: true, name: true, sku: true },
       });
 
-      for (const product of products) {
-        const ledgers = await prisma.inventoryLedger.findMany({
-          where: { storeId, productId: product.id },
-          orderBy: { createdAt: 'asc' },
-        });
+      if (products.length === 0) return alerts;
 
-        let currentStock = 0;
-        ledgers.forEach(ledger => {
-          if (ledger.type === 'IN') {
-            currentStock += ledger.qtyKg || ledger.qtyPcs || 0;
-          } else {
-            currentStock -= ledger.qtyKg || ledger.qtyPcs || 0;
-          }
-        });
+      const balanceRows = await prisma.$queryRaw<
+        Array<{ productId: string; qty: number }>
+      >`
+        SELECT
+          "productId",
+          COALESCE(
+            SUM(
+              CASE
+                WHEN type = 'IN' THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)
+                ELSE -(COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0))
+              END
+            ),
+            0
+          )::float AS qty
+        FROM "InventoryLedger"
+        WHERE "storeId" = ${storeId}
+          AND "productId" IN (${Prisma.join(products.map((p) => p.id))})
+        GROUP BY "productId"
+      `;
+
+      const stockByProduct = new Map(
+        balanceRows.map((row) => [row.productId, Number(row.qty) || 0])
+      );
+
+      for (const product of products) {
+        const currentStock = stockByProduct.get(product.id) ?? 0;
 
         // Out of stock
         if (currentStock <= 0) {
@@ -159,24 +173,26 @@ export class AlertService {
     const alerts: Alert[] = [];
 
     try {
-      const { gte: today, lte: todayEnd } = todayStoreDay();
-      const { gte: yesterday, lte: yesterdayEnd } = yesterdayStoreDay();
-
       // Today's sales (store calendar day, IST)
-      const todaySales = await prisma.sale.findMany({
+      const todayAgg = await prisma.sale.aggregate({
         where: salesInStoreDayWhere(storeId, ymdInStoreTz(), 'PAID') as any,
+        _sum: { grandTotal: true },
+        _count: { _all: true },
       });
 
       // Yesterday's sales
-      const yesterdaySales = await prisma.sale.findMany({
+      const yesterdayAgg = await prisma.sale.aggregate({
         where: salesInStoreDayWhere(storeId, ymdDaysAgoInStoreTz(1), 'PAID') as any,
+        _sum: { grandTotal: true },
+        _count: { _all: true },
       });
 
-      const todayRevenue = todaySales.reduce((sum, s) => sum + s.grandTotal, 0);
-      const yesterdayRevenue = yesterdaySales.reduce((sum, s) => sum + s.grandTotal, 0);
+      const todayRevenue = todayAgg._sum.grandTotal || 0;
+      const yesterdayRevenue = yesterdayAgg._sum.grandTotal || 0;
+      const todayCount = todayAgg._count._all || 0;
 
       // No sales today
-      if (todaySales.length === 0 && new Date().getHours() > 12) {
+      if (todayCount === 0 && new Date().getHours() > 12) {
         alerts.push({
           id: 'sales-none-today',
           type: 'sales',
@@ -201,16 +217,17 @@ export class AlertService {
         });
       }
 
-      // Check for pending payments
+      // Pending OPEN sales — capped + light select
       const pendingPayments = await prisma.sale.findMany({
         where: {
           storeId,
           status: 'OPEN',
         },
-        include: {
-          customer: true,
-          payments: true,
+        select: {
+          grandTotal: true,
+          payments: { select: { amount: true } },
         },
+        take: 200,
       });
 
       const totalPending = pendingPayments.reduce((sum, s) => {

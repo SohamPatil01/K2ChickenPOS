@@ -3,8 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { tallyPaymentsFromSales, paymentBreakdownBuckets } from '@azela-pos/shared';
 import api from '@/lib/api';
-import { localDateRangeToApiBounds, todayLocalYmd, defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
-import { format, subDays, parseISO } from 'date-fns';
+import { localDateRangeToApiBounds } from '@/lib/dateRangeParams';
 
 export interface DashboardStats {
   today: {
@@ -100,78 +99,10 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
   }, []);
 
   const loadSecondary = useCallback(
-    async (userRole: string) => {
-      const todayYmd = todayLocalYmd();
-      const { startDate, endDate } = localDateRangeToApiBounds(todayYmd, todayYmd);
-
-      const tasks: Promise<void>[] = [
-        (async () => {
-          try {
-            const inventoryRes = await api.get('/api/v1/inventory/ledger', {
-              params: { startDate, endDate },
-            });
-            const ledgers = inventoryRes.data || [];
-            const receivedStock = ledgers
-              .filter((l: any) => l.type === 'IN' && l.reason === 'RECEIVE')
-              .reduce((s: number, l: any) => s + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-            const soldStock = ledgers
-              .filter((l: any) => l.type === 'OUT' && l.reason === 'SALE')
-              .reduce((s: number, l: any) => s + (l.qtyKg || 0) + (l.qtyPcs || 0), 0);
-            setStats((prev) => {
-              if (!prev) return prev;
-              const next = {
-                ...prev,
-                todayStock: {
-                  ...prev.todayStock,
-                  receivedStock,
-                  soldStock,
-                },
-              };
-              statsRef.current = next;
-              return next;
-            });
-          } catch {
-            /* ignore secondary */
-          }
-        })(),
-        loadPendingPayments(),
-      ];
-
-      if (userRole === 'MANAGER' || userRole === 'OWNER') {
-        tasks.push(
-          (async () => {
-            try {
-              const topItemsRes = await api.get(
-                '/api/v1/analytics/top-items?startDate=' + defaultDateRangeLast7Days().start
-              );
-              const topItems = topItemsRes.data || [];
-              setStats((prev) => {
-                if (!prev) return prev;
-                const next = { ...prev, topItems };
-                statsRef.current = next;
-                return next;
-              });
-            } catch {
-              /* ignore */
-            }
-          })(),
-          (async () => {
-            try {
-              const trendStartYmd = format(subDays(parseISO(todayYmd), 6), 'yyyy-MM-dd');
-              const res = await api.get('/api/v1/analytics/sales-trend', {
-                params: { startDate: trendStartYmd, endDate: todayYmd },
-              });
-              setSalesTrendLast7(Array.isArray(res?.data) ? res.data : []);
-            } catch {
-              setSalesTrendLast7([]);
-            }
-          })()
-        );
-      } else {
-        setSalesTrendLast7([]);
-      }
-
-      await Promise.all(tasks);
+    async (_userRole: string) => {
+      // 5GB Neon budget: only pending totals once — skip ledger dump + analytics fan-out
+      // (dashboard already returns topProducts / payment mix).
+      await loadPendingPayments();
     },
     [loadPendingPayments]
   );
@@ -214,7 +145,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
             other: paymentBreakdown.other || 0,
             total: paymentBreakdown.total || 0,
           },
-          todayStock: light ? statsRef.current!.todayStock : emptyStock,
+          todayStock: d.todayStock || emptyStock,
           topProducts: d.topProducts || [],
           topItems: light ? statsRef.current!.topItems : [],
           recentSales: (d.recentSales || []).map((s: any) => ({
@@ -235,9 +166,8 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
         if (!light) {
           // Secondary widgets — do not block first paint
           void loadSecondary(userRole);
-        } else {
-          void loadPendingPayments();
         }
+        // light refresh: skip pending-payments (heavy); sale events trigger full refetch when needed
       } catch (e: any) {
         console.error('[Dashboard] Failed to load:', e);
         setError(e.response?.data?.error || 'Failed to load dashboard');

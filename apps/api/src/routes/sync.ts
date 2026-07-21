@@ -120,9 +120,10 @@ export async function syncRoutes(fastify: FastifyInstance) {
     const customers = await prisma.customer.findMany({
       where: { storeId: customerStoreFilter },
       include: { addresses: true },
-      take: 1000, // Limit for bootstrap
+      take: 200, // Offline bootstrap only — keep Neon egress low (5GB budget)
     });
 
+    reply.header('Cache-Control', 'private, max-age=300, stale-while-revalidate=600');
     return {
       products: products.map((p: any) => ({
         productId: p.id,

@@ -71,15 +71,25 @@ export default function StoreCartPage() {
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showNumPad, setShowNumPad] = useState(false);
+  /** Which phone field the numpad is editing. */
+  const [numPadTarget, setNumPadTarget] = useState<'customer' | 'referrer'>('customer');
   const [showKeyboard, setShowKeyboard] = useState(false);
-  const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [showNameDropdown, setShowNameDropdown] = useState(false);
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
+  /** Phone prefix matches (tap to select) after 4+ digits. */
+  const [phoneMatches, setPhoneMatches] = useState<any[]>([]);
+  const [showPhoneDropdown, setShowPhoneDropdown] = useState(false);
+  /** Collapsed by default; opens if a referral is already set. */
+  const [showReferral, setShowReferral] = useState(
+    () => Boolean(referredByPhone || referredByCode)
+  );
   const [tempCustomerPhone, setTempCustomerPhone] = useState(customerPhone || '');
   const [tempCustomerName, setTempCustomerName] = useState(customerName || '');
   const [tempCustomerArea, setTempCustomerArea] = useState(customerArea || '');
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const phoneSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nameSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const paymentInFlightRef = useRef(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -97,12 +107,6 @@ export default function StoreCartPage() {
       setCustomerPoints(null);
       return;
     }
-    // Instant fallback from the already-loaded customer list (includes points),
-    // so the control is usable immediately and never sits on "Loading…".
-    const fromList: any = allCustomers.find((c: any) => c.id === customerId);
-    if (fromList && typeof fromList.loyaltyPoints === 'number') {
-      setCustomerPoints(Math.floor(fromList.loyaltyPoints));
-    }
     (async () => {
       try {
         const res = await api.get(`/api/v1/customers/${customerId}/loyalty`);
@@ -110,14 +114,13 @@ export default function StoreCartPage() {
         if (!cancelled) setCustomerPoints(pts);
       } catch (err) {
         console.error('[Cart] Failed to load loyalty balance:', err);
-        // Don't get stuck on "Loading…": keep the list fallback, else assume 0.
         if (!cancelled) setCustomerPoints((prev) => (prev === null ? 0 : prev));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [customerId, skipCustomer, allCustomers]);
+  }, [customerId, skipCustomer]);
 
   useEffect(() => {
     if (!user) {
@@ -125,7 +128,6 @@ export default function StoreCartPage() {
       return;
     }
     loadCart();
-    loadAllCustomers();
     
     // Initialize speech recognition
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -176,21 +178,6 @@ export default function StoreCartPage() {
     setTempCustomerArea(customerArea || '');
   }, [customerPhone, customerName, customerArea]);
 
-  const loadAllCustomers = async () => {
-    try {
-      const response = await api.get('/api/v1/customers');
-      const totalHeader =
-        response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
-      const { customers } = parseCustomerListResponse<{ id: string; name: string; phone: string }>(
-        response.data,
-        totalHeader
-      );
-      setAllCustomers(customers);
-    } catch (error: any) {
-      console.error('Failed to load customers:', error);
-    }
-  };
-
   const searchCustomers = async (phone: string) => {
     try {
       const response = await api.get(`/api/v1/customers?phone=${phone}`);
@@ -199,18 +186,99 @@ export default function StoreCartPage() {
         setTempCustomerPhone(response.data.phone);
         setTempCustomerName(response.data.name || '');
         setTempCustomerArea(response.data.area || '');
-        setCustomerSearchResults([]);
+        setPhoneMatches([]);
+        setShowPhoneDropdown(false);
       } else {
         const searchRes = await api.get('/api/v1/customers', { params: { q: phone } });
         const { customers } = parseCustomerListResponse<{ id: string; name: string; phone: string }>(
           searchRes.data
         );
-        setCustomerSearchResults(customers.slice(0, 8));
+        setPhoneMatches(customers.slice(0, 8));
+        setShowPhoneDropdown(customers.length > 0);
       }
     } catch (error: any) {
       console.error('Failed to search customers:', error);
     }
   };
+
+  /** Server typeahead after 4 digits — avoids loading the full customer roster. */
+  const matchCustomersByPhonePrefix = useCallback((phone: string) => {
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (phoneSearchTimerRef.current) clearTimeout(phoneSearchTimerRef.current);
+    if (digits.length < 4) {
+      setPhoneMatches([]);
+      setShowPhoneDropdown(false);
+      return;
+    }
+    phoneSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const searchRes = await api.get('/api/v1/customers', { params: { q: digits } });
+        const { customers } = parseCustomerListResponse<{
+          id: string;
+          name: string;
+          phone: string;
+          area?: string;
+        }>(searchRes.data);
+        setPhoneMatches(customers.slice(0, 8));
+        setShowPhoneDropdown(customers.length > 0);
+      } catch (error) {
+        console.error('Failed to match customers by phone:', error);
+      }
+    }, 250);
+  }, []);
+
+  const searchCustomersByName = useCallback((name: string) => {
+    const term = String(name || '').trim();
+    if (nameSearchTimerRef.current) clearTimeout(nameSearchTimerRef.current);
+    if (term.length < 1) {
+      setCustomerSearchResults([]);
+      setShowNameDropdown(false);
+      return;
+    }
+    nameSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const searchRes = await api.get('/api/v1/customers', { params: { q: term } });
+        const { customers } = parseCustomerListResponse<{
+          id: string;
+          name: string;
+          phone: string;
+          area?: string;
+        }>(searchRes.data);
+        const filtered = customers
+          .filter((c) => String(c.name || '').toLowerCase().startsWith(term.toLowerCase()))
+          .slice(0, 5);
+        setCustomerSearchResults(filtered);
+        setShowNameDropdown(filtered.length > 0);
+      } catch (error) {
+        console.error('Failed to search customers by name:', error);
+      }
+    }, 250);
+  }, []);
+
+  /** Single referral box: digits → phone, letters → code. */
+  const applyReferralInput = (raw: string) => {
+    const trimmed = String(raw || '').trim();
+    if (!trimmed) {
+      setReferredByPhone(null);
+      setReferredByCode(null);
+      return;
+    }
+    const hasLetter = /[A-Za-z]/.test(trimmed);
+    if (!hasLetter) {
+      const digits = trimmed.replace(/\D/g, '').slice(0, 12);
+      setReferredByPhone(digits || null);
+      setReferredByCode(null);
+    } else {
+      const code = trimmed
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .slice(0, 12);
+      setReferredByCode(code || null);
+      setReferredByPhone(null);
+    }
+  };
+
+  const referralInputValue = referredByPhone || referredByCode || '';
 
   const createOrUpdateCustomer = async (phone: string, name: string, area?: string) => {
     const trimmedPhone = phone ? phone.trim() : '';
@@ -750,6 +818,10 @@ export default function StoreCartPage() {
                           setTempCustomerPhone('');
                           setTempCustomerName('');
                           setTempCustomerArea('');
+                          applyReferralInput('');
+                          setShowReferral(false);
+                          setPhoneMatches([]);
+                          setShowPhoneDropdown(false);
                           setShowCustomerSection(true);
                           setSkipCustomer(false);
                         }}
@@ -763,8 +835,8 @@ export default function StoreCartPage() {
               </div>
               {showCustomerSection && !skipCustomer && (
                 <div className="p-6 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 items-start">
+                  <div className="relative z-40">
                     <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Phone Number
                     </label>
@@ -774,7 +846,11 @@ export default function StoreCartPage() {
                         placeholder="Enter phone number"
                         value={tempCustomerPhone}
                         readOnly
-                        onClick={() => setShowNumPad(true)}
+                        onClick={() => {
+                          setNumPadTarget('customer');
+                          setShowNumPad(true);
+                          matchCustomersByPhonePrefix(tempCustomerPhone);
+                        }}
                         className={`w-full px-4 py-3 pl-11 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${ tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }`}
                       />
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -788,38 +864,31 @@ export default function StoreCartPage() {
                         Phone number must be at least 10 digits
                       </p>
                     )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-ink-secondary mb-2">
-                      Referrer phone <span className="font-normal text-ink-muted">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="Friend who referred them"
-                      value={referredByPhone || ''}
-                      onChange={(e) => setReferredByPhone(e.target.value || null)}
-                      className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-ink-secondary mb-2">
-                      Referral code <span className="font-normal text-ink-muted">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="text"
-                      autoCapitalize="characters"
-                      placeholder="e.g. B42W8K"
-                      value={referredByCode || ''}
-                      onChange={(e) => setReferredByCode(e.target.value || null)}
-                      className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase tracking-wider"
-                    />
-                    <p className="mt-1 text-xs text-ink-muted">
-                      Use phone or code — both get 50 pts after this customer&apos;s first paid bill
-                    </p>
+                    {showPhoneDropdown && phoneMatches.length > 0 && (
+                      <div className="absolute z-[100] w-full mt-1 glass-panel-strong rounded-2xl max-h-48 overflow-y-auto">
+                        {phoneMatches.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => {
+                              setCustomer(customer.id, customer.phone, customer.name, customer.area || null);
+                              setTempCustomerPhone(customer.phone);
+                              setTempCustomerName(customer.name || '');
+                              setTempCustomerArea(customer.area || '');
+                              setPhoneMatches([]);
+                              setShowPhoneDropdown(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="font-medium text-sm text-ink">{customer.name || 'No name'}</div>
+                            <div className="text-xs text-ink-muted">
+                              {customer.phone}
+                              {customer.area ? ` • ${customer.area}` : ''}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative z-50">
@@ -835,23 +904,11 @@ export default function StoreCartPage() {
                           const newName = e.target.value;
                           setTempCustomerName(newName);
                           setCustomer(customerId, tempCustomerPhone || null, newName || null, tempCustomerArea || null);
-                          if (newName.length >= 1) {
-                            const filtered = allCustomers.filter((c: any) => 
-                              c.name.toLowerCase().startsWith(newName.toLowerCase())
-                            ).slice(0, 5);
-                            setCustomerSearchResults(filtered);
-                            setShowNameDropdown(filtered.length > 0);
-                          } else {
-                            setShowNameDropdown(false);
-                          }
+                          searchCustomersByName(newName);
                         }}
                         onFocus={() => {
                           if (tempCustomerName.length >= 1) {
-                            const filtered = allCustomers.filter((c: any) => 
-                              c.name.toLowerCase().startsWith(tempCustomerName.toLowerCase())
-                            ).slice(0, 5);
-                            setCustomerSearchResults(filtered);
-                            setShowNameDropdown(filtered.length > 0);
+                            searchCustomersByName(tempCustomerName);
                           }
                         }}
                         onBlur={() => {
@@ -943,7 +1000,7 @@ export default function StoreCartPage() {
                     )}
                   </div>
 
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-ink-secondary mb-2">
                       Area / Locality
                     </label>
@@ -968,8 +1025,63 @@ export default function StoreCartPage() {
                   </div>
                 </div>
 
+                {!showReferral ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowReferral(true)}
+                    className="w-full sm:w-auto text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    + Add referral
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-ink-secondary">
+                        Referral <span className="font-normal text-ink-muted">(phone or code)</span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          applyReferralInput('');
+                          setShowReferral(false);
+                        }}
+                        className="text-xs text-ink-muted hover:text-ink-secondary"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="text"
+                        autoCapitalize="characters"
+                        placeholder="Friend's phone or code e.g. B42W8K"
+                        value={referralInputValue}
+                        onChange={(e) => applyReferralInput(e.target.value)}
+                        className="w-full px-4 py-3 pr-12 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase tracking-wider"
+                      />
+                      <button
+                        type="button"
+                        title="Open numpad"
+                        onClick={() => {
+                          setNumPadTarget('referrer');
+                          setShowNumPad(true);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-brand-600 rounded-lg"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                        </svg>
+                      </button>
+                    </div>
+                    <p className="text-xs text-ink-muted">
+                      Digits = phone · letters = code. Both get 50 pts after first paid bill.
+                    </p>
+                  </div>
+                )}
+
                 {customerName && customerPhone && showCustomerSection && (
-                  <div className="mt-4 p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+                  <div className="p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
                     <p className="text-sm text-brand-700 dark:text-brand-300">
                       <span className="font-medium">Billing to:</span> {customerName} ({customerPhone})
                       {customerArea ? ` — ${customerArea}` : ''}
@@ -1446,27 +1558,50 @@ export default function StoreCartPage() {
 
       {showNumPad && (
         <NumPad
-          value={tempCustomerPhone}
+          value={numPadTarget === 'referrer' ? referredByPhone || '' : tempCustomerPhone}
           onChange={(value) => {
+            if (numPadTarget === 'referrer') {
+              applyReferralInput(value);
+              return;
+            }
             setTempCustomerPhone(value);
             setCustomer(null, value || null, tempCustomerName || null, tempCustomerArea || null);
-            if (value && value.length >= 6) {
-              searchCustomers(value);
+            matchCustomersByPhonePrefix(value);
+            // Exact full number: try resolve once at 10+ digits
+            if (value && value.replace(/\D/g, '').length >= 10) {
+              void searchCustomers(value);
             }
           }}
           onClose={() => {
             setShowNumPad(false);
-            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
+            if (
+              numPadTarget === 'customer' &&
+              tempCustomerPhone &&
+              tempCustomerPhone.trim().length >= 10 &&
+              tempCustomerName &&
+              tempCustomerName.trim().length > 0
+            ) {
               createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
             }
           }}
           onSubmit={() => {
             setShowNumPad(false);
-            if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
+            setShowPhoneDropdown(false);
+            if (
+              numPadTarget === 'customer' &&
+              tempCustomerPhone &&
+              tempCustomerPhone.trim().length >= 10 &&
+              tempCustomerName &&
+              tempCustomerName.trim().length > 0
+            ) {
               createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
             }
           }}
-          placeholder="Enter phone number"
+          placeholder={
+            numPadTarget === 'referrer'
+              ? 'Referrer phone number'
+              : 'Enter phone number'
+          }
           maxLength={15}
         />
       )}
@@ -1477,15 +1612,7 @@ export default function StoreCartPage() {
           onChange={(value) => {
             setTempCustomerName(value);
             setCustomer(customerId, tempCustomerPhone || null, value || null, tempCustomerArea || null);
-            if (value && value.length >= 1) {
-              const filtered = allCustomers.filter((c: any) => 
-                c.name.toLowerCase().startsWith(value.toLowerCase())
-              ).slice(0, 5);
-              setCustomerSearchResults(filtered);
-              setShowNameDropdown(filtered.length > 0);
-            } else {
-              setShowNameDropdown(false);
-            }
+            searchCustomersByName(value);
           }}
           onClose={() => {
             setShowKeyboard(false);

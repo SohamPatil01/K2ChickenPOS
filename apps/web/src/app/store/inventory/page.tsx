@@ -235,19 +235,23 @@ export default function StoreInventoryPage() {
       setLoading(true);
 
       try {
-        const timestamp = Date.now();
-        const params: Record<string, string | number> = { _t: timestamp };
+        const params: Record<string, string | number> = {};
+        if (force) params._t = Date.now();
         if (user?.storeId) {
           params.storeId = user.storeId;
         }
 
         const response = await api.get("/api/v1/inventory/summary", {
           params,
-          headers: {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
+          ...(force
+            ? {
+                headers: {
+                  "Cache-Control": "no-cache, no-store, must-revalidate",
+                  Pragma: "no-cache",
+                  Expires: "0",
+                },
+              }
+            : {}),
         });
 
         if (!response.data || !Array.isArray(response.data)) {
@@ -363,10 +367,7 @@ export default function StoreInventoryPage() {
 
   const loadCategories = async () => {
     try {
-      const response = await api.get("/api/v1/products/categories", {
-        params: { _t: Date.now() },
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      });
+      const response = await api.get("/api/v1/products/categories");
       if (Array.isArray(response.data)) {
         setCategories(response.data);
       } else {
@@ -380,10 +381,7 @@ export default function StoreInventoryPage() {
 
   const loadStockProducts = async () => {
     try {
-      const response = await api.get("/api/v1/products", {
-        params: { _t: Date.now() },
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-      });
+      const response = await api.get("/api/v1/products");
       setStockProducts(response.data || []);
     } catch (error) {
       console.error("Failed to load products", error);

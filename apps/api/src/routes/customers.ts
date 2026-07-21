@@ -18,7 +18,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
     try {
-    const { phone, q } = (request.query as any);
+    const { phone, q, limit: limitRaw } = (request.query as any);
     // Get default store (since auth is disabled)
     // Use the oldest OWNER store to ensure consistency
     const store = await prisma.store.findFirst({ 
@@ -95,6 +95,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           },
         },
         orderBy: { createdAt: 'desc' },
+        take: Math.min(Math.max(parseInt(String(limitRaw || '100'), 10) || 100, 1), 500),
       }),
       prisma.customer.count({ where: { storeId } }),
     ]);
@@ -593,7 +594,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       } as const;
 
-      // First get all OPEN sales
+      // First get OPEN sales (capped — full roster not needed for pending UI)
       const openSales = await prisma.sale.findMany({
         where: {
           storeId: storeIds.length > 1 ? { in: storeIds } : storeId,
@@ -603,6 +604,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         orderBy: {
           createdAt: 'desc',
         },
+        take: 200,
       });
 
       // Then get OPEN/PAID sales with CREDIT payments (excludes cancelled/refunded).
@@ -616,6 +618,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         orderBy: {
           createdAt: 'desc',
         },
+        take: 200,
       });
 
       console.log('[Pending Payments API] Found', openSales.length, 'OPEN sales and', creditSales.length, 'credit sales');

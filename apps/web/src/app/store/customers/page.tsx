@@ -160,7 +160,7 @@ export default function StoreCustomersPage() {
     setListLoading(true);
     setListError(null);
     try {
-      const response = await api.get('/api/v1/customers');
+      const response = await api.get('/api/v1/customers', { params: { limit: 500 } });
       const totalHeader =
         response.headers['x-customer-total'] ?? response.headers['X-Customer-Total'];
       const { customers, total } = parseCustomerListResponse<CustomerListRow>(

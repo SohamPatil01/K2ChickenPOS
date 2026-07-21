@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { prisma, PaymentMethod } from '@azela-pos/db';
+import { prisma, PaymentMethod, Prisma } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales } from '@azela-pos/shared';
 import { linkReferredByCode, linkReferredByPhone, maybeAwardReferralBonus } from '../lib/referral.js';
 import { requireRole } from '../utils/auth.js';
@@ -60,7 +60,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
   // Get sales list
   fastify.get('/', async (request: any, reply: FastifyReply) => {
     try {
-      const limit = parseInt((request.query as any).limit || '1000');
+      const limit = Math.min(Math.max(parseInt((request.query as any).limit || '50', 10) || 50, 1), 200);
       const status = (request.query as any).status;
       const startDate = (request.query as any).startDate;
       const endDate = (request.query as any).endDate;
@@ -175,9 +175,23 @@ export async function saleRoutes(fastify: FastifyInstance) {
           customerId: true,
           createdByUserId: true,
           items: {
-            include: {
-              product: true
-            }
+            select: {
+              id: true,
+              qtyKg: true,
+              qtyPcs: true,
+              unitPrice: true,
+              lineTotal: true,
+              productId: true,
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  unitType: true,
+                  sku: true,
+                  plu: true,
+                },
+              },
+            },
           },
           customer: customerWithAreaInclude,
           payments: true,
@@ -274,6 +288,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
         lastWeekAgg,
         monthAgg,
         todaySalesLite,
+        todayProductRows,
+        todayStockRows,
         recentSales,
       ] = await Promise.all([
         prisma.sale.aggregate({
@@ -296,29 +312,52 @@ export async function saleRoutes(fastify: FastifyInstance) {
           _sum: { grandTotal: true },
           _count: { _all: true },
         }),
-        // Only today's rows (for payment mix + top products) — not the whole month
+        // Payments only (for mix) — avoid hydrating every line item
         prisma.sale.findMany({
           where: todayWhere,
           select: {
-            id: true,
-            saleNo: true,
             grandTotal: true,
-            status: true,
-            createdAt: true,
             payments: { select: { method: true, amount: true } },
-            items: {
-              select: {
-                productId: true,
-                qtyKg: true,
-                qtyPcs: true,
-                lineTotal: true,
-                product: { select: { name: true } },
-              },
-            },
-            customer: { select: { name: true } },
           },
-          orderBy: { createdAt: 'desc' },
         }),
+        // Top products + weight via one grouped query
+        prisma.$queryRaw<
+          Array<{ productId: string; name: string; qty: number; revenue: number }>
+        >`
+          SELECT
+            si."productId" AS "productId",
+            COALESCE(p.name, 'Unknown') AS name,
+            COALESCE(SUM(COALESCE(si."qtyKg", 0) + COALESCE(si."qtyPcs", 0)), 0)::float AS qty,
+            COALESCE(SUM(si."lineTotal"), 0)::float AS revenue
+          FROM "SaleItem" si
+          INNER JOIN "Sale" s ON s.id = si."saleId"
+          LEFT JOIN "Product" p ON p.id = si."productId"
+          WHERE s."storeId" IN (${Prisma.join(storeIds)})
+            AND s.status = 'PAID'
+            AND (
+              (s."businessDate" >= ${todayBounds.gte} AND s."businessDate" <= ${todayBounds.lte})
+              OR (s."businessDate" IS NULL AND s."createdAt" >= ${todayBounds.gte} AND s."createdAt" <= ${todayBounds.lte})
+            )
+          GROUP BY si."productId", p.name
+          ORDER BY revenue DESC
+          LIMIT 5
+        `,
+        // Today's stock movement (replaces dumping full ledger on the dashboard)
+        prisma.$queryRaw<Array<{ received: number; sold: number }>>`
+          SELECT
+            COALESCE(SUM(
+              CASE WHEN type = 'IN' AND reason = 'RECEIVE'
+                THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0) ELSE 0 END
+            ), 0)::float AS received,
+            COALESCE(SUM(
+              CASE WHEN type = 'OUT' AND reason = 'SALE'
+                THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0) ELSE 0 END
+            ), 0)::float AS sold
+          FROM "InventoryLedger"
+          WHERE "storeId" IN (${Prisma.join(storeIds)})
+            AND "createdAt" >= ${todayBounds.gte}
+            AND "createdAt" <= ${todayBounds.lte}
+        `,
         prisma.sale.findMany({
           where: { storeId: storeScope },
           select: {
@@ -347,39 +386,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const lastWeekCount = lastWeekAgg._count._all || 0;
 
       const tallied = tallyPaymentsFromSales(todaySalesLite as any);
-      const todayWeight = todaySalesLite.reduce((s, sale) => {
-        return (
-          s +
-          (sale.items || []).reduce(
-            (is, i) => is + (i.qtyKg || 0) + (i.qtyPcs || 0),
-            0
-          )
-        );
-      }, 0);
+      const todayWeight = (todayProductRows || []).reduce((s, row) => s + (Number(row.qty) || 0), 0);
+      const stockRow = todayStockRows?.[0];
+      const receivedStock = Number(stockRow?.received) || 0;
+      const soldStock = Number(stockRow?.sold) || 0;
 
-      const productSales: Record<string, { name: string; qty: number; revenue: number }> = {};
-      for (const sale of todaySalesLite) {
-        for (const item of sale.items || []) {
-          const pid = item.productId;
-          if (!pid) continue;
-          const name = item.product?.name ?? 'Unknown';
-          const qty = (item.qtyKg ?? 0) || (item.qtyPcs ?? 0);
-          const revenue = item.lineTotal ?? 0;
-          if (!productSales[pid]) productSales[pid] = { name, qty: 0, revenue: 0 };
-          productSales[pid].name = name;
-          productSales[pid].qty += qty;
-          productSales[pid].revenue += revenue;
-        }
-      }
-      const topProducts = Object.entries(productSales)
-        .map(([productId, data]) => ({
-          productId,
-          productName: data.name,
-          qtySold: data.qty,
-          revenue: data.revenue,
-        }))
-        .sort((a, b) => b.revenue - a.revenue)
-        .slice(0, 5);
+      const topProducts = (todayProductRows || []).map((row) => ({
+        productId: row.productId,
+        productName: row.name,
+        qtySold: Number(row.qty) || 0,
+        revenue: Number(row.revenue) || 0,
+      }));
 
       return {
         today: {
@@ -403,6 +420,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
           count: todayCount,
           revenue: todayRevenue,
           weightKg: todayWeight,
+        },
+        todayStock: {
+          openingStock: 0,
+          receivedStock,
+          soldStock,
+          currentStock: 0,
         },
         paymentBreakdown: {
           cash: tallied.cash,

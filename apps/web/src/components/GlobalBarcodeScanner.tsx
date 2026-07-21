@@ -53,9 +53,7 @@ export default function GlobalBarcodeScanner() {
 
   const loadProducts = async () => {
     try {
-      const response = await api.get('/api/v1/products', {
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
-      });
+      const response = await api.get('/api/v1/products');
       const productsData = response.data || [];
       // productMaster comes from GET /products — avoid N+1 HQ calls
       setProducts(productsData);
@@ -81,8 +79,7 @@ export default function GlobalBarcodeScanner() {
   ): Promise<Product | undefined> => {
     try {
       const res = await api.get('/api/v1/products', {
-        params: { search: normalized, _t: Date.now() },
-        headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        params: { search: normalized },
       });
       const list: Product[] = res.data || [];
       return list.find(

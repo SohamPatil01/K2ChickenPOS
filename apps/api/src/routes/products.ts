@@ -104,6 +104,8 @@ export async function productRoutes(fastify: FastifyInstance) {
       });
 
       console.log(`[Products List] Returning ${result.length} products for storeId: ${storeId}`);
+      // Short private cache — fresh enough for POS prices, still cuts repeat bursts
+      reply.header('Cache-Control', 'private, max-age=30, s-maxage=30, stale-while-revalidate=60');
       return result;
     } catch (error: any) {
       console.error('Failed to get products:', error);
@@ -191,8 +193,7 @@ export async function productRoutes(fastify: FastifyInstance) {
       orderBy: { sortOrder: 'asc' },
     });
 
-    // Edge cache: balances freshness vs Fast Origin Transfer (Vercel)
-    reply.header('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=300');
+    reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
     return categories;
   });
 

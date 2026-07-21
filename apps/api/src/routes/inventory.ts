@@ -236,6 +236,7 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
         };
       });
 
+      reply.header('Cache-Control', 'private, max-age=60, s-maxage=60, stale-while-revalidate=180');
       return summary;
     } catch (error: any) {
       console.error('[Inventory Summary] Error:', error);

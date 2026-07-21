@@ -1,4 +1,4 @@
-import { prisma } from '@azela-pos/db';
+import { prisma, Prisma } from '@azela-pos/db';
 import {
   paymentMixChartRows,
   saleBusinessDayKey,
@@ -734,26 +734,37 @@ export class AnalyticsService {
       products.map(p => p.id)
     );
 
-    const recommendations: any[] = [];
+    const productIds = products.map((p) => p.id);
+    const stockByProduct = new Map<string, number>();
+    const soldByProduct = new Map<string, number>();
 
-    for (const product of products) {
-      const ledgers = await prisma.inventoryLedger.findMany({
-        where: { storeId: targetStoreId, productId: product.id },
-        orderBy: { createdAt: 'asc' },
-      });
-
-      let currentStock = 0;
-      ledgers.forEach(ledger => {
-        if (ledger.type === 'IN') {
-          currentStock += ledger.qtyKg || ledger.qtyPcs || 0;
-        } else {
-          currentStock -= ledger.qtyKg || ledger.qtyPcs || 0;
-        }
-      });
+    if (productIds.length > 0) {
+      const balanceRows = await prisma.$queryRaw<
+        Array<{ productId: string; qty: number }>
+      >`
+        SELECT
+          "productId",
+          COALESCE(
+            SUM(
+              CASE
+                WHEN type = 'IN' THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)
+                ELSE -(COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0))
+              END
+            ),
+            0
+          )::float AS qty
+        FROM "InventoryLedger"
+        WHERE "storeId" = ${targetStoreId}
+          AND "productId" IN (${Prisma.join(productIds)})
+        GROUP BY "productId"
+      `;
+      for (const row of balanceRows) {
+        stockByProduct.set(row.productId, Number(row.qty) || 0);
+      }
 
       const saleItems = await prisma.saleItem.findMany({
         where: {
-          productId: product.id,
+          productId: { in: productIds },
           sale: {
             storeId: targetStoreId,
             status: 'PAID',
@@ -763,17 +774,27 @@ export class AnalyticsService {
             ],
           },
         },
-        include: {
+        select: {
+          productId: true,
+          qtyKg: true,
+          qtyPcs: true,
           sale: { select: { createdAt: true, businessDate: true } },
         },
       });
 
-      const totalSold = saleItems
-        .filter(si => {
-          const k = saleBucketDateKey(si.sale);
-          return k >= startStr && k <= endStr;
-        })
-        .reduce((sum, item) => sum + (item.qtyKg || item.qtyPcs || 0), 0);
+      for (const si of saleItems) {
+        const k = saleBucketDateKey(si.sale);
+        if (k < startStr || k > endStr) continue;
+        const qty = (si.qtyKg || 0) || (si.qtyPcs || 0);
+        soldByProduct.set(si.productId, (soldByProduct.get(si.productId) || 0) + qty);
+      }
+    }
+
+    const recommendations: any[] = [];
+
+    for (const product of products) {
+      const currentStock = stockByProduct.get(product.id) ?? 0;
+      const totalSold = soldByProduct.get(product.id) || 0;
 
       const avgDailySales = historyDays > 0 ? totalSold / historyDays : 0;
       const safetyStock = avgDailySales * 3;

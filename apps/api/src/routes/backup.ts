@@ -21,8 +21,8 @@ const RLS_PUBLIC_TABLES = [
  * Override with BACKUP_TXN_DAYS (1–90). Use POST /create-full for a full dump.
  */
 function backupTxnSince(): { since: Date; days: number } {
-  const raw = parseInt(process.env.BACKUP_TXN_DAYS || '14', 10);
-  const days = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 1), 90) : 14;
+  const raw = parseInt(process.env.BACKUP_TXN_DAYS || '7', 10);
+  const days = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 1), 90) : 7;
   return {
     days,
     since: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
@@ -117,6 +117,18 @@ export async function backupRoutes(fastify: FastifyInstance) {
    */
   fastify.get('/health', async (request, reply) => {
     try {
+      const deep =
+        String((request.query as any)?.deep || '') === '1' ||
+        String((request.query as any)?.deep || '').toLowerCase() === 'true';
+      if (!deep) {
+        reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+        return {
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          service: 'backup',
+          check: 'shallow',
+        };
+      }
       // Test database connection
       await prisma.$queryRaw`SELECT 1`;
       reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
@@ -124,7 +136,8 @@ export async function backupRoutes(fastify: FastifyInstance) {
         status: 'ok',
         timestamp: new Date().toISOString(),
         service: 'backup',
-        database: 'connected'
+        database: 'connected',
+        check: 'deep',
       };
     } catch (error: any) {
       reply.status(500);
@@ -261,7 +274,10 @@ export async function backupRoutes(fastify: FastifyInstance) {
           }
         }).catch((err) => { console.error('Error fetching users:', err); return []; }),
         prisma.product.findMany().catch((err) => { console.error('Error fetching products:', err); return []; }),
-        prisma.customer.findMany().catch((err) => { console.error('Error fetching customers:', err); return []; }),
+        prisma.customer.findMany({
+          orderBy: { updatedAt: 'desc' },
+          take: 500,
+        }).catch((err) => { console.error('Error fetching customers:', err); return []; }),
         prisma.sale.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching sales:', err); return []; }),
         prisma.inventoryLedger.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching inventoryLedger:', err); return []; }),
         prisma.purchaseOrder.findMany({ where: { createdAt: { gte: txnSince } } }).catch((err) => { console.error('Error fetching purchaseOrders:', err); return []; }),
