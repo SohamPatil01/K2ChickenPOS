@@ -184,12 +184,7 @@ export default function StoreCartPage() {
     try {
       const response = await api.get(`/api/v1/customers?phone=${phone}`);
       if (response.data) {
-        setCustomer(response.data.id, response.data.phone, response.data.name || null, response.data.area || null);
-        setTempCustomerPhone(response.data.phone);
-        setTempCustomerName(response.data.name || '');
-        setTempCustomerArea(response.data.area || '');
-        setPhoneMatches([]);
-        setShowPhoneDropdown(false);
+        pickExistingCustomer(response.data);
       } else {
         const searchRes = await api.get('/api/v1/customers', { params: { q: phone } });
         const { customers } = parseCustomerListResponse<{ id: string; name: string; phone: string }>(
