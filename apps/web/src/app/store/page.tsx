@@ -33,7 +33,6 @@ export default function StoreDashboardPage() {
     refetch,
     pendingPaymentsTotal,
     pendingPaymentsCount,
-    salesTrendLast7,
     historicalData,
     loadHistoricalData,
   } = useDashboardStats({ user: user ?? null });
@@ -41,9 +40,8 @@ export default function StoreDashboardPage() {
   const userRole = (user?.role as string) || '';
   const isManager = userRole === 'MANAGER' || userRole === 'OWNER';
 
-  const { series, seriesLoading } = useRevenueSeries({
+  const { series, seriesLoading, salesTrendLast7 } = useRevenueSeries({
     range,
-    salesTrendLast7,
     refreshKey: trendRefreshKey,
     enabled: isManager,
   });
@@ -221,7 +219,7 @@ export default function StoreDashboardPage() {
                   ? 'bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30'
                   : 'glass-panel text-ink-secondary'
               }`}
-              title={autoRefresh ? 'Auto-refresh enabled (5 min, today only)' : 'Auto-refresh disabled'}
+              title={autoRefresh ? 'Auto-refresh on tab focus' : 'Auto-refresh disabled'}
             >
               <span className="hidden sm:inline">{autoRefresh ? 'Auto ✓' : 'Auto ✗'}</span>
               <span className="sm:hidden">{autoRefresh ? '⟳' : '⊗'}</span>

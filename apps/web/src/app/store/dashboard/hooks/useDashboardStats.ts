@@ -80,7 +80,6 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
   const [error, setError] = useState<string | null>(null);
   const [pendingPaymentsTotal, setPendingPaymentsTotal] = useState(0);
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
-  const [salesTrendLast7, setSalesTrendLast7] = useState<Array<{ date: string; total: number }>>([]);
   const [historicalData, setHistoricalData] = useState<HistoricalData | null>(null);
   const statsRef = useRef<DashboardStats | null>(null);
   statsRef.current = stats;
@@ -222,7 +221,6 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
     refetch,
     pendingPaymentsTotal,
     pendingPaymentsCount,
-    salesTrendLast7,
     historicalData,
     loadHistoricalData,
     loadPendingPayments,
