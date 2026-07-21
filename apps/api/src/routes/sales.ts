@@ -179,8 +179,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
               id: true,
               qtyKg: true,
               qtyPcs: true,
-              unitPrice: true,
+              rate: true,
               lineTotal: true,
+              taxRate: true,
+              taxAmount: true,
+              metaJson: true,
               productId: true,
               product: {
                 select: {
