@@ -345,21 +345,15 @@ export default function StoreCartPage() {
     }
   };
 
-  useEffect(() => {
-    if (tempCustomerPhone && tempCustomerPhone.trim().length >= 10 && tempCustomerName && tempCustomerName.trim().length > 0) {
-      if (!customerId) {
-        const timeoutId = setTimeout(() => {
-          const currentState = useCartStore.getState();
-          const latestName = (currentState.customerName || tempCustomerName).trim();
-          const latestPhone = tempCustomerPhone.trim();
-          if (latestName.length > 0 && latestPhone.length >= 10) {
-            createOrUpdateCustomer(latestPhone, latestName);
-          }
-        }, 10000); // Increased from 2000ms to 10000ms (10 seconds)
-        return () => clearTimeout(timeoutId);
-      }
+  // Customer save is deferred until Area blur (see Area field) so locality can be entered first.
+  const ensureCustomerSaved = async () => {
+    if (skipCustomer) return;
+    const phone = tempCustomerPhone.trim();
+    const name = tempCustomerName.trim();
+    if (phone.length >= 10 && name.length > 0) {
+      await createOrUpdateCustomer(phone, name, tempCustomerArea);
     }
-  }, [tempCustomerPhone, tempCustomerName, customerId]);
+  };
 
   const handleCreateSale = useCallback(async (payments: Array<{ method: string; amount: number }>) => {
     if (paymentInFlightRef.current || isProcessingPayment) {
@@ -656,11 +650,14 @@ export default function StoreCartPage() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         if (items.length > 0 && !isProcessingPayment && !showPaymentModal) {
-          const total = useCartStore.getState().getCheckoutTotal();
-          publishPaymentMode(total, null, {
-            payments: [{ method: 'CASH', amount: total }],
-          });
-          handleCreateSale([{ method: 'CASH', amount: total }]);
+          void (async () => {
+            await ensureCustomerSaved();
+            const total = useCartStore.getState().getCheckoutTotal();
+            publishPaymentMode(total, null, {
+              payments: [{ method: 'CASH', amount: total }],
+            });
+            handleCreateSale([{ method: 'CASH', amount: total }]);
+          })();
         }
       }
     };
@@ -913,15 +910,7 @@ export default function StoreCartPage() {
                         }}
                         onBlur={() => {
                           setTimeout(() => setShowNameDropdown(false), 200);
-                          setTimeout(() => {
-                            const currentName = tempCustomerName.trim();
-                            const currentPhone = tempCustomerPhone.trim();
-                            if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
-                              if (!customerId) {
-                                createOrUpdateCustomer(currentPhone, currentName);
-                              }
-                            }
-                          }, 100);
+                          // Wait for Area — do not create/update yet
                         }}
                         className="w-full px-4 py-3 pr-24 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -1014,6 +1003,7 @@ export default function StoreCartPage() {
                         setCustomer(customerId, tempCustomerPhone || null, tempCustomerName || null, newArea || null);
                       }}
                       onBlur={() => {
+                        // Save only after Area (last customer field) so cashiers can finish locality first
                         const currentPhone = tempCustomerPhone.trim();
                         const currentName = tempCustomerName.trim();
                         if (currentPhone.length >= 10 && currentName.length > 0) {
@@ -1396,7 +1386,8 @@ export default function StoreCartPage() {
                 
                 {/* Enhanced Checkout Button */}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    await ensureCustomerSaved();
                     publishPaymentMode(checkoutGrandTotal, null);
                     setShowPaymentModal(true);
                   }}
@@ -1414,7 +1405,8 @@ export default function StoreCartPage() {
 
                 {/* Quick Pay Button */}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    await ensureCustomerSaved();
                     publishPaymentMode(checkoutGrandTotal, null, {
                       payments: [{ method: 'CASH', amount: checkoutGrandTotal }],
                     });
@@ -1456,7 +1448,8 @@ export default function StoreCartPage() {
                     <div className="text-2xl font-bold text-brand-600 dark:text-brand-400">₹{checkoutGrandTotal}</div>
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      await ensureCustomerSaved();
                       publishPaymentMode(checkoutGrandTotal, null);
                       setShowPaymentModal(true);
                     }}
@@ -1467,7 +1460,8 @@ export default function StoreCartPage() {
                   </button>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    await ensureCustomerSaved();
                     publishPaymentMode(checkoutGrandTotal, null, {
                       payments: [{ method: 'CASH', amount: checkoutGrandTotal }],
                     });
@@ -1574,28 +1568,12 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowNumPad(false);
-            if (
-              numPadTarget === 'customer' &&
-              tempCustomerPhone &&
-              tempCustomerPhone.trim().length >= 10 &&
-              tempCustomerName &&
-              tempCustomerName.trim().length > 0
-            ) {
-              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
-            }
+            // Do not save yet — wait for name + area
           }}
           onSubmit={() => {
             setShowNumPad(false);
             setShowPhoneDropdown(false);
-            if (
-              numPadTarget === 'customer' &&
-              tempCustomerPhone &&
-              tempCustomerPhone.trim().length >= 10 &&
-              tempCustomerName &&
-              tempCustomerName.trim().length > 0
-            ) {
-              createOrUpdateCustomer(tempCustomerPhone, tempCustomerName);
-            }
+            // Do not save yet — wait for name + area
           }}
           placeholder={
             numPadTarget === 'referrer'
@@ -1616,25 +1594,11 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowKeyboard(false);
-            setTimeout(() => {
-              const currentState = useCartStore.getState();
-              const currentName = (currentState.customerName || tempCustomerName || '').trim();
-              const currentPhone = tempCustomerPhone.trim();
-              if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
-                createOrUpdateCustomer(currentPhone, currentName);
-              }
-            }, 150);
+            // Do not save yet — wait for Area field
           }}
           onSubmit={() => {
             setShowKeyboard(false);
-            setTimeout(() => {
-              const currentState = useCartStore.getState();
-              const currentName = (currentState.customerName || tempCustomerName || '').trim();
-              const currentPhone = tempCustomerPhone.trim();
-              if (currentPhone && currentPhone.length >= 10 && currentName && currentName.length > 0) {
-                createOrUpdateCustomer(currentPhone, currentName);
-              }
-            }, 150);
+            // Do not save yet — wait for Area field
           }}
           placeholder="Enter customer name"
         />
