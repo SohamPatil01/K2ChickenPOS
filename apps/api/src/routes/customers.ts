@@ -95,7 +95,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
           },
         },
         orderBy: { createdAt: 'desc' },
-        take: Math.min(Math.max(parseInt(String(limitRaw || '100'), 10) || 100, 1), 500),
+        // Customers tab needs the full roster; 1000 is enough for this store and stays light.
+        take: Math.min(Math.max(parseInt(String(limitRaw || '1000'), 10) || 1000, 1), 2000),
       }),
       prisma.customer.count({ where: { storeId } }),
     ]);
