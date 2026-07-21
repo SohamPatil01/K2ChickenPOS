@@ -90,6 +90,7 @@ export default function StoreCartPage() {
   const recognitionRef = useRef<any>(null);
   const phoneSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const areaInputRef = useRef<HTMLInputElement | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const paymentInFlightRef = useRef(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -144,6 +145,7 @@ export default function StoreCartPage() {
           setCustomer(customerId, tempCustomerPhone || null, transcript || null, tempCustomerArea || null);
           setIsListening(false);
           showNotification('Name captured: ' + transcript, 'success');
+          focusAreaField();
         };
         
         recognition.onerror = (event: any) => {
@@ -279,6 +281,51 @@ export default function StoreCartPage() {
   };
 
   const referralInputValue = referredByPhone || referredByCode || '';
+
+  /** Common localities for one-tap area (edit list anytime). */
+  const QUICK_AREAS = [
+    'Kothrud',
+    'Baner',
+    'Aundh',
+    'Wakad',
+    'Hinjewadi',
+    'Pimple Saudagar',
+    'Shivaji Nagar',
+    'Deccan',
+  ];
+
+  const pickExistingCustomer = (customer: {
+    id: string;
+    phone: string;
+    name?: string | null;
+    area?: string | null;
+  }) => {
+    setCustomer(customer.id, customer.phone, customer.name || null, customer.area || null);
+    setTempCustomerPhone(customer.phone);
+    setTempCustomerName(customer.name || '');
+    setTempCustomerArea(customer.area || '');
+    setPhoneMatches([]);
+    setShowPhoneDropdown(false);
+    setCustomerSearchResults([]);
+    setShowNameDropdown(false);
+    setShowNumPad(false);
+    setShowKeyboard(false);
+    setShowCustomerSection(false);
+    setSkipCustomer(false);
+    showNotification(
+      customer.area
+        ? `${customer.name || 'Customer'} · ${customer.area}`
+        : `${customer.name || 'Customer'} selected`,
+      'success'
+    );
+  };
+
+  const focusAreaField = () => {
+    setTimeout(() => {
+      areaInputRef.current?.focus();
+      areaInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  };
 
   const createOrUpdateCustomer = async (phone: string, name: string, area?: string) => {
     const trimmedPhone = phone ? phone.trim() : '';
@@ -832,6 +879,9 @@ export default function StoreCartPage() {
               </div>
               {showCustomerSection && !skipCustomer && (
                 <div className="p-6 space-y-4">
+                <p className="text-xs text-ink-muted">
+                  Fast path: type phone → tap match if known, or Name → Area chip / Done.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 items-start">
                   <div className="relative z-40">
                     <label className="block text-sm font-medium text-ink-secondary mb-2">
@@ -868,12 +918,7 @@ export default function StoreCartPage() {
                             key={customer.id}
                             type="button"
                             onClick={() => {
-                              setCustomer(customer.id, customer.phone, customer.name, customer.area || null);
-                              setTempCustomerPhone(customer.phone);
-                              setTempCustomerName(customer.name || '');
-                              setTempCustomerArea(customer.area || '');
-                              setPhoneMatches([]);
-                              setShowPhoneDropdown(false);
+                              pickExistingCustomer(customer);
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
@@ -970,11 +1015,7 @@ export default function StoreCartPage() {
                             key={customer.id}
                             type="button"
                             onClick={() => {
-                              setCustomer(customer.id, customer.phone, customer.name, customer.area || null);
-                              setTempCustomerPhone(customer.phone);
-                              setTempCustomerName(customer.name);
-                              setTempCustomerArea(customer.area || '');
-                              setShowNameDropdown(false);
+                              pickExistingCustomer(customer);
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
@@ -994,6 +1035,7 @@ export default function StoreCartPage() {
                       Area / Locality
                     </label>
                     <input
+                      ref={areaInputRef}
                       type="text"
                       placeholder="e.g. Kothrud, Baner"
                       value={tempCustomerArea}
@@ -1001,6 +1043,16 @@ export default function StoreCartPage() {
                         const newArea = e.target.value;
                         setTempCustomerArea(newArea);
                         setCustomer(customerId, tempCustomerPhone || null, tempCustomerName || null, newArea || null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const currentPhone = tempCustomerPhone.trim();
+                          const currentName = tempCustomerName.trim();
+                          if (currentPhone.length >= 10 && currentName.length > 0) {
+                            void createOrUpdateCustomer(currentPhone, currentName, tempCustomerArea);
+                          }
+                        }
                       }}
                       onBlur={() => {
                         // Save only after Area (last customer field) so cashiers can finish locality first
@@ -1012,6 +1064,71 @@ export default function StoreCartPage() {
                       }}
                       className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {QUICK_AREAS.map((area) => (
+                        <button
+                          key={area}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setTempCustomerArea(area);
+                            setCustomer(
+                              customerId,
+                              tempCustomerPhone || null,
+                              tempCustomerName || null,
+                              area
+                            );
+                            const currentPhone = tempCustomerPhone.trim();
+                            const currentName = tempCustomerName.trim();
+                            if (currentPhone.length >= 10 && currentName.length > 0) {
+                              void createOrUpdateCustomer(currentPhone, currentName, area);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                            tempCustomerArea === area
+                              ? 'bg-brand-500 text-white border-brand-500'
+                              : 'bg-surface text-ink-secondary border-gray-200 dark:border-gray-600 hover:border-brand-400'
+                          }`}
+                        >
+                          {area}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          const currentPhone = tempCustomerPhone.trim();
+                          const currentName = tempCustomerName.trim();
+                          if (currentPhone.length >= 10 && currentName.length > 0) {
+                            void createOrUpdateCustomer(currentPhone, currentName, tempCustomerArea);
+                          } else {
+                            showNotification('Enter phone and name first', 'warning');
+                          }
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-brand text-white text-sm font-semibold shadow-glow-brand"
+                      >
+                        Done — save customer
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          const currentPhone = tempCustomerPhone.trim();
+                          const currentName = tempCustomerName.trim();
+                          if (currentPhone.length >= 10 && currentName.length > 0) {
+                            setTempCustomerArea('');
+                            void createOrUpdateCustomer(currentPhone, currentName, '');
+                          } else {
+                            showNotification('Enter phone and name first', 'warning');
+                          }
+                        }}
+                        className="px-4 py-2.5 rounded-xl glass-panel text-ink-secondary text-sm font-medium"
+                      >
+                        Skip area
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1568,12 +1685,30 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowNumPad(false);
-            // Do not save yet — wait for name + area
+            if (
+              numPadTarget === 'customer' &&
+              tempCustomerPhone.replace(/\D/g, '').length >= 10 &&
+              !(tempCustomerName || '').trim()
+            ) {
+              setShowKeyboard(true);
+            } else if (
+              numPadTarget === 'customer' &&
+              tempCustomerPhone.replace(/\D/g, '').length >= 10 &&
+              (tempCustomerName || '').trim()
+            ) {
+              focusAreaField();
+            }
           }}
           onSubmit={() => {
             setShowNumPad(false);
             setShowPhoneDropdown(false);
-            // Do not save yet — wait for name + area
+            if (numPadTarget !== 'customer') return;
+            if (tempCustomerPhone.replace(/\D/g, '').length < 10) return;
+            if (!(tempCustomerName || '').trim()) {
+              setShowKeyboard(true);
+            } else {
+              focusAreaField();
+            }
           }}
           placeholder={
             numPadTarget === 'referrer'
@@ -1594,11 +1729,15 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowKeyboard(false);
-            // Do not save yet — wait for Area field
+            if ((tempCustomerName || '').trim()) {
+              focusAreaField();
+            }
           }}
           onSubmit={() => {
             setShowKeyboard(false);
-            // Do not save yet — wait for Area field
+            if ((tempCustomerName || '').trim()) {
+              focusAreaField();
+            }
           }}
           placeholder="Enter customer name"
         />
