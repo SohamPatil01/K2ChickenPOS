@@ -819,7 +819,18 @@ export async function customerRoutes(fastify: FastifyInstance) {
           }
         }
 
-        if (!storeIds.includes(customer.storeId) && userRole !== 'OWNER') {
+        // Authorize by accessible sales, not Customer.storeId alone.
+        // Customers are often created under the owner store but billed at a franchise
+        // (pending list already keys off sale.storeId, so they show up there).
+        const storeFilter =
+          storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+        const hasAccess =
+          storeIds.includes(customer.storeId) ||
+          !!(await prisma.sale.findFirst({
+            where: { customerId, storeId: storeFilter },
+            select: { id: true },
+          }));
+        if (!hasAccess) {
           reply.code(403).send({ error: 'Customer is not in your store' });
           return;
         }
@@ -827,7 +838,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         const sales = await prisma.sale.findMany({
           where: {
             customerId,
-            storeId: storeIds.length > 1 ? { in: storeIds } : storeIds[0],
+            storeId: storeFilter,
             status: { in: ['OPEN', 'PAID'] },
             OR: [{ status: 'OPEN' }, { payments: { some: { method: 'CREDIT' } } }],
           },
