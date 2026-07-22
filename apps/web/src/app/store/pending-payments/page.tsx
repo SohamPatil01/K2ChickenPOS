@@ -322,8 +322,17 @@ export default function PendingPaymentsPage() {
     const onSaleDeleted = () => {
       void loadPendingPayments();
     };
+    const onSaleChanged = () => {
+      void loadPendingPayments();
+    };
     window.addEventListener('sale-deleted', onSaleDeleted);
-    return () => window.removeEventListener('sale-deleted', onSaleDeleted);
+    window.addEventListener('sale-created', onSaleChanged);
+    window.addEventListener('sale-updated', onSaleChanged);
+    return () => {
+      window.removeEventListener('sale-deleted', onSaleDeleted);
+      window.removeEventListener('sale-created', onSaleChanged);
+      window.removeEventListener('sale-updated', onSaleChanged);
+    };
   }, []);
 
   const loadPendingPayments = async () => {

@@ -93,10 +93,23 @@ export default function PendingCreditSettlement({ customerId, hidden, compact }:
               ? 'Checking pending balance…'
               : selectedTotal > 0
                 ? `₹${selectedTotal} added to this checkout`
-                : `₹${totalAvailable} pending — tap to add to bill`}
+                : `₹${totalAvailable} pending — expand & tick bills to collect`}
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {!loading && pendingSettlements.length > 0 && selectedCount === 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                pendingSettlements.forEach((l) => togglePendingSettlement(l.saleId, true));
+                setExpanded(true);
+              }}
+              className="px-2 py-1 rounded-md bg-amber-500 text-white text-[10px] font-bold hover:bg-amber-600"
+            >
+              Add all
+            </button>
+          )}
           {!loading && selectedCount > 0 && (
             <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-white text-[10px] font-bold">
               {selectedCount}

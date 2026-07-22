@@ -20,6 +20,8 @@ export type PendingSettlementLine = {
 };
 
 export function openOrdersToSettlementLines(orders: PendingOpenOrder[]): PendingSettlementLine[] {
+  // Single outstanding bill: auto-include in checkout (common cashier flow).
+  const autoSelect = orders.length === 1;
   return orders.map((o) => {
     const maxPending = Math.round(Number(o.pending ?? o.remainingBalance ?? 0));
     return {
@@ -27,7 +29,7 @@ export function openOrdersToSettlementLines(orders: PendingOpenOrder[]): Pending
       saleNo: o.saleNo,
       maxPending,
       amount: maxPending,
-      selected: false,
+      selected: autoSelect,
       createdAt: o.createdAt,
     };
   });
@@ -101,13 +103,29 @@ export async function settlePendingSalesAfterCheckout(
 ): Promise<{ remainingPool: Array<{ method: string; amount: number }>; settledSaleNos: string[] }> {
   let pool = paymentPool.map((p) => ({ ...p }));
   const settledSaleNos: string[] = [];
+  const selected = getSelectedPendingSettlements(lines);
 
-  for (const line of getSelectedPendingSettlements(lines)) {
+  for (const line of selected) {
     const amount = Math.round(line.amount);
     const { allocated, remaining } = allocatePaymentsFromPool(pool, amount);
     pool = remaining;
-    await paySaleWithRecovery(api, line.saleId, allocated, amount);
-    settledSaleNos.push(line.saleNo);
+    const allocatedTotal = allocated.reduce((s, p) => s + Math.round(Number(p.amount)), 0);
+
+    if (allocatedTotal <= 0) {
+      throw new Error(
+        `Could not pay previous credit bill #${line.saleNo}. Payment amount must cover today's items plus the selected credit.`
+      );
+    }
+
+    // Pay only what we actually allocated (never inflate via normalize to the full line amount).
+    await paySaleWithRecovery(api, line.saleId, allocated, allocatedTotal);
+    if (allocatedTotal >= amount - 1) {
+      settledSaleNos.push(line.saleNo);
+    } else {
+      throw new Error(
+        `Only ₹${allocatedTotal} of ₹${amount} could be applied to #${line.saleNo}. Increase the payment amount.`
+      );
+    }
   }
 
   return { remainingPool: pool, settledSaleNos };
