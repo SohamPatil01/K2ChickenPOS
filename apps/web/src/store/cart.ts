@@ -212,7 +212,25 @@ export const useCartStore = create<CartState>((set, get) => ({
       });
       return;
     }
-    set({ customerId, customerPhone, customerName: name, ...areaUpdate, loyaltyRedeemPoints: 0, pendingSettlements: [] });
+    const prevId = get().customerId;
+    const customerChanged = prevId !== customerId;
+    set({
+      customerId,
+      customerPhone,
+      customerName: name,
+      ...areaUpdate,
+      // Only drop selected credit bills when switching customers.
+      // ensureCustomerSaved() re-calls setCustomer for the same id right before
+      // checkout — clearing here used to wipe pending and pay only the new bill.
+      ...(customerChanged
+        ? {
+            pendingSettlements: [],
+            referredByPhone: null,
+            referredByCode: null,
+            loyaltyRedeemPoints: 0,
+          }
+        : {}),
+    });
   },
   setReferredByPhone: (phone) => {
     const cleaned = phone ? String(phone).replace(/\D/g, '').slice(0, 12) : null;

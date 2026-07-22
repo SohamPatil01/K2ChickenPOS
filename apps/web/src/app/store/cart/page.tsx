@@ -560,13 +560,15 @@ export default function StoreCartPage() {
       }
 
       const pendingLines = getSelectedPendingSettlements();
+      const cartOnlyTotal = getTotal().grandTotal;
 
       try {
         const { settledSaleNos } = await completeNewSaleCheckout(
           api,
           sale,
           payments,
-          pendingLines
+          pendingLines,
+          cartOnlyTotal
         );
         if (settledSaleNos.length > 0) {
           showNotification(

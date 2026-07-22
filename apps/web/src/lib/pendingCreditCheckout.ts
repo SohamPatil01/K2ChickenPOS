@@ -139,11 +139,34 @@ export async function completeNewSaleCheckout(
   api: { post: (url: string, data: unknown) => Promise<unknown> },
   sale: { id: string; grandTotal: number },
   allPayments: Array<{ method: string; amount: number }>,
-  pendingLines: PendingSettlementLine[]
+  pendingLines: PendingSettlementLine[],
+  /** Optional client cart-only total; used when server grandTotal is missing/odd. */
+  clientCartGrandTotal?: number
 ): Promise<{ settledSaleNos: string[] }> {
   const pendingTotal = sumSelectedPendingSettlements(pendingLines);
-  const roundedSaleGrandTotal = Math.round(Number(sale.grandTotal));
+  const paymentTotal = allPayments.reduce((s, p) => s + Math.round(Number(p.amount)), 0);
+  const serverSaleTotal = Math.round(Number(sale.grandTotal));
+  const clientCartTotal = Math.round(Number(clientCartGrandTotal ?? serverSaleTotal));
+  // Never let the new sale consume money reserved for selected previous credit.
+  const roundedSaleGrandTotal =
+    pendingTotal > 0
+      ? Math.min(serverSaleTotal || clientCartTotal, Math.max(0, paymentTotal - pendingTotal))
+      : serverSaleTotal || clientCartTotal;
+
+  if (pendingTotal > 0 && paymentTotal < roundedSaleGrandTotal + pendingTotal - 1) {
+    throw new Error(
+      `Payment ₹${paymentTotal} is short. Need ₹${roundedSaleGrandTotal + pendingTotal} for today's bill plus selected credit.`
+    );
+  }
+
   let pool = allPayments.map((p) => ({ method: p.method, amount: Math.round(Number(p.amount)) }));
+
+  // Reserve pending first so the new bill cannot swallow the credit portion.
+  const { allocated: pendingPayments, remaining: afterPendingReserve } = allocatePaymentsFromPool(
+    pool,
+    pendingTotal
+  );
+  pool = afterPendingReserve;
 
   const { allocated: cartPayments, remaining } = allocatePaymentsFromPool(pool, roundedSaleGrandTotal);
   pool = remaining;
@@ -154,7 +177,12 @@ export async function completeNewSaleCheckout(
     return { settledSaleNos: [] };
   }
 
-  const { settledSaleNos } = await settlePendingSalesAfterCheckout(api, pendingLines, pool);
+  // Apply the reserved pending allocation (re-build pool from reserved slice).
+  const { settledSaleNos } = await settlePendingSalesAfterCheckout(
+    api,
+    pendingLines,
+    pendingPayments
+  );
   return { settledSaleNos };
 }
 

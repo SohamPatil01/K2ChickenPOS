@@ -1147,13 +1147,15 @@ export default function StorePOSPage() {
       }
 
       const pendingLines = useCartStore.getState().getSelectedPendingSettlements();
+      const cartOnlyTotal = useCartStore.getState().getTotal().grandTotal;
 
       try {
         const { settledSaleNos } = await completeNewSaleCheckout(
           api,
           sale,
           paymentInput,
-          pendingLines
+          pendingLines,
+          cartOnlyTotal
         );
         if (settledSaleNos.length > 0) {
           showNotification(
