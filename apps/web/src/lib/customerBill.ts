@@ -65,7 +65,7 @@ function actualPayments(sale: BillSale) {
 
 function paymentSummary(sale: BillSale) {
   const paid = actualPayments(sale).reduce((s, p) => s + p.amount, 0);
-  const methods = [...new Set(actualPayments(sale).map((p) => p.method))].join(', ') || 'CASH';
+  const methods = [...new Set(actualPayments(sale).map((p) => p.method))].join(', ') || '—';
   const balance = Math.max(0, Math.round(sale.grandTotal - paid));
   return { paid, methods, balance };
 }

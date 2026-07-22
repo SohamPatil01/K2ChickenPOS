@@ -87,16 +87,15 @@ function toBillSale(order: PendingOrder, customer: CustomerWithPending): BillSal
       rate: item.rate,
       lineTotal: item.lineTotal,
     })),
-    payments:
-      order.payments ||
-      [
-        ...(order.totalPaid > 0 ? [{ method: 'CASH', amount: order.totalPaid }] : []),
-        ...(order.creditAmount && order.creditAmount > 0
-          ? [{ method: 'CREDIT', amount: order.creditAmount }]
-          : order.pending > 0
-            ? [{ method: 'CREDIT', amount: order.pending }]
-            : []),
-      ],
+    payments: order.payments?.length
+      ? order.payments
+      : [
+          ...(order.creditAmount && order.creditAmount > 0
+            ? [{ method: 'CREDIT', amount: order.creditAmount }]
+            : order.pending > 0
+              ? [{ method: 'CREDIT', amount: order.pending }]
+              : []),
+        ],
   };
 }
 
@@ -347,6 +346,7 @@ export default function PendingPaymentsPage() {
       ? customer.openOrders.find(o => o.id === orderId)?.pending || customer.totalPending
       : customer.totalPending;
     setPaymentAmount(amount.toString());
+    setPaymentMethod('UPI');
     setShowPaymentModal(true);
   };
 
@@ -358,6 +358,8 @@ export default function PendingPaymentsPage() {
       showNotification('Please enter a valid payment amount', 'error');
       return;
     }
+
+    const method = String(paymentMethod || 'CASH').toUpperCase();
 
     setProcessing(true);
     try {
@@ -376,7 +378,7 @@ export default function PendingPaymentsPage() {
         await api.post(`/api/v1/sales/${selectedOrder}/pay`, {
           payments: [
             {
-              method: paymentMethod,
+              method,
               amount: Math.round(amount),
             },
           ],
@@ -392,9 +394,9 @@ export default function PendingPaymentsPage() {
 
         // If fully paid, the order will be marked as PAID automatically
         if (remaining <= 0.01) {
-          showNotification(`✅ Order ${order.saleNo} fully paid and completed!`, 'success');
+          showNotification(`✅ Order ${order.saleNo} fully paid (${method})!`, 'success');
         } else {
-          showNotification(`Payment of ₹${Math.round(amount)} recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
+          showNotification(`Payment of ₹${Math.round(amount)} (${method}) recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
         }
       } else {
         // Pay all pending orders in one server-side settlement (FIFO)
@@ -402,7 +404,7 @@ export default function PendingPaymentsPage() {
           `/api/v1/customers/${selectedCustomer.id}/settle-pending`,
           {
             amount: Math.round(amount),
-            method: paymentMethod,
+            method,
           }
         );
         const applied = Math.round(Number(res.data?.applied) || 0);
@@ -989,16 +991,33 @@ export default function PendingPaymentsPage() {
                   <label className="block text-sm font-semibold text-ink-secondary mb-2">
                     Payment Method
                   </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all font-medium"
-                  >
-                    <option value="CASH">💵 Cash</option>
-                    <option value="CARD">💳 Card</option>
-                    <option value="UPI">📱 UPI</option>
-                    <option value="ONLINE">🌐 Online</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(
+                      [
+                        { value: 'UPI', label: 'UPI', icon: '📱' },
+                        { value: 'CASH', label: 'Cash', icon: '💵' },
+                        { value: 'CARD', label: 'Card', icon: '💳' },
+                        { value: 'ONLINE', label: 'Online', icon: '🌐' },
+                      ] as const
+                    ).map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => setPaymentMethod(m.value)}
+                        disabled={processing}
+                        className={`p-3 rounded-xl border-2 transition-all ${
+                          paymentMethod === m.value
+                            ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-md scale-[1.02]'
+                            : 'border-gray-200 dark:border-gray-600 hover:border-brand-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xl">{m.icon}</span>
+                          <span className="font-semibold dark:text-white">{m.label}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -1054,7 +1073,7 @@ export default function PendingPaymentsPage() {
                       Processing...
                     </span>
                   ) : (
-                    '✅ Record Payment'
+                    '✅ Record Payment' + (paymentMethod ? ` (${paymentMethod})` : '')
                   )}
                 </button>
               </div>

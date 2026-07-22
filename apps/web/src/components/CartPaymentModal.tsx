@@ -40,6 +40,8 @@ export default function CartPaymentModal({
   isProcessing = false,
 }: CartPaymentModalProps) {
   const [selectedMethod, setSelectedMethod] = useState('CASH');
+  const selectedMethodRef = useRef(selectedMethod);
+  selectedMethodRef.current = selectedMethod;
   const [amountPaid, setAmountPaid] = useState(grandTotal.toString());
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([]);
@@ -112,12 +114,13 @@ export default function CartPaymentModal({
       return;
     }
 
+    const method = selectedMethodRef.current;
     payingRef.current = true;
     onPay([
       {
-        method: selectedMethod,
+        method,
         amount:
-          selectedMethod === 'CREDIT' ? grandTotal : parseFloat(amountPaid) || grandTotal,
+          method === 'CREDIT' ? grandTotal : parseFloat(amountPaid) || grandTotal,
       },
     ]);
   }, [
@@ -128,7 +131,6 @@ export default function CartPaymentModal({
     splitRemaining,
     grandTotal,
     splitPayments,
-    selectedMethod,
     amountPaid,
     onPay,
   ]);
@@ -144,7 +146,9 @@ export default function CartPaymentModal({
         if (!isProcessing) handlePayment();
       } else if (e.key >= '1' && e.key <= '5') {
         const methods = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
-        setSelectedMethod(methods[parseInt(e.key, 10) - 1]);
+        const next = methods[parseInt(e.key, 10) - 1];
+        selectedMethodRef.current = next;
+        setSelectedMethod(next);
       }
     };
 
@@ -377,7 +381,10 @@ export default function CartPaymentModal({
                   <button
                     type="button"
                     key={method.value}
-                    onClick={() => setSelectedMethod(method.value)}
+                    onClick={() => {
+                      selectedMethodRef.current = method.value;
+                      setSelectedMethod(method.value);
+                    }}
                     disabled={isProcessing}
                     className={`relative p-3 rounded-xl border-2 transition-all duration-200 hover:scale-105 active:scale-95 ${
                       selectedMethod === method.value

@@ -92,6 +92,9 @@ export default function OrdersPage() {
     saleNo: string;
     grandTotal: number;
   } | null>(null);
+  const [completingSale, setCompletingSale] = useState<Sale | null>(null);
+  const [completeMethod, setCompleteMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'ONLINE'>('UPI');
+  const [completing, setCompleting] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
   const [billForPrint, setBillForPrint] = useState<Sale | null>(null);
 
@@ -460,40 +463,59 @@ export default function OrdersPage() {
     }
   };
 
-  const handleCompleteOrder = async (sale: Sale) => {
+  const openCompleteOrder = (sale: Sale) => {
+    if (sale.status !== "OPEN") {
+      showNotification("Only open orders can be completed", "warning");
+      return;
+    }
+    setCompletingSale(sale);
+    setCompleteMethod("UPI");
+  };
+
+  const handleCompleteOrder = async (
+    sale: Sale,
+    method: 'CASH' | 'CARD' | 'UPI' | 'ONLINE' = completeMethod
+  ) => {
     if (sale.status !== "OPEN") {
       showNotification("Only open orders can be completed", "warning");
       return;
     }
 
+    setCompleting(true);
     try {
-      // Check if there are existing payments (credit payments)
+      // CREDIT is a promise to pay — do not count it as money received.
       const existingPayments = sale.payments || [];
-      const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
-      const remainingAmount = Math.round(sale.grandTotal - totalPaid);
+      const actualPaid = existingPayments
+        .filter((p) => String(p.method).toUpperCase() !== "CREDIT")
+        .reduce((sum, p) => sum + p.amount, 0);
+      const remainingAmount = Math.round(sale.grandTotal - actualPaid);
 
-      // Complete the order by adding a CASH payment.
-      // If already fully paid (e.g. credit), send amount 0 to avoid "exceeds remaining balance" and just trigger status update.
+      // amount 0 = mark PAID when already settled (e.g. credit booked in full).
       const paymentAmount = remainingAmount <= 0 ? 0 : remainingAmount;
 
       await api.post(`/api/v1/sales/${sale.id}/pay`, {
         payments: [
           {
-            method: "CASH",
+            method,
             amount: paymentAmount,
           },
         ],
       });
 
+      setCompletingSale(null);
       setCompletedSaleForAnimation({
         saleNo: sale.saleNo || "N/A",
         grandTotal: Math.round(sale.grandTotal),
       });
       setShowCompleteAnimation(true);
-      showNotification("Order completed successfully", "success");
+      showNotification(
+        paymentAmount > 0
+          ? `Order completed — ₹${paymentAmount} as ${method}`
+          : "Order completed successfully",
+        "success"
+      );
       loadSales();
 
-      // Notify other consoles about the update
       window.dispatchEvent(
         new CustomEvent("sale-updated", { detail: { saleId: sale.id } })
       );
@@ -507,6 +529,8 @@ export default function OrdersPage() {
         error.response?.data?.error || "Failed to complete order",
         "error"
       );
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -679,7 +703,7 @@ export default function OrdersPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleCompleteOrder(sale);
+                              openCompleteOrder(sale);
                             }}
                             className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm transition-colors touch-target font-medium"
                           >
@@ -710,7 +734,7 @@ export default function OrdersPage() {
       {/* View Details Modal */}
       {selectedSale && !showEditModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="glass-panel-strong rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up animate-scale-in">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
             <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 sticky top-0">
               <h2 className="text-xl sm:text-2xl font-semibold text-ink">
                 Order Details - {selectedSale.saleNo}
@@ -874,8 +898,7 @@ export default function OrdersPage() {
               {selectedSale.status === "OPEN" && (
                 <button
                   onClick={() => {
-                    handleCompleteOrder(selectedSale);
-                    setSelectedSale(null);
+                    openCompleteOrder(selectedSale);
                   }}
                   className="flex-1 px-4 py-2.5 sm:py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all touch-target"
                 >
@@ -954,7 +977,7 @@ export default function OrdersPage() {
       {/* Edit Modal */}
       {showEditModal && editingSale && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="glass-panel-strong rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fade-in-up animate-scale-in">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
             <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 sticky top-0">
               <h2 className="text-xl sm:text-2xl font-semibold text-ink">
                 Edit Order - {editingSale.saleNo}
@@ -1166,6 +1189,83 @@ export default function OrdersPage() {
               >
                 {saving ? "Saving..." : "Save Changes"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Order — pick payment method (was hardcoded to CASH) */}
+      {completingSale && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="glass-panel rounded-2xl w-full max-w-md animate-scale-in">
+            <div className="p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold text-ink mb-2">
+                Complete Order — {completingSale.saleNo}
+              </h2>
+              <p className="text-sm text-ink-secondary mb-4">
+                How did the customer pay the remaining balance?
+              </p>
+              {(() => {
+                const actualPaid = (completingSale.payments || [])
+                  .filter((p) => String(p.method).toUpperCase() !== "CREDIT")
+                  .reduce((sum, p) => sum + p.amount, 0);
+                const remaining = Math.max(
+                  0,
+                  Math.round(completingSale.grandTotal - actualPaid)
+                );
+                return (
+                  <p className="text-lg font-bold text-brand-600 dark:text-brand-400 mb-4">
+                    Amount: ₹{remaining}
+                  </p>
+                );
+              })()}
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                {(
+                  [
+                    { value: "UPI" as const, label: "UPI", icon: "📱" },
+                    { value: "CASH" as const, label: "Cash", icon: "💵" },
+                    { value: "CARD" as const, label: "Card", icon: "💳" },
+                    { value: "ONLINE" as const, label: "Online", icon: "🌐" },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setCompleteMethod(m.value)}
+                    disabled={completing}
+                    className={`p-3 rounded-xl border-2 transition-all ${
+                      completeMethod === m.value
+                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/20 shadow-md"
+                        : "border-gray-200 dark:border-gray-600 hover:border-brand-300"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-2xl">{m.icon}</span>
+                      <span className="text-sm font-semibold dark:text-white">
+                        {m.label}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCompletingSale(null)}
+                  disabled={completing}
+                  className="flex-1 px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-ink rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCompleteOrder(completingSale, completeMethod)}
+                  disabled={completing}
+                  className="flex-1 px-4 py-2.5 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all disabled:opacity-50"
+                >
+                  {completing ? "Saving..." : `Confirm ${completeMethod}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
