@@ -191,7 +191,7 @@ export default function Layout({ children }: LayoutProps) {
                 const className = `block px-3 py-2 rounded-md text-base font-medium ${
                   isActive
                     ? 'bg-primary-50 text-primary-700 dark:bg-brand-900/30 dark:text-brand-400'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-gray-700 hover:text-gray-900 dark:hover:text-white'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
                 }`;
                 const handleHQClick = (e: React.MouseEvent) => {
                   setMobileMenuOpen(false);

@@ -29,8 +29,8 @@ importers:
         specifier: ^20.10.0
         version: 20.19.27
       typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+        specifier: ^6.0.3
+        version: 6.0.3
 
   apps/api:
     dependencies:
@@ -87,8 +87,8 @@ importers:
         specifier: ^4.7.0
         version: 4.21.0
       typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+        specifier: ^6.0.3
+        version: 6.0.3
 
   apps/hq-web:
     dependencies:
@@ -321,8 +321,8 @@ importers:
         version: 3.25.76
     devDependencies:
       typescript:
-        specifier: ^5.3.3
-        version: 5.9.3
+        specifier: ^6.0.3
+        version: 6.0.3
 
 packages:
 
@@ -2483,6 +2483,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   ulid@2.4.0:
     resolution: {integrity: sha512-fIRiVTJNcSRmXKPZtGzFQv9WRrZ3M9eoptl/teFJvjOzmpU+/K/JH6HZ8deBfb5vMEpicJcLn7JmvdknlMq7Zg==}
     hasBin: true
@@ -4566,6 +4571,8 @@ snapshots:
       fsevents: 2.3.3
 
   typescript@5.9.3: {}
+
+  typescript@6.0.3: {}
 
   ulid@2.4.0: {}
 

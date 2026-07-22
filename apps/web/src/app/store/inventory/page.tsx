@@ -2249,7 +2249,7 @@ export default function StoreInventoryPage() {
       {showDeleteModal && productToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4 safe-top safe-bottom">
           <div className="glass-panel-strong rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in">
-            <h2 className="text-xl sm:text-2xl font-bold mb-4 dark:text-white text-red-600 dark:text-red-400">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-red-600 dark:text-red-400">
               Delete Product
             </h2>
             <div className="space-y-4">
