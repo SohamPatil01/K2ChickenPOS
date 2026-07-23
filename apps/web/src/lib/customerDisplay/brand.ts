@@ -6,6 +6,13 @@ export const BRAND = {
   displayTagline: "Fresh every morning · Cut to order",
   openPill: "Open now · Home delivery",
   phone: "8484978622",
+  phoneDisplay: "+91 84849 78622",
+  whatsapp: "918484978622",
+  whatsappDisplay: "+91 84849 78622",
+  gstin:
+    (typeof process !== "undefined" &&
+      (process.env.NEXT_PUBLIC_GSTIN || "").trim()) ||
+    "27ATGPP7842L1Z0",
   website: "www.k2chicken.com",
   address:
     "Shop No. 4, 24K Glitterati, New DP Rd, Kolte Patil, Vishal Nagar, Pimple Nilakh, Pimpri-Chinchwad, Maharashtra 411027",

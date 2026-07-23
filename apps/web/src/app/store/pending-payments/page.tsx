@@ -200,9 +200,13 @@ export default function PendingPaymentsPage() {
     setTimeout(() => handlePrint(), 150);
   };
 
-  const triggerDownloadBill = (order: PendingOrder, customer: CustomerWithPending) => {
-    downloadCustomerBill(toBillSale(order, customer), storeBillInfo);
-    showNotification(`Bill ${order.saleNo} downloaded`, 'success');
+  const triggerDownloadBill = async (order: PendingOrder, customer: CustomerWithPending) => {
+    try {
+      await downloadCustomerBill(toBillSale(order, customer), storeBillInfo);
+      showNotification(`Bill ${order.saleNo} downloaded as PDF`, 'success');
+    } catch {
+      showNotification('Could not download bill PDF', 'error');
+    }
   };
 
   const selectedIdsForCustomer = (customer: CustomerWithPending) => {

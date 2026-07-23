@@ -139,22 +139,43 @@ export default function ThermalReceipt({
         </div>
         <div
           style={{
-            fontSize: "9px",
-            marginTop: "3px",
-            fontWeight: "bold",
-            marginBottom: "4px",
+            fontSize: "8px",
+            marginTop: "2px",
+            color: "#333",
           }}
         >
-          📞 8484978622
+          GSTIN: 27ATGPP7842L1Z0
+        </div>
+        <div
+          style={{
+            fontSize: "8px",
+            marginTop: "3px",
+            color: "#555",
+            lineHeight: 1.35,
+          }}
+        >
+          Shop No. 4, 24K Glitterati, Vishal Nagar,
+          <br />
+          Pimple Nilakh, Pune 411027
         </div>
         <div
           style={{
             fontSize: "9px",
             marginTop: "4px",
+            fontWeight: "bold",
+            marginBottom: "2px",
+          }}
+        >
+          WhatsApp / Call 8484978622
+        </div>
+        <div
+          style={{
+            fontSize: "8px",
+            marginTop: "2px",
             color: "#555",
           }}
         >
-          Thank you for your visit!
+          points.k2chicken.com
         </div>
       </div>
 
@@ -578,7 +599,7 @@ export default function ThermalReceipt({
         >
           K2 Chicken
         </div>
-        <div style={{ marginTop: "3px", fontSize: "9px" }}>📞 8484978622</div>
+        <div style={{ marginTop: "3px", fontSize: "9px" }}>WhatsApp / Call 8484978622</div>
 
         <div
           style={{

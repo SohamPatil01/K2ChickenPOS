@@ -139,9 +139,13 @@ export default function OrdersPage() {
     setTimeout(() => handlePrint(), 150);
   };
 
-  const triggerDownloadBill = (sale: Sale) => {
-    downloadCustomerBill(sale, storeBillInfo);
-    showNotification(`Bill ${sale.saleNo} downloaded`, "success");
+  const triggerDownloadBill = async (sale: Sale) => {
+    try {
+      await downloadCustomerBill(sale, storeBillInfo);
+      showNotification(`Bill ${sale.saleNo} downloaded as PDF`, "success");
+    } catch {
+      showNotification("Could not download bill PDF", "error");
+    }
   };
 
   // Separate useEffect for auth check (no dependencies that change)

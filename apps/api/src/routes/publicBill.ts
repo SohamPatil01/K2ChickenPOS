@@ -67,6 +67,12 @@ export async function publicBillRoutes(fastify: FastifyInstance) {
         0
       );
 
+      const payments = sale.payments || [];
+      const paidAmount = payments
+        .filter((p: any) => String(p.method || '').toUpperCase() !== 'CREDIT')
+        .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+      const pendingAmount = Math.max(0, Math.round(Number(sale.grandTotal) - paidAmount));
+
       reply.header('Cache-Control', 'public, max-age=60');
       return {
         saleNo: sale.saleNo,
@@ -79,8 +85,11 @@ export async function publicBillRoutes(fastify: FastifyInstance) {
         subTotal: sale.subTotal,
         discountTotal: sale.discountTotal,
         taxTotal: sale.taxTotal,
+        deliveryFee: sale.deliveryFee || 0,
         grandTotal: sale.grandTotal,
-        payments: sale.payments || [],
+        payments,
+        paidAmount,
+        pendingAmount,
         loyaltyEarned,
         loyaltyBalance: sale.customer ? sale.customer.loyaltyPoints || 0 : null,
       };

@@ -157,9 +157,11 @@ export function printReceipt(data: ReceiptData) {
     </head>
     <body>
       <div class="header">
-        <h1>${data.storeName || 'K2 Chicken POS'}</h1>
-        ${data.storeAddress ? `<p>${data.storeAddress}</p>` : ''}
-        ${data.storePhone ? `<p>Phone: ${data.storePhone}</p>` : ''}
+        <h1>K2 Chicken</h1>
+        <p style="font-size:10px;margin:2px 0;">GSTIN: 27ATGPP7842L1Z0</p>
+        ${data.storeAddress ? `<p>${data.storeAddress}</p>` : `<p>Shop No. 4, 24K Glitterati, Vishal Nagar, Pimple Nilakh, Pune 411027</p>`}
+        <p>WhatsApp / Call: ${data.storePhone || '8484978622'}</p>
+        <p style="font-size:10px;">points.k2chicken.com · www.k2chicken.com</p>
       </div>
       
       <div class="receipt-info">
