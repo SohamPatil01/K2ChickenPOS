@@ -12,9 +12,21 @@ export interface UpiConfig {
   payeeName: string;
 }
 
+function stripEnvQuotes(value: string): string {
+  const t = value.trim();
+  if (
+    (t.startsWith('"') && t.endsWith('"')) ||
+    (t.startsWith("'") && t.endsWith("'"))
+  ) {
+    return t.slice(1, -1).trim();
+  }
+  return t;
+}
+
 export function getUpiConfig(): UpiConfig | null {
-  const upiId = (process.env.NEXT_PUBLIC_UPI_ID || "").trim();
-  const payeeName = (process.env.NEXT_PUBLIC_UPI_PAYEE || "K2 Chicken").trim();
+  const upiId = stripEnvQuotes(process.env.NEXT_PUBLIC_UPI_ID || "");
+  const payeeName =
+    stripEnvQuotes(process.env.NEXT_PUBLIC_UPI_PAYEE || "") || "K2 Chicken";
   if (!upiId) return null;
   return { upiId, payeeName };
 }
