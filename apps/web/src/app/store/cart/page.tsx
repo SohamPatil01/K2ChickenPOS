@@ -1560,7 +1560,9 @@ export default function StoreCartPage() {
                   <button
                     onClick={() => {
                       if (window.confirm('Clear all items from cart?')) {
-                        clearCart();
+                        void clearCart().then(() => {
+                          publishIdleMode();
+                        });
                       }
                     }}
                     disabled={items.length === 0}

@@ -8,11 +8,9 @@ import { buildBillPayload } from "./publishHelpers";
 
 const DEBOUNCE_MS = 250;
 // Ably never replays missed messages, so if the display drops a single bill
-// snapshot (a websocket blip, a channel silently going suspended/detached, or a
-// brief cashier-side reconnect) it would freeze on a stale bill while still
-// looking connected. Re-publishing the live bill on a short heartbeat lets the
-// display self-heal within a few seconds. Only fires while a bill is actively
-// being built, so message volume stays negligible on Ably's free tier.
+// snapshot it would freeze on a stale bill. Heartbeat re-publishes while a
+// bill is active — and also re-sends idle when the cart is empty but the
+// display may still be stuck on old items.
 const HEARTBEAT_MS = 4000;
 
 function getAccessToken(): string | null {
@@ -35,24 +33,58 @@ export function useCustomerDisplayPublisher(): void {
   const connect = useCustomerDisplayStore((s) => s.connect);
   const teardown = useCustomerDisplayStore((s) => s.teardown);
   const publishBill = useCustomerDisplayStore((s) => s.publishBill);
+  const publishIdle = useCustomerDisplayStore((s) => s.publishIdle);
   const status = useCustomerDisplayStore((s) => s.status);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Re-send the current bill if (and only if) the cashier is actively building
-  // one. Safe to call repeatedly: it never clobbers the payment / success
-  // screens and is a no-op when the cart is empty.
-  const resyncBill = useCallback(() => {
+  const pushCartSnapshot = useCallback(() => {
     const cd = useCustomerDisplayStore.getState();
-    if (!cd.active || cd.localMode !== "billing") return;
+    if (!cd.active) return;
+
+    // Don't clobber payment / success screens.
+    if (cd.localMode === "payment" || cd.localMode === "success") return;
+
     const cart = useCartStore.getState();
-    if (!cart.items || cart.items.length === 0) return;
+    const hasItems = !!(cart.items && cart.items.length > 0);
+
     try {
+      if (!hasItems) {
+        // Clear the display when the cart is emptied (Clear Cart, hold, etc.).
+        if (cd.localMode === "billing") {
+          publishIdle();
+        }
+        return;
+      }
       publishBill(buildBillPayload());
     } catch {
       // never break billing
     }
-  }, [publishBill]);
+  }, [publishBill, publishIdle]);
+
+  // Re-send live state so a missed Ably message can't freeze the display on old items.
+  const resync = useCallback(() => {
+    const cd = useCustomerDisplayStore.getState();
+    if (!cd.active) return;
+    if (cd.localMode === "payment" || cd.localMode === "success") return;
+
+    const cart = useCartStore.getState();
+    const hasItems = !!(cart.items && cart.items.length > 0);
+
+    try {
+      if (!hasItems) {
+        // Re-broadcast idle while the cart is empty so a display that missed
+        // the clear cannot stay stuck on the previous bill forever.
+        publishIdle();
+        return;
+      }
+      if (cd.localMode === "billing" || cd.localMode === "idle") {
+        publishBill(buildBillPayload());
+      }
+    } catch {
+      // never break billing
+    }
+  }, [publishBill, publishIdle]);
 
   // Connect / disconnect based on active flag + auth presence.
   useEffect(() => {
@@ -70,14 +102,7 @@ export function useCustomerDisplayPublisher(): void {
     const publishNow = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        // Don't clobber the payment / success screen with a stray bill update.
-        const localMode = useCustomerDisplayStore.getState().localMode;
-        if (localMode === "payment" || localMode === "success") return;
-        try {
-          publishBill(buildBillPayload());
-        } catch {
-          // never break billing
-        }
+        pushCartSnapshot();
       }, DEBOUNCE_MS);
     };
 
@@ -89,21 +114,17 @@ export function useCustomerDisplayPublisher(): void {
       unsub();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [active, publishBill]);
+  }, [active, pushCartSnapshot]);
 
-  // Heartbeat: keep the display converged on the live bill even if it silently
-  // missed a snapshot. Cheap because it only emits while a bill is in progress.
   useEffect(() => {
     if (!active) return;
-    const id = setInterval(resyncBill, HEARTBEAT_MS);
+    const id = setInterval(resync, HEARTBEAT_MS);
     return () => clearInterval(id);
-  }, [active, resyncBill]);
+  }, [active, resync]);
 
-  // When the cashier's own realtime connection recovers, immediately push the
-  // current bill so the display doesn't wait up to a full heartbeat to refresh.
   useEffect(() => {
     if (!active || status !== "connected") return;
-    const id = setTimeout(resyncBill, 300);
+    const id = setTimeout(resync, 300);
     return () => clearTimeout(id);
-  }, [active, status, resyncBill]);
+  }, [active, status, resync]);
 }
