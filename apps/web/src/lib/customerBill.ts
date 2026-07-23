@@ -92,6 +92,58 @@ function logoUrl(): string {
   return BRAND.logoPath;
 }
 
+/** Embed logo as data-URL so PDF capture never misses/cors-breaks the image. */
+async function embedLogoDataUrl(): Promise<string> {
+  const fallback = logoUrl();
+  if (typeof window === "undefined") return fallback;
+  try {
+    const res = await fetch(fallback, { cache: "force-cache" });
+    if (!res.ok) return fallback;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || fallback));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return fallback;
+  }
+}
+
+/** Trim trailing near-white rows so the PDF has no empty band under the footer. */
+function trimCanvasWhitespace(source: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = source.getContext("2d");
+  if (!ctx) return source;
+  const { width, height } = source;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  const isBlank = (y: number) => {
+    for (let x = 0; x < width; x += 2) {
+      const i = (y * width + x) * 4;
+      if (data[i] < 248 || data[i + 1] < 248 || data[i + 2] < 248) return false;
+    }
+    return true;
+  };
+  let top = 0;
+  let bottom = height - 1;
+  while (top < bottom && isBlank(top)) top += 1;
+  while (bottom > top && isBlank(bottom)) bottom -= 1;
+  const pad = 4;
+  const y0 = Math.max(0, top - pad);
+  const y1 = Math.min(height - 1, bottom + pad);
+  const trimH = y1 - y0 + 1;
+  if (trimH >= height - 2) return source;
+  const out = document.createElement("canvas");
+  out.width = width;
+  out.height = trimH;
+  const octx = out.getContext("2d");
+  if (!octx) return source;
+  octx.fillStyle = "#fafafa";
+  octx.fillRect(0, 0, width, trimH);
+  octx.drawImage(source, 0, y0, width, trimH, 0, 0, width, trimH);
+  return out;
+}
+
 async function pendingQrDataUrl(
   amount: number,
   note?: string | null
@@ -124,7 +176,7 @@ export async function buildCustomerBillHtml(
   const storeName = store?.name || BRAND.name;
   const storePhone = store?.phone || BRAND.phoneDisplay;
   const { paid, balance, isPending } = paymentSummary(sale);
-  const logo = logoUrl();
+  const logo = await embedLogoDataUrl();
   const qrDataUrl = isPending
     ? await pendingQrDataUrl(balance, sale.saleNo)
     : "";
@@ -184,21 +236,19 @@ export async function buildCustomerBillHtml(
 <body>
   <div class="bill" id="k2-bill" style="position:relative;max-width:720px;margin:0 auto;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;overflow:hidden;">
     <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;overflow:hidden;">
-      <img src="${logo}" alt="" style="width:420px;height:420px;object-fit:contain;opacity:0.045;filter:grayscale(1);"/>
+      <img src="${logo}" alt="" style="width:280px;height:280px;object-fit:contain;opacity:0.06;"/>
     </div>
     <div style="position:relative;z-index:1;">
-      <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:26px 28px 20px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
-        <div>
-          <div style="display:flex;align-items:center;gap:14px;">
-            <div style="width:56px;height:56px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <img src="${logo}" alt="${escapeHtml(BRAND.name)}" style="width:42px;height:42px;object-fit:contain;"/>
-            </div>
-            <div>
-              <div style="font-size:22px;font-weight:800;color:#111827;letter-spacing:-0.02em;">${escapeHtml(BRAND.name)}</div>
-              <div style="margin-top:2px;font-size:11px;color:#6b7280;letter-spacing:.12em;text-transform:uppercase;">Fresh · Pure · Trusted</div>
+      <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:20px 24px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <img src="${logo}" alt="${escapeHtml(BRAND.name)}" style="width:72px;height:72px;object-fit:contain;flex-shrink:0;border-radius:12px;background:#fff;border:1px solid #e5e7eb;padding:4px;"/>
+            <div style="min-width:0;">
+              <div style="font-size:26px;font-weight:800;color:#111827;letter-spacing:-0.02em;line-height:1.1;">${escapeHtml(BRAND.name)}</div>
+              <div style="margin-top:4px;font-size:11px;color:#6b7280;letter-spacing:.12em;text-transform:uppercase;">Fresh · Pure · Trusted</div>
             </div>
           </div>
-          <div style="margin-top:10px;font-size:11.5px;line-height:1.55;color:#4b5563;max-width:360px;">
+          <div style="margin-top:12px;font-size:11.5px;line-height:1.55;color:#4b5563;max-width:380px;">
             WhatsApp / Call ${escapeHtml(BRAND.whatsappDisplay)}<br/>
             GSTIN: ${escapeHtml(BRAND.gstin)}<br/>
             ${escapeHtml(BRAND.address)}
@@ -214,7 +264,7 @@ export async function buildCustomerBillHtml(
         </div>
       </div>
 
-      <div style="padding:22px 28px 8px;">
+      <div style="padding:18px 24px 4px;">
         ${
           isPending
             ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
@@ -309,10 +359,10 @@ export async function buildCustomerBillHtml(
         }
       </div>
 
-      <div style="border-top:1px solid #e5e7eb;padding:16px 28px 22px;text-align:center;font-size:11.5px;color:#6b7280;line-height:1.6;background:#f9fafb;">
+      <div style="border-top:1px solid #e5e7eb;padding:14px 24px 16px;text-align:center;font-size:11.5px;color:#6b7280;line-height:1.55;background:#f9fafb;">
         <div style="font-weight:700;color:#111827;">Thank you for shopping with ${escapeHtml(BRAND.name)}</div>
         <div>Freshness you can taste · Quality you can trust</div>
-        <div style="margin-top:8px;">
+        <div style="margin-top:6px;">
           Loyalty: <strong style="color:#111827;">${escapeHtml(LOYALTY.portalUrl.replace(/^https?:\/\//, ""))}</strong>
           · Website: <strong style="color:#111827;">${escapeHtml(BRAND.website)}</strong><br/>
           WhatsApp: <strong style="color:#111827;">${escapeHtml(BRAND.whatsappDisplay)}</strong>
@@ -391,33 +441,48 @@ export async function downloadCustomerBill(
       import("html2canvas"),
       import("jspdf"),
     ]);
-    const canvas = await html2canvas(billEl, {
+    const canvasRaw = await html2canvas(billEl, {
       scale: 2,
       useCORS: true,
       backgroundColor: "#fafafa",
       logging: false,
       windowWidth: 820,
     });
+    const canvas = trimCanvasWhitespace(canvasRaw);
 
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 8;
+    // Page height follows the bill — no empty A4 band under short invoices.
+    const pageW = 210; // mm (A4 width)
+    const margin = 6;
     const usableW = pageW - margin * 2;
-    const usableH = pageH - margin * 2;
     const imgH = (canvas.height * usableW) / canvas.width;
-    const pxPerMm = canvas.width / usableW;
+    const maxPageH = 297; // A4 height
+    const contentPageH = Math.min(maxPageH, Math.max(imgH + margin * 2, 60));
 
-    if (imgH <= usableH) {
+    if (imgH + margin * 2 <= maxPageH) {
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [pageW, contentPageH],
+        compress: true,
+      });
       pdf.addImage(
-        canvas.toDataURL("image/jpeg", 0.95),
+        canvas.toDataURL("image/jpeg", 0.92),
         "JPEG",
         margin,
         margin,
         usableW,
         imgH
       );
+      pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
     } else {
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+      const usableH = maxPageH - margin * 2;
+      const pxPerMm = canvas.width / usableW;
       let offsetMm = 0;
       let page = 0;
       while (offsetMm < imgH - 0.5) {
@@ -445,7 +510,7 @@ export async function downloadCustomerBill(
         }
         if (page > 0) pdf.addPage();
         pdf.addImage(
-          pageCanvas.toDataURL("image/jpeg", 0.95),
+          pageCanvas.toDataURL("image/jpeg", 0.92),
           "JPEG",
           margin,
           margin,
@@ -455,9 +520,8 @@ export async function downloadCustomerBill(
         offsetMm += sliceH;
         page += 1;
       }
+      pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
     }
-
-    pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
   } catch (err) {
     console.error("PDF bill download failed, opening print view:", err);
     await printCustomerBill(sale, store);

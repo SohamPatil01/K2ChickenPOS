@@ -87,11 +87,10 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
           src={BRAND.logoPath}
           alt=""
           style={{
-            width: 420,
-            height: 420,
+            width: 280,
+            height: 280,
             objectFit: "contain",
-            opacity: 0.045,
-            filter: "grayscale(1)",
+            opacity: 0.06,
           }}
         />
       </div>
@@ -101,42 +100,41 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
           style={{
             background: "#f3f4f6",
             borderBottom: "1px solid #e5e7eb",
-            padding: "20px 24px",
+            padding: "20px 24px 16px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
             gap: 16,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={BRAND.logoPath}
+                alt={BRAND.name}
                 style={{
-                  width: 52,
-                  height: 52,
+                  width: 72,
+                  height: 72,
+                  objectFit: "contain",
+                  flexShrink: 0,
+                  borderRadius: 12,
                   background: "#fff",
                   border: "1px solid #e5e7eb",
-                  borderRadius: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  padding: 4,
                 }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={BRAND.logoPath}
-                  alt={BRAND.name}
-                  style={{ width: 40, height: 40, objectFit: "contain" }}
-                />
-              </div>
+              />
               <div>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>{BRAND.name}</div>
+                <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.1 }}>
+                  {BRAND.name}
+                </div>
                 <div
                   style={{
                     fontSize: 10,
                     color: "#6b7280",
                     letterSpacing: "0.12em",
                     textTransform: "uppercase",
+                    marginTop: 4,
                   }}
                 >
                   Fresh · Pure · Trusted
