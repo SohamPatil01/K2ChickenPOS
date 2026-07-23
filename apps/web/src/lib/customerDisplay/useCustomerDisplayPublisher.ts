@@ -6,10 +6,11 @@ import { useAuthStore } from "@/store/auth";
 import { useCustomerDisplayStore } from "./controller";
 import { buildBillPayload } from "./publishHelpers";
 
-const DEBOUNCE_MS = 200;
-const HEARTBEAT_MS = 5000;
-/** After a sale, ignore leftover IndexedDB cart rows so they can't re-freeze the TV. */
-const POST_SALE_GRACE_MS = 12000;
+const DEBOUNCE_MS = 150;
+const HEARTBEAT_MS = 3000;
+const POST_SALE_GRACE_MS = 8000;
+const LEADER_KEY = "k2-cd-publisher-leader";
+const LEADER_TTL_MS = 4000;
 
 function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -22,115 +23,173 @@ function getAccessToken(): string | null {
 
 function cartFingerprint(): string {
   const cart = useCartStore.getState();
-  return JSON.stringify({
-    items: (cart.items || []).map((it) => ({
+  return JSON.stringify(
+    (cart.items || []).map((it) => ({
       id: it.id,
       productId: it.productId,
       qtyKg: it.qtyKg,
       qtyPcs: it.qtyPcs,
       rate: it.rate,
       lineTotal: it.lineTotal,
-    })),
-    customerName: cart.customerName,
-    discountTotal: cart.discountTotal,
-    deliveryFee: cart.deliveryFee,
-  });
+    }))
+  );
+}
+
+function readLeader(): { id: string; ts: number; hasItems?: boolean } | null {
+  try {
+    const raw = localStorage.getItem(LEADER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.id || !parsed?.ts) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Mounts once (in StoreLayout). Cart is the source of truth for the display:
- *  - items present → billing snapshot
- *  - cart empty → idle (clears a stuck bill)
- *  - payment / success briefly suppress overwrites
- *  - post-sale grace ignores ghost cart rows that reappear from IndexedDB
+ * Only one browser tab may publish to the customer display. Otherwise an empty
+ * cart tab keeps sending idle and wipes the live bill from the active cart tab.
+ * Tabs with cart items steal leadership from empty tabs.
+ */
+function claimPublisherLeadership(tabId: string, hasItems: boolean): boolean {
+  if (typeof window === "undefined") return false;
+  const now = Date.now();
+  const cur = readLeader();
+  if (cur && now - cur.ts < LEADER_TTL_MS && cur.id !== tabId) {
+    // Steal if we have a live cart and the current leader does not.
+    if (!(hasItems && !cur.hasItems)) {
+      return false;
+    }
+  }
+  try {
+    localStorage.setItem(
+      LEADER_KEY,
+      JSON.stringify({ id: tabId, ts: now, hasItems })
+    );
+  } catch {
+    return true;
+  }
+  const again = readLeader();
+  return !again || again.id === tabId;
+}
+
+/**
+ * Cart → customer display sync (single-tab leader).
  */
 export function useCustomerDisplayPublisher(): void {
   const user = useAuthStore((s) => s.user);
   const active = useCustomerDisplayStore((s) => s.active);
   const connect = useCustomerDisplayStore((s) => s.connect);
   const teardown = useCustomerDisplayStore((s) => s.teardown);
-  const publishBill = useCustomerDisplayStore((s) => s.publishBill);
-  const publishIdle = useCustomerDisplayStore((s) => s.publishIdle);
   const status = useCustomerDisplayStore((s) => s.status);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastFpRef = useRef<string>("");
-  const lastIdleHealRef = useRef(0);
+  const lastSentFpRef = useRef<string>("");
   const ignoreBillUntilRef = useRef(0);
+  const ghostFpRef = useRef<string>("");
   const prevModeRef = useRef(useCustomerDisplayStore.getState().localMode);
+  const tabIdRef = useRef(
+    `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  );
+  const isLeaderRef = useRef(false);
 
-  // When success starts, open a grace window so a late clearCart / loadCart race
-  // cannot push the just-paid items back onto the TV.
   useEffect(() => {
     if (!active) return;
     return useCustomerDisplayStore.subscribe((state) => {
       const prev = prevModeRef.current;
       prevModeRef.current = state.localMode;
       if (state.localMode === "success" && prev !== "success") {
+        ghostFpRef.current = cartFingerprint();
         ignoreBillUntilRef.current = Date.now() + POST_SALE_GRACE_MS;
-        lastFpRef.current = "";
-      }
-      if (state.localMode === "idle" && prev === "success") {
-        ignoreBillUntilRef.current = Date.now() + POST_SALE_GRACE_MS;
+        lastSentFpRef.current = "";
       }
     });
   }, [active]);
 
-  const syncDisplay = useCallback(
-    (opts?: { force?: boolean }) => {
-      const cd = useCustomerDisplayStore.getState();
-      if (!cd.active) return;
-
-      const cart = useCartStore.getState();
-      const hasItems = !!(cart.items && cart.items.length > 0);
-      const now = Date.now();
-      const inGrace = now < ignoreBillUntilRef.current;
-      const mode = cd.localMode;
-
-      try {
-        // Success animation owns the screen briefly.
-        if (mode === "success") {
-          return;
+  // Renew leadership while this tab has the display enabled.
+  useEffect(() => {
+    if (!active) {
+      isLeaderRef.current = false;
+      return;
+    }
+    const tick = () => {
+      const hasItems = useCartStore.getState().items.length > 0;
+      isLeaderRef.current = claimPublisherLeadership(tabIdRef.current, hasItems);
+    };
+    tick();
+    const id = setInterval(tick, 1500);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LEADER_KEY) tick();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("storage", onStorage);
+      // Release leadership if we still hold it.
+      const cur = readLeader();
+      if (cur?.id === tabIdRef.current) {
+        try {
+          localStorage.removeItem(LEADER_KEY);
+        } catch {
+          // ignore
         }
-
-        // Empty cart always clears the display (even if we were mid-payment).
-        if (!hasItems) {
-          if (mode !== "idle" || opts?.force) {
-            publishIdle();
-            lastFpRef.current = "empty";
-            lastIdleHealRef.current = now;
-            return;
-          }
-          // Heal a TV that missed idle — at most once every 15s while empty.
-          if (now - lastIdleHealRef.current > 15000) {
-            publishIdle();
-            lastIdleHealRef.current = now;
-          }
-          return;
-        }
-
-        // Ghost rows after sale — do not resurrect the old bill.
-        if (inGrace) {
-          return;
-        }
-
-        // Payment QR owns the screen while the cashier is checking out.
-        if (mode === "payment") {
-          return;
-        }
-
-        const fp = cartFingerprint();
-        if (!opts?.force && fp === lastFpRef.current && mode === "billing") {
-          return;
-        }
-        lastFpRef.current = fp;
-        publishBill(buildBillPayload());
-      } catch {
-        // never break billing
       }
-    },
-    [publishBill, publishIdle]
-  );
+      isLeaderRef.current = false;
+    };
+  }, [active]);
+
+  const syncDisplay = useCallback((opts?: { force?: boolean }) => {
+    const cd = useCustomerDisplayStore.getState();
+    if (!cd.active) return;
+    const cart = useCartStore.getState();
+    const hasItems = !!(cart.items && cart.items.length > 0);
+    if (
+      !isLeaderRef.current &&
+      !claimPublisherLeadership(tabIdRef.current, hasItems)
+    ) {
+      return;
+    }
+    isLeaderRef.current = true;
+
+    const now = Date.now();
+    const mode = cd.localMode;
+    const fp = cartFingerprint();
+
+    try {
+      if (mode === "success") return;
+
+      if (!hasItems) {
+        // Only publish idle when leaving a live bill/payment — never spam idle
+        // from empty tabs (that was wiping the live cart tab's bill).
+        if (mode === "billing" || mode === "payment") {
+          const ok = cd.publishIdle();
+          if (ok) lastSentFpRef.current = "empty";
+        }
+        return;
+      }
+
+      const inGrace = now < ignoreBillUntilRef.current;
+      if (inGrace && fp === ghostFpRef.current) {
+        return;
+      }
+
+      if (mode === "payment") return;
+
+      if (
+        !opts?.force &&
+        mode === "billing" &&
+        fp === lastSentFpRef.current
+      ) {
+        return;
+      }
+
+      const ok = cd.publishBill(buildBillPayload());
+      if (ok) lastSentFpRef.current = fp;
+    } catch {
+      // never break billing
+    }
+  }, []);
 
   useEffect(() => {
     if (active && user?.storeId) {
@@ -143,13 +202,13 @@ export function useCustomerDisplayPublisher(): void {
   useEffect(() => {
     if (!active) return;
 
-    const publishNow = () => {
+    const schedule = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => syncDisplay(), DEBOUNCE_MS);
+      debounceRef.current = setTimeout(() => syncDisplay({ force: true }), DEBOUNCE_MS);
     };
 
-    publishNow();
-    const unsub = useCartStore.subscribe(publishNow);
+    schedule();
+    const unsub = useCartStore.subscribe(schedule);
     return () => {
       unsub();
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -164,7 +223,8 @@ export function useCustomerDisplayPublisher(): void {
 
   useEffect(() => {
     if (!active || status !== "connected") return;
-    const id = setTimeout(() => syncDisplay({ force: true }), 400);
+    lastSentFpRef.current = "";
+    const id = setTimeout(() => syncDisplay({ force: true }), 200);
     return () => clearTimeout(id);
   }, [active, status, syncDisplay]);
 }

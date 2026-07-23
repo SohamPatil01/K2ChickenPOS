@@ -22,6 +22,8 @@ let handle: DisplayPublisherHandle | null = null;
 let connecting = false;
 let lastSeq = 0;
 let presenceTimer: ReturnType<typeof setInterval> | null = null;
+/** Last event queued while Ably was still connecting — flushed on connect. */
+let pendingEvent: { name: string; data: any } | null = null;
 
 /**
  * Monotonic sequence number based on the wall clock so it keeps increasing even
@@ -32,6 +34,31 @@ function nextSeq(): number {
   const now = Date.now();
   lastSeq = now > lastSeq ? now : lastSeq + 1;
   return lastSeq;
+}
+
+function publishOrQueue(name: string, data: any): boolean {
+  if (!handle) {
+    pendingEvent = { name, data };
+    return true; // queued — flushed when Ably connects
+  }
+  try {
+    handle.publish(name as any, data);
+    pendingEvent = null;
+    return true;
+  } catch {
+    pendingEvent = { name, data };
+    return true;
+  }
+}
+
+function flushPending(): void {
+  if (!handle || !pendingEvent) return;
+  try {
+    handle.publish(pendingEvent.name as any, pendingEvent.data);
+    pendingEvent = null;
+  } catch {
+    // keep queued
+  }
 }
 
 function readActiveFlag(): boolean {
@@ -65,10 +92,12 @@ interface CustomerDisplayState {
   teardown: () => void;
   enable: (storeId: string, getAccessToken: () => string | null) => void;
   disable: () => void;
-  publishBill: (payload: Omit<BillUpdatePayload, "seq">) => void;
-  publishPayment: (payload: Omit<PaymentModePayload, "seq">) => void;
-  publishSuccess: (payload: Omit<SuccessModePayload, "seq">) => void;
-  publishIdle: () => void;
+  publishBill: (payload: Omit<BillUpdatePayload, "seq">) => boolean;
+  publishPayment: (payload: Omit<PaymentModePayload, "seq">) => boolean;
+  publishSuccess: (payload: Omit<SuccessModePayload, "seq">) => boolean;
+  publishIdle: () => boolean;
+  /** True once the Ably publisher socket is usable. */
+  isPublisherReady: () => boolean;
   _setStatus: (status: ConnectionStatus) => void;
 }
 
@@ -91,6 +120,7 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
         .then((h) => {
           handle = h;
           connecting = false;
+          flushPending();
           // Poll presence occasionally to show "display connected" on the cashier UI.
           // Require two consecutive misses before showing "disconnected" so a
           // single dropped poll (or a momentary presence gap during the display's
@@ -120,6 +150,7 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
         clearInterval(presenceTimer);
         presenceTimer = null;
       }
+      pendingEvent = null;
       if (handle) {
         try {
           handle.close();
@@ -147,26 +178,31 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
 
     publishBill: (payload) => {
       set({ localMode: "billing" });
-      handle?.publish(DISPLAY_EVENTS.BILL_UPDATE, { ...payload, seq: nextSeq() });
+      return publishOrQueue(DISPLAY_EVENTS.BILL_UPDATE, {
+        ...payload,
+        seq: nextSeq(),
+      });
     },
     publishPayment: (payload) => {
       set({ localMode: "payment" });
-      handle?.publish(DISPLAY_EVENTS.MODE_PAYMENT, {
+      return publishOrQueue(DISPLAY_EVENTS.MODE_PAYMENT, {
         ...payload,
         seq: nextSeq(),
       });
     },
     publishSuccess: (payload) => {
       set({ localMode: "success" });
-      handle?.publish(DISPLAY_EVENTS.MODE_SUCCESS, {
+      return publishOrQueue(DISPLAY_EVENTS.MODE_SUCCESS, {
         ...payload,
         seq: nextSeq(),
       });
     },
     publishIdle: () => {
       set({ localMode: "idle" });
-      handle?.publish(DISPLAY_EVENTS.MODE_IDLE, { seq: nextSeq() });
+      return publishOrQueue(DISPLAY_EVENTS.MODE_IDLE, { seq: nextSeq() });
     },
+
+    isPublisherReady: () => !!handle,
 
     _setStatus: (status) => set({ status }),
   })
