@@ -6,12 +6,10 @@ import { useAuthStore } from "@/store/auth";
 import { useCustomerDisplayStore } from "./controller";
 import { buildBillPayload } from "./publishHelpers";
 
-const DEBOUNCE_MS = 250;
-// Ably never replays missed messages, so if the display drops a single bill
-// snapshot it would freeze on a stale bill. Heartbeat re-publishes while a
-// bill is active — and also re-sends idle when the cart is empty but the
-// display may still be stuck on old items.
-const HEARTBEAT_MS = 4000;
+const DEBOUNCE_MS = 200;
+const HEARTBEAT_MS = 5000;
+/** After a sale, ignore leftover IndexedDB cart rows so they can't re-freeze the TV. */
+const POST_SALE_GRACE_MS = 12000;
 
 function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -22,10 +20,29 @@ function getAccessToken(): string | null {
   }
 }
 
+function cartFingerprint(): string {
+  const cart = useCartStore.getState();
+  return JSON.stringify({
+    items: (cart.items || []).map((it) => ({
+      id: it.id,
+      productId: it.productId,
+      qtyKg: it.qtyKg,
+      qtyPcs: it.qtyPcs,
+      rate: it.rate,
+      lineTotal: it.lineTotal,
+    })),
+    customerName: cart.customerName,
+    discountTotal: cart.discountTotal,
+    deliveryFee: cart.deliveryFee,
+  });
+}
+
 /**
- * Mounts once (in StoreLayout). When the cashier has enabled the customer
- * display, it connects to Ably and republishes a debounced bill snapshot on
- * every cart change. Completely passive otherwise — it never alters cart state.
+ * Mounts once (in StoreLayout). Cart is the source of truth for the display:
+ *  - items present → billing snapshot
+ *  - cart empty → idle (clears a stuck bill)
+ *  - payment / success briefly suppress overwrites
+ *  - post-sale grace ignores ghost cart rows that reappear from IndexedDB
  */
 export function useCustomerDisplayPublisher(): void {
   const user = useAuthStore((s) => s.user);
@@ -37,59 +54,84 @@ export function useCustomerDisplayPublisher(): void {
   const status = useCustomerDisplayStore((s) => s.status);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFpRef = useRef<string>("");
+  const lastIdleHealRef = useRef(0);
+  const ignoreBillUntilRef = useRef(0);
+  const prevModeRef = useRef(useCustomerDisplayStore.getState().localMode);
 
-  const pushCartSnapshot = useCallback(() => {
-    const cd = useCustomerDisplayStore.getState();
-    if (!cd.active) return;
+  // When success starts, open a grace window so a late clearCart / loadCart race
+  // cannot push the just-paid items back onto the TV.
+  useEffect(() => {
+    if (!active) return;
+    return useCustomerDisplayStore.subscribe((state) => {
+      const prev = prevModeRef.current;
+      prevModeRef.current = state.localMode;
+      if (state.localMode === "success" && prev !== "success") {
+        ignoreBillUntilRef.current = Date.now() + POST_SALE_GRACE_MS;
+        lastFpRef.current = "";
+      }
+      if (state.localMode === "idle" && prev === "success") {
+        ignoreBillUntilRef.current = Date.now() + POST_SALE_GRACE_MS;
+      }
+    });
+  }, [active]);
 
-    // Don't clobber payment / success screens.
-    if (cd.localMode === "payment" || cd.localMode === "success") return;
+  const syncDisplay = useCallback(
+    (opts?: { force?: boolean }) => {
+      const cd = useCustomerDisplayStore.getState();
+      if (!cd.active) return;
 
-    const cart = useCartStore.getState();
-    const hasItems = !!(cart.items && cart.items.length > 0);
+      const cart = useCartStore.getState();
+      const hasItems = !!(cart.items && cart.items.length > 0);
+      const now = Date.now();
+      const inGrace = now < ignoreBillUntilRef.current;
+      const mode = cd.localMode;
 
-    try {
-      if (!hasItems) {
-        // Clear the display when the cart is emptied (Clear Cart, hold, etc.).
-        if (cd.localMode === "billing") {
-          publishIdle();
+      try {
+        // Success animation owns the screen briefly.
+        if (mode === "success") {
+          return;
         }
-        return;
-      }
-      publishBill(buildBillPayload());
-    } catch {
-      // never break billing
-    }
-  }, [publishBill, publishIdle]);
 
-  // Re-send live state so a missed Ably message can't freeze the display on old items.
-  const resync = useCallback(() => {
-    const cd = useCustomerDisplayStore.getState();
-    if (!cd.active) return;
-    if (cd.localMode === "payment" || cd.localMode === "success") return;
+        // Empty cart always clears the display (even if we were mid-payment).
+        if (!hasItems) {
+          if (mode !== "idle" || opts?.force) {
+            publishIdle();
+            lastFpRef.current = "empty";
+            lastIdleHealRef.current = now;
+            return;
+          }
+          // Heal a TV that missed idle — at most once every 15s while empty.
+          if (now - lastIdleHealRef.current > 15000) {
+            publishIdle();
+            lastIdleHealRef.current = now;
+          }
+          return;
+        }
 
-    const cart = useCartStore.getState();
-    const hasItems = !!(cart.items && cart.items.length > 0);
+        // Ghost rows after sale — do not resurrect the old bill.
+        if (inGrace) {
+          return;
+        }
 
-    try {
-      if (!hasItems) {
-        // Re-broadcast idle while the cart is empty so a display that missed
-        // the clear cannot stay stuck on the previous bill forever.
-        publishIdle();
-        return;
-      }
-      // Only refresh while already billing. Never promote idle → billing from
-      // heartbeat — leftover cart rows after a sale were re-pushing "Hot Tandoor"
-      // (etc.) and freezing the display on a finished bill.
-      if (cd.localMode === "billing") {
+        // Payment QR owns the screen while the cashier is checking out.
+        if (mode === "payment") {
+          return;
+        }
+
+        const fp = cartFingerprint();
+        if (!opts?.force && fp === lastFpRef.current && mode === "billing") {
+          return;
+        }
+        lastFpRef.current = fp;
         publishBill(buildBillPayload());
+      } catch {
+        // never break billing
       }
-    } catch {
-      // never break billing
-    }
-  }, [publishBill, publishIdle]);
+    },
+    [publishBill, publishIdle]
+  );
 
-  // Connect / disconnect based on active flag + auth presence.
   useEffect(() => {
     if (active && user?.storeId) {
       connect(user.storeId, getAccessToken);
@@ -98,36 +140,31 @@ export function useCustomerDisplayPublisher(): void {
     }
   }, [active, user?.storeId, connect, teardown]);
 
-  // Subscribe to cart changes and publish debounced snapshots while active.
   useEffect(() => {
     if (!active) return;
 
     const publishNow = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        pushCartSnapshot();
-      }, DEBOUNCE_MS);
+      debounceRef.current = setTimeout(() => syncDisplay(), DEBOUNCE_MS);
     };
 
-    // Publish an immediate snapshot so a freshly-paired display isn't blank.
     publishNow();
-
     const unsub = useCartStore.subscribe(publishNow);
     return () => {
       unsub();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [active, pushCartSnapshot]);
+  }, [active, syncDisplay]);
 
   useEffect(() => {
     if (!active) return;
-    const id = setInterval(resync, HEARTBEAT_MS);
+    const id = setInterval(() => syncDisplay({ force: false }), HEARTBEAT_MS);
     return () => clearInterval(id);
-  }, [active, resync]);
+  }, [active, syncDisplay]);
 
   useEffect(() => {
     if (!active || status !== "connected") return;
-    const id = setTimeout(resync, 300);
+    const id = setTimeout(() => syncDisplay({ force: true }), 400);
     return () => clearTimeout(id);
-  }, [active, status, resync]);
+  }, [active, status, syncDisplay]);
 }

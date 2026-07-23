@@ -314,7 +314,13 @@ export const useCartStore = create<CartState>((set, get) => ({
   getSelectedPendingSettlements: () => getSelectedPendingSettlements(get().pendingSettlements),
   getCheckoutTotal: () => get().getTotal().grandTotal + get().getPendingSettlementTotal(),
   clearCart: async () => {
-    await offlineDB.cart.clear();
+    // Wipe storage first, then memory — avoids a loadCart race resurrecting rows
+    // that the customer display would immediately re-broadcast.
+    try {
+      await offlineDB.cart.clear();
+    } catch (err) {
+      console.error('[Cart] offlineDB.cart.clear failed:', err);
+    }
     set({
       items: [],
       customerId: null,
@@ -331,6 +337,11 @@ export const useCartStore = create<CartState>((set, get) => ({
       referredByPhone: null,
       referredByCode: null,
     });
+    try {
+      await offlineDB.cart.clear();
+    } catch {
+      // already logged
+    }
   },
   getTotal: () => {
     const { items, discountTotal, discountType, discountPercentage, deliveryFee, fulfillmentType, loyaltyRedeemPoints } = get();
