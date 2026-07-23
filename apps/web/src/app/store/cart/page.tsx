@@ -1521,9 +1521,7 @@ export default function StoreCartPage() {
                 <button
                   onClick={async () => {
                     await ensureCustomerSaved();
-                    publishPaymentMode(checkoutGrandTotal, null, {
-                      payments: [{ method: 'UPI', amount: checkoutGrandTotal }],
-                    });
+                    publishPaymentMode(checkoutGrandTotal, null);
                     setShowPaymentModal(true);
                   }}
                   disabled={items.length === 0}
@@ -1585,9 +1583,7 @@ export default function StoreCartPage() {
                   <button
                     onClick={async () => {
                       await ensureCustomerSaved();
-                      publishPaymentMode(checkoutGrandTotal, null, {
-                        payments: [{ method: 'UPI', amount: checkoutGrandTotal }],
-                      });
+                      publishPaymentMode(checkoutGrandTotal, null);
                       setShowPaymentModal(true);
                     }}
                     disabled={items.length === 0}

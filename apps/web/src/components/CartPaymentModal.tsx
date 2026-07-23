@@ -39,8 +39,7 @@ export default function CartPaymentModal({
   onPay,
   isProcessing = false,
 }: CartPaymentModalProps) {
-  // Default UPI so the customer display shows the QR as soon as checkout opens.
-  const [selectedMethod, setSelectedMethod] = useState('UPI');
+  const [selectedMethod, setSelectedMethod] = useState('CASH');
   const selectedMethodRef = useRef(selectedMethod);
   selectedMethodRef.current = selectedMethod;
   const [amountPaid, setAmountPaid] = useState(grandTotal.toString());

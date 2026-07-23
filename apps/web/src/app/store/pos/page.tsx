@@ -1320,7 +1320,7 @@ export default function StorePOSPage() {
     }
   };
 
-  // While Quick Pay is open, keep the display total + default UPI QR in sync.
+  // While Quick Pay is open, keep the display total in sync (no UPI until method chosen).
   useEffect(() => {
     if (!showQuickCheckout) return;
     let lastTotal = useCartStore.getState().getCheckoutTotal();
@@ -1328,9 +1328,7 @@ export default function StorePOSPage() {
       const total = useCartStore.getState().getCheckoutTotal();
       if (total !== lastTotal) {
         lastTotal = total;
-        publishPaymentMode(total, null, {
-          payments: [{ method: "UPI", amount: total }],
-        });
+        publishPaymentMode(total, null);
       }
     });
     return () => unsub();
@@ -1423,13 +1421,11 @@ export default function StorePOSPage() {
                   showNotification("Cart is empty", "warning");
                   return;
                 }
-                // Move the customer display into payment mode (dynamic UPI QR).
-                {
-                  const total = useCartStore.getState().getCheckoutTotal();
-                  publishPaymentMode(total, null, {
-                    payments: [{ method: "UPI", amount: total }],
-                  });
-                }
+                // Move the customer display into payment mode (QR only after UPI is tapped).
+                publishPaymentMode(
+                  useCartStore.getState().getCheckoutTotal(),
+                  null
+                );
                 setShowQuickCheckout(true);
               }}
               className="px-4 py-2.5 bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
