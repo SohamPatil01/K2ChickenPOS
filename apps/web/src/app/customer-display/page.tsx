@@ -49,9 +49,28 @@ export default function CustomerDisplayPage() {
   const modeRef = useRef<DisplayMode>("idle");
   /** Cashier often publishes idle right after success — honor it after the 4s hold. */
   const idleAfterSuccessRef = useRef(false);
+  const logoTapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  /** Emergency: tap the top bar 5× quickly to clear a frozen bill locally. */
+  const forceLocalIdle = useCallback(() => {
+    const taps = logoTapRef.current;
+    taps.count += 1;
+    if (taps.timer) clearTimeout(taps.timer);
+    taps.timer = setTimeout(() => {
+      taps.count = 0;
+    }, 1200);
+    if (taps.count >= 5) {
+      taps.count = 0;
+      idleAfterSuccessRef.current = false;
+      setBill(null);
+      setPayment(null);
+      setSuccess(null);
+      setMode("idle");
+    }
+  }, []);
 
   // Resolve the pairing token (from ?pair= or stored session) on mount.
   useEffect(() => {
@@ -125,6 +144,8 @@ export default function CustomerDisplayPage() {
           idleAfterSuccessRef.current = true;
           break;
         }
+        setBill(null);
+        setPayment(null);
         setMode("idle");
         break;
       default:
@@ -182,6 +203,13 @@ export default function CustomerDisplayPage() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white">
+      {/* Invisible tap target — 5 quick taps force idle if the bill is frozen. */}
+      <button
+        type="button"
+        aria-label="Reset display"
+        onClick={forceLocalIdle}
+        className="absolute left-0 top-0 z-50 h-16 w-24 cursor-default opacity-0"
+      />
       {phase === "pairing" ? (
         <PairingScreen />
       ) : phase === "init" ? (

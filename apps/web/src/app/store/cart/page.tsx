@@ -1654,8 +1654,10 @@ export default function StoreCartPage() {
               onComplete={() => {
                 setShowSuccessAnimation(false);
                 setCompletedSale(null);
-                publishIdleMode();
-                router.push('/store/pos');
+                void clearCart().finally(() => {
+                  publishIdleMode();
+                  router.push('/store/pos');
+                });
               }}
             />
             <div className="mt-4 flex gap-3 justify-center">
@@ -1673,8 +1675,10 @@ export default function StoreCartPage() {
                 onClick={() => {
                   setShowSuccessAnimation(false);
                   setCompletedSale(null);
-                  publishIdleMode();
-                  router.push('/store/pos');
+                  void clearCart().finally(() => {
+                    publishIdleMode();
+                    router.push('/store/pos');
+                  });
                 }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-ink-secondary rounded-lg transition-colors"
               >

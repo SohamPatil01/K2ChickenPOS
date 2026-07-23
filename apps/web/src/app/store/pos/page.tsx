@@ -2164,8 +2164,9 @@ export default function StorePOSPage() {
           onComplete={() => {
             setShowSuccessAnimation(false);
             setCompletedSale(null);
-            // Return the customer display to its idle / branding state.
-            publishIdleMode();
+            void clearCart().finally(() => {
+              publishIdleMode();
+            });
           }}
         />
       )}

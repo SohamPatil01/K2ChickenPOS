@@ -78,7 +78,10 @@ export function useCustomerDisplayPublisher(): void {
         publishIdle();
         return;
       }
-      if (cd.localMode === "billing" || cd.localMode === "idle") {
+      // Only refresh while already billing. Never promote idle → billing from
+      // heartbeat — leftover cart rows after a sale were re-pushing "Hot Tandoor"
+      // (etc.) and freezing the display on a finished bill.
+      if (cd.localMode === "billing") {
         publishBill(buildBillPayload());
       }
     } catch {

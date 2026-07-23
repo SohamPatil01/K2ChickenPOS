@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useCustomerDisplayStore } from "@/lib/customerDisplay/controller";
+import { publishIdleMode } from "@/lib/customerDisplay/publishHelpers";
 import QrCode from "./QrCode";
 
 function getAccessToken(): string | null {
@@ -168,6 +169,18 @@ export default function CustomerDisplayButton({
                 />
               </button>
             </div>
+
+            {active && (
+              <button
+                type="button"
+                onClick={() => {
+                  publishIdleMode();
+                }}
+                className="mb-4 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-750"
+              >
+                Reset display (clear stuck bill)
+              </button>
+            )}
 
             {!realtimeEnabled && (
               <div className="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
