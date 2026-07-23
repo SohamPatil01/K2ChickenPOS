@@ -31,6 +31,11 @@ type Phase = "init" | "pairing" | "connected";
 const SUCCESS_HOLD_MS = 4000;
 /** Long enough to scan the review QR; was 120s and felt "stuck". */
 const REVIEW_HOLD_MS = 20000;
+/**
+ * Ignore stray mode.idle for a short window after a live bill. Empty POS tabs
+ * (other browser profiles) can still publish idle over the shared Ably channel.
+ */
+const IGNORE_IDLE_AFTER_BILL_MS = 12000;
 
 export default function CustomerDisplayPage() {
   const [phase, setPhase] = useState<Phase>("init");
@@ -49,6 +54,8 @@ export default function CustomerDisplayPage() {
   const modeRef = useRef<DisplayMode>("idle");
   /** Cashier often publishes idle right after success — honor it after the 4s hold. */
   const idleAfterSuccessRef = useRef(false);
+  /** Don't let a rogue idle wipe a bill that just arrived. */
+  const ignoreIdleUntilRef = useRef(0);
   const logoTapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
   useEffect(() => {
     modeRef.current = mode;
@@ -124,17 +131,20 @@ export default function CustomerDisplayPage() {
           break;
         }
         idleAfterSuccessRef.current = false;
+        ignoreIdleUntilRef.current = Date.now() + IGNORE_IDLE_AFTER_BILL_MS;
         setBill(payload);
         setMode("billing");
         break;
       }
       case DISPLAY_EVENTS.MODE_PAYMENT:
         idleAfterSuccessRef.current = false;
+        ignoreIdleUntilRef.current = Date.now() + IGNORE_IDLE_AFTER_BILL_MS;
         setPayment(data as PaymentModePayload);
         setMode("payment");
         break;
       case DISPLAY_EVENTS.MODE_SUCCESS:
         idleAfterSuccessRef.current = false;
+        ignoreIdleUntilRef.current = 0;
         setSuccess(data as SuccessModePayload);
         setMode("success");
         break;
@@ -142,6 +152,13 @@ export default function CustomerDisplayPage() {
         if (modeRef.current === "success") {
           // Finish the celebration, then skip review and return to branding.
           idleAfterSuccessRef.current = true;
+          break;
+        }
+        if (
+          !data?.force &&
+          (modeRef.current === "billing" || modeRef.current === "payment") &&
+          Date.now() < ignoreIdleUntilRef.current
+        ) {
           break;
         }
         setBill(null);

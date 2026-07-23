@@ -142,8 +142,8 @@ export function publishSuccessMode(
 }
 
 /** Reset the display back to the idle / branding state. */
-export function publishIdleMode(): void {
+export function publishIdleMode(force = true): void {
   const store = useCustomerDisplayStore.getState();
   if (!store.active) return;
-  store.publishIdle();
+  store.publishIdle(force);
 }

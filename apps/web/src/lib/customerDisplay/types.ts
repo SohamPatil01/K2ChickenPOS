@@ -65,6 +65,8 @@ export interface SuccessModePayload {
 
 export interface IdleModePayload {
   seq: number;
+  /** When true, display must honor idle even during the post-bill ignore window. */
+  force?: boolean;
 }
 
 export type DisplayMode =

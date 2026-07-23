@@ -47,25 +47,34 @@ function readLeader(): { id: string; ts: number; hasItems?: boolean } | null {
   }
 }
 
+function releaseLeadership(tabId: string): void {
+  try {
+    const cur = readLeader();
+    if (cur?.id === tabId) localStorage.removeItem(LEADER_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 /**
- * Only one browser tab may publish to the customer display. Otherwise an empty
- * cart tab keeps sending idle and wipes the live bill from the active cart tab.
- * Tabs with cart items steal leadership from empty tabs.
+ * Only one browser tab may publish to the customer display.
+ * Tabs with cart items own leadership; empty tabs never claim it (they can
+ * still publish a one-shot idle when the cart just became empty).
  */
 function claimPublisherLeadership(tabId: string, hasItems: boolean): boolean {
   if (typeof window === "undefined") return false;
+  if (!hasItems) return false;
+
   const now = Date.now();
   const cur = readLeader();
   if (cur && now - cur.ts < LEADER_TTL_MS && cur.id !== tabId) {
-    // Steal if we have a live cart and the current leader does not.
-    if (!(hasItems && !cur.hasItems)) {
-      return false;
-    }
+    // Steal if the current leader has no items.
+    if (cur.hasItems) return false;
   }
   try {
     localStorage.setItem(
       LEADER_KEY,
-      JSON.stringify({ id: tabId, ts: now, hasItems })
+      JSON.stringify({ id: tabId, ts: now, hasItems: true })
     );
   } catch {
     return true;
@@ -89,6 +98,8 @@ export function useCustomerDisplayPublisher(): void {
   const ignoreBillUntilRef = useRef(0);
   const ghostFpRef = useRef<string>("");
   const prevModeRef = useRef(useCustomerDisplayStore.getState().localMode);
+  /** null = not primed yet — avoid idle on first empty sync. */
+  const prevHasItemsRef = useRef<boolean | null>(null);
   const tabIdRef = useRef(
     `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
   );
@@ -107,7 +118,7 @@ export function useCustomerDisplayPublisher(): void {
     });
   }, [active]);
 
-  // Renew leadership while this tab has the display enabled.
+  // Renew leadership only while this tab has cart items.
   useEffect(() => {
     if (!active) {
       isLeaderRef.current = false;
@@ -115,7 +126,12 @@ export function useCustomerDisplayPublisher(): void {
     }
     const tick = () => {
       const hasItems = useCartStore.getState().items.length > 0;
-      isLeaderRef.current = claimPublisherLeadership(tabIdRef.current, hasItems);
+      if (!hasItems) {
+        releaseLeadership(tabIdRef.current);
+        isLeaderRef.current = false;
+        return;
+      }
+      isLeaderRef.current = claimPublisherLeadership(tabIdRef.current, true);
     };
     tick();
     const id = setInterval(tick, 1500);
@@ -126,15 +142,7 @@ export function useCustomerDisplayPublisher(): void {
     return () => {
       clearInterval(id);
       window.removeEventListener("storage", onStorage);
-      // Release leadership if we still hold it.
-      const cur = readLeader();
-      if (cur?.id === tabIdRef.current) {
-        try {
-          localStorage.removeItem(LEADER_KEY);
-        } catch {
-          // ignore
-        }
-      }
+      releaseLeadership(tabIdRef.current);
       isLeaderRef.current = false;
     };
   }, [active]);
@@ -144,13 +152,9 @@ export function useCustomerDisplayPublisher(): void {
     if (!cd.active) return;
     const cart = useCartStore.getState();
     const hasItems = !!(cart.items && cart.items.length > 0);
-    if (
-      !isLeaderRef.current &&
-      !claimPublisherLeadership(tabIdRef.current, hasItems)
-    ) {
-      return;
-    }
-    isLeaderRef.current = true;
+    const prevHasItems = prevHasItemsRef.current;
+    const cartJustCleared = prevHasItems === true && !hasItems;
+    prevHasItemsRef.current = hasItems;
 
     const now = Date.now();
     const mode = cd.localMode;
@@ -160,14 +164,29 @@ export function useCustomerDisplayPublisher(): void {
       if (mode === "success") return;
 
       if (!hasItems) {
-        // Only publish idle when leaving a live bill/payment — never spam idle
-        // from empty tabs (that was wiping the live cart tab's bill).
-        if (mode === "billing" || mode === "payment") {
-          const ok = cd.publishIdle();
+        // Idle ONLY when this tab's cart just went from items → empty.
+        // Stale empty tabs with localMode "billing" must not heartbeat-idle
+        // and wipe another tab's (or Chrome profile's) live bill over Ably.
+        if (cartJustCleared) {
+          const ok = cd.publishIdle(true);
           if (ok) lastSentFpRef.current = "empty";
+        } else if (mode === "billing" || mode === "payment") {
+          // Soft-reset local mode without publishing — we're empty but didn't
+          // clear the cart on this tab (another profile/tab owns the bill).
+          useCustomerDisplayStore.setState({ localMode: "idle" });
         }
+        releaseLeadership(tabIdRef.current);
+        isLeaderRef.current = false;
         return;
       }
+
+      if (
+        !isLeaderRef.current &&
+        !claimPublisherLeadership(tabIdRef.current, true)
+      ) {
+        return;
+      }
+      isLeaderRef.current = true;
 
       const inGrace = now < ignoreBillUntilRef.current;
       if (inGrace && fp === ghostFpRef.current) {

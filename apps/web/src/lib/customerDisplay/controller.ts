@@ -95,7 +95,7 @@ interface CustomerDisplayState {
   publishBill: (payload: Omit<BillUpdatePayload, "seq">) => boolean;
   publishPayment: (payload: Omit<PaymentModePayload, "seq">) => boolean;
   publishSuccess: (payload: Omit<SuccessModePayload, "seq">) => boolean;
-  publishIdle: () => boolean;
+  publishIdle: (force?: boolean) => boolean;
   /** True once the Ably publisher socket is usable. */
   isPublisherReady: () => boolean;
   _setStatus: (status: ConnectionStatus) => void;
@@ -171,7 +171,7 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
     disable: () => {
       writeActiveFlag(false);
       // Reset the display back to its idle/branding state before disconnecting.
-      get().publishIdle();
+      get().publishIdle(true);
       set({ active: false });
       setTimeout(() => get().teardown(), 300);
     },
@@ -197,9 +197,12 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
         seq: nextSeq(),
       });
     },
-    publishIdle: () => {
+    publishIdle: (force = false) => {
       set({ localMode: "idle" });
-      return publishOrQueue(DISPLAY_EVENTS.MODE_IDLE, { seq: nextSeq() });
+      return publishOrQueue(DISPLAY_EVENTS.MODE_IDLE, {
+        seq: nextSeq(),
+        force: force || undefined,
+      });
     },
 
     isPublisherReady: () => !!handle,
