@@ -8,6 +8,7 @@ import {
   upsertCustomerArea,
   withCustomerArea,
 } from '../utils/customerArea.js';
+import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
 
 interface QueryParams {
   phone?: string;
@@ -849,6 +850,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
         type Allocation = {
           saleId: string;
           saleNo: string;
+          storeId: string;
+          grandTotal: number;
           amount: number;
           fullyPaid: boolean;
           remainingAfter: number;
@@ -877,6 +880,8 @@ export async function customerRoutes(fastify: FastifyInstance) {
           allocations.push({
             saleId: sale.id,
             saleNo: sale.saleNo,
+            storeId: sale.storeId,
+            grandTotal: sale.grandTotal,
             amount: payAmt,
             fullyPaid,
             remainingAfter,
@@ -906,6 +911,23 @@ export async function customerRoutes(fastify: FastifyInstance) {
             });
           }
         });
+
+        // Award loyalty for bills that just became fully paid (idempotent).
+        for (const a of allocations) {
+          if (!a.fullyPaid) continue;
+          try {
+            await awardSaleLoyaltyEarn(prisma, {
+              saleId: a.saleId,
+              saleNo: a.saleNo,
+              customerId,
+              storeId: a.storeId,
+              grandTotal: a.grandTotal,
+              userId,
+            });
+          } catch (loyaltyErr) {
+            console.warn('[settle-pending] loyalty earn failed:', a.saleNo, loyaltyErr);
+          }
+        }
 
         try {
           await prisma.auditLog.create({

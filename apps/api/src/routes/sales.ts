@@ -2,7 +2,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod, Prisma } from '@azela-pos/db';
 import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales } from '@azela-pos/shared';
-import { linkReferredByCode, linkReferredByPhone, maybeAwardReferralBonus } from '../lib/referral.js';
+import { linkReferredByCode, linkReferredByPhone } from '../lib/referral.js';
+import { awardSaleLoyaltyEarn, reverseSaleLoyaltyEarn } from '../lib/loyalty.js';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -1245,66 +1246,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
         sale.status !== 'PAID' &&
         existingSums.actual < Math.round(sale.grandTotal) - 0.5;
       if (sale.customerId && becameSettled) {
-        try {
-          const alreadyEarned = await prisma.loyaltyTransaction.findFirst({
-            where: { saleId: id, type: 'EARN' },
-            select: { id: true },
-          });
-          if (!alreadyEarned) {
-            const pointsRate = 0.0125; // 1.25% of grand total
-            const pointsEarned = Math.floor(sale.grandTotal * pointsRate);
-
-            if (pointsEarned > 0) {
-              const customer = await prisma.customer.findFirst({
-                where: { id: sale.customerId },
-              });
-
-              if (customer) {
-                const newBalance = (customer.loyaltyPoints || 0) + pointsEarned;
-                const newTotalSpent = (customer.totalSpent || 0) + sale.grandTotal;
-
-                await prisma.customer.update({
-                  where: { id: sale.customerId },
-                  data: {
-                    loyaltyPoints: newBalance,
-                    totalSpent: newTotalSpent,
-                  },
-                });
-
-                try {
-                  await prisma.loyaltyTransaction.create({
-                    data: {
-                      customerId: sale.customerId,
-                      storeId: sale.storeId,
-                      type: 'EARN',
-                      points: pointsEarned,
-                      balance: newBalance,
-                      description: `Earned ${pointsEarned} points from purchase ${sale.saleNo}`,
-                      saleId: id,
-                      createdBy: userId,
-                    },
-                  });
-                } catch (loyaltyErr) {
-                  console.warn('Could not create loyalty transaction:', loyaltyErr);
-                }
-              }
-            }
-          }
-
-          // Referral bonus (additive; no-op if not referred / already awarded)
-          try {
-            await maybeAwardReferralBonus(prisma, {
-              customerId: sale.customerId,
-              storeId: sale.storeId,
-              saleId: id,
-              userId,
-            });
-          } catch (refErr) {
-            console.warn('Could not process referral bonus:', refErr);
-          }
-        } catch (loyaltyErr) {
-          console.warn('Could not process loyalty points:', loyaltyErr);
-        }
+        await awardSaleLoyaltyEarn(prisma, {
+          saleId: id,
+          saleNo: sale.saleNo,
+          customerId: sale.customerId,
+          storeId: sale.storeId,
+          grandTotal: sale.grandTotal,
+          userId,
+        });
       }
 
       // Create audit log (non-blocking)
@@ -1502,6 +1451,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       // Restore any loyalty points the customer redeemed against this sale, so a
       // voided bill doesn't cost them their points. Guarded against double-restore.
       let pointsRestored = 0;
+      let pointsReversed = 0;
       if (sale.customerId) {
         try {
           const redeemTxns = await prisma.loyaltyTransaction.findMany({
@@ -1543,6 +1493,20 @@ export async function saleRoutes(fastify: FastifyInstance) {
         } catch (loyaltyErr) {
           console.warn('[Void API] Could not restore redeemed loyalty points:', loyaltyErr);
         }
+
+        // Claw back points earned on this bill (paid then voided).
+        try {
+          const rev = await reverseSaleLoyaltyEarn(prisma, {
+            saleId: id,
+            saleNo: sale.saleNo,
+            customerId: sale.customerId,
+            storeId: sale.storeId,
+            userId,
+          });
+          pointsReversed = rev.pointsReversed;
+        } catch (loyaltyErr) {
+          console.warn('[Void API] Could not reverse earned loyalty points:', loyaltyErr);
+        }
       }
 
       const updatedSale = await prisma.sale.update({
@@ -1563,6 +1527,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             userStoreId: storeId,
             inventoryRestored: restoredCount,
             loyaltyPointsRestored: pointsRestored,
+            loyaltyPointsReversed: pointsReversed,
           }, // Include user's storeId in metadata
         },
       });

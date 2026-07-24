@@ -13,6 +13,7 @@ import {
 } from '../utils/saleItemLedger.js';
 import { upsertCustomerArea } from '../utils/customerArea.js';
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
+import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
 
 const offlinePayloadSchema = z.object({
   idempotencyKey: z.string().min(8),
@@ -291,6 +292,22 @@ export async function applyOfflineCheckoutFromSync(
 
     return created;
   });
+
+  // Award loyalty when offline checkout settled with actual (non-credit) payment.
+  if (saleStatus === 'PAID' && sale.customerId) {
+    try {
+      await awardSaleLoyaltyEarn(prisma, {
+        saleId: sale.id,
+        saleNo: sale.saleNo,
+        customerId: sale.customerId,
+        storeId,
+        grandTotal: roundedGrandTotal,
+        userId,
+      });
+    } catch (loyaltyErr) {
+      console.warn('[offlineCheckoutSync] loyalty earn failed:', loyaltyErr);
+    }
+  }
 
   if (data.fulfillmentType === 'DELIVERY' && sale.customerId) {
     try {

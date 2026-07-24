@@ -78,6 +78,14 @@ export const createSaleSchema = z.object({
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */
 export const LOYALTY_POINT_VALUE = 1;
 
+/** Fraction of settled grand total earned as loyalty points (1.25%). */
+export const LOYALTY_EARN_RATE = 0.0125;
+
+/** Points earned for a settled bill: floor(grandTotal × LOYALTY_EARN_RATE). */
+export function computeLoyaltyEarnPoints(grandTotal: number): number {
+  return Math.floor(Math.max(0, Number(grandTotal) || 0) * LOYALTY_EARN_RATE);
+}
+
 /** Points awarded to each side after a referred friend's first settled bill. */
 export const REFERRAL_BONUS_POINTS = 50;
 
