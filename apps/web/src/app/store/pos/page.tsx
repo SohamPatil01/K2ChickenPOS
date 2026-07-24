@@ -39,6 +39,7 @@ import {
   publishSuccessMode,
   publishIdleMode,
   publishCurrentBill,
+  releaseDisplaySuccessLatch,
 } from "@/lib/customerDisplay/publishHelpers";
 
 interface Product {
@@ -1196,11 +1197,6 @@ export default function StorePOSPage() {
           );
         }
       }
-      try {
-        await useCartStore.getState().clearCart();
-      } catch (clearErr) {
-        console.error("[POS] clearCart after payment:", clearErr);
-      }
       setShowQuickCheckout(false);
 
       setCompletedSale({
@@ -1209,8 +1205,15 @@ export default function StorePOSPage() {
       });
       setShowSuccessAnimation(true);
 
-      // Reflect the completed payment on the customer display.
+      // Publish success BEFORE clearing the cart so the display sync does not
+      // emit idle and skip the review screen.
       publishSuccessMode(checkoutTotal, sale.saleNo || null, sale.id || null);
+
+      try {
+        await useCartStore.getState().clearCart();
+      } catch (clearErr) {
+        console.error("[POS] clearCart after payment:", clearErr);
+      }
 
       window.dispatchEvent(
         new CustomEvent("sale-created", {
@@ -2166,9 +2169,10 @@ export default function StorePOSPage() {
           onComplete={() => {
             setShowSuccessAnimation(false);
             setCompletedSale(null);
-            void clearCart().finally(() => {
-              publishIdleMode();
-            });
+            // Soft-reset publisher mode only — do not Ably-idle the display
+            // while it is still running success → review.
+            releaseDisplaySuccessLatch();
+            void clearCart();
           }}
         />
       )}

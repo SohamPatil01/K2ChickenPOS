@@ -29,6 +29,7 @@ import {
   publishSuccessMode,
   publishIdleMode,
   publishCurrentBill,
+  releaseDisplaySuccessLatch,
 } from '@/lib/customerDisplay/publishHelpers';
 
 export default function StoreCartPage() {
@@ -604,11 +605,6 @@ export default function StoreCartPage() {
           showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
         }
       }
-      try {
-        await clearCart();
-      } catch (clearErr) {
-        console.error('[Cart] clearCart after payment:', clearErr);
-      }
       setShowPaymentModal(false);
       
       setCompletedSale({
@@ -617,8 +613,15 @@ export default function StoreCartPage() {
       });
       setShowSuccessAnimation(true);
 
-      // Reflect the completed payment on the customer display.
+      // Publish success BEFORE clearing the cart so the display sync does not
+      // emit idle and skip the review screen.
       publishSuccessMode(checkoutGrandTotal, sale.saleNo || null, sale.id || null);
+
+      try {
+        await clearCart();
+      } catch (clearErr) {
+        console.error('[Cart] clearCart after payment:', clearErr);
+      }
 
       window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments } }));
       
@@ -1654,8 +1657,10 @@ export default function StoreCartPage() {
               onComplete={() => {
                 setShowSuccessAnimation(false);
                 setCompletedSale(null);
+                // Soft-reset publisher mode only — do not Ably-idle the display
+                // while it is still running success → review.
+                releaseDisplaySuccessLatch();
                 void clearCart().finally(() => {
-                  publishIdleMode();
                   router.push('/store/pos');
                 });
               }}
@@ -1675,8 +1680,9 @@ export default function StoreCartPage() {
                 onClick={() => {
                   setShowSuccessAnimation(false);
                   setCompletedSale(null);
+                  // Soft-reset publisher only — keep customer display on review.
+                  releaseDisplaySuccessLatch();
                   void clearCart().finally(() => {
-                    publishIdleMode();
                     router.push('/store/pos');
                   });
                 }}

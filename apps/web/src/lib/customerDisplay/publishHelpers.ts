@@ -147,3 +147,16 @@ export function publishIdleMode(force = true): void {
   if (!store.active) return;
   store.publishIdle(force);
 }
+
+/**
+ * Clear the cashier-side "success" latch without telling the customer display
+ * to go idle. Use after payment so the next cart can publish again while the
+ * display is still running success → review.
+ */
+export function releaseDisplaySuccessLatch(): void {
+  const store = useCustomerDisplayStore.getState();
+  if (!store.active) return;
+  if (store.localMode === "success") {
+    useCustomerDisplayStore.setState({ localMode: "idle" });
+  }
+}

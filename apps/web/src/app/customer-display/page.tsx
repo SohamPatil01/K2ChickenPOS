@@ -52,8 +52,6 @@ export default function CustomerDisplayPage() {
 
   const lastSeqRef = useRef(0);
   const modeRef = useRef<DisplayMode>("idle");
-  /** Cashier often publishes idle right after success — honor it after the 4s hold. */
-  const idleAfterSuccessRef = useRef(false);
   /** Don't let a rogue idle wipe a bill that just arrived. */
   const ignoreIdleUntilRef = useRef(0);
   const logoTapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
@@ -71,7 +69,6 @@ export default function CustomerDisplayPage() {
     }, 1200);
     if (taps.count >= 5) {
       taps.count = 0;
-      idleAfterSuccessRef.current = false;
       setBill(null);
       setPayment(null);
       setSuccess(null);
@@ -123,35 +120,37 @@ export default function CustomerDisplayPage() {
         const payload = data as BillUpdatePayload;
         const cur = modeRef.current;
         const empty = !payload.items || payload.items.length === 0;
-        // During the short success celebration, ignore empty cart clears.
-        if (cur === "success" && empty) break;
+        // Cart clear after a sale must not abort success → review.
+        // A real next customer (items present) still takes over immediately.
+        if ((cur === "success" || cur === "review") && empty) break;
         if (empty) {
           setBill(payload);
           setMode("idle");
           break;
         }
-        idleAfterSuccessRef.current = false;
         ignoreIdleUntilRef.current = Date.now() + IGNORE_IDLE_AFTER_BILL_MS;
         setBill(payload);
         setMode("billing");
         break;
       }
       case DISPLAY_EVENTS.MODE_PAYMENT:
-        idleAfterSuccessRef.current = false;
         ignoreIdleUntilRef.current = Date.now() + IGNORE_IDLE_AFTER_BILL_MS;
         setPayment(data as PaymentModePayload);
         setMode("payment");
         break;
       case DISPLAY_EVENTS.MODE_SUCCESS:
-        idleAfterSuccessRef.current = false;
         ignoreIdleUntilRef.current = 0;
         setSuccess(data as SuccessModePayload);
         setMode("success");
         break;
       case DISPLAY_EVENTS.MODE_IDLE:
+        // Cashier often publishes idle when the cart clears / success toast
+        // ends. Always finish success → review; only an explicit Reset
+        // (force) may cut the review short. A new bill/payment also interrupts.
         if (modeRef.current === "success") {
-          // Finish the celebration, then skip review and return to branding.
-          idleAfterSuccessRef.current = true;
+          break;
+        }
+        if (modeRef.current === "review" && !data?.force) {
           break;
         }
         if (
@@ -192,17 +191,10 @@ export default function CustomerDisplayPage() {
     };
   }, [phase, storeId, sessionToken, handleEvent]);
 
-  // After the success celebration, go to review — or idle if cashier already reset.
+  // After the success celebration, advance to the review invitation.
   useEffect(() => {
     if (mode !== "success") return;
-    const id = setTimeout(() => {
-      if (idleAfterSuccessRef.current) {
-        idleAfterSuccessRef.current = false;
-        setMode("idle");
-      } else {
-        setMode("review");
-      }
-    }, SUCCESS_HOLD_MS);
+    const id = setTimeout(() => setMode("review"), SUCCESS_HOLD_MS);
     return () => clearTimeout(id);
   }, [mode, success]);
 
