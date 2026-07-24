@@ -3,8 +3,6 @@
  * Everything flows over a single Ably channel `store:{storeId}:display`.
  */
 
-import { LOYALTY_EARN_RATE } from "@azela-pos/shared";
-
 export const DISPLAY_EVENTS = {
   BILL_UPDATE: "bill.update",
   MODE_PAYMENT: "mode.payment",
@@ -86,7 +84,7 @@ export function displayChannelName(storeId: string): string {
 
 /** Loyalty rule mirrored from the server: 1.25% of the purchase total. */
 export function estimateLoyaltyPoints(grandTotal: number): number {
-  return Math.floor(Math.max(0, grandTotal) * LOYALTY_EARN_RATE);
+  return Math.floor(Math.max(0, grandTotal) * 0.0125);
 }
 
 const PAIR_STORAGE_KEY = "k2-customer-display-session";
