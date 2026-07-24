@@ -138,7 +138,7 @@ function trimCanvasWhitespace(source: HTMLCanvasElement): HTMLCanvasElement {
   out.height = trimH;
   const octx = out.getContext("2d");
   if (!octx) return source;
-  octx.fillStyle = "#fafafa";
+  octx.fillStyle = "#ffffff";
   octx.fillRect(0, 0, width, trimH);
   octx.drawImage(source, 0, y0, width, trimH, 0, 0, width, trimH);
   return out;
@@ -159,10 +159,10 @@ async function pendingQrDataUrl(
   if (!upi) return "";
   try {
     return await QRCode.toDataURL(upi, {
-      width: 220,
+      width: 180,
       margin: 1,
       errorCorrectionLevel: "M",
-      color: { dark: "#111827", light: "#ffffff" },
+      color: { dark: "#0f172a", light: "#ffffff" },
     });
   } catch {
     return "";
@@ -188,15 +188,22 @@ export async function buildCustomerBillHtml(
         ? "PENDING"
         : String(sale.status).toUpperCase();
 
+  const statusBg =
+    isPending ? "#fff7ed" : statusLabel === "CANCELLED" ? "#fef2f2" : "#f1f5f9";
+  const statusFg =
+    isPending ? "#9a3412" : statusLabel === "CANCELLED" ? "#991b1b" : "#334155";
+  const statusBd =
+    isPending ? "#fdba74" : statusLabel === "CANCELLED" ? "#fecaca" : "#e2e8f0";
+
   const itemRows = sale.items
     .map(
       (item, i) => `
     <tr>
-      <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280;">${i + 1}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;font-weight:500;">${escapeHtml(item.product.name)}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;text-align:right;">${formatQty(item)}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;text-align:right;">${formatMoney(item.rate)}</td>
-      <td style="padding:10px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;">${formatMoney(item.lineTotal)}</td>
+      <td class="c-muted">${i + 1}</td>
+      <td class="c-item">${escapeHtml(item.product.name)}</td>
+      <td class="c-num">${formatQty(item)}</td>
+      <td class="c-num">${formatMoney(item.rate)}</td>
+      <td class="c-num c-strong">${formatMoney(item.lineTotal)}</td>
     </tr>`
     )
     .join("");
@@ -205,21 +212,26 @@ export async function buildCustomerBillHtml(
     .filter((p) => Number(p.amount) > 0)
     .map(
       (p) => `
-    <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#374151;">
+    <div class="pay-row">
       <span>${escapeHtml(String(p.method || "").toUpperCase())}</span>
       <span>${formatMoney(p.amount)}</span>
     </div>`
     )
     .join("");
 
+  const loyaltyHost = LOYALTY.portalUrl.replace(/^https?:\/\//, "");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Bill ${escapeHtml(sale.saleNo)} — ${escapeHtml(BRAND.name)}</title>
+  <title>Tax Invoice ${escapeHtml(sale.saleNo)} — ${escapeHtml(BRAND.name)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
-    @page { size: A4; margin: 12mm; }
+    @page { size: A4; margin: 10mm; }
     @media print {
       body { background: #fff !important; padding: 0 !important; }
       .no-print { display: none !important; }
@@ -227,121 +239,248 @@ export async function buildCustomerBillHtml(
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; padding: 24px;
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-      background: #e8eaed; color: #1a1a1a;
+      margin: 0;
+      padding: 16px;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: #e2e8f0;
+      color: #0f172a;
+      -webkit-font-smoothing: antialiased;
     }
+    .bill {
+      position: relative;
+      max-width: 680px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      overflow: hidden;
+    }
+    .wm {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.045; }
+    .inner { position: relative; z-index: 1; }
+    .hdr {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 14px; padding: 16px 18px 12px;
+      border-bottom: 2px solid #0f172a;
+    }
+    .brand-row { display: flex; align-items: center; gap: 10px; }
+    .brand-row img {
+      width: 52px; height: 52px; object-fit: contain; flex-shrink: 0;
+      border: 1px solid #e2e8f0; background: #fff; padding: 3px;
+    }
+    .brand-name {
+      font-family: "Libre Baskerville", Georgia, serif;
+      font-size: 22px; font-weight: 700; line-height: 1.15; color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    .brand-tag {
+      margin-top: 3px; font-size: 10px; color: #64748b;
+      letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500;
+    }
+    .meta {
+      margin-top: 8px; font-size: 11px; line-height: 1.45; color: #475569; max-width: 340px;
+    }
+    .inv { text-align: right; flex-shrink: 0; }
+    .inv-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #0f172a;
+    }
+    .inv-no { margin-top: 6px; font-size: 14px; font-weight: 700; color: #0f172a; }
+    .inv-dt { margin-top: 3px; font-size: 11px; color: #64748b; }
+    .badge {
+      display: inline-block; margin-top: 8px; padding: 2px 8px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+      border: 1px solid ${statusBd}; background: ${statusBg}; color: ${statusFg};
+    }
+    .body { padding: 12px 18px 8px; }
+    .alert {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      margin-bottom: 10px; padding: 8px 12px;
+      border: 1px solid #fdba74; background: #fff7ed;
+    }
+    .alert-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a3412; font-weight: 700; }
+    .alert-s { font-size: 11px; color: #c2410c; margin-top: 1px; }
+    .alert-amt { font-family: "Libre Baskerville", Georgia, serif; font-size: 18px; font-weight: 700; color: #9a3412; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .card { border: 1px solid #e2e8f0; padding: 8px 10px; background: #fff; }
+    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; margin-bottom: 3px; font-weight: 600; }
+    .card-t { font-size: 13px; font-weight: 700; color: #0f172a; }
+    .card-s { font-size: 11px; color: #64748b; margin-top: 2px; }
+    table.items { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.items th {
+      background: #0f172a; color: #f8fafc; font-size: 9px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 7px 6px; text-align: left;
+    }
+    table.items th.r { text-align: right; }
+    table.items td {
+      padding: 7px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top;
+    }
+    .c-muted { color: #94a3b8; width: 28px; }
+    .c-item { font-weight: 500; color: #0f172a; }
+    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #334155; }
+    .c-strong { font-weight: 700; color: #0f172a; }
+    .totals { margin: 10px 0 4px; display: flex; justify-content: flex-end; }
+    .totals-box { width: 240px; }
+    .t-row {
+      display: flex; justify-content: space-between; padding: 2px 0;
+      font-size: 12px; color: #475569;
+    }
+    .t-grand {
+      margin-top: 6px; padding: 8px 10px;
+      background: #0f172a; color: #fff;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; font-weight: 600;
+    }
+    .t-grand span:last-child {
+      font-family: "Libre Baskerville", Georgia, serif;
+      font-size: 16px; font-weight: 700;
+    }
+    .pay {
+      margin: 10px 0 4px; padding: 8px 10px; border: 1px solid #e2e8f0;
+    }
+    .pay-l {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #94a3b8; margin-bottom: 6px; font-weight: 600;
+    }
+    .pay-row {
+      display: flex; justify-content: space-between; font-size: 12px;
+      padding: 2px 0; color: #334155;
+    }
+    .pay-total {
+      display: flex; justify-content: space-between; font-size: 12px;
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 600;
+    }
+    .pay-due {
+      display: flex; justify-content: space-between; font-size: 12px;
+      margin-top: 4px; font-weight: 700; color: #9a3412;
+    }
+    .qr {
+      margin: 8px 0 6px; padding: 10px; border: 1px solid #e2e8f0; text-align: center;
+    }
+    .qr-t { font-size: 12px; font-weight: 700; color: #0f172a; }
+    .qr-s { font-size: 10px; color: #64748b; margin: 2px 0 8px; }
+    .qr img {
+      width: 128px; height: 128px; background: #fff; padding: 4px;
+      border: 1px solid #f1f5f9;
+    }
+    .ftr {
+      border-top: 1px solid #e2e8f0; padding: 10px 18px 12px;
+      text-align: center; font-size: 10.5px; color: #64748b; line-height: 1.45;
+      background: #f8fafc;
+    }
+    .ftr-t {
+      font-family: "Libre Baskerville", Georgia, serif;
+      font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 2px;
+    }
+    .ftr strong { color: #0f172a; font-weight: 600; }
   </style>
 </head>
 <body>
-  <div class="bill" id="k2-bill" style="position:relative;max-width:720px;margin:0 auto;background:#fafafa;border:1px solid #d1d5db;border-radius:4px;overflow:hidden;">
-    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;overflow:hidden;">
-      <img src="${logo}" alt="" style="width:280px;height:280px;object-fit:contain;opacity:0.06;"/>
-    </div>
-    <div style="position:relative;z-index:1;">
-      <div style="background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:20px 24px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
-        <div style="min-width:0;flex:1;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <img src="${logo}" alt="${escapeHtml(BRAND.name)}" style="width:72px;height:72px;object-fit:contain;flex-shrink:0;border-radius:12px;background:#fff;border:1px solid #e5e7eb;padding:4px;"/>
-            <div style="min-width:0;">
-              <div style="font-size:26px;font-weight:800;color:#111827;letter-spacing:-0.02em;line-height:1.1;">${escapeHtml(BRAND.name)}</div>
-              <div style="margin-top:4px;font-size:11px;color:#6b7280;letter-spacing:.12em;text-transform:uppercase;">Fresh · Pure · Trusted</div>
+  <div class="bill" id="k2-bill">
+    <div class="wm"><img src="${logo}" alt=""/></div>
+    <div class="inner">
+      <div class="hdr">
+        <div>
+          <div class="brand-row">
+            <img src="${logo}" alt="${escapeHtml(BRAND.name)}"/>
+            <div>
+              <div class="brand-name">${escapeHtml(BRAND.name)}</div>
+              <div class="brand-tag">Fresh · Pure · Trusted</div>
             </div>
           </div>
-          <div style="margin-top:12px;font-size:11.5px;line-height:1.55;color:#4b5563;max-width:380px;">
-            WhatsApp / Call ${escapeHtml(BRAND.whatsappDisplay)}<br/>
-            GSTIN: ${escapeHtml(BRAND.gstin)}<br/>
+          <div class="meta">
+            WhatsApp / Call ${escapeHtml(BRAND.whatsappDisplay)} · GSTIN ${escapeHtml(BRAND.gstin)}<br/>
             ${escapeHtml(BRAND.address)}
           </div>
         </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:13px;font-weight:700;color:#374151;letter-spacing:.08em;text-transform:uppercase;">Tax Invoice</div>
-          <div style="margin-top:8px;font-size:15px;font-weight:700;color:#111827;">${escapeHtml(sale.saleNo)}</div>
-          <div style="margin-top:4px;font-size:12px;color:#6b7280;">${formatDateTime(sale.createdAt)}</div>
-          <div style="margin-top:10px;">
-            <span style="display:inline-block;padding:3px 10px;border-radius:4px;background:${isPending ? "#fef3c7" : statusLabel === "CANCELLED" ? "#fee2e2" : "#f3f4f6"};color:${isPending ? "#92400e" : statusLabel === "CANCELLED" ? "#991b1b" : "#374151"};font-size:10px;font-weight:800;letter-spacing:.06em;border:1px solid ${isPending ? "#fcd34d" : statusLabel === "CANCELLED" ? "#fecaca" : "#e5e7eb"};">${statusLabel}</span>
-          </div>
+        <div class="inv">
+          <div class="inv-label">Tax Invoice</div>
+          <div class="inv-no">${escapeHtml(sale.saleNo)}</div>
+          <div class="inv-dt">${formatDateTime(sale.createdAt)}</div>
+          <div><span class="badge">${statusLabel}</span></div>
         </div>
       </div>
 
-      <div style="padding:18px 24px 4px;">
+      <div class="body">
         ${
           isPending
-            ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            ? `<div class="alert">
           <div>
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#92400e;font-weight:700;">Pending / Credit bill</div>
-            <div style="font-size:12px;color:#a16207;margin-top:2px;">Balance still due on this invoice</div>
+            <div class="alert-l">Pending / Credit bill</div>
+            <div class="alert-s">Balance still due on this invoice</div>
           </div>
-          <div style="font-size:22px;font-weight:800;color:#92400e;">${formatMoney(balance)}</div>
+          <div class="alert-amt">${formatMoney(balance)}</div>
         </div>`
             : ""
         }
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:12px 14px;">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Bill to</div>
-            <div style="font-size:14px;font-weight:700;color:#111827;">${escapeHtml(sale.customer?.name || "Walk-in Customer")}</div>
-            ${sale.customer?.phone ? `<div style="font-size:12px;color:#6b7280;margin-top:3px;">Phone: ${escapeHtml(sale.customer.phone)}</div>` : ""}
-            ${sale.customer?.area ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">Area: ${escapeHtml(sale.customer.area)}</div>` : ""}
+        <div class="grid2">
+          <div class="card">
+            <div class="card-l">Bill to</div>
+            <div class="card-t">${escapeHtml(sale.customer?.name || "Walk-in Customer")}</div>
+            ${sale.customer?.phone ? `<div class="card-s">${escapeHtml(sale.customer.phone)}</div>` : ""}
+            ${sale.customer?.area ? `<div class="card-s">${escapeHtml(sale.customer.area)}</div>` : ""}
           </div>
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:12px 14px;">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Store</div>
-            <div style="font-size:14px;font-weight:700;color:#111827;">${escapeHtml(storeName)}</div>
-            <div style="font-size:12px;color:#6b7280;margin-top:3px;">Tel: ${escapeHtml(storePhone)}</div>
-            ${sale.createdBy?.name ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">Cashier: ${escapeHtml(sale.createdBy.name)}</div>` : ""}
+          <div class="card">
+            <div class="card-l">Store</div>
+            <div class="card-t">${escapeHtml(storeName)}</div>
+            <div class="card-s">${escapeHtml(storePhone)}</div>
+            ${sale.createdBy?.name ? `<div class="card-s">Cashier: ${escapeHtml(sale.createdBy.name)}</div>` : ""}
           </div>
         </div>
 
-        <table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;">
+        <table class="items">
           <thead>
             <tr>
-              <th style="background:#f3f4f6;color:#4b5563;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px 8px;text-align:left;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;width:36px;">#</th>
-              <th style="background:#f3f4f6;color:#4b5563;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px 8px;text-align:left;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">Item</th>
-              <th style="background:#f3f4f6;color:#4b5563;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px 8px;text-align:right;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">Qty</th>
-              <th style="background:#f3f4f6;color:#4b5563;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px 8px;text-align:right;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">Rate</th>
-              <th style="background:#f3f4f6;color:#4b5563;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:10px 8px;text-align:right;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">Amount</th>
+              <th style="width:28px">#</th>
+              <th>Item</th>
+              <th class="r">Qty</th>
+              <th class="r">Rate</th>
+              <th class="r">Amount</th>
             </tr>
           </thead>
           <tbody>${itemRows}</tbody>
         </table>
 
-        <div style="margin:16px 0 8px;display:flex;justify-content:flex-end;">
-          <div style="width:260px;">
-            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#4b5563;"><span>Subtotal</span><span>${formatMoney(sale.subTotal)}</span></div>
+        <div class="totals">
+          <div class="totals-box">
+            <div class="t-row"><span>Subtotal</span><span>${formatMoney(sale.subTotal)}</span></div>
             ${
               sale.discountTotal > 0
-                ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#4b5563;"><span>Discount</span><span>- ${formatMoney(sale.discountTotal)}</span></div>`
+                ? `<div class="t-row"><span>Discount</span><span>- ${formatMoney(sale.discountTotal)}</span></div>`
                 : ""
             }
             ${
               sale.taxTotal > 0
-                ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#4b5563;"><span>Tax</span><span>${formatMoney(sale.taxTotal)}</span></div>`
+                ? `<div class="t-row"><span>Tax</span><span>${formatMoney(sale.taxTotal)}</span></div>`
                 : ""
             }
             ${
               (sale.deliveryFee ?? 0) > 0
-                ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;color:#4b5563;"><span>Delivery Fee</span><span>${formatMoney(sale.deliveryFee!)}</span></div>`
+                ? `<div class="t-row"><span>Delivery</span><span>${formatMoney(sale.deliveryFee!)}</span></div>`
                 : ""
             }
-            <div style="margin-top:8px;padding:12px 14px;border-radius:6px;background:#111827;color:#fff;display:flex;justify-content:space-between;align-items:center;">
-              <span>Grand Total</span><span style="font-size:18px;font-weight:800;">${formatMoney(sale.grandTotal)}</span>
-            </div>
+            <div class="t-grand"><span>Grand Total</span><span>${formatMoney(sale.grandTotal)}</span></div>
           </div>
         </div>
 
         ${
           (sale.payments || []).some((p) => Number(p.amount) > 0)
-            ? `<div style="margin:16px 0;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:8px;">Payment details</div>
+            ? `<div class="pay">
+          <div class="pay-l">Payment details</div>
           ${paymentRows}
           ${
             paid > 0
-              ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:8px;padding-top:8px;border-top:1px dashed #d1d5db;font-weight:600;"><span>Total paid</span><span>${formatMoney(paid)}</span></div>`
+              ? `<div class="pay-total"><span>Total paid</span><span>${formatMoney(paid)}</span></div>`
               : ""
           }
           ${
             isPending
-              ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;font-weight:700;color:#92400e;"><span>Pending amount</span><span>${formatMoney(balance)}</span></div>`
+              ? `<div class="pay-due"><span>Pending amount</span><span>${formatMoney(balance)}</span></div>`
               : ""
           }
         </div>`
@@ -350,31 +489,30 @@ export async function buildCustomerBillHtml(
 
         ${
           isPending && qrDataUrl
-            ? `<div style="margin:8px 0 20px;padding:18px;border-radius:6px;background:#fff;border:1px solid #e5e7eb;text-align:center;">
-          <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:4px;">Scan to pay pending ${formatMoney(balance)}</div>
-          <div style="font-size:12px;color:#6b7280;margin-bottom:14px;">GPay · PhonePe · Paytm · BHIM</div>
-          <img src="${qrDataUrl}" alt="Scan to pay" style="width:168px;height:168px;background:#fff;padding:8px;border:1px solid #f3f4f6;border-radius:6px;"/>
+            ? `<div class="qr">
+          <div class="qr-t">Scan to pay pending ${formatMoney(balance)}</div>
+          <div class="qr-s">GPay · PhonePe · Paytm · BHIM</div>
+          <img src="${qrDataUrl}" alt="Scan to pay"/>
         </div>`
             : ""
         }
       </div>
 
-      <div style="border-top:1px solid #e5e7eb;padding:14px 24px 16px;text-align:center;font-size:11.5px;color:#6b7280;line-height:1.55;background:#f9fafb;">
-        <div style="font-weight:700;color:#111827;">Thank you for shopping with ${escapeHtml(BRAND.name)}</div>
+      <div class="ftr">
+        <div class="ftr-t">Thank you for shopping with ${escapeHtml(BRAND.name)}</div>
         <div>Freshness you can taste · Quality you can trust</div>
-        <div style="margin-top:6px;">
-          Loyalty: <strong style="color:#111827;">${escapeHtml(LOYALTY.portalUrl.replace(/^https?:\/\//, ""))}</strong>
-          · Website: <strong style="color:#111827;">${escapeHtml(BRAND.website)}</strong><br/>
-          WhatsApp: <strong style="color:#111827;">${escapeHtml(BRAND.whatsappDisplay)}</strong>
-          · Redeem points in shop only<br/>
-          Computer-generated tax invoice
+        <div style="margin-top:4px;">
+          Loyalty <strong>${escapeHtml(loyaltyHost)}</strong>
+          · <strong>${escapeHtml(BRAND.website)}</strong>
+          · WhatsApp <strong>${escapeHtml(BRAND.whatsappDisplay)}</strong>
+          · Redeem in shop · Computer-generated tax invoice
         </div>
       </div>
     </div>
   </div>
 
-  <div class="no-print" style="text-align:center;margin-top:16px;">
-    <button onclick="window.print()" style="padding:10px 24px;background:#111827;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;">Print / Save as PDF</button>
+  <div class="no-print" style="text-align:center;margin-top:14px;">
+    <button onclick="window.print()" style="padding:9px 20px;background:#0f172a;color:#fff;border:none;font-family:IBM Plex Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Print / Save as PDF</button>
   </div>
 </body>
 </html>`;
@@ -402,7 +540,7 @@ export async function downloadCustomerBill(
   const html = await buildCustomerBillHtml(sale, store);
   const iframe = document.createElement("iframe");
   iframe.style.cssText =
-    "position:fixed;left:-10000px;top:0;width:820px;height:1200px;border:0;opacity:0;pointer-events:none;";
+    "position:fixed;left:-10000px;top:0;width:720px;height:1400px;border:0;opacity:0;pointer-events:none;";
   document.body.appendChild(iframe);
 
   try {
@@ -412,7 +550,7 @@ export async function downloadCustomerBill(
     doc.write(html);
     doc.close();
 
-    // Wait for logo / QR images
+    // Wait for logo / QR + web fonts so PDF text looks professional.
     await new Promise<void>((resolve) => {
       const imgs = Array.from(doc.images || []);
       if (imgs.length === 0) {
@@ -433,6 +571,12 @@ export async function downloadCustomerBill(
       });
       setTimeout(resolve, 2500);
     });
+    try {
+      const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
+      if (fonts?.ready) await Promise.race([fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
+    } catch {
+      // ignore
+    }
 
     const billEl = doc.getElementById("k2-bill");
     if (!billEl) throw new Error("Bill element missing");
@@ -444,84 +588,102 @@ export async function downloadCustomerBill(
     const canvasRaw = await html2canvas(billEl, {
       scale: 2,
       useCORS: true,
-      backgroundColor: "#fafafa",
+      backgroundColor: "#ffffff",
       logging: false,
-      windowWidth: 820,
+      windowWidth: 720,
     });
     const canvas = trimCanvasWhitespace(canvasRaw);
 
-    // Page height follows the bill — no empty A4 band under short invoices.
-    const pageW = 210; // mm (A4 width)
-    const margin = 6;
+    const pageW = 210; // mm
+    const maxPageH = 297;
+    const margin = 8;
     const usableW = pageW - margin * 2;
-    const imgH = (canvas.height * usableW) / canvas.width;
-    const maxPageH = 297; // A4 height
-    const contentPageH = Math.min(maxPageH, Math.max(imgH + margin * 2, 60));
+    const maxContentH = maxPageH - margin * 2;
+    let drawW = usableW;
+    let drawH = (canvas.height * drawW) / canvas.width;
 
-    if (imgH + margin * 2 <= maxPageH) {
+    // If only a sliver would spill (footer orphan), scale the whole bill onto one page.
+    const orphanThreshold = maxContentH * 1.12; // up to ~12% over → squeeze onto 1 page
+    if (drawH > maxContentH && drawH <= orphanThreshold) {
+      const scale = maxContentH / drawH;
+      drawW *= scale;
+      drawH = maxContentH;
+    }
+
+    const imgData = canvas.toDataURL("image/jpeg", 0.93);
+
+    if (drawH <= maxContentH) {
+      // Custom page height = content (no blank A4 bottom); never taller than A4.
+      const pageH = Math.min(maxPageH, Math.max(drawH + margin * 2, 80));
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: [pageW, contentPageH],
+        format: [pageW, pageH],
         compress: true,
       });
+      const x = margin + (usableW - drawW) / 2;
+      pdf.addImage(imgData, "JPEG", x, margin, drawW, drawH);
+      pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
+      return;
+    }
+
+    // Truly long bills (many line items) — paginate without tiny orphan pages.
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+    });
+    const pxPerMm = canvas.width / drawW;
+    let offsetMm = 0;
+    let page = 0;
+    while (offsetMm < drawH - 0.5) {
+      let sliceH = Math.min(maxContentH, drawH - offsetMm);
+      // If the leftover after this slice is a tiny footer band, absorb it now.
+      const leftover = drawH - offsetMm - sliceH;
+      if (leftover > 0 && leftover < 28) {
+        sliceH = drawH - offsetMm;
+      }
+      const slicePx = Math.max(1, Math.round(sliceH * pxPerMm));
+      const srcY = Math.round(offsetMm * pxPerMm);
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = Math.min(slicePx, canvas.height - srcY);
+      const ctx = pageCanvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(
+          canvas,
+          0,
+          srcY,
+          canvas.width,
+          pageCanvas.height,
+          0,
+          0,
+          canvas.width,
+          pageCanvas.height
+        );
+      }
+      const sliceDrawH = pageCanvas.height / pxPerMm;
+      if (page > 0) pdf.addPage();
+      // Last short page: shrink page height so we don't leave a blank band.
+      if (page > 0 && offsetMm + sliceDrawH >= drawH - 0.5 && sliceDrawH < maxContentH) {
+        // keep A4 for print consistency on multi-page
+      }
       pdf.addImage(
-        canvas.toDataURL("image/jpeg", 0.92),
+        pageCanvas.toDataURL("image/jpeg", 0.93),
         "JPEG",
         margin,
         margin,
-        usableW,
-        imgH
+        drawW,
+        sliceDrawH
       );
-      pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
-    } else {
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-        compress: true,
-      });
-      const usableH = maxPageH - margin * 2;
-      const pxPerMm = canvas.width / usableW;
-      let offsetMm = 0;
-      let page = 0;
-      while (offsetMm < imgH - 0.5) {
-        const sliceH = Math.min(usableH, imgH - offsetMm);
-        const slicePx = Math.max(1, Math.round(sliceH * pxPerMm));
-        const srcY = Math.round(offsetMm * pxPerMm);
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = slicePx;
-        const ctx = pageCanvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#fafafa";
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-          ctx.drawImage(
-            canvas,
-            0,
-            srcY,
-            canvas.width,
-            slicePx,
-            0,
-            0,
-            canvas.width,
-            slicePx
-          );
-        }
-        if (page > 0) pdf.addPage();
-        pdf.addImage(
-          pageCanvas.toDataURL("image/jpeg", 0.92),
-          "JPEG",
-          margin,
-          margin,
-          usableW,
-          sliceH
-        );
-        offsetMm += sliceH;
-        page += 1;
-      }
-      pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
+      offsetMm += sliceDrawH;
+      page += 1;
+      if (page > 20) break;
     }
+    pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
   } catch (err) {
     console.error("PDF bill download failed, opening print view:", err);
     await printCustomerBill(sale, store);

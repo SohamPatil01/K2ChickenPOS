@@ -107,73 +107,17 @@ export default function GlobalBarcodeScanner() {
         return;
       }
 
-      // Try parsing as scale barcode
-      const parsed = await parseScaleBarcode(normalized, storeId);
-
-      if (parsed) {
-        let product = products.find((p) => p.id === parsed.productId);
-        if (!product) {
-          product = await fetchProductById(parsed.productId);
-        }
-        if (product) {
-          // Add to cart
-          const qty = parsed.weightKg || parsed.qtyPcs || 1;
-          const rate = parsed.pricePerKg || product.pricePerUnit;
-          // Round to 2 decimal places to avoid floating point precision issues
-          const roundedRate = Math.round(rate * 100) / 100;
-          const lineTotal = Math.round((qty * roundedRate) * 100) / 100; // Base amount without tax
-
-          await addItem({
-            productId: product.id,
-            productName: product.name,
-            qtyKg: parsed.weightKg,
-            qtyPcs: parsed.qtyPcs,
-            rate: roundedRate,
-            taxRate: product.taxRate,
-            lineTotal, // Store base amount, tax calculated separately
-          });
-
-          // Trigger cart animation
-          setCartAnimation({
-            productName: product.name,
-            productImage: product.imageUrl || null,
-          });
-
-          const qtyText = parsed.weightKg 
-            ? `${parsed.weightKg.toFixed(2)} kg` 
-            : parsed.qtyPcs 
-            ? `${parsed.qtyPcs} pcs` 
-            : '1';
-          showNotification(
-            `✅ Added ${product.name} (${qtyText}) to cart`,
-            'success',
-            2000
-          );
-          console.log('Barcode scanned and added to cart:', product.name);
-          if (pathname !== '/store/cart') {
-            router.push('/store/cart');
-          }
-          setIsProcessing(false);
-          return;
-        }
-      }
-
-      // Try as SKU/PLU (normalize so DB spacing / scan spacing both match)
+      // Local catalog first — no Neon round-trip for normal SKU/PLU scans.
       let product = products.find(
         (p) =>
           normalizeBarcodeForLookup(p.sku) === normalized ||
           normalizeBarcodeForLookup(p.plu) === normalized
       );
-      if (!product) {
-        product = await fetchProductBySkuOrPlu(normalized);
-      }
       if (product) {
-        // Add to cart with default quantity
         const qty = 1;
         const rate = product.pricePerUnit;
-        // Round to 2 decimal places to avoid floating point precision issues
         const roundedRate = Math.round(rate * 100) / 100;
-        const lineTotal = Math.round((qty * roundedRate) * 100) / 100; // Base amount without tax
+        const lineTotal = Math.round(qty * roundedRate * 100) / 100;
 
         await addItem({
           productId: product.id,
@@ -182,10 +126,9 @@ export default function GlobalBarcodeScanner() {
           qtyPcs: product.unitType === 'PCS' ? 1 : undefined,
           rate: roundedRate,
           taxRate: product.taxRate,
-          lineTotal, // Store base amount, tax calculated separately
+          lineTotal,
         });
 
-        // Trigger cart animation
         setCartAnimation({
           productName: product.name,
           productImage: product.imageUrl || null,
@@ -197,7 +140,89 @@ export default function GlobalBarcodeScanner() {
           'success',
           2000
         );
-        console.log('Barcode scanned and added to cart:', product.name);
+        if (pathname !== '/store/cart') {
+          router.push('/store/cart');
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      // Scale / weighted barcodes (or catalog miss) — server parse.
+      const parsed = await parseScaleBarcode(normalized, storeId);
+
+      if (parsed) {
+        product = products.find((p) => p.id === parsed.productId);
+        if (!product) {
+          product = await fetchProductById(parsed.productId);
+        }
+        if (product) {
+          const qty = parsed.weightKg || parsed.qtyPcs || 1;
+          const rate = parsed.pricePerKg || product.pricePerUnit;
+          const roundedRate = Math.round(rate * 100) / 100;
+          const lineTotal = Math.round(qty * roundedRate * 100) / 100;
+
+          await addItem({
+            productId: product.id,
+            productName: product.name,
+            qtyKg: parsed.weightKg,
+            qtyPcs: parsed.qtyPcs,
+            rate: roundedRate,
+            taxRate: product.taxRate,
+            lineTotal,
+          });
+
+          setCartAnimation({
+            productName: product.name,
+            productImage: product.imageUrl || null,
+          });
+
+          const qtyText = parsed.weightKg
+            ? `${parsed.weightKg.toFixed(2)} kg`
+            : parsed.qtyPcs
+            ? `${parsed.qtyPcs} pcs`
+            : '1';
+          showNotification(
+            `✅ Added ${product.name} (${qtyText}) to cart`,
+            'success',
+            2000
+          );
+          if (pathname !== '/store/cart') {
+            router.push('/store/cart');
+          }
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // Last resort: search API by SKU/PLU (catalog may be stale)
+      product = await fetchProductBySkuOrPlu(normalized);
+      if (product) {
+        const qty = 1;
+        const rate = product.pricePerUnit;
+        const roundedRate = Math.round(rate * 100) / 100;
+        const lineTotal = Math.round(qty * roundedRate * 100) / 100;
+
+        await addItem({
+          productId: product.id,
+          productName: product.name,
+          qtyKg: product.unitType === 'KG' ? 1 : undefined,
+          qtyPcs: product.unitType === 'PCS' ? 1 : undefined,
+          rate: roundedRate,
+          taxRate: product.taxRate,
+          lineTotal,
+        });
+
+        setCartAnimation({
+          productName: product.name,
+          productImage: product.imageUrl || null,
+        });
+
+        const qtyText = product.unitType === 'KG' ? '1 kg' : '1 pcs';
+        showNotification(
+          `✅ Added ${product.name} (${qtyText}) to cart`,
+          'success',
+          2000
+        );
         if (pathname !== '/store/cart') {
           router.push('/store/cart');
         }

@@ -562,7 +562,29 @@ export default function StorePOSPage() {
         return;
       }
 
-      // Try parsing as scale barcode
+      // Local catalog first — avoids a Neon round-trip on every simple SKU/PLU scan.
+      const localProduct = products.find(
+        (p) =>
+          normalizeBarcodeForLookup(p.sku) === lookup ||
+          normalizeBarcodeForLookup(p.plu) === lookup
+      );
+      if (localProduct) {
+        const added = await handleAddProductToCart(
+          localProduct,
+          localProduct.unitType === "KG" ? 1 : undefined,
+          localProduct.unitType === "PCS" ? 1 : undefined
+        );
+        setBarcodeInput("");
+        if (barcodeInputRef.current) {
+          barcodeInputRef.current.focus();
+        }
+        if (added) {
+          router.push("/store/cart");
+        }
+        return;
+      }
+
+      // Scale / weighted barcodes (or catalog miss) — server parse.
       const parsed = await parseScaleBarcode(lookup, storeId);
 
       if (parsed) {
@@ -642,29 +664,9 @@ export default function StorePOSPage() {
             "error",
             4000
           );
+          setBarcodeInput("");
+          return;
         }
-      }
-
-      // Try as SKU/PLU
-      const product = products.find(
-        (p) =>
-          normalizeBarcodeForLookup(p.sku) === lookup ||
-          normalizeBarcodeForLookup(p.plu) === lookup
-      );
-      if (product) {
-        const added = await handleAddProductToCart(
-          product,
-          product.unitType === "KG" ? 1 : undefined,
-          product.unitType === "PCS" ? 1 : undefined
-        );
-        setBarcodeInput("");
-        if (barcodeInputRef.current) {
-          barcodeInputRef.current.focus();
-        }
-        if (added) {
-          router.push("/store/cart");
-        }
-        return;
       }
 
       // If not found, open manual entry with SKU pre-filled
