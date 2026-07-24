@@ -93,7 +93,7 @@ export default function PendingCreditSettlement({ customerId, hidden, compact }:
               ? 'Checking pending balance…'
               : selectedTotal > 0
                 ? `₹${selectedTotal} added to this checkout`
-                : `₹${totalAvailable} pending — expand & tick bills to collect`}
+                : `₹${totalAvailable} pending — not added until you tick`}
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">

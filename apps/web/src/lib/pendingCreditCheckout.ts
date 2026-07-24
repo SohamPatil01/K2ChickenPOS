@@ -20,8 +20,7 @@ export type PendingSettlementLine = {
 };
 
 export function openOrdersToSettlementLines(orders: PendingOpenOrder[]): PendingSettlementLine[] {
-  // Single outstanding bill: auto-include in checkout (common cashier flow).
-  const autoSelect = orders.length === 1;
+  // Never auto-include previous credit — cashier must tick bills to collect.
   return orders.map((o) => {
     const maxPending = Math.round(Number(o.pending ?? o.remainingBalance ?? 0));
     return {
@@ -29,7 +28,7 @@ export function openOrdersToSettlementLines(orders: PendingOpenOrder[]): Pending
       saleNo: o.saleNo,
       maxPending,
       amount: maxPending,
-      selected: autoSelect,
+      selected: false,
       createdAt: o.createdAt,
     };
   });
