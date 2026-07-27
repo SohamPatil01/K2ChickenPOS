@@ -113,11 +113,23 @@ export default function StoreCartPage() {
     (async () => {
       try {
         const res = await api.get(`/api/v1/customers/${customerId}/loyalty`);
-        const pts = Math.floor(res.data?.customer?.loyaltyPoints ?? 0);
+        const raw =
+          res.data?.customer?.loyaltyPoints ??
+          res.data?.loyaltyPoints ??
+          res.data?.points ??
+          0;
+        const pts = Math.floor(Number(raw) || 0);
         if (!cancelled) setCustomerPoints(pts);
       } catch (err) {
         console.error('[Cart] Failed to load loyalty balance:', err);
-        if (!cancelled) setCustomerPoints((prev) => (prev === null ? 0 : prev));
+        // Fall back to the customer record itself (list/search already has points).
+        try {
+          const res = await api.get(`/api/v1/customers/${customerId}`);
+          const pts = Math.floor(Number(res.data?.loyaltyPoints) || 0);
+          if (!cancelled) setCustomerPoints(pts);
+        } catch {
+          if (!cancelled) setCustomerPoints((prev) => (prev === null ? 0 : prev));
+        }
       }
     })();
     return () => {
@@ -217,6 +229,7 @@ export default function StoreCartPage() {
           name: string;
           phone: string;
           area?: string;
+          loyaltyPoints?: number;
         }>(searchRes.data);
         setPhoneMatches(customers.slice(0, 8));
         setShowPhoneDropdown(customers.length > 0);
@@ -242,6 +255,7 @@ export default function StoreCartPage() {
           name: string;
           phone: string;
           area?: string;
+          loyaltyPoints?: number;
         }>(searchRes.data);
         const filtered = customers
           .filter((c) => String(c.name || '').toLowerCase().startsWith(term.toLowerCase()))
@@ -297,11 +311,16 @@ export default function StoreCartPage() {
     phone: string;
     name?: string | null;
     area?: string | null;
+    loyaltyPoints?: number | null;
   }) => {
     setCustomer(customer.id, customer.phone, customer.name || null, customer.area || null);
     setTempCustomerPhone(customer.phone);
     setTempCustomerName(customer.name || '');
     setTempCustomerArea(customer.area || '');
+    // Seed balance immediately from the search hit; the loyalty API refreshes it.
+    if (customer.loyaltyPoints != null) {
+      setCustomerPoints(Math.floor(Number(customer.loyaltyPoints) || 0));
+    }
     setPhoneMatches([]);
     setShowPhoneDropdown(false);
     setCustomerSearchResults([]);
@@ -359,6 +378,9 @@ export default function StoreCartPage() {
             setTempCustomerPhone(response.data.phone);
             setTempCustomerName(response.data.name);
             setTempCustomerArea(response.data.area || '');
+            if (response.data.loyaltyPoints != null) {
+              setCustomerPoints(Math.floor(Number(response.data.loyaltyPoints) || 0));
+            }
             showNotification('Customer updated successfully', 'success');
             setShowCustomerSection(false); // Auto-collapse after success
           }
@@ -387,6 +409,9 @@ export default function StoreCartPage() {
           setTempCustomerPhone(response.data.phone);
           setTempCustomerName(response.data.name);
           setTempCustomerArea(response.data.area || '');
+          if (response.data.loyaltyPoints != null) {
+            setCustomerPoints(Math.floor(Number(response.data.loyaltyPoints) || 0));
+          }
           showNotification('Customer added successfully', 'success');
           setShowCustomerSection(false); // Auto-collapse after success
         }
@@ -756,47 +781,47 @@ export default function StoreCartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-full bg-transparent">
       {/* Header - animated entrance */}
-      <div className="sticky top-0 z-40 glass-panel-strong border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
+      <div className="sticky top-0 z-40 glass-panel-strong border-b rounded-xl mb-4">
+        <div className="px-3 sm:px-4 lg:px-5">
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <button
                 onClick={() => router.push('/store/pos')}
-                className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 active:scale-95"
+                className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 active:scale-95 shrink-0"
               >
                 <svg className="w-5 h-5 text-ink-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-ink tracking-tight">Shopping Cart</h1>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-ink tracking-tight truncate">Shopping Cart</h1>
                 <p className="text-sm text-ink-muted mt-0.5">
                   <span className="inline-flex items-center gap-1 font-medium text-brand-600 dark:text-brand-400">{items.length}</span>
                   {items.length === 1 ? 'item' : 'items'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <CustomerDisplayButton />
               <button
                 onClick={() => router.push('/store/pos')}
-                className="px-5 py-2.5 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
+                className="px-4 sm:px-5 py-2.5 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 active:scale-[0.98]"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                <span>Add Items</span>
+                <span className="hidden sm:inline">Add Items</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Content — shell already pads; avoid nested max-width squeeze */}
+      <div className="pb-6 lg:pb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Section - Collapsible & Optional */}
@@ -853,12 +878,24 @@ export default function StoreCartPage() {
                   </div>
                 )}
                     {customerName && customerPhone && !showCustomerSection && (
-                  <div className="mt-2 flex items-center justify-between px-3 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
-                    <span className="font-medium text-brand-700 dark:text-brand-300">
-                      {customerName} • {customerPhone}
-                      {customerArea ? ` • ${customerArea}` : ''}
-                    </span>
-                    <div className="flex items-center gap-2">
+                  <div className="mt-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium text-brand-700 dark:text-brand-300">
+                        {customerName} • {customerPhone}
+                        {customerArea ? ` • ${customerArea}` : ''}
+                      </span>
+                      {customerId && !skipCustomer && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                          <svg className="h-3.5 w-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          {customerPoints === null
+                            ? 'Loading points…'
+                            : `${customerPoints} pts available`}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setShowCustomerSection(true)}
                         className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium"
@@ -877,6 +914,7 @@ export default function StoreCartPage() {
                           setShowPhoneDropdown(false);
                           setShowCustomerSection(true);
                           setSkipCustomer(false);
+                          setCustomerPoints(null);
                         }}
                         className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium"
                       >
@@ -907,7 +945,7 @@ export default function StoreCartPage() {
                           setShowNumPad(true);
                           matchCustomersByPhonePrefix(tempCustomerPhone);
                         }}
-                        className={`w-full px-4 py-3 pl-11 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${ tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }`}
+                        className={`w-full px-4 py-3 pl-11 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${ tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }`}
                       />
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -931,7 +969,14 @@ export default function StoreCartPage() {
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
-                            <div className="font-medium text-sm text-ink">{customer.name || 'No name'}</div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium text-sm text-ink">{customer.name || 'No name'}</div>
+                              {typeof customer.loyaltyPoints === 'number' && customer.loyaltyPoints > 0 && (
+                                <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                                  {Math.floor(customer.loyaltyPoints)} pts
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-ink-muted">
                               {customer.phone}
                               {customer.area ? ` • ${customer.area}` : ''}
@@ -976,7 +1021,7 @@ export default function StoreCartPage() {
                           setTimeout(() => setShowNameDropdown(false), 200);
                           // Wait for Area — do not create/update yet
                         }}
-                        className="w-full px-4 py-3 pr-24 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        className="w-full px-4 py-3 pr-24 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                         {typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) ? (
@@ -1038,7 +1083,14 @@ export default function StoreCartPage() {
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
-                            <div className="font-medium text-sm text-ink">{customer.name}</div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium text-sm text-ink">{customer.name}</div>
+                              {typeof customer.loyaltyPoints === 'number' && customer.loyaltyPoints > 0 && (
+                                <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                                  {Math.floor(customer.loyaltyPoints)} pts
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-ink-muted">
                               {customer.phone}
                               {customer.area ? ` • ${customer.area}` : ''}
@@ -1081,7 +1133,7 @@ export default function StoreCartPage() {
                           createOrUpdateCustomer(currentPhone, currentName, tempCustomerArea);
                         }
                       }}
-                      className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <div className="mt-2 flex flex-wrap gap-2">
                       {QUICK_AREAS.map((area) => (
@@ -1184,7 +1236,7 @@ export default function StoreCartPage() {
                         placeholder="Friend's phone or code e.g. B42W8K"
                         value={referralInputValue}
                         onChange={(e) => applyReferralInput(e.target.value)}
-                        className="w-full px-4 py-3 pr-12 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase tracking-wider"
+                        className="w-full px-4 py-3 pr-12 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 uppercase tracking-wider"
                       />
                       <button
                         type="button"
@@ -1303,7 +1355,7 @@ export default function StoreCartPage() {
 
           {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
-            <div className="sticky top-24 glass-panel-strong rounded-2xl overflow-hidden">
+            <div className="lg:sticky lg:top-4 glass-panel-strong rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-brand-500 to-brand-600">
                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1579,7 +1631,7 @@ export default function StoreCartPage() {
 
             {/* Mobile Sticky Checkout Bar */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-panel-strong border-t border-gray-200 dark:border-gray-700 p-4 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
-              <div className="max-w-7xl mx-auto space-y-2">
+              <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <div className="text-xs font-medium text-ink-muted">Total</div>

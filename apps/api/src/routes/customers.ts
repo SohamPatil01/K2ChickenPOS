@@ -15,6 +15,49 @@ interface QueryParams {
   q?: string;
 }
 
+/**
+ * Customers are usually stored under the OWNER store, while cashiers may be
+ * logged into a franchise. Match settle-pending: allow access across that link.
+ */
+async function canAccessCustomerStore(
+  userStoreId: string,
+  userRole: string,
+  customerStoreId: string
+): Promise<boolean> {
+  if (!userStoreId || !customerStoreId) return false;
+  if (customerStoreId === userStoreId) return true;
+
+  const userStore = await prisma.store.findUnique({
+    where: { id: userStoreId },
+    select: { id: true, type: true, parentOwnerStoreId: true },
+  });
+  if (!userStore) return false;
+
+  // Franchise / manager at a franchise: customers live on the parent OWNER store.
+  if (
+    userStore.type === 'FRANCHISE' &&
+    userStore.parentOwnerStoreId &&
+    userStore.parentOwnerStoreId === customerStoreId
+  ) {
+    return true;
+  }
+
+  // OWNER: also allow customers created under any of their franchises.
+  if (userRole === 'OWNER' && userStore.type === 'OWNER') {
+    const child = await prisma.store.findFirst({
+      where: {
+        id: customerStoreId,
+        type: 'FRANCHISE',
+        parentOwnerStoreId: userStoreId,
+      },
+      select: { id: true },
+    });
+    if (child) return true;
+  }
+
+  return false;
+}
+
 export async function customerRoutes(fastify: FastifyInstance) {
 
   fastify.get('/', async (request: any, reply: FastifyReply) => {
@@ -973,7 +1016,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
   fastify.get('/:customerId/loyalty', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
-      const storeId = (getUser(request) as any).storeId;
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const userRole = user.role || '';
 
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
@@ -987,7 +1032,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      if (!customer || customer.storeId !== storeId) {
+      if (
+        !customer ||
+        !(await canAccessCustomerStore(storeId, userRole, customer.storeId))
+      ) {
         reply.code(404).send({ error: 'Customer not found' });
         return;
       }
@@ -1056,8 +1104,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
     try {
       const { customerId } = (request.params as any);
       const { points, description } = (request.body as any);
-      const storeId = (getUser(request) as any).storeId;
-      const userId = (getUser(request) as any).userId;
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const userId = user.userId;
+      const userRole = user.role || '';
 
       if (points <= 0) {
         reply.code(400).send({ error: 'Points must be greater than 0' });
@@ -1069,7 +1119,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
         select: { id: true, storeId: true, loyaltyPoints: true },
       });
 
-      if (!customer || customer.storeId !== storeId) {
+      if (
+        !customer ||
+        !(await canAccessCustomerStore(storeId, userRole, customer.storeId))
+      ) {
         reply.code(404).send({ error: 'Customer not found' });
         return;
       }
@@ -1133,8 +1186,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
     try {
       const { customerId } = (request.params as any);
       const { points, description } = (request.body as any);
-      const storeId = (getUser(request) as any).storeId;
-      const userId = (getUser(request) as any).userId;
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const userId = user.userId;
+      const userRole = user.role || '';
 
       if (!description) {
         reply.code(400).send({ error: 'Description is required' });
@@ -1146,7 +1201,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
         select: { id: true, storeId: true, loyaltyPoints: true },
       });
 
-      if (!customer || customer.storeId !== storeId) {
+      if (
+        !customer ||
+        !(await canAccessCustomerStore(storeId, userRole, customer.storeId))
+      ) {
         reply.code(404).send({ error: 'Customer not found' });
         return;
       }
