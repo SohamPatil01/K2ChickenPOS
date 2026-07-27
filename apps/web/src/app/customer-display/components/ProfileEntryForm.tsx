@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import NumPad from "@/components/NumPad";
+import VirtualKeyboard from "@/components/VirtualKeyboard";
 
 export interface ProfileEntrySubmission {
   phone: string;
@@ -12,6 +14,7 @@ export interface ProfileEntrySubmission {
 }
 
 type SubmitState = "idle" | "sending" | "sent" | "error";
+type TextFieldKey = "name" | "line1" | "line2" | "city";
 
 export default function ProfileEntryForm({
   onSubmit,
@@ -27,6 +30,47 @@ export default function ProfileEntryForm({
   const [city, setCity] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<SubmitState>("idle");
+  const [showNumPad, setShowNumPad] = useState(false);
+  const [activeTextField, setActiveTextField] = useState<TextFieldKey | null>(null);
+
+  const textFieldValue = (key: TextFieldKey): string => {
+    switch (key) {
+      case "name":
+        return name;
+      case "line1":
+        return addressLine1;
+      case "line2":
+        return addressLine2;
+      case "city":
+        return city;
+    }
+  };
+
+  const textFieldSetter = (key: TextFieldKey): ((v: string) => void) => {
+    switch (key) {
+      case "name":
+        return setName;
+      case "line1":
+        return setAddressLine1;
+      case "line2":
+        return setAddressLine2;
+      case "city":
+        return setCity;
+    }
+  };
+
+  const textFieldPlaceholder = (key: TextFieldKey): string => {
+    switch (key) {
+      case "name":
+        return "Your name";
+      case "line1":
+        return "House / street";
+      case "line2":
+        return "Landmark, area";
+      case "city":
+        return "City";
+    }
+  };
 
   const handleSubmit = () => {
     const trimmedPhone = phone.trim();
@@ -85,7 +129,7 @@ export default function ProfileEntryForm({
       <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-black/40 p-8 backdrop-blur">
         <h2 className="mb-1 text-2xl font-bold text-white">Enter your details</h2>
         <p className="mb-6 text-sm text-white/50">
-          Used to track loyalty points and delivery address only.
+          Used to track loyalty points and delivery address only. Tap a field to type.
         </p>
 
         <div className="space-y-4">
@@ -93,46 +137,51 @@ export default function ProfileEntryForm({
             <input
               inputMode="numeric"
               autoComplete="tel"
+              readOnly
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 12))}
+              onClick={() => setShowNumPad(true)}
               placeholder="98xxxxxxxx"
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
+              className="w-full cursor-pointer rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
             />
           </Field>
           <Field label="Name">
             <input
               autoComplete="name"
+              readOnly
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onClick={() => setActiveTextField("name")}
               placeholder="Your name"
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
+              className="w-full cursor-pointer rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
             />
           </Field>
           <Field label="Address line 1 (optional)">
             <input
               autoComplete="address-line1"
+              readOnly
               value={addressLine1}
-              onChange={(e) => setAddressLine1(e.target.value)}
+              onClick={() => setActiveTextField("line1")}
               placeholder="House / street"
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
+              className="w-full cursor-pointer rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
             />
           </Field>
           <Field label="Address line 2 (optional)">
             <input
               autoComplete="address-line2"
+              readOnly
               value={addressLine2}
-              onChange={(e) => setAddressLine2(e.target.value)}
+              onClick={() => setActiveTextField("line2")}
               placeholder="Landmark, area"
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
+              className="w-full cursor-pointer rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
             />
           </Field>
           <Field label="City (optional)">
             <input
               autoComplete="address-level2"
+              readOnly
               value={city}
-              onChange={(e) => setCity(e.target.value)}
+              onClick={() => setActiveTextField("city")}
               placeholder="City"
-              className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
+              className="w-full cursor-pointer rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xl text-white outline-none placeholder:text-white/30 focus:border-amber-400/60"
             />
           </Field>
         </div>
@@ -162,6 +211,27 @@ export default function ProfileEntryForm({
           </button>
         </div>
       </div>
+
+      {showNumPad && (
+        <NumPad
+          value={phone}
+          onChange={(v) => setPhone(v.replace(/\D/g, "").slice(0, 12))}
+          onClose={() => setShowNumPad(false)}
+          onSubmit={() => setShowNumPad(false)}
+          placeholder="Phone number"
+          maxLength={12}
+        />
+      )}
+
+      {activeTextField && (
+        <VirtualKeyboard
+          value={textFieldValue(activeTextField)}
+          onChange={textFieldSetter(activeTextField)}
+          onClose={() => setActiveTextField(null)}
+          onSubmit={() => setActiveTextField(null)}
+          placeholder={textFieldPlaceholder(activeTextField)}
+        />
+      )}
     </div>
   );
 }
