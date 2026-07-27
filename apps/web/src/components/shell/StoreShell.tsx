@@ -11,6 +11,7 @@ import Notification from "../Notification";
 import { flushPendingPosSync, getPendingSyncCount } from "@/lib/posSync";
 import { refreshOfflineCatalog } from "@/lib/offlineBootstrap";
 import { useCustomerDisplayPublisher } from "@/lib/customerDisplay/useCustomerDisplayPublisher";
+import { useCustomerProfileInbox } from "@/lib/customerDisplay/useCustomerProfileInbox";
 import Sidebar from "./Sidebar";
 import StatusPills from "./StatusPills";
 import { getMenuSections, getActiveItem } from "./navConfig";
@@ -33,6 +34,11 @@ export default function StoreShell({ children }: StoreShellProps) {
   // Mirror the cashier's live cart to the (optional) customer display. Passive:
   // no-op unless the cashier has enabled it, never touches billing state.
   useCustomerDisplayPublisher();
+
+  // Receive phone/name/address the customer typed directly on the customer
+  // display. Lives here (not in cart/page.tsx) so a submission isn't lost
+  // just because the cashier is on the POS grid rather than the cart page.
+  useCustomerProfileInbox();
 
   const refreshPendingSync = useCallback(async () => {
     try {
