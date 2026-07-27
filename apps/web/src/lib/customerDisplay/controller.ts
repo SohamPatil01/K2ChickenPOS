@@ -10,6 +10,7 @@ import {
   DISPLAY_EVENTS,
   type BillUpdatePayload,
   type DisplayMode,
+  type DraftFieldKey,
   type PaymentModePayload,
   type SuccessModePayload,
 } from "./types";
@@ -96,6 +97,8 @@ interface CustomerDisplayState {
   publishPayment: (payload: Omit<PaymentModePayload, "seq">) => boolean;
   publishSuccess: (payload: Omit<SuccessModePayload, "seq">) => boolean;
   publishIdle: (force?: boolean) => boolean;
+  /** Live keystroke mirroring — cashier's own field → display, and back. */
+  publishDraftField: (field: DraftFieldKey, value: string, open: boolean) => boolean;
   /** True once the Ably publisher socket is usable. */
   isPublisherReady: () => boolean;
   _setStatus: (status: ConnectionStatus) => void;
@@ -202,6 +205,16 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
       return publishOrQueue(DISPLAY_EVENTS.MODE_IDLE, {
         seq: nextSeq(),
         force: force || undefined,
+      });
+    },
+    publishDraftField: (field, value, open) => {
+      // Doesn't touch localMode — this is a lightweight overlay on top of
+      // whatever the display is already showing, not a mode transition.
+      return publishOrQueue(DISPLAY_EVENTS.DRAFT_FIELD_UPDATE, {
+        field,
+        value,
+        open,
+        seq: nextSeq(),
       });
     },
 

@@ -7,6 +7,7 @@ import {
   estimateLoyaltyPoints,
   type BillUpdatePayload,
   type DisplayLineItem,
+  type DraftFieldKey,
   type PaymentLineDisplay,
   type ProfileNudge,
 } from "./types";
@@ -164,6 +165,17 @@ export function publishIdleMode(force = true): void {
   const store = useCustomerDisplayStore.getState();
   if (!store.active) return;
   store.publishIdle(force);
+}
+
+/**
+ * Mirror the cashier's own phone/name field onto the customer display in
+ * real time — opening it, live keystrokes, and closing it. `open: false`
+ * tells the display to close its mirrored editor for that field too.
+ */
+export function publishDraftField(field: DraftFieldKey, value: string, open: boolean): void {
+  const store = useCustomerDisplayStore.getState();
+  if (!store.active) return;
+  store.publishDraftField(field, value, open);
 }
 
 /**

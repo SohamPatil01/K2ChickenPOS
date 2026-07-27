@@ -3,7 +3,8 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { formatINR, formatINR2 } from "@/lib/customerDisplay/brand";
 import BrandMark from "@/components/customerDisplay/BrandMark";
-import type { BillUpdatePayload, DisplayLineItem } from "@/lib/customerDisplay/types";
+import type { BillUpdatePayload, DisplayLineItem, DraftFieldKey } from "@/lib/customerDisplay/types";
+import CustomerInfoPanel, { type CustomerInfoValues } from "./CustomerInfoPanel";
 
 function qtyLabel(item: DisplayLineItem): string {
   if (item.qtyKg != null && item.qtyKg > 0) return `${item.qtyKg.toFixed(2)} kg`;
@@ -18,10 +19,18 @@ function lineKey(item: DisplayLineItem, i: number): string {
 
 export default function BillingScreen({
   bill,
-  onRequestProfileEntry,
+  customerInfo,
+  activeField,
+  onTapField,
+  onSaveCustomerInfo,
+  saveState,
 }: {
   bill: BillUpdatePayload;
-  onRequestProfileEntry?: () => void;
+  customerInfo: CustomerInfoValues;
+  activeField: DraftFieldKey | null;
+  onTapField: (field: DraftFieldKey) => void;
+  onSaveCustomerInfo: () => void;
+  saveState: "idle" | "sent" | "error";
 }) {
   const hasItems = bill.items.length > 0;
 
@@ -48,64 +57,77 @@ export default function BillingScreen({
         </div>
       </div>
 
-      {/* Items */}
-      <div className="flex-1 overflow-hidden px-8 py-4">
-        {!hasItems ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <motion.div
-              className="mb-6"
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 3, repeat: Infinity }}
-            >
-              <BrandMark
-                logoSizeClass="h-24 w-24"
-                badgePadClass="p-3"
-                showName={false}
-              />
-            </motion.div>
-            <p className="text-2xl font-medium text-white/70">
-              Scanning your items…
-            </p>
-          </div>
-        ) : (
-          <div className="flex h-full flex-col">
-            {/* Column heads */}
-            <div className="grid grid-cols-12 gap-2 border-b border-white/10 pb-2 text-sm font-semibold uppercase tracking-wide text-white/40">
-              <div className="col-span-6">Item</div>
-              <div className="col-span-2 text-right">Qty</div>
-              <div className="col-span-2 text-right">Rate</div>
-              <div className="col-span-2 text-right">Amount</div>
+      {/* Items + customer info, side by side so the panel is always visible */}
+      <div className="flex flex-1 gap-4 overflow-hidden px-8 py-4">
+        <div className="flex-1 overflow-hidden">
+          {!hasItems ? (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <motion.div
+                className="mb-6"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              >
+                <BrandMark
+                  logoSizeClass="h-24 w-24"
+                  badgePadClass="p-3"
+                  showName={false}
+                />
+              </motion.div>
+              <p className="text-2xl font-medium text-white/70">
+                Scanning your items…
+              </p>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              <AnimatePresence initial={false}>
-                {bill.items.map((item, i) => (
-                  <motion.div
-                    key={lineKey(item, i)}
-                    layout
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 30 }}
-                    transition={{ duration: 0.25 }}
-                    className="grid grid-cols-12 items-center gap-2 border-b border-white/5 py-3 text-white"
-                  >
-                    <div className="col-span-6 truncate text-xl font-medium sm:text-2xl">
-                      {item.name}
-                    </div>
-                    <div className="col-span-2 text-right text-lg text-white/80 sm:text-xl">
-                      {qtyLabel(item)}
-                    </div>
-                    <div className="col-span-2 text-right text-lg text-white/80 sm:text-xl">
-                      {formatINR(item.rate)}
-                    </div>
-                    <div className="col-span-2 text-right text-xl font-semibold sm:text-2xl">
-                      {formatINR(item.lineTotal)}
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+          ) : (
+            <div className="flex h-full flex-col">
+              {/* Column heads */}
+              <div className="grid grid-cols-12 gap-2 border-b border-white/10 pb-2 text-sm font-semibold uppercase tracking-wide text-white/40">
+                <div className="col-span-6">Item</div>
+                <div className="col-span-2 text-right">Qty</div>
+                <div className="col-span-2 text-right">Rate</div>
+                <div className="col-span-2 text-right">Amount</div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <AnimatePresence initial={false}>
+                  {bill.items.map((item, i) => (
+                    <motion.div
+                      key={lineKey(item, i)}
+                      layout
+                      initial={{ opacity: 0, x: -30 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 30 }}
+                      transition={{ duration: 0.25 }}
+                      className="grid grid-cols-12 items-center gap-2 border-b border-white/5 py-3 text-white"
+                    >
+                      <div className="col-span-6 truncate text-xl font-medium sm:text-2xl">
+                        {item.name}
+                      </div>
+                      <div className="col-span-2 text-right text-lg text-white/80 sm:text-xl">
+                        {qtyLabel(item)}
+                      </div>
+                      <div className="col-span-2 text-right text-lg text-white/80 sm:text-xl">
+                        {formatINR(item.rate)}
+                      </div>
+                      <div className="col-span-2 text-right text-xl font-semibold sm:text-2xl">
+                        {formatINR(item.lineTotal)}
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Always visible — no nudge tap required to reach it. */}
+        <div className="w-[280px] shrink-0 sm:w-[320px]">
+          <CustomerInfoPanel
+            values={customerInfo}
+            activeField={activeField}
+            onTapField={onTapField}
+            onSave={onSaveCustomerInfo}
+            saveState={saveState}
+          />
+        </div>
       </div>
 
       {/* Totals */}
@@ -147,7 +169,7 @@ export default function BillingScreen({
             ) : (
               <span />
             )}
-            <ProfileNudgeChip bill={bill} onTap={onRequestProfileEntry} />
+            <ProfileNudgeChip bill={bill} />
           </div>
         </div>
       </div>
@@ -155,33 +177,19 @@ export default function BillingScreen({
   );
 }
 
-function ProfileNudgeChip({
-  bill,
-  onTap,
-}: {
-  bill: BillUpdatePayload;
-  onTap?: () => void;
-}) {
+function ProfileNudgeChip({ bill }: { bill: BillUpdatePayload }) {
   if (bill.profileNudge === "add_phone") {
     return (
-      <button
-        type="button"
-        onClick={onTap}
-        className="cursor-pointer rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200 transition active:scale-95"
-      >
+      <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200">
         Add phone · earn {bill.loyaltyPointsEst} pts (1.25% back)
-      </button>
+      </span>
     );
   }
   if (bill.profileNudge === "add_address") {
     return (
-      <button
-        type="button"
-        onClick={onTap}
-        className="cursor-pointer rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 font-semibold text-emerald-200 transition active:scale-95"
-      >
+      <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 font-semibold text-emerald-200">
         Add your address & get 10% off
-      </button>
+      </span>
     );
   }
   if (bill.profileNudge === "reward_ready") {

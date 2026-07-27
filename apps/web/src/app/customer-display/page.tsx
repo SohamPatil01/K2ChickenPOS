@@ -16,6 +16,8 @@ import {
   type PaymentModePayload,
   type SuccessModePayload,
   type DisplayMode,
+  type DraftFieldKey,
+  type DraftFieldUpdatePayload,
 } from "@/lib/customerDisplay/types";
 import { decodeStoreIdFromSession } from "@/lib/customerDisplay/brand";
 import IdleScreen from "./components/IdleScreen";
@@ -24,9 +26,19 @@ import PaymentScreen from "./components/PaymentScreen";
 import SuccessScreen from "./components/SuccessScreen";
 import ReviewScreen from "./components/ReviewScreen";
 import PairingScreen from "./components/PairingScreen";
-import ProfileEntryForm, {
-  type ProfileEntrySubmission,
-} from "./components/ProfileEntryForm";
+import type { CustomerInfoValues } from "./components/CustomerInfoPanel";
+import NumPad from "@/components/NumPad";
+import VirtualKeyboard from "@/components/VirtualKeyboard";
+
+const EMPTY_PROFILE: CustomerInfoValues = { phone: "", name: "", line1: "", line2: "", city: "" };
+
+const FIELD_TO_PROFILE_KEY: Record<DraftFieldKey, keyof CustomerInfoValues> = {
+  phone: "phone",
+  name: "name",
+  line1: "line1",
+  line2: "line2",
+  city: "city",
+};
 
 type Phase = "init" | "pairing" | "connected";
 
@@ -52,18 +64,43 @@ export default function CustomerDisplayPage() {
   const [bill, setBill] = useState<BillUpdatePayload | null>(null);
   const [payment, setPayment] = useState<PaymentModePayload | null>(null);
   const [success, setSuccess] = useState<SuccessModePayload | null>(null);
-  const [showProfileForm, setShowProfileForm] = useState(false);
+  /** Current values for phone/name/address — kept live via both the cashier's
+   * own cart-page fields and taps here, whichever side types. */
+  const [profile, setProfile] = useState<CustomerInfoValues>(EMPTY_PROFILE);
+  /** Which field currently has an open editor (NumPad/VirtualKeyboard). */
+  const [draftField, setDraftField] = useState<DraftFieldKey | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "sent" | "error">("idle");
 
   const lastSeqRef = useRef(0);
   const profileSeqRef = useRef(0);
+  const draftSeqRef = useRef(0);
   const subscriberRef = useRef<DisplaySubscriberHandle | null>(null);
   const modeRef = useRef<DisplayMode>("idle");
+  const draftFieldRef = useRef<DraftFieldKey | null>(null);
   /** Don't let a rogue idle wipe a bill that just arrived. */
   const ignoreIdleUntilRef = useRef(0);
   const logoTapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
   useEffect(() => {
     modeRef.current = mode;
-    if (mode !== "billing") setShowProfileForm(false);
+  }, [mode]);
+  useEffect(() => {
+    draftFieldRef.current = draftField;
+  }, [draftField]);
+
+  // Seed the name from whatever the bill already knows once billing starts.
+  useEffect(() => {
+    if (mode === "billing" && bill?.customerName) {
+      setProfile((p) => (p.name ? p : { ...p, name: bill.customerName || "" }));
+    }
+  }, [mode, bill]);
+
+  // Fresh customer / new bill after a save — reset the panel for the next person.
+  useEffect(() => {
+    if (mode === "idle") {
+      setProfile(EMPTY_PROFILE);
+      setDraftField(null);
+      setSaveState("idle");
+    }
   }, [mode]);
 
   /** Emergency: tap the top bar 5× quickly to clear a frozen bill locally. */
@@ -171,6 +208,19 @@ export default function CustomerDisplayPage() {
         setPayment(null);
         setMode("idle");
         break;
+      case DISPLAY_EVENTS.DRAFT_FIELD_UPDATE: {
+        // Cashier's own field, mirrored here. Never publish back — that
+        // would ping-pong the same update between the two sides forever.
+        const payload = data as DraftFieldUpdatePayload;
+        const key = FIELD_TO_PROFILE_KEY[payload.field];
+        setProfile((p) => ({ ...p, [key]: payload.value }));
+        if (payload.open) {
+          setDraftField(payload.field);
+        } else if (draftFieldRef.current === payload.field) {
+          setDraftField(null);
+        }
+        break;
+      }
       default:
         break;
     }
@@ -202,9 +252,67 @@ export default function CustomerDisplayPage() {
     };
   }, [phase, storeId, sessionToken, handleEvent]);
 
-  const handleProfileSubmit = useCallback((data: ProfileEntrySubmission) => {
-    profileSeqRef.current += 1;
-    subscriberRef.current?.publishProfile({ ...data, seq: profileSeqRef.current });
+  /** Customer taps a field row here — opens its editor and tells the cashier. */
+  const handleTapField = useCallback((field: DraftFieldKey) => {
+    setDraftField(field);
+    setProfile((p) => {
+      draftSeqRef.current += 1;
+      subscriberRef.current?.publishDraft({
+        field,
+        value: p[FIELD_TO_PROFILE_KEY[field]],
+        open: true,
+        seq: draftSeqRef.current,
+      });
+      return p;
+    });
+  }, []);
+
+  /** Customer types into the open editor here — live keystrokes to the cashier. */
+  const handleDraftChange = useCallback((field: DraftFieldKey, value: string) => {
+    setProfile((p) => ({ ...p, [FIELD_TO_PROFILE_KEY[field]]: value }));
+    draftSeqRef.current += 1;
+    subscriberRef.current?.publishDraft({ field, value, open: true, seq: draftSeqRef.current });
+  }, []);
+
+  /** Customer closes the editor here. */
+  const handleCloseField = useCallback(() => {
+    const field = draftFieldRef.current;
+    if (!field) return;
+    setDraftField(null);
+    setProfile((p) => {
+      draftSeqRef.current += 1;
+      subscriberRef.current?.publishDraft({
+        field,
+        value: p[FIELD_TO_PROFILE_KEY[field]],
+        open: false,
+        seq: draftSeqRef.current,
+      });
+      return p;
+    });
+  }, []);
+
+  const handleSave = useCallback(() => {
+    setProfile((p) => {
+      const phone = p.phone.trim();
+      const name = p.name.trim();
+      const line1 = p.line1.trim();
+      const city = p.city.trim();
+      if (phone.length < 10 || !name) {
+        setSaveState("error");
+        return p;
+      }
+      profileSeqRef.current += 1;
+      subscriberRef.current?.publishProfile({
+        seq: profileSeqRef.current,
+        phone,
+        name,
+        addressLine1: line1 || undefined,
+        addressLine2: p.line2.trim() || undefined,
+        city: city || undefined,
+      });
+      setSaveState("sent");
+      return p;
+    });
   }, []);
 
   // After the success celebration, advance to the review invitation.
@@ -260,7 +368,11 @@ export default function CustomerDisplayPage() {
               {mode === "billing" && bill ? (
                 <BillingScreen
                   bill={bill}
-                  onRequestProfileEntry={() => setShowProfileForm(true)}
+                  customerInfo={profile}
+                  activeField={draftField}
+                  onTapField={handleTapField}
+                  onSaveCustomerInfo={handleSave}
+                  saveState={saveState}
                 />
               ) : mode === "payment" && payment ? (
                 <PaymentScreen data={payment} />
@@ -276,25 +388,34 @@ export default function CustomerDisplayPage() {
         </div>
       )}
 
-      {/* Customer profile entry overlay */}
-      <AnimatePresence>
-        {showProfileForm && mode === "billing" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-40 bg-black/70"
-          >
-            <ProfileEntryForm
-              onSubmit={(data) => {
-                handleProfileSubmit(data);
-                setTimeout(() => setShowProfileForm(false), 2500);
-              }}
-              onCancel={() => setShowProfileForm(false)}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Field editor — mirrors whichever side (cashier or customer) opened it. */}
+      {draftField === "phone" && (
+        <NumPad
+          value={profile.phone}
+          onChange={(v) => handleDraftChange("phone", v.replace(/\D/g, "").slice(0, 12))}
+          onClose={handleCloseField}
+          onSubmit={handleCloseField}
+          placeholder="Phone number"
+          maxLength={12}
+        />
+      )}
+      {draftField && draftField !== "phone" && (
+        <VirtualKeyboard
+          value={profile[FIELD_TO_PROFILE_KEY[draftField]]}
+          onChange={(v) => handleDraftChange(draftField, v)}
+          onClose={handleCloseField}
+          onSubmit={handleCloseField}
+          placeholder={
+            draftField === "name"
+              ? "Your name"
+              : draftField === "line1"
+                ? "House / street"
+                : draftField === "line2"
+                  ? "Landmark, area"
+                  : "City"
+          }
+        />
+      )}
 
       {/* Connection overlay */}
       <AnimatePresence>

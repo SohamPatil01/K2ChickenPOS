@@ -10,6 +10,13 @@ export const DISPLAY_EVENTS = {
   MODE_IDLE: "mode.idle",
   /** Customer→cashier direction, published on the separate inbound channel. */
   CUSTOMER_PROFILE_SUBMIT: "customer.profile_submit",
+  /**
+   * Bidirectional live keystroke mirroring for the phone/name/address fields.
+   * Cashier→display: published on the main channel. Display→cashier:
+   * published on the inbound channel. Not persisted — just keeps whichever
+   * side isn't currently typing in sync with the one that is.
+   */
+  DRAFT_FIELD_UPDATE: "draft.field_update",
 } as const;
 
 export type DisplayEventName =
@@ -88,6 +95,17 @@ export interface CustomerProfileSubmitPayload {
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
+}
+
+export type DraftFieldKey = "phone" | "name" | "line1" | "line2" | "city";
+
+/** One live keystroke/open-close update for a single field, from either side. */
+export interface DraftFieldUpdatePayload {
+  seq: number;
+  field: DraftFieldKey;
+  value: string;
+  /** True while that field's editor (NumPad/VirtualKeyboard) should be open. */
+  open: boolean;
 }
 
 export type DisplayMode =

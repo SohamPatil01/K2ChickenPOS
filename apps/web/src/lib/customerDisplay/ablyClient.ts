@@ -8,6 +8,7 @@ import {
   DISPLAY_EVENTS,
   type CustomerProfileSubmitPayload,
   type DisplayEventName,
+  type DraftFieldUpdatePayload,
 } from "./types";
 
 export type ConnectionStatus =
@@ -167,6 +168,8 @@ export async function createDisplayPublisher(
 export interface DisplaySubscriberHandle {
   /** Publish a customer-typed profile submission back to the cashier. */
   publishProfile: (payload: CustomerProfileSubmitPayload) => void;
+  /** Publish a live keystroke/open-close update for a field back to the cashier. */
+  publishDraft: (payload: DraftFieldUpdatePayload) => void;
   close: () => void;
 }
 
@@ -180,6 +183,7 @@ export async function createDisplaySubscriber(
 ): Promise<DisplaySubscriberHandle> {
   const noop: DisplaySubscriberHandle = {
     publishProfile: () => {},
+    publishDraft: () => {},
     close: () => {},
   };
 
@@ -259,6 +263,13 @@ export async function createDisplaySubscriber(
         // Best-effort — the display shows its own "couldn't send" state on failure.
       }
     },
+    publishDraft: (payload) => {
+      try {
+        void inboundChannel.publish(DISPLAY_EVENTS.DRAFT_FIELD_UPDATE, payload);
+      } catch {
+        // Best-effort — live mirroring is a nice-to-have, never blocks input.
+      }
+    },
     close: () => {
       try {
         client.close();
@@ -272,7 +283,7 @@ export async function createDisplaySubscriber(
 interface ProfileInboxOptions extends BaseOptions {
   /** Cashier app access token (JWT) used to authorize the Ably token request. */
   getAccessToken: () => string | null;
-  onSubmit: (payload: CustomerProfileSubmitPayload) => void;
+  onEvent: (event: string, data: any) => void;
 }
 
 export interface CustomerProfileInboxHandle {
@@ -323,8 +334,8 @@ export async function createCustomerProfileInbox(
   });
 
   try {
-    await channel.subscribe(DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT, (message: any) => {
-      opts.onSubmit(message.data as CustomerProfileSubmitPayload);
+    await channel.subscribe((message: any) => {
+      opts.onEvent(message.name, message.data);
     });
   } catch {
     opts.onStatus?.("failed");

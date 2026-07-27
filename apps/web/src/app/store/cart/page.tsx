@@ -30,7 +30,9 @@ import {
   publishIdleMode,
   publishCurrentBill,
   releaseDisplaySuccessLatch,
+  publishDraftField,
 } from '@/lib/customerDisplay/publishHelpers';
+import { onCustomerDraftFieldUpdate } from '@/lib/customerDisplay/useCustomerProfileInbox';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -337,6 +339,22 @@ export default function StoreCartPage() {
       }
     }, 250);
   }, []);
+
+  // Live-mirror whatever the customer types on their side of the customer
+  // display back into these same phone/name fields.
+  useEffect(() => {
+    return onCustomerDraftFieldUpdate((payload) => {
+      if (payload.field === 'phone') {
+        setTempCustomerPhone(payload.value);
+        setCustomer(customerId, payload.value || null, tempCustomerName || null, tempCustomerArea || null);
+        matchCustomersByPhonePrefix(payload.value);
+      } else if (payload.field === 'name') {
+        setTempCustomerName(payload.value);
+        setCustomer(customerId, tempCustomerPhone || null, payload.value || null, tempCustomerArea || null);
+        searchCustomersByName(payload.value);
+      }
+    });
+  }, [customerId, tempCustomerPhone, tempCustomerName, tempCustomerArea, setCustomer, matchCustomersByPhonePrefix, searchCustomersByName]);
 
   /** Single referral box: digits → phone, letters → code. */
   const applyReferralInput = (raw: string) => {
@@ -1041,6 +1059,7 @@ export default function StoreCartPage() {
                           setNumPadTarget('customer');
                           setShowNumPad(true);
                           matchCustomersByPhonePrefix(tempCustomerPhone);
+                          publishDraftField('phone', tempCustomerPhone, true);
                         }}
                         className={`w-full px-4 py-3 pl-11 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-all ${ tempCustomerPhone && tempCustomerPhone.trim().length > 0 && tempCustomerPhone.trim().length < 10 ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white' }`}
                       />
@@ -1102,8 +1121,10 @@ export default function StoreCartPage() {
                           setTempCustomerName(newName);
                           setCustomer(customerId, tempCustomerPhone || null, newName || null, tempCustomerArea || null);
                           searchCustomersByName(newName);
+                          publishDraftField('name', newName, true);
                         }}
                         onFocus={() => {
+                          publishDraftField('name', tempCustomerName, true);
                           if (tempCustomerName.length >= 1) {
                             searchCustomersByName(tempCustomerName);
                           }
@@ -1115,6 +1136,7 @@ export default function StoreCartPage() {
                           }
                         }}
                         onBlur={() => {
+                          publishDraftField('name', tempCustomerName, false);
                           setTimeout(() => setShowNameDropdown(false), 200);
                           // Wait for Area — do not create/update yet
                         }}
@@ -1158,7 +1180,10 @@ export default function StoreCartPage() {
                         ) : null}
                         <button
                           type="button"
-                          onClick={() => setShowKeyboard(true)}
+                          onClick={() => {
+                            setShowKeyboard(true);
+                            publishDraftField('name', tempCustomerName, true);
+                          }}
                           className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                           title="On-screen keyboard (device keyboard also works)"
                         >
@@ -1906,6 +1931,7 @@ export default function StoreCartPage() {
             setTempCustomerPhone(value);
             setCustomer(null, value || null, tempCustomerName || null, tempCustomerArea || null);
             matchCustomersByPhonePrefix(value);
+            publishDraftField('phone', value, true);
             // Exact full number: try resolve once at 10+ digits
             if (value && value.replace(/\D/g, '').length >= 10) {
               void searchCustomers(value);
@@ -1913,6 +1939,7 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowNumPad(false);
+            if (numPadTarget === 'customer') publishDraftField('phone', tempCustomerPhone, false);
             if (
               numPadTarget === 'customer' &&
               tempCustomerPhone.replace(/\D/g, '').length >= 10 &&
@@ -1955,9 +1982,11 @@ export default function StoreCartPage() {
             setTempCustomerName(value);
             setCustomer(customerId, tempCustomerPhone || null, value || null, tempCustomerArea || null);
             searchCustomersByName(value);
+            publishDraftField('name', value, true);
           }}
           onClose={() => {
             setShowKeyboard(false);
+            publishDraftField('name', tempCustomerName, false);
             if ((tempCustomerName || '').trim()) {
               focusAreaField();
             }

@@ -6,7 +6,7 @@ import { useCartStore } from "@/store/cart";
 import { useNotificationStore } from "@/store/notification";
 import api from "@/lib/api";
 import { createCustomerProfileInbox } from "./ablyClient";
-import type { CustomerProfileSubmitPayload } from "./types";
+import { DISPLAY_EVENTS, type CustomerProfileSubmitPayload, type DraftFieldUpdatePayload } from "./types";
 
 function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -15,6 +15,24 @@ function getAccessToken(): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Live keystroke updates (display→cashier) are only meaningful while the
+ * cashier is actually looking at the cart page's phone/name fields, so
+ * they're not applied to global state here. Instead the single app-wide
+ * inbox connection (this file) forwards them to whichever component is
+ * currently mounted and cares, via this tiny listener registry — avoiding a
+ * second Ably connection just for cart/page.tsx.
+ */
+type DraftListener = (payload: DraftFieldUpdatePayload) => void;
+const draftListeners = new Set<DraftListener>();
+
+export function onCustomerDraftFieldUpdate(fn: DraftListener): () => void {
+  draftListeners.add(fn);
+  return () => {
+    draftListeners.delete(fn);
+  };
 }
 
 /**
@@ -74,7 +92,8 @@ async function applyCustomerSubmittedProfile(payload: CustomerProfileSubmitPaylo
  */
 export function useCustomerProfileInbox(): void {
   const storeId = useAuthStore((s) => s.user?.storeId);
-  const lastSeqRef = useRef(0);
+  const lastSubmitSeqRef = useRef(0);
+  const lastDraftSeqRef = useRef(0);
 
   useEffect(() => {
     if (!storeId) return;
@@ -84,10 +103,18 @@ export function useCustomerProfileInbox(): void {
     void createCustomerProfileInbox({
       storeId,
       getAccessToken,
-      onSubmit: (payload) => {
-        if (payload.seq <= lastSeqRef.current) return;
-        lastSeqRef.current = payload.seq;
-        void applyCustomerSubmittedProfile(payload);
+      onEvent: (name, data) => {
+        if (name === DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT) {
+          const payload = data as CustomerProfileSubmitPayload;
+          if (payload.seq <= lastSubmitSeqRef.current) return;
+          lastSubmitSeqRef.current = payload.seq;
+          void applyCustomerSubmittedProfile(payload);
+        } else if (name === DISPLAY_EVENTS.DRAFT_FIELD_UPDATE) {
+          const payload = data as DraftFieldUpdatePayload;
+          if (payload.seq <= lastDraftSeqRef.current) return;
+          lastDraftSeqRef.current = payload.seq;
+          draftListeners.forEach((fn) => fn(payload));
+        }
       },
     }).then((h) => {
       if (cancelled) h.close();
