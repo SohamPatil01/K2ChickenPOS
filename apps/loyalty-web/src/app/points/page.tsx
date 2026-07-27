@@ -9,8 +9,10 @@ import {
   logout,
   portalChangePin,
   portalMe,
+  portalUpdateProfile,
   SHOP_WEBSITE,
   type PortalCustomer,
+  type PortalProfile,
 } from '@/lib/api';
 import { SHOP } from '@/lib/shop';
 import { loadLocale, saveLocale, t, type Locale } from '@/lib/i18n';
@@ -19,6 +21,7 @@ export default function PointsPage() {
   const router = useRouter();
   const [locale, setLocale] = useState<Locale>('en');
   const [customer, setCustomer] = useState<PortalCustomer | null>(null);
+  const [profile, setProfile] = useState<PortalProfile | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showPinForm, setShowPinForm] = useState(false);
@@ -29,20 +32,68 @@ export default function PointsPage() {
   const [pinErr, setPinErr] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
 
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileArea, setProfileArea] = useState('');
+  const [profileLine1, setProfileLine1] = useState('');
+  const [profileLine2, setProfileLine2] = useState('');
+  const [profileCity, setProfileCity] = useState('');
+  const [profileMsg, setProfileMsg] = useState('');
+  const [profileErr, setProfileErr] = useState('');
+  const [profileBusy, setProfileBusy] = useState(false);
+
+  const loadProfile = () =>
+    portalMe()
+      .then((p) => {
+        setProfile(p);
+        setCustomer(p.customer);
+        setProfileName(p.customer.name || '');
+        setProfileArea(p.customer.area || '');
+        setProfileLine1(p.address?.line1 || '');
+        setProfileLine2(p.address?.line2 || '');
+        setProfileCity(p.address?.city || '');
+      })
+      .catch(() => {
+        setFailed(true);
+        logout();
+        router.replace('/');
+      });
+
   useEffect(() => {
     setLocale(loadLocale());
     if (!getToken()) {
       router.replace('/');
       return;
     }
-    portalMe()
-      .then(setCustomer)
-      .catch(() => {
-        setFailed(true);
-        logout();
-        router.replace('/');
-      });
+    loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+
+  const onSaveProfile = async (e: FormEvent) => {
+    e.preventDefault();
+    setProfileErr('');
+    setProfileMsg('');
+    setProfileBusy(true);
+    try {
+      const updated = await portalUpdateProfile({
+        name: profileName,
+        area: profileArea || undefined,
+        address: {
+          line1: profileLine1,
+          line2: profileLine2 || undefined,
+          city: profileCity,
+        },
+      });
+      setProfile(updated);
+      setCustomer(updated.customer);
+      setProfileMsg(t(locale, 'profileSaved'));
+      if (updated.profile.isComplete) setShowProfileForm(false);
+    } catch (err: any) {
+      setProfileErr(err?.response?.data?.error || t(locale, 'errorGeneric'));
+    } finally {
+      setProfileBusy(false);
+    }
+  };
 
   const changeLocale = (l: Locale) => {
     setLocale(l);
@@ -155,6 +206,124 @@ export default function PointsPage() {
               </p>
               <p className="mt-1 font-display text-2xl font-bold text-flame">{customer.loyaltyTier}</p>
             </div>
+
+            {profile && (
+              <div className="mt-10 pt-8 border-t border-line">
+                <p className="text-[0.68rem] tracking-[0.18em] uppercase text-ink-mute mb-3">
+                  {t(locale, 'profileTitle')}
+                </p>
+
+                {profile.reward.redeemed && (
+                  <p className="text-sm text-ink font-medium border-l-2 border-flame pl-4">
+                    {t(locale, 'profileRewardRedeemedBanner')}
+                  </p>
+                )}
+                {profile.reward.pending && (
+                  <p className="text-sm text-ink font-medium border-l-2 border-flame pl-4">
+                    {t(locale, 'profileRewardPendingBanner')}
+                  </p>
+                )}
+                {!profile.reward.pending && !profile.reward.redeemed && (
+                  <p className="text-sm text-ink-soft">
+                    {t(locale, 'profileRewardBanner')}
+                  </p>
+                )}
+
+                {!profile.profile.isComplete && (
+                  <p className="mt-3 text-xs text-ink-mute">
+                    {t(locale, 'profileMissingLabel')}:{' '}
+                    {profile.profile.missing
+                      .map((m) =>
+                        m === 'name' ? t(locale, 'profileMissingName') : t(locale, 'profileMissingAddress')
+                      )
+                      .join(', ')}
+                  </p>
+                )}
+
+                {!showProfileForm && !profile.profile.isComplete && (
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileForm(true)}
+                    className="mt-4 text-sm font-semibold text-flame"
+                  >
+                    {t(locale, 'profileEdit')}
+                  </button>
+                )}
+
+                {profile.profile.isComplete && !showProfileForm && (
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileForm(true)}
+                    className="mt-4 text-xs text-ink-mute underline"
+                  >
+                    {t(locale, 'profileComplete')}
+                  </button>
+                )}
+
+                {profileMsg && !showProfileForm && (
+                  <p className="mt-2 text-sm text-ink-soft">{profileMsg}</p>
+                )}
+
+                {showProfileForm && (
+                  <form onSubmit={onSaveProfile} className="mt-5 space-y-5">
+                    <label className="block">
+                      <span className="loyalty-label">{t(locale, 'name')}</span>
+                      <input
+                        className="loyalty-input"
+                        type="text"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="loyalty-label">{t(locale, 'profileArea')}</span>
+                      <input
+                        className="loyalty-input"
+                        type="text"
+                        value={profileArea}
+                        onChange={(e) => setProfileArea(e.target.value)}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="loyalty-label">{t(locale, 'profileLine1')}</span>
+                      <input
+                        className="loyalty-input"
+                        type="text"
+                        value={profileLine1}
+                        onChange={(e) => setProfileLine1(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="loyalty-label">{t(locale, 'profileLine2')}</span>
+                      <input
+                        className="loyalty-input"
+                        type="text"
+                        value={profileLine2}
+                        onChange={(e) => setProfileLine2(e.target.value)}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="loyalty-label">{t(locale, 'profileCity')}</span>
+                      <input
+                        className="loyalty-input"
+                        type="text"
+                        value={profileCity}
+                        onChange={(e) => setProfileCity(e.target.value)}
+                        required
+                      />
+                    </label>
+                    {profileErr && (
+                      <p className="text-sm text-flame border-l-2 border-flame pl-3">{profileErr}</p>
+                    )}
+                    <button type="submit" disabled={profileBusy} className="loyalty-btn">
+                      {profileBusy ? t(locale, 'loading') : t(locale, 'profileSave')}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
 
             <div className="mt-10 pt-8 border-t border-line">
               <p className="text-[0.68rem] tracking-[0.18em] uppercase text-ink-mute mb-4">

@@ -9,10 +9,26 @@ import {
   withCustomerArea,
 } from '../utils/customerArea.js';
 import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
+import {
+  getProfileRewardState,
+  grantProfileRewardIfEligible,
+} from '../lib/profileReward.js';
 
 interface QueryParams {
   phone?: string;
   q?: string;
+}
+
+function serializeCustomer<T extends { area?: string | null; addresses?: any[] }>(
+  customer: T | null
+) {
+  if (!customer) return null;
+  return {
+    ...customer,
+    area: withCustomerArea(customer as any)?.area ?? null,
+    addresses: customer.addresses || [],
+    profileReward: getProfileRewardState(customer as any),
+  };
 }
 
 /**
@@ -94,7 +110,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           OR: orClause,
         },
         include: {
-          addresses: customerAreaAddressInclude,
+          addresses: true,
           _count: {
             select: { sales: true, addresses: true },
           },
@@ -102,7 +118,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         orderBy: [{ name: 'asc' }, { phone: 'asc' }],
         take: 30,
       });
-      return matches.map((c) => withCustomerArea(c));
+      return matches.map((c) => serializeCustomer(c));
     }
 
     if (phone) {
@@ -114,7 +130,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           },
         },
         include: {
-          addresses: customerAreaAddressInclude,
+          addresses: true,
           sales: {
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -127,13 +143,14 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return customer ? withCustomerArea(customer) : null;
+      return serializeCustomer(customer);
     }
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where: { storeId },
         include: {
+          addresses: true,
           _count: {
             select: { sales: true },
           },
@@ -148,7 +165,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
     // Return a JSON array (legacy clients) + total in header for the customers tab count.
     reply.header('X-Customer-Total', String(total));
     reply.header('Cache-Control', 'private, no-store');
-    return customers.map((c) => withCustomerArea(c));
+    return customers.map((c) => serializeCustomer(c));
     } catch (error: any) {
       console.error('[Customers] List failed:', error?.message || error);
       reply.header('Cache-Control', 'private, no-store, no-cache');
@@ -170,7 +187,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
         include: {
-          addresses: customerAreaAddressInclude,
+          addresses: true,
           sales: {
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -188,7 +205,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      return withCustomerArea(customer);
+      return serializeCustomer(customer);
     } catch (error: any) {
       console.error('Failed to get customer:', error);
       reply.code(500).send({ error: 'Failed to get customer' });
@@ -228,20 +245,21 @@ export async function customerRoutes(fastify: FastifyInstance) {
         area: data.area?.trim() || null,
       },
       include: {
-        addresses: customerAreaAddressInclude,
+        addresses: true,
       },
     });
 
     if (data.area !== undefined) {
       await upsertCustomerArea(prisma, customer.id, data.area);
+      await grantProfileRewardIfEligible(prisma, customer.id, 'pos');
       const refreshed = await prisma.customer.findUnique({
         where: { id: customer.id },
-        include: { addresses: customerAreaAddressInclude },
+        include: { addresses: true },
       });
-      return withCustomerArea(refreshed);
+      return serializeCustomer(refreshed);
     }
 
-    return withCustomerArea(customer);
+    return serializeCustomer(customer);
   });
 
   fastify.put('/:customerId', async (request: any, reply: FastifyReply) => {
@@ -342,7 +360,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         where: { id: customerId },
         data: updateData,
         include: {
-          addresses: customerAreaAddressInclude,
+          addresses: true,
           sales: {
             take: 10,
             orderBy: { createdAt: 'desc' },
@@ -361,10 +379,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
           customerId,
           body.area ? String(body.area).trim() : null
         );
+        await grantProfileRewardIfEligible(prisma, customerId, 'pos');
         const refreshed = await prisma.customer.findUnique({
           where: { id: customerId },
           include: {
-            addresses: customerAreaAddressInclude,
+            addresses: true,
             sales: {
               take: 10,
               orderBy: { createdAt: 'desc' },
@@ -376,10 +395,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
             },
           },
         });
-        return withCustomerArea(refreshed);
+        return serializeCustomer(refreshed);
       }
 
-      return withCustomerArea(customer);
+      return serializeCustomer(customer);
     } catch (error: any) {
       console.error('Failed to update customer:', error);
       console.error('Error stack:', error.stack);
@@ -506,6 +525,37 @@ export async function customerRoutes(fastify: FastifyInstance) {
         geoLng: data.geoLng,
       },
     });
+    await grantProfileRewardIfEligible(prisma, customerId, 'pos');
+
+    return address;
+  });
+
+  fastify.put('/:customerId/addresses/:addressId', async (request: any, reply: FastifyReply) => {
+    const { customerId, addressId } = (request.params as any);
+    const data = customerAddressSchema.parse(request.body as any);
+
+    const existing = await prisma.customerAddress.findFirst({
+      where: { id: addressId, customerId },
+    });
+    if (!existing) {
+      reply.code(404).send({ error: 'Address not found' });
+      return;
+    }
+
+    const address = await prisma.customerAddress.update({
+      where: { id: addressId },
+      data: {
+        label: data.label || existing.label || 'Home',
+        line1: data.line1,
+        line2: data.line2,
+        city: data.city,
+        state: data.state,
+        zip: data.zip,
+        geoLat: data.geoLat,
+        geoLng: data.geoLng,
+      },
+    });
+    await grantProfileRewardIfEligible(prisma, customerId, 'pos');
 
     return address;
   });

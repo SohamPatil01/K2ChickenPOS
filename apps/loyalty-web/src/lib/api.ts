@@ -9,6 +9,52 @@ export type PortalCustomer = {
   loyaltyPoints: number;
   loyaltyTier: string;
   referralCode?: string | null;
+  area?: string | null;
+};
+
+export type PortalAddress = {
+  id: string;
+  label: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string | null;
+  zip: string | null;
+} | null;
+
+export type PortalProfileMeta = {
+  isComplete: boolean;
+  missing: Array<'name' | 'address'>;
+  completionPercent: number;
+};
+
+export type PortalReward = {
+  percent: number;
+  status: 'PENDING' | 'REDEEMED' | null;
+  source: string | null;
+  completedAt: string | null;
+  pending: boolean;
+  redeemed: boolean;
+};
+
+export type PortalProfile = {
+  customer: PortalCustomer;
+  address: PortalAddress;
+  profile: PortalProfileMeta;
+  reward: PortalReward;
+};
+
+export type ProfileUpdateInput = {
+  name: string;
+  area?: string;
+  address: {
+    label?: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state?: string;
+    zip?: string;
+  };
 };
 
 function apiBase(): string {
@@ -66,7 +112,12 @@ export async function portalRegister(
 
 export async function portalMe() {
   const { data } = await api.get('/api/v1/portal/me');
-  return data.customer as PortalCustomer;
+  return data as PortalProfile;
+}
+
+export async function portalUpdateProfile(input: ProfileUpdateInput) {
+  const { data } = await api.put('/api/v1/portal/profile', input);
+  return data as PortalProfile;
 }
 
 export async function portalChangePin(currentPin: string, newPin: string) {

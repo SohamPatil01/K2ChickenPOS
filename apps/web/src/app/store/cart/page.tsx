@@ -103,6 +103,76 @@ export default function StoreCartPage() {
   // Live loyalty balance for the attached customer (for redeem-at-checkout).
   const [customerPoints, setCustomerPoints] = useState<number | null>(null);
 
+  const customerAddressLine1 = useCartStore((state) => state.customerAddressLine1);
+  const customerAddressLine2 = useCartStore((state) => state.customerAddressLine2);
+  const customerAddressCity = useCartStore((state) => state.customerAddressCity);
+  const customerAddressId = useCartStore((state) => state.customerAddressId);
+  const setCustomerAddress = useCartStore((state) => state.setCustomerAddress);
+  const discountSource = useCartStore((state) => state.discountSource);
+  const profileRewardPending = useCartStore((state) => state.profileRewardPending);
+  const setProfileRewardPending = useCartStore((state) => state.setProfileRewardPending);
+  const [tempAddressLine1, setTempAddressLine1] = useState(customerAddressLine1 || '');
+  const [tempAddressLine2, setTempAddressLine2] = useState(customerAddressLine2 || '');
+  const [tempAddressCity, setTempAddressCity] = useState(customerAddressCity || '');
+  const [addressSaving, setAddressSaving] = useState(false);
+
+  useEffect(() => {
+    setTempAddressLine1(customerAddressLine1 || '');
+    setTempAddressLine2(customerAddressLine2 || '');
+    setTempAddressCity(customerAddressCity || '');
+  }, [customerAddressLine1, customerAddressLine2, customerAddressCity]);
+
+  /** Applies a customer record fetched from the API (search hit, save response, or hydrate) to address + reward state. */
+  const applyCustomerProfileData = (data: {
+    addresses?: Array<{ id: string; label: string; line1: string; line2: string | null; city: string }>;
+    profileReward?: { pending?: boolean } | null;
+  }) => {
+    const primaryAddress = (data.addresses || []).find((a) => a.label !== 'Area') || null;
+    setCustomerAddress(
+      primaryAddress?.line1 || null,
+      primaryAddress?.line2 || null,
+      primaryAddress?.city || null,
+      primaryAddress?.id || null
+    );
+    setProfileRewardPending(Boolean(data.profileReward?.pending));
+  };
+
+  // Hydrate address + profile-reward state whenever a customer is attached (existing or freshly created).
+  useEffect(() => {
+    let cancelled = false;
+    if (!customerId || skipCustomer) return;
+    (async () => {
+      try {
+        const res = await api.get(`/api/v1/customers/${customerId}`);
+        if (!cancelled && res.data) applyCustomerProfileData(res.data);
+      } catch (err) {
+        console.error('[Cart] Failed to hydrate customer profile:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, skipCustomer]);
+
+  const saveCustomerAddress = async (line1: string, line2: string, city: string) => {
+    if (!customerId || !line1.trim() || !city.trim()) return;
+    setAddressSaving(true);
+    try {
+      const payload = { label: 'Home', line1: line1.trim(), line2: line2.trim() || undefined, city: city.trim() };
+      const res = customerAddressId
+        ? await api.put(`/api/v1/customers/${customerId}/addresses/${customerAddressId}`, payload)
+        : await api.post(`/api/v1/customers/${customerId}/addresses`, payload);
+      setCustomerAddress(res.data.line1, res.data.line2, res.data.city, res.data.id);
+      const refreshed = await api.get(`/api/v1/customers/${customerId}`);
+      if (refreshed.data) setProfileRewardPending(Boolean(refreshed.data.profileReward?.pending));
+    } catch (err: any) {
+      console.error('[Cart] Failed to save address:', err);
+      showNotification('Failed to save address: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
   // Fetch the attached customer's loyalty balance so the cashier can redeem it.
   useEffect(() => {
     let cancelled = false;
@@ -312,11 +382,16 @@ export default function StoreCartPage() {
     name?: string | null;
     area?: string | null;
     loyaltyPoints?: number | null;
+    addresses?: Array<{ id: string; label: string; line1: string; line2: string | null; city: string }>;
+    profileReward?: { pending?: boolean } | null;
   }) => {
     setCustomer(customer.id, customer.phone, customer.name || null, customer.area || null);
     setTempCustomerPhone(customer.phone);
     setTempCustomerName(customer.name || '');
     setTempCustomerArea(customer.area || '');
+    if (customer.addresses || customer.profileReward) {
+      applyCustomerProfileData(customer);
+    }
     // Seed balance immediately from the search hit; the loyalty API refreshes it.
     if (customer.loyaltyPoints != null) {
       setCustomerPoints(Math.floor(Number(customer.loyaltyPoints) || 0));
@@ -378,6 +453,7 @@ export default function StoreCartPage() {
             setTempCustomerPhone(response.data.phone);
             setTempCustomerName(response.data.name);
             setTempCustomerArea(response.data.area || '');
+            applyCustomerProfileData(response.data);
             if (response.data.loyaltyPoints != null) {
               setCustomerPoints(Math.floor(Number(response.data.loyaltyPoints) || 0));
             }
@@ -409,6 +485,7 @@ export default function StoreCartPage() {
           setTempCustomerPhone(response.data.phone);
           setTempCustomerName(response.data.name);
           setTempCustomerArea(response.data.area || '');
+          applyCustomerProfileData(response.data);
           if (response.data.loyaltyPoints != null) {
             setCustomerPoints(Math.floor(Number(response.data.loyaltyPoints) || 0));
           }
@@ -461,9 +538,11 @@ export default function StoreCartPage() {
         customerName,
         customerArea,
         discountTotal,
+        discountSource,
         fulfillmentType: ft,
         deliveryFee: fee,
       } = state;
+      const profileRewardApplied = !skipCustomer && customerId && discountSource === 'profile_reward';
       // Loyalty redemption only applies to an attached (non-walk-in) customer.
       const loyaltyPointsRedeemed =
         !skipCustomer && customerId ? state.getTotal().loyaltyPointsApplied : 0;
@@ -481,6 +560,8 @@ export default function StoreCartPage() {
         customerName: !skipCustomer && customerName ? customerName : undefined,
         customerArea: !skipCustomer && customerArea ? customerArea : undefined,
         discountTotal: discountTotal || 0,
+        discountSource: profileRewardApplied ? ('profile_reward' as const) : undefined,
+        profileRewardApplied: profileRewardApplied || undefined,
         deliveryFee: ft === 'DELIVERY' ? fee || 0 : 0,
         loyaltyPointsRedeemed,
         referredByPhone:
@@ -883,15 +964,28 @@ export default function StoreCartPage() {
                       <span className="font-medium text-brand-700 dark:text-brand-300">
                         {customerName} • {customerPhone}
                         {customerArea ? ` • ${customerArea}` : ''}
+                        {customerAddressLine1 ? ` • ${customerAddressLine1}` : ''}
                       </span>
                       {customerId && !skipCustomer && (
-                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                          <svg className="h-3.5 w-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          {customerPoints === null
-                            ? 'Loading points…'
-                            : `${customerPoints} pts available`}
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                            <svg className="h-3.5 w-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            {customerPoints === null
+                              ? 'Loading points…'
+                              : `${customerPoints} pts available`}
+                          </div>
+                          {discountSource === 'profile_reward' && (
+                            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                              10% profile reward applied
+                            </div>
+                          )}
+                          {discountSource !== 'profile_reward' && profileRewardPending && (
+                            <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                              10% reward pending
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -908,6 +1002,9 @@ export default function StoreCartPage() {
                           setTempCustomerPhone('');
                           setTempCustomerName('');
                           setTempCustomerArea('');
+                          setTempAddressLine1('');
+                          setTempAddressLine2('');
+                          setTempAddressCity('');
                           applyReferralInput('');
                           setShowReferral(false);
                           setPhoneMatches([]);
@@ -1200,6 +1297,57 @@ export default function StoreCartPage() {
                         Skip area
                       </button>
                     </div>
+                  </div>
+
+                  <div className="sm:col-span-2 border-t border-dashed border-gray-200 dark:border-gray-600 pt-4 mt-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-ink-secondary">
+                        Delivery Address
+                      </label>
+                      {discountSource === 'profile_reward' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                          Profile reward: 10% applied
+                        </span>
+                      ) : profileRewardPending ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                          10% reward pending
+                        </span>
+                      ) : customerId && !skipCustomer ? (
+                        <span className="text-xs text-ink-muted">Add address & get 10% off</span>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Address line 1"
+                        value={tempAddressLine1}
+                        onChange={(e) => setTempAddressLine1(e.target.value)}
+                        onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
+                        disabled={!customerId || addressSaving}
+                        className="sm:col-span-2 w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Landmark (optional)"
+                        value={tempAddressLine2}
+                        onChange={(e) => setTempAddressLine2(e.target.value)}
+                        onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
+                        disabled={!customerId || addressSaving}
+                        className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                      />
+                      <input
+                        type="text"
+                        placeholder="City"
+                        value={tempAddressCity}
+                        onChange={(e) => setTempAddressCity(e.target.value)}
+                        onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
+                        disabled={!customerId || addressSaving}
+                        className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                      />
+                    </div>
+                    {!customerId && (
+                      <p className="mt-1 text-xs text-ink-muted">Save the customer (phone + name) first, then add their address.</p>
+                    )}
                   </div>
                 </div>
 

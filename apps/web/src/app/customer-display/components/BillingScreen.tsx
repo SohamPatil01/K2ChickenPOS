@@ -141,19 +141,40 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
             ) : (
               <span />
             )}
-            {bill.customerName ? (
-              <span className="rounded-full bg-amber-500/15 px-4 py-1.5 font-semibold text-amber-300">
-                + {bill.loyaltyPointsEst} loyalty points
-              </span>
-            ) : (
-              <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200">
-                Add phone · earn {bill.loyaltyPointsEst} pts (1.25% back)
-              </span>
-            )}
+            <ProfileNudgeChip bill={bill} />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ProfileNudgeChip({ bill }: { bill: BillUpdatePayload }) {
+  if (bill.profileNudge === "add_phone") {
+    return (
+      <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200">
+        Add phone · earn {bill.loyaltyPointsEst} pts (1.25% back)
+      </span>
+    );
+  }
+  if (bill.profileNudge === "add_address") {
+    return (
+      <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 font-semibold text-emerald-200">
+        Add your address & get 10% off
+      </span>
+    );
+  }
+  if (bill.profileNudge === "reward_ready") {
+    return (
+      <span className="rounded-full bg-emerald-500/15 px-4 py-1.5 font-semibold text-emerald-300">
+        {bill.profileRewardApplied ? "10% off applied!" : "10% saved for your next visit"}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-amber-500/15 px-4 py-1.5 font-semibold text-amber-300">
+      + {bill.loyaltyPointsEst} loyalty points
+    </span>
   );
 }
 

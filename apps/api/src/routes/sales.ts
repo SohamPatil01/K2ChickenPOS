@@ -14,6 +14,10 @@ import {
 } from '../utils/customerArea.js';
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { canAccessStoreResource } from '../utils/storeScope.js';
+import {
+  PROFILE_REWARD_PERCENT,
+  redeemProfileReward,
+} from '../lib/profileReward.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -660,6 +664,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const allowedDiscountPercent = config?.allowedDiscountPercent || 10.0;
       const maxAllowedDiscount = (subTotal * allowedDiscountPercent) / 100;
       const discountPercent = subTotal > 0 ? (data.discountTotal / subTotal) * 100 : 0;
+      const requestedProfileReward =
+        Boolean((data as any).profileRewardApplied) ||
+        (data as any).discountSource === 'profile_reward';
 
       // If discount exceeds limit, require override approval
       if (data.discountTotal > maxAllowedDiscount) {
@@ -774,6 +781,19 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const grandTotal = baseGrandTotal - loyaltyRedeemValue;
       const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue;
 
+      if (requestedProfileReward) {
+        if (!customerId) {
+          reply.code(400).send({ error: 'Profile reward needs an attached customer' });
+          return;
+        }
+        const expectedDiscount = Math.round(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
+        const actualDiscount = Math.round((Number(data.discountTotal) || 0) * 100) / 100;
+        if (Math.abs(expectedDiscount - actualDiscount) > 0.05) {
+          reply.code(400).send({ error: 'Profile reward discount must be exactly 10% of subtotal' });
+          return;
+        }
+      }
+
       // Check for recent duplicate sale (within last 5 seconds with same items and total)
       const fiveSecondsAgo = new Date(Date.now() - 5000);
       const recentDuplicate = await prisma.sale.findFirst({
@@ -886,6 +906,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
               },
             });
           }
+        }
+
+        if (requestedProfileReward && customerId) {
+          await redeemProfileReward(tx, customerId);
         }
 
         return created;

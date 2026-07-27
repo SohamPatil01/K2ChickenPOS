@@ -275,6 +275,10 @@ model Customer {
   referralCode            String?   @unique
   referredByCustomerId    String?
   referralBonusAwardedAt  DateTime?
+  profileCompletedAt      DateTime?
+  profileRewardPercent    Float?
+  profileRewardStatus     String?
+  profileRewardSource     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

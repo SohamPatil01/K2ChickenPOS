@@ -22,6 +22,8 @@ export interface DisplayLineItem {
   taxRate: number;
 }
 
+export type ProfileNudge = "add_phone" | "add_address" | "reward_ready" | "none";
+
 export interface BillUpdatePayload {
   seq: number;
   invoiceNo: string | null;
@@ -34,6 +36,13 @@ export interface BillUpdatePayload {
   grandTotal: number;
   loyaltyPointsEst: number;
   savings: number;
+  /** Has a full delivery address (line1 + city) attached. */
+  hasFullAddress: boolean;
+  /** Unredeemed profile-completion reward on file for this customer. */
+  profileRewardPending: boolean;
+  /** The 10% profile reward is the active discount on this bill. */
+  profileRewardApplied: boolean;
+  profileNudge: ProfileNudge;
 }
 
 export interface PaymentLineDisplay {

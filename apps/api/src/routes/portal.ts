@@ -6,6 +6,12 @@ import {
   ensureReferralCode,
   linkReferredByCode,
 } from '../lib/referral.js';
+import { portalProfileSchema } from '@azela-pos/shared';
+import {
+  evaluateProfileCompletion,
+  getProfileRewardState,
+  grantProfileRewardIfEligible,
+} from '../lib/profileReward.js';
 
 const PIN_MIN = 4;
 const PIN_MAX = 6;
@@ -74,6 +80,44 @@ async function withReferralCode(customer: {
 }) {
   const code = customer.referralCode || (await ensureReferralCode(prisma, customer.id));
   return customerPublic({ ...customer, referralCode: code });
+}
+
+function pickPrimaryAddress(addresses: Array<{
+  id: string;
+  label: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  zip: string;
+}> = []) {
+  return addresses.find((a) => a.label !== 'Area') || null;
+}
+
+async function buildPortalProfile(customerId: string) {
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    include: {
+      addresses: true,
+    },
+  });
+  if (!customer) return null;
+  const publicCustomer = await withReferralCode(customer);
+  const completion = await evaluateProfileCompletion(prisma, customerId);
+  const missingCount = completion.missing.length;
+  return {
+    customer: {
+      ...publicCustomer,
+      area: customer.area || null,
+    },
+    address: pickPrimaryAddress(customer.addresses),
+    profile: {
+      isComplete: completion.isComplete,
+      missing: completion.missing,
+      completionPercent: missingCount === 0 ? 100 : missingCount === 1 ? 50 : 0,
+    },
+    reward: getProfileRewardState(customer),
+  };
 }
 
 export async function authenticatePortalCustomer(request: any, reply: FastifyReply): Promise<void> {
@@ -306,26 +350,90 @@ export async function portalRoutes(fastify: FastifyInstance) {
   fastify.get('/me', { preHandler: [authenticatePortalCustomer] }, async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = request.portalCustomer;
-      const customer = await prisma.customer.findUnique({
-        where: { id: customerId },
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          loyaltyPoints: true,
-          loyaltyTier: true,
-          referralCode: true,
-        },
-      });
-      if (!customer) {
+      const profile = await buildPortalProfile(customerId);
+      if (!profile) {
         return reply.code(404).send({ error: 'Customer not found' });
       }
-      return { customer: await withReferralCode(customer) };
+      return profile;
     } catch (error: any) {
       console.error('[Portal] me failed:', error);
       return reply.code(500).send({ error: 'Failed to load profile' });
     }
   });
+
+  fastify.put(
+    '/profile',
+    { preHandler: [authenticatePortalCustomer], ...portalAuthLimit },
+    async (request: any, reply: FastifyReply) => {
+      try {
+        const { customerId } = request.portalCustomer;
+        const data = portalProfileSchema.parse(request.body as any);
+        const trimmedName = String(data.name || '').trim();
+        const trimmedArea = data.area ? String(data.area).trim() : null;
+        const address = data.address;
+
+        const existing = await prisma.customer.findUnique({
+          where: { id: customerId },
+          include: { addresses: true },
+        });
+        if (!existing) {
+          return reply.code(404).send({ error: 'Customer not found' });
+        }
+
+        await prisma.customer.update({
+          where: { id: customerId },
+          data: {
+            name: trimmedName,
+            area: trimmedArea,
+          },
+        });
+
+        const primary = pickPrimaryAddress(existing.addresses);
+        if (primary) {
+          await prisma.customerAddress.update({
+            where: { id: primary.id },
+            data: {
+              label: address.label || primary.label || 'Home',
+              line1: address.line1,
+              line2: address.line2,
+              city: address.city,
+              state: address.state,
+              zip: address.zip,
+              geoLat: address.geoLat,
+              geoLng: address.geoLng,
+            },
+          });
+        } else {
+          await prisma.customerAddress.create({
+            data: {
+              customerId,
+              label: address.label || 'Home',
+              line1: address.line1,
+              line2: address.line2,
+              city: address.city,
+              state: address.state,
+              zip: address.zip,
+              geoLat: address.geoLat,
+              geoLng: address.geoLng,
+            },
+          });
+        }
+
+        await grantProfileRewardIfEligible(prisma, customerId, 'portal');
+
+        const profile = await buildPortalProfile(customerId);
+        if (!profile) {
+          return reply.code(404).send({ error: 'Customer not found' });
+        }
+        return profile;
+      } catch (error: any) {
+        console.error('[Portal] profile update failed:', error);
+        return reply
+          .code(500)
+          .send({ error: 'Failed to update profile', details: error?.message });
+      }
+    }
+  );
 
   fastify.post(
     '/change-pin',

@@ -46,6 +46,14 @@ export const customerAddressSchema = z.object({
   geoLng: z.number().optional(),
 });
 
+export const portalProfileSchema = z.object({
+  name: z.string().min(1),
+  area: z.string().optional(),
+  address: customerAddressSchema.extend({
+    label: customerAddressSchema.shape.label.optional(),
+  }),
+});
+
 // Sale
 export const saleItemSchema = z.object({
   productId: z.string(),
@@ -69,6 +77,8 @@ export const createSaleSchema = z.object({
   couponCode: z.string().optional(),
   /** Loyalty points the customer chooses to redeem at checkout (1 point = ₹1). */
   loyaltyPointsRedeemed: z.number().int().min(0).default(0),
+  discountSource: z.enum(['profile_reward', 'manual']).optional(),
+  profileRewardApplied: z.boolean().optional(),
   /** Optional: referrer's mobile number (friend naming them at the counter). */
   referredByPhone: z.string().optional(),
   /** Optional: referrer's loyalty referral code (alternate to phone at the counter). */

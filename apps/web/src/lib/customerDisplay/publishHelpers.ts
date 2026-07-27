@@ -8,6 +8,7 @@ import {
   type BillUpdatePayload,
   type DisplayLineItem,
   type PaymentLineDisplay,
+  type ProfileNudge,
 } from "./types";
 
 /**
@@ -41,6 +42,19 @@ export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
     taxRate: it.taxRate,
   }));
 
+  const hasFullAddress = Boolean(cart.customerAddressLine1 && cart.customerAddressCity);
+  const profileRewardApplied = cart.discountSource === "profile_reward";
+  const profileRewardPending = cart.profileRewardPending;
+
+  let profileNudge: ProfileNudge = "none";
+  if (!cart.customerName) {
+    profileNudge = "add_phone";
+  } else if (profileRewardApplied || profileRewardPending) {
+    profileNudge = "reward_ready";
+  } else if (!hasFullAddress) {
+    profileNudge = "add_address";
+  }
+
   return {
     invoiceNo: null,
     customerName: cart.customerName,
@@ -52,6 +66,10 @@ export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
     grandTotal,
     loyaltyPointsEst: estimateLoyaltyPoints(grandTotal),
     savings: totalSavings,
+    hasFullAddress,
+    profileRewardPending,
+    profileRewardApplied,
+    profileNudge,
   };
 }
 

@@ -44,12 +44,23 @@ function findMergeableCartLine(
   });
 }
 
+/** PROFILE_REWARD_PERCENT mirrors apps/api/src/lib/profileReward.ts — kept in sync manually. */
+export const PROFILE_REWARD_PERCENT = 10;
+
 interface CartState {
   items: CartItem[];
   customerId: string | null;
   customerPhone: string | null;
   customerName: string | null;
   customerArea: string | null;
+  customerAddressLine1: string | null;
+  customerAddressLine2: string | null;
+  customerAddressCity: string | null;
+  customerAddressId: string | null;
+  /** Where the current discount came from — profile reward auto-applies, cashier overrides clear it. */
+  discountSource: 'none' | 'profile_reward' | 'manual';
+  /** Cached from the customer fetch: true if this customer has an unredeemed profile-completion reward. */
+  profileRewardPending: boolean;
   /** Optional referrer mobile (friend naming them at counter). */
   referredByPhone: string | null;
   /** Optional referrer loyalty code (alternate to phone at counter). */
@@ -68,6 +79,15 @@ interface CartState {
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
+  setCustomerAddress: (
+    line1: string | null,
+    line2: string | null,
+    city: string | null,
+    addressId?: string | null
+  ) => void;
+  setProfileRewardPending: (pending: boolean) => void;
+  applyProfileReward: () => void;
+  clearProfileReward: () => void;
   setReferredByPhone: (phone: string | null) => void;
   setReferredByCode: (code: string | null) => void;
   setDiscount: (amount: number) => void;
@@ -103,6 +123,12 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerPhone: null,
   customerName: null,
   customerArea: null,
+  customerAddressLine1: null,
+  customerAddressLine2: null,
+  customerAddressCity: null,
+  customerAddressId: null,
+  discountSource: 'none',
+  profileRewardPending: false,
   referredByPhone: null,
   referredByCode: null,
   discountTotal: 0,
@@ -204,12 +230,18 @@ export const useCartStore = create<CartState>((set, get) => ({
         customerPhone,
         customerName: name,
         ...areaUpdate,
+        customerAddressLine1: null,
+        customerAddressLine2: null,
+        customerAddressCity: null,
+        customerAddressId: null,
+        profileRewardPending: false,
         fulfillmentType: 'PICKUP',
         loyaltyRedeemPoints: 0,
         pendingSettlements: [],
         referredByPhone: null,
         referredByCode: null,
       });
+      get().clearProfileReward();
       return;
     }
     const prevId = get().customerId;
@@ -228,8 +260,56 @@ export const useCartStore = create<CartState>((set, get) => ({
             referredByPhone: null,
             referredByCode: null,
             loyaltyRedeemPoints: 0,
+            customerAddressLine1: null,
+            customerAddressLine2: null,
+            customerAddressCity: null,
+            customerAddressId: null,
+            profileRewardPending: false,
           }
         : {}),
+    });
+    if (customerChanged) get().clearProfileReward();
+  },
+  setCustomerAddress: (line1, line2, city, addressId) => {
+    set({
+      customerAddressLine1: line1 ? String(line1).trim() || null : null,
+      customerAddressLine2: line2 ? String(line2).trim() || null : null,
+      customerAddressCity: city ? String(city).trim() || null : null,
+      customerAddressId: addressId || null,
+    });
+  },
+  setProfileRewardPending: (pending) => {
+    set({ profileRewardPending: pending });
+    // Auto-apply the moment we learn the reward is pending, unless the cashier
+    // already picked a manual discount on this bill.
+    if (pending && get().discountSource !== 'manual') {
+      get().applyProfileReward();
+    } else if (!pending && get().discountSource === 'profile_reward') {
+      get().clearProfileReward();
+    }
+  },
+  applyProfileReward: () => {
+    const { items } = get();
+    let subTotal = 0;
+    for (const item of items) {
+      subTotal += (item.qtyKg || item.qtyPcs || 0) * item.rate;
+    }
+    subTotal = Math.round(subTotal * 100) / 100;
+    const discountAmount = Math.round(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
+    set({
+      discountType: 'percentage',
+      discountPercentage: PROFILE_REWARD_PERCENT,
+      discountTotal: discountAmount,
+      discountSource: 'profile_reward',
+    });
+  },
+  clearProfileReward: () => {
+    if (get().discountSource !== 'profile_reward') return;
+    set({
+      discountType: 'amount',
+      discountPercentage: 0,
+      discountTotal: 0,
+      discountSource: 'none',
     });
   },
   setReferredByPhone: (phone) => {
@@ -247,13 +327,13 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ referredByCode: cleaned || null });
   },
   setDiscount: (discountTotal) => {
-    set({ discountTotal });
+    set({ discountTotal, discountSource: discountTotal > 0 ? 'manual' : 'none' });
   },
   setDiscountType: (discountType) => {
-    set({ discountType, discountTotal: 0, discountPercentage: 0 });
+    set({ discountType, discountTotal: 0, discountPercentage: 0, discountSource: 'none' });
   },
   setDiscountPercentage: (discountPercentage) => {
-    set({ discountPercentage });
+    set({ discountPercentage, discountSource: discountPercentage > 0 ? 'manual' : 'none' });
     // Calculate discount amount from percentage
     const { items } = get();
     let subTotal = 0;
@@ -327,6 +407,12 @@ export const useCartStore = create<CartState>((set, get) => ({
       customerPhone: null,
       customerName: null,
       customerArea: null,
+      customerAddressLine1: null,
+      customerAddressLine2: null,
+      customerAddressCity: null,
+      customerAddressId: null,
+      discountSource: 'none',
+      profileRewardPending: false,
       discountTotal: 0,
       discountType: 'amount',
       discountPercentage: 0,
