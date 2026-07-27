@@ -24,6 +24,9 @@ import PaymentScreen from "./components/PaymentScreen";
 import SuccessScreen from "./components/SuccessScreen";
 import ReviewScreen from "./components/ReviewScreen";
 import PairingScreen from "./components/PairingScreen";
+import ProfileEntryForm, {
+  type ProfileEntrySubmission,
+} from "./components/ProfileEntryForm";
 
 type Phase = "init" | "pairing" | "connected";
 
@@ -49,14 +52,18 @@ export default function CustomerDisplayPage() {
   const [bill, setBill] = useState<BillUpdatePayload | null>(null);
   const [payment, setPayment] = useState<PaymentModePayload | null>(null);
   const [success, setSuccess] = useState<SuccessModePayload | null>(null);
+  const [showProfileForm, setShowProfileForm] = useState(false);
 
   const lastSeqRef = useRef(0);
+  const profileSeqRef = useRef(0);
+  const subscriberRef = useRef<DisplaySubscriberHandle | null>(null);
   const modeRef = useRef<DisplayMode>("idle");
   /** Don't let a rogue idle wipe a bill that just arrived. */
   const ignoreIdleUntilRef = useRef(0);
   const logoTapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null });
   useEffect(() => {
     modeRef.current = mode;
+    if (mode !== "billing") setShowProfileForm(false);
   }, [mode]);
 
   /** Emergency: tap the top bar 5× quickly to clear a frozen bill locally. */
@@ -182,14 +189,23 @@ export default function CustomerDisplayPage() {
       onEvent: handleEvent,
     }).then((h) => {
       if (cancelled) h.close();
-      else handle = h;
+      else {
+        handle = h;
+        subscriberRef.current = h;
+      }
     });
 
     return () => {
       cancelled = true;
+      subscriberRef.current = null;
       handle?.close();
     };
   }, [phase, storeId, sessionToken, handleEvent]);
+
+  const handleProfileSubmit = useCallback((data: ProfileEntrySubmission) => {
+    profileSeqRef.current += 1;
+    subscriberRef.current?.publishProfile({ ...data, seq: profileSeqRef.current });
+  }, []);
 
   // After the success celebration, advance to the review invitation.
   useEffect(() => {
@@ -242,7 +258,10 @@ export default function CustomerDisplayPage() {
               className="absolute inset-0 h-full w-full will-change-[opacity,transform]"
             >
               {mode === "billing" && bill ? (
-                <BillingScreen bill={bill} />
+                <BillingScreen
+                  bill={bill}
+                  onRequestProfileEntry={() => setShowProfileForm(true)}
+                />
               ) : mode === "payment" && payment ? (
                 <PaymentScreen data={payment} />
               ) : mode === "success" && success ? (
@@ -256,6 +275,26 @@ export default function CustomerDisplayPage() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* Customer profile entry overlay */}
+      <AnimatePresence>
+        {showProfileForm && mode === "billing" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-40 bg-black/70"
+          >
+            <ProfileEntryForm
+              onSubmit={(data) => {
+                handleProfileSubmit(data);
+                setTimeout(() => setShowProfileForm(false), 2500);
+              }}
+              onCancel={() => setShowProfileForm(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Connection overlay */}
       <AnimatePresence>

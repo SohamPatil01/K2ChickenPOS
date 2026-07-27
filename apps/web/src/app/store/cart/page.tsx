@@ -31,6 +31,8 @@ import {
   publishCurrentBill,
   releaseDisplaySuccessLatch,
 } from '@/lib/customerDisplay/publishHelpers';
+import { createCustomerProfileInbox } from '@/lib/customerDisplay/ablyClient';
+import type { CustomerProfileSubmitPayload } from '@/lib/customerDisplay/types';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -172,6 +174,85 @@ export default function StoreCartPage() {
       setAddressSaving(false);
     }
   };
+
+  /**
+   * Applies a profile the customer typed directly on the customer display.
+   * Reads the id straight off the API response instead of the `customerId`
+   * closure, since that store value hasn't re-rendered into this callback yet.
+   */
+  const applyCustomerSubmittedProfile = async (payload: CustomerProfileSubmitPayload) => {
+    const phone = payload.phone.trim();
+    const name = payload.name.trim();
+    if (phone.length < 10 || !name) return;
+
+    try {
+      const existingId = useCartStore.getState().customerId;
+      const body = { phone, name, area: useCartStore.getState().customerArea || undefined };
+      const response = existingId
+        ? await api.put(`/api/v1/customers/${existingId}`, body)
+        : await api.post('/api/v1/customers', body);
+      const customer = response.data;
+      if (!customer) return;
+
+      setCustomer(customer.id, customer.phone, customer.name, customer.area || null);
+      setTempCustomerPhone(customer.phone);
+      setTempCustomerName(customer.name);
+      setTempCustomerArea(customer.area || '');
+      applyCustomerProfileData(customer);
+      if (customer.loyaltyPoints != null) {
+        setCustomerPoints(Math.floor(Number(customer.loyaltyPoints) || 0));
+      }
+
+      if (payload.addressLine1 && payload.city) {
+        const addrPayload = {
+          label: 'Home',
+          line1: payload.addressLine1.trim(),
+          line2: payload.addressLine2?.trim() || undefined,
+          city: payload.city.trim(),
+        };
+        const addrRes = await api.post(`/api/v1/customers/${customer.id}/addresses`, addrPayload);
+        setCustomerAddress(addrRes.data.line1, addrRes.data.line2, addrRes.data.city, addrRes.data.id);
+      }
+
+      showNotification('Customer submitted their details from the display', 'success');
+    } catch (err: any) {
+      console.error('[Cart] Failed to apply customer-submitted profile:', err);
+      showNotification('Failed to save customer details from display: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  // Receive phone/name/address the customer typed directly on the customer display.
+  useEffect(() => {
+    if (!user?.storeId) return;
+    let cancelled = false;
+    let handle: { close: () => void } | null = null;
+    const lastSeqRef = { current: 0 };
+
+    void createCustomerProfileInbox({
+      storeId: user.storeId,
+      getAccessToken: () => {
+        if (typeof window === 'undefined') return null;
+        try {
+          return window.localStorage.getItem('accessToken');
+        } catch {
+          return null;
+        }
+      },
+      onSubmit: (payload) => {
+        if (payload.seq <= lastSeqRef.current) return;
+        lastSeqRef.current = payload.seq;
+        void applyCustomerSubmittedProfile(payload);
+      },
+    }).then((h) => {
+      if (cancelled) h.close();
+      else handle = h;
+    });
+
+    return () => {
+      cancelled = true;
+      handle?.close();
+    };
+  }, [user?.storeId]);
 
   // Fetch the attached customer's loyalty balance so the cashier can redeem it.
   useEffect(() => {

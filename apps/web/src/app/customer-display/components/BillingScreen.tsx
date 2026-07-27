@@ -16,7 +16,13 @@ function lineKey(item: DisplayLineItem, i: number): string {
   return `${item.name}-${item.rate}-${i}`;
 }
 
-export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
+export default function BillingScreen({
+  bill,
+  onRequestProfileEntry,
+}: {
+  bill: BillUpdatePayload;
+  onRequestProfileEntry?: () => void;
+}) {
   const hasItems = bill.items.length > 0;
 
   return (
@@ -141,7 +147,7 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
             ) : (
               <span />
             )}
-            <ProfileNudgeChip bill={bill} />
+            <ProfileNudgeChip bill={bill} onTap={onRequestProfileEntry} />
           </div>
         </div>
       </div>
@@ -149,19 +155,33 @@ export default function BillingScreen({ bill }: { bill: BillUpdatePayload }) {
   );
 }
 
-function ProfileNudgeChip({ bill }: { bill: BillUpdatePayload }) {
+function ProfileNudgeChip({
+  bill,
+  onTap,
+}: {
+  bill: BillUpdatePayload;
+  onTap?: () => void;
+}) {
   if (bill.profileNudge === "add_phone") {
     return (
-      <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200">
+      <button
+        type="button"
+        onClick={onTap}
+        className="cursor-pointer rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1.5 font-semibold text-amber-200 transition active:scale-95"
+      >
         Add phone · earn {bill.loyaltyPointsEst} pts (1.25% back)
-      </span>
+      </button>
     );
   }
   if (bill.profileNudge === "add_address") {
     return (
-      <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 font-semibold text-emerald-200">
+      <button
+        type="button"
+        onClick={onTap}
+        className="cursor-pointer rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1.5 font-semibold text-emerald-200 transition active:scale-95"
+      >
         Add your address & get 10% off
-      </span>
+      </button>
     );
   }
   if (bill.profileNudge === "reward_ready") {

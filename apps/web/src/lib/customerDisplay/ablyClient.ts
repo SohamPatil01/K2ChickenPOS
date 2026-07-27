@@ -2,7 +2,13 @@
 
 import type { Realtime, RealtimeChannel } from "ably";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
-import { displayChannelName, type DisplayEventName } from "./types";
+import {
+  displayChannelName,
+  displayInboundChannelName,
+  DISPLAY_EVENTS,
+  type CustomerProfileSubmitPayload,
+  type DisplayEventName,
+} from "./types";
 
 export type ConnectionStatus =
   | "connecting"
@@ -159,6 +165,8 @@ export async function createDisplayPublisher(
 }
 
 export interface DisplaySubscriberHandle {
+  /** Publish a customer-typed profile submission back to the cashier. */
+  publishProfile: (payload: CustomerProfileSubmitPayload) => void;
   close: () => void;
 }
 
@@ -170,10 +178,15 @@ export interface DisplaySubscriberHandle {
 export async function createDisplaySubscriber(
   opts: SubscriberOptions
 ): Promise<DisplaySubscriberHandle> {
+  const noop: DisplaySubscriberHandle = {
+    publishProfile: () => {},
+    close: () => {},
+  };
+
   const AblyModule = await loadAbly();
   if (!AblyModule) {
     opts.onStatus?.("disabled");
-    return { close: () => {} };
+    return noop;
   }
 
   let client: Realtime;
@@ -190,11 +203,14 @@ export async function createDisplaySubscriber(
     });
   } catch {
     opts.onStatus?.("disabled");
-    return { close: () => {} };
+    return noop;
   }
 
   const channel: RealtimeChannel = client.channels.get(
     displayChannelName(opts.storeId)
+  );
+  const inboundChannel: RealtimeChannel = client.channels.get(
+    displayInboundChannelName(opts.storeId)
   );
 
   client.connection.on((stateChange: any) => {
@@ -230,6 +246,85 @@ export async function createDisplaySubscriber(
     // reconnect, so the same handler re-runs and re-enters presence.
     await channel.subscribe((message: any) => {
       opts.onEvent(message.name, message.data);
+    });
+  } catch {
+    opts.onStatus?.("failed");
+  }
+
+  return {
+    publishProfile: (payload) => {
+      try {
+        void inboundChannel.publish(DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT, payload);
+      } catch {
+        // Best-effort — the display shows its own "couldn't send" state on failure.
+      }
+    },
+    close: () => {
+      try {
+        client.close();
+      } catch {
+        // ignore
+      }
+    },
+  };
+}
+
+interface ProfileInboxOptions extends BaseOptions {
+  /** Cashier app access token (JWT) used to authorize the Ably token request. */
+  getAccessToken: () => string | null;
+  onSubmit: (payload: CustomerProfileSubmitPayload) => void;
+}
+
+export interface CustomerProfileInboxHandle {
+  close: () => void;
+}
+
+/**
+ * Cashier-side inbox. Subscribes only to the narrow inbound channel that the
+ * display device is allowed to publish on — kept separate from
+ * `createDisplayPublisher` so a compromised/misbehaving display can never
+ * reach the main channel that drives the display's own bill/mode state.
+ */
+export async function createCustomerProfileInbox(
+  opts: ProfileInboxOptions
+): Promise<CustomerProfileInboxHandle> {
+  const noop: CustomerProfileInboxHandle = { close: () => {} };
+
+  const token = opts.getAccessToken();
+  if (!token || !opts.storeId) {
+    opts.onStatus?.("disabled");
+    return noop;
+  }
+
+  const AblyModule = await loadAbly();
+  if (!AblyModule) {
+    opts.onStatus?.("disabled");
+    return noop;
+  }
+
+  let client: Realtime;
+  try {
+    client = new AblyModule.Realtime({
+      authUrl: tokenAuthUrl(),
+      authMethod: "GET",
+      authHeaders: { Authorization: `Bearer ${token}` },
+      ...RESILIENCE_OPTIONS,
+      closeOnUnload: true,
+    });
+  } catch {
+    opts.onStatus?.("disabled");
+    return noop;
+  }
+
+  const channel = client.channels.get(displayInboundChannelName(opts.storeId));
+
+  client.connection.on((stateChange: any) => {
+    opts.onStatus?.(mapState(stateChange.current));
+  });
+
+  try {
+    await channel.subscribe(DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT, (message: any) => {
+      opts.onSubmit(message.data as CustomerProfileSubmitPayload);
     });
   } catch {
     opts.onStatus?.("failed");

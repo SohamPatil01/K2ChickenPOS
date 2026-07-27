@@ -8,6 +8,8 @@ export const DISPLAY_EVENTS = {
   MODE_PAYMENT: "mode.payment",
   MODE_SUCCESS: "mode.success",
   MODE_IDLE: "mode.idle",
+  /** Customer→cashier direction, published on the separate inbound channel. */
+  CUSTOMER_PROFILE_SUBMIT: "customer.profile_submit",
 } as const;
 
 export type DisplayEventName =
@@ -78,6 +80,16 @@ export interface IdleModePayload {
   force?: boolean;
 }
 
+/** Customer-typed profile data submitted from the display back to the POS. */
+export interface CustomerProfileSubmitPayload {
+  seq: number;
+  phone: string;
+  name: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+}
+
 export type DisplayMode =
   | "idle"
   | "billing"
@@ -89,6 +101,11 @@ export const DISPLAY_CHANNEL_PREFIX = "store:";
 
 export function displayChannelName(storeId: string): string {
   return `${DISPLAY_CHANNEL_PREFIX}${storeId}:display`;
+}
+
+/** Customer→cashier direction — separate channel, publish-scoped to the display only. */
+export function displayInboundChannelName(storeId: string): string {
+  return `${DISPLAY_CHANNEL_PREFIX}${storeId}:display:in`;
 }
 
 /** Loyalty rule mirrored from the server: 1.25% of the purchase total. */

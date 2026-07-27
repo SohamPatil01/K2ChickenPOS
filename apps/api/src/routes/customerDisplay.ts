@@ -25,6 +25,13 @@ function channelForStore(storeId: string): string {
   return `store:${storeId}:display`;
 }
 
+/** Customer→cashier direction only. Kept separate from channelForStore so a
+ * display device's token can never be granted publish on the main channel it
+ * subscribes to (which would let it spoof bill.update / mode.* events). */
+function channelForStoreInbound(storeId: string): string {
+  return `store:${storeId}:display:in`;
+}
+
 /**
  * Build a signed Ably TokenRequest with the account API key, without pulling in
  * the full `ably` SDK on the serverless function. Mirrors Ably's documented
@@ -126,7 +133,10 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
         reply.code(401).send({ error: 'Invalid or expired display session' });
         return;
       }
-      capability = { [channelForStore(storeId)]: ['subscribe', 'presence'] };
+      capability = {
+        [channelForStore(storeId)]: ['subscribe', 'presence'],
+        [channelForStoreInbound(storeId)]: ['publish'],
+      };
       clientId = `display:${storeId}`;
     } else {
       // Cashier path — verify the normal app JWT.
@@ -144,6 +154,7 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
       }
       capability = {
         [channelForStore(storeId)]: ['publish', 'subscribe', 'presence'],
+        [channelForStoreInbound(storeId)]: ['subscribe'],
       };
       clientId = `cashier:${(request.user as any).userId || storeId}`;
     }
