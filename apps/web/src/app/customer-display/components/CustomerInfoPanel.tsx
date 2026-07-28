@@ -18,16 +18,28 @@ export default function CustomerInfoPanel({
   onTapField,
   onSave,
   saveState,
+  onClose,
 }: {
   values: CustomerInfoValues;
   activeField: DraftFieldKey | null;
   onTapField: (field: DraftFieldKey) => void;
   onSave: () => void;
   saveState: SaveState;
+  onClose: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
-      <p className="mb-3 text-sm font-semibold text-white/60">Your details</p>
+    <div className="rounded-2xl border border-white/10 bg-black/70 p-4 shadow-2xl backdrop-blur">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-semibold text-white/60">Your details</p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="rounded-lg p-1 text-white/40 transition hover:bg-white/10 hover:text-white/70"
+        >
+          ✕
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <Row label="Phone" value={values.phone} placeholder="Tap to add" active={activeField === "phone"} onTap={() => onTapField("phone")} />
         <Row label="Name" value={values.name} placeholder="Tap to add" active={activeField === "name"} onTap={() => onTapField("name")} />
