@@ -4,4 +4,5 @@ export const CA_REPORT_ITEMS = [
   { id: 'sales-register-summary', label: 'Sales Register Summary', path: '/reports/sales-register-summary' },
   { id: 'daily-product-transaction', label: 'Daily Sales Summary', path: '/reports/daily-product-transaction' },
   { id: 'product-wise-sale', label: 'Product Wise Sale', path: '/reports/product-wise-sale' },
+  { id: 'monthly-sales', label: 'Monthly Sales Comparison', path: '/reports/monthly-sales' },
 ] as const;

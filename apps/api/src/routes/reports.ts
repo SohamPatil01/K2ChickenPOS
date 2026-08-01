@@ -20,6 +20,11 @@ function ymdInReportTz(d: Date): string {
   return d.toLocaleDateString('en-CA', { timeZone: REPORT_TZ_IANA });
 }
 
+/** 'YYYY-MM' for a date, in store timezone — month-truncated form of ymdInReportTz. */
+function monthKeyInReportTz(d: Date): string {
+  return ymdInReportTz(d).slice(0, 7);
+}
+
 function getReportDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
     if (String(startDate).includes('T') && String(endDate).includes('T')) {
@@ -1435,6 +1440,105 @@ export async function reportRoutes(fastify: FastifyInstance) {
     } catch (error: any) {
       console.error('MRN balance report error:', error);
       reply.code(500).send({ error: 'Failed to generate MRN balance report', details: error.message });
+    }
+  });
+
+  // Monthly Sales Comparison — bucket sales by calendar month for MoM comparison.
+  fastify.get('/monthly-sales', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const user = getUser(request);
+      const { storeId: queryStoreId, months: monthsQuery } = (request.query as any);
+      const resolved = await resolveReportStoreIds(user, queryStoreId);
+      if (!resolved) {
+        reply.code(404).send({ error: 'Store not found' });
+        return;
+      }
+
+      const monthsParam = parseInt(monthsQuery, 10);
+      const monthsCount = Number.isFinite(monthsParam) && monthsParam > 0 ? Math.min(monthsParam, 24) : 6;
+
+      // Oldest -> newest month keys ('YYYY-MM'), ending at the current month, in store TZ.
+      const nowKey = ymdInReportTz(new Date());
+      const [curYear, curMonth] = nowKey.split('-').map(Number); // curMonth is 1-indexed
+      const monthKeys: string[] = [];
+      for (let i = monthsCount - 1; i >= 0; i--) {
+        const totalMonths = curYear * 12 + (curMonth - 1) - i;
+        const y = Math.floor(totalMonths / 12);
+        const m = (totalMonths % 12) + 1;
+        monthKeys.push(`${y}-${String(m).padStart(2, '0')}`);
+      }
+
+      const earliestKey = monthKeys[0];
+      const sales = await fetchReportableSales(
+        resolved.storeIdWhere,
+        `${earliestKey}-01`,
+        nowKey,
+        {
+          include: {
+            items: {
+              include: {
+                product: { include: { category: true } },
+              },
+            },
+          },
+        }
+      );
+
+      type ProductStat = { productId: string; name: string; qty: number; revenue: number };
+      type MonthBucket = {
+        totalSales: number;
+        totalRevenue: number;
+        customerIds: Set<string>;
+        productStats: Record<string, ProductStat>;
+      };
+      const buckets = new Map<string, MonthBucket>();
+      for (const key of monthKeys) {
+        buckets.set(key, { totalSales: 0, totalRevenue: 0, customerIds: new Set(), productStats: {} });
+      }
+
+      for (const sale of sales) {
+        const key = monthKeyInReportTz(sale.businessDate ? new Date(sale.businessDate) : new Date(sale.createdAt));
+        const bucket = buckets.get(key);
+        if (!bucket) continue; // outside the requested window
+
+        bucket.totalSales += 1;
+        bucket.totalRevenue = Math.round((bucket.totalRevenue + sale.grandTotal) * 1000) / 1000;
+        if (sale.customerId) bucket.customerIds.add(sale.customerId);
+
+        for (const item of sale.items) {
+          if (!item.product) continue;
+          const pid = item.productId;
+          if (!bucket.productStats[pid]) {
+            bucket.productStats[pid] = { productId: pid, name: item.product.name, qty: 0, revenue: 0 };
+          }
+          bucket.productStats[pid].qty = Math.round((bucket.productStats[pid].qty + (item.qtyKg || 0) + (item.qtyPcs || 0)) * 100) / 100;
+          bucket.productStats[pid].revenue = Math.round((bucket.productStats[pid].revenue + item.lineTotal) * 1000) / 1000;
+        }
+      }
+
+      const months = monthKeys.map((key) => {
+        const bucket = buckets.get(key)!;
+        const [y, m] = key.split('-').map(Number);
+        const label = new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+        const topProducts = Object.values(bucket.productStats)
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+        return {
+          month: key,
+          label,
+          totalSales: bucket.totalSales,
+          totalRevenue: bucket.totalRevenue,
+          avgBillSize: bucket.totalSales > 0 ? Math.round((bucket.totalRevenue / bucket.totalSales) * 100) / 100 : 0,
+          distinctCustomers: bucket.customerIds.size,
+          distinctProducts: Object.keys(bucket.productStats).length,
+          topProducts,
+        };
+      });
+
+      return { months, storeIds: resolved.storeIds };
+    } catch (error: any) {
+      console.error('Monthly sales report error:', error);
+      reply.code(500).send({ error: 'Failed to generate monthly sales report', details: error.message });
     }
   });
 }
