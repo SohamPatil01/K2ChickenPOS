@@ -2,8 +2,12 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import StatCardGlass from '@/components/StatCardGlass';
 import { MasaleTypeBadge, ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Package, Wallet } from 'lucide-react';
+import { fadeInUp, staggerContainer, useMotionSafe } from '@/lib/motion';
 import { defaultDateRangeLast30Days } from '@/lib/dateRangeParams';
 import {
   downloadReportTable,
@@ -14,6 +18,7 @@ import { masaleSplitFromRows } from '@azela-pos/shared';
 import api from '@/lib/api';
 
 export default function ProductWiseSalePage() {
+  const motionSafe = useMotionSafe();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
   const defaultRange = defaultDateRangeLast30Days();
@@ -103,22 +108,35 @@ export default function ProductWiseSalePage() {
         onExport={handleExport}
       >
         {loading ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading data...</div>
+          <div className="text-center py-8 text-ink-muted">Loading data...</div>
         ) : data.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">No sales data available for the selected period.</div>
+          <div className="text-center py-8 text-ink-muted">No sales data available for the selected period.</div>
         ) : (
           <>
-            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Products Sold</div>
-                  <div className="text-2xl font-bold dark:text-white">{data.length}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Revenue</div>
-                  <div className="text-2xl font-bold dark:text-white">₹{totalRevenue.toFixed(2)}</div>
-                </div>
-              </div>
+            <motion.div
+              className="mb-6 grid grid-cols-2 gap-3"
+              variants={motionSafe ? staggerContainer(0.05) : undefined}
+              initial={motionSafe ? 'hidden' : false}
+              animate="show"
+            >
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Total Products Sold"
+                  value={data.length}
+                  icon={<Package className="h-5 w-5" />}
+                  tone="brand"
+                />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Total Revenue"
+                  value={formatCurrency(totalRevenue)}
+                  icon={<Wallet className="h-5 w-5" />}
+                  tone="blue"
+                />
+              </motion.div>
+            </motion.div>
+            <div className="mb-6">
               <ReportMasaleSummary
                 masaleRevenue={masaleSplit.masaleRevenue}
                 masaleQtyPcs={masaleSplit.masaleQtyPcs}
@@ -126,21 +144,21 @@ export default function ProductWiseSalePage() {
                 otherRevenue={masaleSplit.otherRevenue}
               />
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <div className="overflow-x-auto glass-panel-strong rounded-2xl">
+              <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-surface-2">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Product</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SKU</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty (KG)</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty (PCS)</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Revenue</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sales</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Product</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">SKU</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Qty (KG)</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Qty (PCS)</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Revenue</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Sales</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {data.map((item, idx) => (
                     <tr key={item.productId} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${item.isMasale ? 'bg-brand-50/20 dark:bg-brand-900/10' : ''}`}>
                       <td className="px-6 py-4 text-sm"><MasaleTypeBadge isMasale={item.isMasale} /></td>

@@ -3,12 +3,39 @@
 import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { Receipt, ClipboardList, CalendarDays, Package, BarChart3, ChevronRight, FileText } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { CA_REPORT_ITEMS } from '@/lib/caReports';
+import { fadeInUp, staggerContainer, hoverLift, useMotionSafe } from '@/lib/motion';
+
+const REPORT_META: Record<string, { icon: React.ReactNode; description: string }> = {
+  'bill-wise-sale': {
+    icon: <Receipt className="h-5 w-5" />,
+    description: 'Every bill in the period, one row per sale.',
+  },
+  'sales-register-summary': {
+    icon: <ClipboardList className="h-5 w-5" />,
+    description: 'Totals, discounts, tax and payment split.',
+  },
+  'daily-product-transaction': {
+    icon: <CalendarDays className="h-5 w-5" />,
+    description: 'Day-by-day sales summary.',
+  },
+  'product-wise-sale': {
+    icon: <Package className="h-5 w-5" />,
+    description: 'Revenue and quantity sold, per product.',
+  },
+  'monthly-sales': {
+    icon: <BarChart3 className="h-5 w-5" />,
+    description: 'Compare revenue, avg bill and customers month over month.',
+  },
+};
 
 export default function ReportsPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const motionSafe = useMotionSafe();
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,30 +61,46 @@ export default function ReportsPage() {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto">
-        <div className="bg-primary-500 text-white py-3 sm:py-4 px-4 sm:px-6 shadow-md">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Reports</h1>
-          <p className="text-sm text-primary-100 mt-1">CA-style registers for accounts & audit</p>
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-ink">Reports</h1>
+          <p className="text-sm text-ink-secondary mt-1">CA-style registers for accounts & audit</p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 shadow-md overflow-hidden">
-          {CA_REPORT_ITEMS.map((item, index) => (
-            <div key={item.id}>
-              <button
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          variants={motionSafe ? staggerContainer(0.06) : undefined}
+          initial={motionSafe ? 'hidden' : false}
+          animate="show"
+        >
+          {CA_REPORT_ITEMS.map((item) => {
+            const meta = REPORT_META[item.id] || {
+              icon: <FileText className="h-5 w-5" />,
+              description: '',
+            };
+            return (
+              <motion.button
+                key={item.id}
+                variants={motionSafe ? fadeInUp : undefined}
+                {...(motionSafe ? hoverLift : {})}
                 onClick={() => handleReportClick(item.path, item.id)}
-                className={`w-full text-left py-3 sm:py-4 px-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors touch-target ${
-                  selectedReport === item.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                className={`glass-panel text-left rounded-2xl p-4 sm:p-5 flex items-start gap-4 transition-colors touch-target ${
+                  selectedReport === item.id ? 'ring-2 ring-brand-500/40' : ''
                 }`}
               >
-                <span className="text-gray-800 dark:text-gray-200 font-medium text-sm sm:text-base">
-                  {item.label}
-                </span>
-              </button>
-              {index < CA_REPORT_ITEMS.length - 1 && (
-                <hr className="border-gray-200 dark:border-gray-700" />
-              )}
-            </div>
-          ))}
-        </div>
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600 dark:text-brand-400">
+                  {meta.icon}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink text-sm sm:text-base">{item.label}</p>
+                  {meta.description && (
+                    <p className="text-xs sm:text-sm text-ink-muted mt-0.5 truncate">{meta.description}</p>
+                  )}
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-ink-muted mt-2" />
+              </motion.button>
+            );
+          })}
+        </motion.div>
       </div>
     </Layout>
   );

@@ -59,13 +59,15 @@ export default function Layout({ children }: LayoutProps) {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <nav className="bg-white shadow-sm border-b dark:bg-gray-800 dark:border-gray-700 dark:shadow-[0px_1px_3px_rgba(0,0,0,0.3)]">
+    <div className="min-h-screen">
+      <div className="app-gradient-wash pointer-events-none fixed inset-0 -z-10 print:hidden" aria-hidden />
+      <div className="app-glow-layer pointer-events-none fixed inset-0 -z-10 bg-app-glow print:hidden" aria-hidden />
+      <nav className="glass-panel-strong sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <Link href="/store" className="text-xl font-bold text-primary-600 hover:text-primary-700">
+                <Link href="/store" className="text-xl font-bold text-gradient-brand">
                   {APP_NAME || 'AzeelaAiPos'}
                 </Link>
               </div>
@@ -75,10 +77,10 @@ export default function Layout({ children }: LayoutProps) {
                   <Link
                     key={item.path}
                     href={item.path}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
                       pathname === item.path
-                        ? 'border-primary-500 text-gray-900 dark:text-white'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                        ? 'border-brand-500 text-ink'
+                        : 'border-transparent text-ink-secondary hover:text-ink hover:border-border-strong'
                     }`}
                   >
                     {item.label}
@@ -88,10 +90,10 @@ export default function Layout({ children }: LayoutProps) {
                   const hqHref = getHQConsoleUrl();
                   const isInternalHQ = hqHref === '/hq';
                   const isActive = isInternalHQ && (pathname === '/hq' || pathname?.startsWith('/hq/'));
-                  const className = `inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  const className = `inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'border-primary-500 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                      ? 'border-brand-500 text-ink'
+                      : 'border-transparent text-ink-secondary hover:text-ink hover:border-border-strong'
                   }`;
                   const handleHQClick = (e: React.MouseEvent) => {
                     if (!isInternalHQ && typeof window !== 'undefined') {
@@ -115,10 +117,10 @@ export default function Layout({ children }: LayoutProps) {
             <div className="flex items-center">
               {user ? (
                 <>
-                  <span className="hidden sm:inline text-sm text-gray-700 mr-4">
+                  <span className="hidden sm:inline text-sm text-ink-secondary mr-4">
                     {user.name} ({user.role})
                   </span>
-                  <span className="sm:hidden text-xs text-gray-700 mr-2">
+                  <span className="sm:hidden text-xs text-ink-secondary mr-2">
                     {user.name}
                   </span>
                   <button
@@ -126,14 +128,14 @@ export default function Layout({ children }: LayoutProps) {
                       logout();
                       router.push('/login');
                     }}
-                    className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1"
+                    className="text-sm text-ink-muted hover:text-ink px-2 py-1 transition-colors"
                   >
                     Logout
                   </button>
                   {/* Mobile menu button */}
                   <button
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="md:hidden ml-2 inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none"
+                    className="md:hidden ml-2 inline-flex items-center justify-center p-2 rounded-md text-ink-muted hover:text-ink hover:bg-surface-2 focus:outline-none transition-colors"
                     aria-label="Toggle menu"
                   >
                     <svg
@@ -161,24 +163,24 @@ export default function Layout({ children }: LayoutProps) {
                   </button>
                 </>
               ) : (
-                <span className="text-sm text-gray-500">Guest Mode</span>
+                <span className="text-sm text-ink-muted">Guest Mode</span>
               )}
             </div>
           </div>
         </div>
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200">
+          <div className="md:hidden border-t border-subtle">
             <div className="px-2 pt-2 pb-3 space-y-1">
               {visibleNavItems.map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
                     pathname === item.path
-                      ? 'bg-primary-50 text-primary-700 dark:bg-brand-900/30 dark:text-brand-400'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                      ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
+                      : 'text-ink-secondary hover:bg-surface-2 hover:text-ink'
                   }`}
                 >
                   {item.label}
@@ -188,10 +190,10 @@ export default function Layout({ children }: LayoutProps) {
                 const hqHref = getHQConsoleUrl();
                 const isInternalHQ = hqHref === '/hq';
                 const isActive = isInternalHQ && (pathname === '/hq' || pathname?.startsWith('/hq/'));
-                const className = `block px-3 py-2 rounded-md text-base font-medium ${
+                const className = `block px-3 py-2 rounded-md text-base font-medium transition-colors ${
                   isActive
-                    ? 'bg-primary-50 text-primary-700 dark:bg-brand-900/30 dark:text-brand-400'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400'
+                    : 'text-ink-secondary hover:bg-surface-2 hover:text-ink'
                 }`;
                 const handleHQClick = (e: React.MouseEvent) => {
                   setMobileMenuOpen(false);
@@ -221,4 +223,3 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   );
 }
-

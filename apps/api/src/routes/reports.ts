@@ -1475,6 +1475,7 @@ export async function reportRoutes(fastify: FastifyInstance) {
         nowKey,
         {
           include: {
+            payments: true,
             items: {
               include: {
                 product: { include: { category: true } },
@@ -1485,25 +1486,58 @@ export async function reportRoutes(fastify: FastifyInstance) {
       );
 
       type ProductStat = { productId: string; name: string; qty: number; revenue: number };
+      type PaymentStat = { method: string; count: number; total: number };
+      type DayStat = { date: string; totalSales: number; totalRevenue: number };
       type MonthBucket = {
         totalSales: number;
         totalRevenue: number;
+        discountTotal: number;
+        taxTotal: number;
         customerIds: Set<string>;
         productStats: Record<string, ProductStat>;
+        paymentStats: Record<string, PaymentStat>;
+        dayStats: Record<string, DayStat>;
       };
       const buckets = new Map<string, MonthBucket>();
       for (const key of monthKeys) {
-        buckets.set(key, { totalSales: 0, totalRevenue: 0, customerIds: new Set(), productStats: {} });
+        buckets.set(key, {
+          totalSales: 0,
+          totalRevenue: 0,
+          discountTotal: 0,
+          taxTotal: 0,
+          customerIds: new Set(),
+          productStats: {},
+          paymentStats: {},
+          dayStats: {},
+        });
       }
 
       for (const sale of sales) {
-        const key = monthKeyInReportTz(sale.businessDate ? new Date(sale.businessDate) : new Date(sale.createdAt));
+        const saleDate = sale.businessDate ? new Date(sale.businessDate) : new Date(sale.createdAt);
+        const key = monthKeyInReportTz(saleDate);
         const bucket = buckets.get(key);
         if (!bucket) continue; // outside the requested window
 
         bucket.totalSales += 1;
         bucket.totalRevenue = Math.round((bucket.totalRevenue + sale.grandTotal) * 1000) / 1000;
+        bucket.discountTotal = Math.round((bucket.discountTotal + (sale.discountTotal || 0)) * 1000) / 1000;
+        bucket.taxTotal = Math.round((bucket.taxTotal + (sale.taxTotal || 0)) * 1000) / 1000;
         if (sale.customerId) bucket.customerIds.add(sale.customerId);
+
+        const dayKey = ymdInReportTz(saleDate);
+        if (!bucket.dayStats[dayKey]) {
+          bucket.dayStats[dayKey] = { date: dayKey, totalSales: 0, totalRevenue: 0 };
+        }
+        bucket.dayStats[dayKey].totalSales += 1;
+        bucket.dayStats[dayKey].totalRevenue = Math.round((bucket.dayStats[dayKey].totalRevenue + sale.grandTotal) * 1000) / 1000;
+
+        for (const payment of effectivePaymentRowsForSale(sale)) {
+          if (!bucket.paymentStats[payment.method]) {
+            bucket.paymentStats[payment.method] = { method: payment.method, count: 0, total: 0 };
+          }
+          bucket.paymentStats[payment.method].count += 1;
+          bucket.paymentStats[payment.method].total = Math.round((bucket.paymentStats[payment.method].total + payment.amount) * 1000) / 1000;
+        }
 
         for (const item of sale.items) {
           if (!item.product) continue;
@@ -1520,18 +1554,24 @@ export async function reportRoutes(fastify: FastifyInstance) {
         const bucket = buckets.get(key)!;
         const [y, m] = key.split('-').map(Number);
         const label = new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-        const topProducts = Object.values(bucket.productStats)
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 5);
+        const products = Object.values(bucket.productStats).sort((a, b) => b.revenue - a.revenue);
+        const paymentMethods = Object.values(bucket.paymentStats).sort((a, b) => b.total - a.total);
+        const dailyBreakdown = Object.values(bucket.dayStats).sort((a, b) => a.date.localeCompare(b.date));
         return {
           month: key,
           label,
           totalSales: bucket.totalSales,
           totalRevenue: bucket.totalRevenue,
+          discountTotal: bucket.discountTotal,
+          taxTotal: bucket.taxTotal,
+          netRevenue: Math.round((bucket.totalRevenue - bucket.discountTotal) * 1000) / 1000,
           avgBillSize: bucket.totalSales > 0 ? Math.round((bucket.totalRevenue / bucket.totalSales) * 100) / 100 : 0,
           distinctCustomers: bucket.customerIds.size,
-          distinctProducts: Object.keys(bucket.productStats).length,
-          topProducts,
+          distinctProducts: products.length,
+          products,
+          topProducts: products.slice(0, 5),
+          paymentMethods,
+          dailyBreakdown,
         };
       });
 

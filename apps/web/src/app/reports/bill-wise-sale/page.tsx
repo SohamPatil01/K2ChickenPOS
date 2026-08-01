@@ -2,8 +2,12 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import StatCardGlass from '@/components/StatCardGlass';
 import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Receipt, Wallet, CheckCircle2, Clock, Percent, TrendingUp } from 'lucide-react';
+import { fadeInUp, staggerContainer, useMotionSafe } from '@/lib/motion';
 import {
   downloadReportTable,
   formatCurrency,
@@ -38,6 +42,7 @@ const emptySummary = (): BillWiseSummary => ({
 });
 
 export default function BillWiseSalePage() {
+  const motionSafe = useMotionSafe();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState<BillWiseSummary>(emptySummary);
@@ -136,79 +141,93 @@ export default function BillWiseSalePage() {
         onExport={handleExport}
       >
         {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading data...</div>
+          <div className="text-center py-8 text-ink-muted">Loading data...</div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No bills in this period.</div>
+          <div className="text-center py-8 text-ink-muted">No bills in this period.</div>
         ) : (
           <>
-            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900/40 rounded-lg">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Bills</div>
-                  <div className="text-2xl font-bold dark:text-white">{summary.totalBills}</div>
-                  <div className="text-xs text-gray-500">
-                    {summary.paidBills} paid · {summary.openBills} open
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Sales</div>
-                  <div className="text-2xl font-bold dark:text-white">
-                    ₹{summary.totalRevenue.toFixed(2)}
-                  </div>
-                  <div className="text-xs text-gray-500">PAID + OPEN</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Realised (PAID)</div>
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                    ₹{summary.realisedRevenue.toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Outstanding (OPEN)</div>
-                  <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                    ₹{summary.outstandingRevenue.toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Discount Given</div>
-                  <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                    ₹{summary.totalDiscount.toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Avg Paid Bill</div>
-                  <div className="text-2xl font-bold dark:text-white">
-                    ₹
-                    {summary.paidBills > 0
-                      ? (summary.realisedRevenue / summary.paidBills).toFixed(2)
-                      : '0.00'}
-                  </div>
-                </div>
-              </div>
+            <motion.div
+              className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+              variants={motionSafe ? staggerContainer(0.05) : undefined}
+              initial={motionSafe ? 'hidden' : false}
+              animate="show"
+            >
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Total Bills"
+                  value={summary.totalBills}
+                  subtitle={`${summary.paidBills} paid · ${summary.openBills} open`}
+                  icon={<Receipt className="h-5 w-5" />}
+                  tone="brand"
+                />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Total Sales"
+                  value={formatCurrency(summary.totalRevenue)}
+                  subtitle="PAID + OPEN"
+                  icon={<Wallet className="h-5 w-5" />}
+                  tone="blue"
+                />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Realised (PAID)"
+                  value={formatCurrency(summary.realisedRevenue)}
+                  icon={<CheckCircle2 className="h-5 w-5" />}
+                  tone="green"
+                />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Outstanding (OPEN)"
+                  value={formatCurrency(summary.outstandingRevenue)}
+                  icon={<Clock className="h-5 w-5" />}
+                  tone="orange"
+                />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Discount Given"
+                  value={formatCurrency(summary.totalDiscount)}
+                  icon={<Percent className="h-5 w-5" />}
+                  tone="orange"
+                />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass
+                  title="Avg Paid Bill"
+                  value={formatCurrency(summary.paidBills > 0 ? summary.realisedRevenue / summary.paidBills : 0)}
+                  icon={<TrendingUp className="h-5 w-5" />}
+                  tone="purple"
+                />
+              </motion.div>
+            </motion.div>
+            <div className="mb-6">
               <ReportMasaleSummary
                 masaleRevenue={summary.masaleRevenue}
                 masaleQtyPcs={summary.masaleQtyPcs}
                 otherRevenue={Math.max(0, summary.totalRevenue - summary.masaleRevenue)}
               />
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-800">
+            <div className="overflow-x-auto glass-panel-strong rounded-2xl">
+              <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-surface-2">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale No</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Masale</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discount</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Sale No</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Items</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Masale</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Subtotal</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Discount</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Tax</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Total</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-muted uppercase">Payment</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {rows.map((item) => (
                     <tr
                       key={item.saleId}

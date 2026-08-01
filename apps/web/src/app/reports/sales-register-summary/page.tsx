@@ -2,8 +2,12 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import StatCardGlass from '@/components/StatCardGlass';
 import { ReportMasaleSummary } from '@/components/ReportMasaleSummary';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Receipt, Wallet, Percent, TrendingUp } from 'lucide-react';
+import { fadeInUp, staggerContainer, useMotionSafe } from '@/lib/motion';
 import {
   downloadStyledReportBundle,
   formatCurrency,
@@ -12,6 +16,7 @@ import {
 import api from '@/lib/api';
 
 export default function SalesRegisterSummaryPage() {
+  const motionSafe = useMotionSafe();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [startDate, setStartDate] = useState(
@@ -97,30 +102,31 @@ export default function SalesRegisterSummaryPage() {
         onExport={handleExport}
       >
         {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading data...</div>
+          <div className="text-center py-8 text-ink-muted">Loading data...</div>
         ) : !data ? (
-          <div className="text-center py-8 text-gray-500">No data available.</div>
+          <div className="text-center py-8 text-ink-muted">No data available.</div>
         ) : (
           <>
-            <div className="mb-6 grid grid-cols-4 gap-4">
-              <div className="p-4 bg-primary-50 rounded-lg">
-                <div className="text-sm text-gray-600">Total Sales</div>
-                <div className="text-2xl font-bold">{data.summary.totalSales}</div>
-              </div>
-              <div className="p-4 bg-primary-100 rounded-lg">
-                <div className="text-sm text-gray-600">Total Revenue</div>
-                <div className="text-2xl font-bold">₹{data.summary.totalRevenue.toFixed(2)}</div>
-              </div>
-              <div className="p-4 bg-primary-50 rounded-lg">
-                <div className="text-sm text-gray-600">Total Discount</div>
-                <div className="text-2xl font-bold">₹{data.summary.totalDiscount.toFixed(2)}</div>
-              </div>
-              <div className="p-4 bg-primary-100 rounded-lg">
-                <div className="text-sm text-gray-600">Net Revenue</div>
-                <div className="text-2xl font-bold">₹{data.summary.netRevenue.toFixed(2)}</div>
-              </div>
-            </div>
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <motion.div
+              className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3"
+              variants={motionSafe ? staggerContainer(0.05) : undefined}
+              initial={motionSafe ? 'hidden' : false}
+              animate="show"
+            >
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Total Sales" value={data.summary.totalSales} icon={<Receipt className="h-5 w-5" />} tone="brand" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Total Revenue" value={formatCurrency(data.summary.totalRevenue)} icon={<Wallet className="h-5 w-5" />} tone="blue" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Total Discount" value={formatCurrency(data.summary.totalDiscount)} icon={<Percent className="h-5 w-5" />} tone="orange" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Net Revenue" value={formatCurrency(data.summary.netRevenue)} icon={<TrendingUp className="h-5 w-5" />} tone="green" />
+              </motion.div>
+            </motion.div>
+            <div className="mb-6">
               <ReportMasaleSummary
                 masaleRevenue={data.summary.masaleRevenue}
                 masaleQtyPcs={data.summary.masaleQtyPcs}
@@ -130,22 +136,22 @@ export default function SalesRegisterSummaryPage() {
             </div>
 
             <div className="mb-6">
-              <h2 className="text-lg font-bold mb-4">Payment Methods</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <h2 className="text-lg font-bold mb-4 text-ink">Payment Methods</h2>
+              <div className="overflow-x-auto glass-panel-strong rounded-2xl">
+                <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-surface-2">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Count</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Method</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Count</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ink-muted uppercase">Total</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {data.paymentMethods.map((pm: any) => (
                       <tr key={pm.method}>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{pm.method}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500">{pm.count}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">₹{pm.total.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-ink">{pm.method}</td>
+                        <td className="px-6 py-4 text-sm text-ink-muted">{pm.count}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-ink">₹{pm.total.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

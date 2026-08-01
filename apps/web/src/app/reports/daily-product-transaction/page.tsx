@@ -2,7 +2,11 @@
 
 import Layout from '@/components/Layout';
 import ReportLayout from '@/components/ReportLayout';
+import StatCardGlass from '@/components/StatCardGlass';
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { CalendarDays, Receipt, Wallet, Percent, Drumstick, Soup, ChevronDown } from 'lucide-react';
+import { fadeInUp, staggerContainer, useMotionSafe } from '@/lib/motion';
 import { defaultDateRangeLast7Days } from '@/lib/dateRangeParams';
 import {
   downloadStyledReportBundle,
@@ -62,6 +66,7 @@ function formatDayLabel(ymd: string) {
 }
 
 export default function DailyProductTransactionPage() {
+  const motionSafe = useMotionSafe();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportPayload | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -179,71 +184,48 @@ export default function DailyProductTransactionPage() {
         onExport={handleExport}
       >
         {loading ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading data...</div>
+          <div className="text-center py-8 text-ink-muted">Loading data...</div>
         ) : !data || dailyTotals.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-8 text-ink-muted">
             No sales data for the selected period.
           </div>
         ) : (
           <>
-            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            <p className="mb-4 text-sm text-ink-secondary">
               Day-wise bill totals (PAID + OPEN), after discount — matches Bill Wise Sale. Product
               amounts are allocated from each bill total.
             </p>
 
-            <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Trading days
-                  </div>
-                  <div className="text-2xl font-bold dark:text-white">{summary!.daysCount}</div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Total bills
-                  </div>
-                  <div className="text-2xl font-bold dark:text-white">{summary!.totalBills}</div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Total sales
-                  </div>
-                  <div className="text-2xl font-bold dark:text-white">
-                    ₹{summary!.totalRevenue.toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Discount given
-                  </div>
-                  <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-                    ₹{(summary!.totalDiscount ?? 0).toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Chicken / meat
-                  </div>
-                  <div className="text-xl font-bold dark:text-white">
-                    ₹{(summary!.otherRevenue ?? 0).toFixed(2)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Masale
-                  </div>
-                  <div className="text-xl font-bold text-brand-700 dark:text-brand-300">
-                    ₹{(summary!.masaleRevenue ?? 0).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <motion.div
+              className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+              variants={motionSafe ? staggerContainer(0.05) : undefined}
+              initial={motionSafe ? 'hidden' : false}
+              animate="show"
+            >
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Trading Days" value={summary!.daysCount} icon={<CalendarDays className="h-5 w-5" />} tone="brand" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Total Bills" value={summary!.totalBills} icon={<Receipt className="h-5 w-5" />} tone="blue" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Total Sales" value={formatCurrency(summary!.totalRevenue)} icon={<Wallet className="h-5 w-5" />} tone="green" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Discount Given" value={formatCurrency(summary!.totalDiscount ?? 0)} icon={<Percent className="h-5 w-5" />} tone="orange" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Chicken / Meat" value={formatCurrency(summary!.otherRevenue ?? 0)} icon={<Drumstick className="h-5 w-5" />} tone="purple" />
+              </motion.div>
+              <motion.div variants={motionSafe ? fadeInUp : undefined}>
+                <StatCardGlass title="Masale" value={formatCurrency(summary!.masaleRevenue ?? 0)} icon={<Soup className="h-5 w-5" />} tone="brand" />
+              </motion.div>
+            </motion.div>
 
-            <div className="overflow-x-auto mb-6">
-              <h2 className="text-lg font-semibold mb-3 dark:text-white">Day-wise totals</h2>
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <thead className="bg-gray-100 dark:bg-gray-900/60">
+            <div className="overflow-x-auto mb-6 glass-panel-strong rounded-2xl">
+              <h2 className="text-lg font-semibold px-4 pt-4 pb-1 text-ink">Day-wise totals</h2>
+              <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-surface-2">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
                       Date
@@ -271,7 +253,7 @@ export default function DailyProductTransactionPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {dailyTotals.map((day) => (
                     <tr key={day.date} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
@@ -300,7 +282,7 @@ export default function DailyProductTransactionPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-100 dark:bg-gray-900/50 font-semibold">
+                  <tr className="bg-surface-2 font-semibold">
                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">Grand total</td>
                     <td className="px-4 py-3 text-sm text-right dark:text-white">
                       {summary!.totalBills}
@@ -328,41 +310,42 @@ export default function DailyProductTransactionPage() {
               </table>
             </div>
 
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="border-t border-subtle pt-4">
               <button
                 type="button"
                 onClick={() => setShowDetail((v) => !v)}
-                className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 flex items-center gap-1.5 transition-colors"
               >
                 {showDetail ? 'Hide product detail' : 'Show product detail (optional)'}
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showDetail ? 'rotate-180' : ''}`} />
               </button>
 
               {showDetail && (
-                <div className="mt-4 overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                <div className="mt-4 overflow-x-auto glass-panel rounded-xl">
+                  <table className="table-glass min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead className="bg-surface-2">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Date</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Product</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-ink-muted uppercase">Type</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-ink-muted uppercase">Qty</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-ink-muted uppercase">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {detailRows.map((row) => (
                         <tr key={`${row.date}-${row.productId}`}>
-                          <td className="px-3 py-2 text-gray-500">{row.date}</td>
-                          <td className="px-3 py-2 text-gray-900 dark:text-white">{row.productName}</td>
-                          <td className="px-3 py-2 text-gray-500">{row.isMasale ? 'Masale' : 'Chicken'}</td>
-                          <td className="px-3 py-2 text-right text-gray-600">
+                          <td className="px-3 py-2 text-ink-muted">{row.date}</td>
+                          <td className="px-3 py-2 text-ink">{row.productName}</td>
+                          <td className="px-3 py-2 text-ink-muted">{row.isMasale ? 'Masale' : 'Chicken'}</td>
+                          <td className="px-3 py-2 text-right text-ink-secondary">
                             {row.qtyKg > 0
                               ? `${row.qtyKg.toFixed(2)} KG`
                               : row.qtyPcs > 0
                                 ? `${row.qtyPcs} PCS`
                                 : '—'}
                           </td>
-                          <td className="px-3 py-2 text-right font-medium">₹{row.revenue.toFixed(2)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-ink">₹{row.revenue.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>

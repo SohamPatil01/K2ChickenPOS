@@ -3,6 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { format, subDays } from 'date-fns';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Download } from 'lucide-react';
+import { fadeInUp, useMotionSafe } from '@/lib/motion';
 
 interface ReportLayoutProps {
   title: string;
@@ -25,6 +28,7 @@ export default function ReportLayout({
   onExport,
 }: ReportLayoutProps) {
   const router = useRouter();
+  const motionSafe = useMotionSafe();
   const todayYmd = format(new Date(), 'yyyy-MM-dd');
   const [startDate, setStartDate] = useState(
     defaultRange === 'today' ? todayYmd : format(subDays(new Date(), 30), 'yyyy-MM-dd')
@@ -34,7 +38,7 @@ export default function ReportLayout({
   const handleDateChange = (newStartDate?: string, newEndDate?: string) => {
     const effectiveStartDate = newStartDate !== undefined ? newStartDate : startDate;
     const effectiveEndDate = newEndDate !== undefined ? newEndDate : endDate;
-    
+
     if (onDateRangeChange) {
       onDateRangeChange(effectiveStartDate, effectiveEndDate);
     }
@@ -52,28 +56,35 @@ export default function ReportLayout({
       <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <button
           onClick={() => router.push('/reports')}
-          className="px-3 sm:px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-2 text-sm sm:text-base"
+          className="px-3 sm:px-4 py-2 text-ink-secondary hover:text-ink flex items-center gap-2 text-sm sm:text-base transition-colors"
         >
-          ← Back to Reports
+          <ArrowLeft className="h-4 w-4" />
+          Back to Reports
         </button>
         {exportable && (
           <button
             onClick={onExport}
-            className="px-4 py-2 bg-primary-500 text-white rounded-md hover:bg-primary-600 text-sm sm:text-base whitespace-nowrap w-full sm:w-auto"
+            className="px-4 py-2 bg-gradient-brand text-white rounded-xl font-medium shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 transition-all active:scale-95 text-sm sm:text-base whitespace-nowrap w-full sm:w-auto flex items-center justify-center gap-2"
           >
+            <Download className="h-4 w-4" />
             Export
           </button>
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 dark:bg-gray-800 dark:shadow-[0px_4px_6px_rgba(0,0,0,0.3)]">
+      <motion.div
+        initial={motionSafe ? 'hidden' : false}
+        animate="show"
+        variants={motionSafe ? fadeInUp : undefined}
+        className="glass-panel-strong rounded-2xl p-4 sm:p-6"
+      >
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h1 className="text-xl sm:text-2xl font-bold dark:text-white">{title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-ink">{title}</h1>
             {dateRange && (
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-center">
                 <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 sm:items-center">
-                  <label className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 sm:whitespace-nowrap">
+                  <label className="text-xs sm:text-sm text-ink-secondary sm:whitespace-nowrap">
                     From:
                   </label>
                   <input
@@ -84,11 +95,11 @@ export default function ReportLayout({
                       setStartDate(newStartDate);
                       handleDateChange(newStartDate, endDate);
                     }}
-                    className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base min-w-[140px] dark:[color-scheme:dark]"
+                    className="input-glass flex-1 sm:flex-none px-3 py-2 rounded-md text-sm sm:text-base min-w-[140px] [color-scheme:light] dark:[color-scheme:dark]"
                   />
                 </div>
                 <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 sm:items-center">
-                  <label className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 sm:whitespace-nowrap">
+                  <label className="text-xs sm:text-sm text-ink-secondary sm:whitespace-nowrap">
                     To:
                   </label>
                   <input
@@ -99,7 +110,7 @@ export default function ReportLayout({
                       setEndDate(newEndDate);
                       handleDateChange(startDate, newEndDate);
                     }}
-                    className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md text-sm sm:text-base min-w-[140px] dark:[color-scheme:dark]"
+                    className="input-glass flex-1 sm:flex-none px-3 py-2 rounded-md text-sm sm:text-base min-w-[140px] [color-scheme:light] dark:[color-scheme:dark]"
                   />
                 </div>
                 <button
@@ -107,7 +118,7 @@ export default function ReportLayout({
                     // Force reload with current state values
                     handleDateChange(startDate, endDate);
                   }}
-                  className="px-4 py-2 bg-primary-500 text-white rounded-md hover:bg-primary-600 text-sm sm:text-base whitespace-nowrap"
+                  className="px-4 py-2 bg-gradient-brand text-white rounded-xl font-medium shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 transition-all active:scale-95 text-sm sm:text-base whitespace-nowrap"
                 >
                   Apply
                 </button>
@@ -116,8 +127,7 @@ export default function ReportLayout({
           </div>
         </div>
         {children}
-      </div>
+      </motion.div>
     </div>
   );
 }
-
