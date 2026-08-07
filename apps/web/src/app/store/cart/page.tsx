@@ -93,6 +93,10 @@ export default function StoreCartPage() {
   const recognitionRef = useRef<any>(null);
   const phoneSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Timestamp of our own most recent local keystroke per field — lets the
+   * inbound listener below ignore a stale/in-flight remote echo that would
+   * otherwise stomp on what we just typed (the "gets stuck" bug). */
+  const lastLocalDraftEditRef = useRef<{ phone: number; name: number }>({ phone: 0, name: 0 });
   const areaInputRef = useRef<HTMLInputElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -117,6 +121,10 @@ export default function StoreCartPage() {
   const [tempAddressLine2, setTempAddressLine2] = useState(customerAddressLine2 || '');
   const [tempAddressCity, setTempAddressCity] = useState(customerAddressCity || '');
   const [addressSaving, setAddressSaving] = useState(false);
+  /** Collapsed by default; opens if an address is already on file. */
+  const [showAddress, setShowAddress] = useState(
+    () => Boolean(customerAddressLine1 || customerAddressLine2 || customerAddressCity)
+  );
 
   useEffect(() => {
     setTempAddressLine1(customerAddressLine1 || '');
@@ -343,12 +351,20 @@ export default function StoreCartPage() {
   // Live-mirror whatever the customer types on their side of the customer
   // display back into these same phone/name fields.
   useEffect(() => {
+    // A remote update that lands just after we typed locally is almost always
+    // a stale/in-flight echo (network latency crossing our own keystroke), not
+    // a genuine edit from the other side — applying it snaps the field back to
+    // an older value mid-keystroke. Ignore anything for a field we just edited
+    // ourselves within this window.
+    const LOCAL_EDIT_GRACE_MS = 700;
     return onCustomerDraftFieldUpdate((payload) => {
       if (payload.field === 'phone') {
+        if (Date.now() - lastLocalDraftEditRef.current.phone < LOCAL_EDIT_GRACE_MS) return;
         setTempCustomerPhone(payload.value);
         setCustomer(customerId, payload.value || null, tempCustomerName || null, tempCustomerArea || null);
         matchCustomersByPhonePrefix(payload.value);
       } else if (payload.field === 'name') {
+        if (Date.now() - lastLocalDraftEditRef.current.name < LOCAL_EDIT_GRACE_MS) return;
         setTempCustomerName(payload.value);
         setCustomer(customerId, tempCustomerPhone || null, payload.value || null, tempCustomerArea || null);
         searchCustomersByName(payload.value);
@@ -1025,6 +1041,7 @@ export default function StoreCartPage() {
                           setTempAddressCity('');
                           applyReferralInput('');
                           setShowReferral(false);
+                          setShowAddress(false);
                           setPhoneMatches([]);
                           setShowPhoneDropdown(false);
                           setShowCustomerSection(true);
@@ -1118,6 +1135,7 @@ export default function StoreCartPage() {
                         value={tempCustomerName}
                         onChange={(e) => {
                           const newName = e.target.value;
+                          lastLocalDraftEditRef.current.name = Date.now();
                           setTempCustomerName(newName);
                           setCustomer(customerId, tempCustomerPhone || null, newName || null, tempCustomerArea || null);
                           searchCustomersByName(newName);
@@ -1325,53 +1343,80 @@ export default function StoreCartPage() {
                   </div>
 
                   <div className="sm:col-span-2 border-t border-dashed border-gray-200 dark:border-gray-600 pt-4 mt-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-ink-secondary">
-                        Delivery Address
-                      </label>
-                      {discountSource === 'profile_reward' ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
-                          Profile reward: 10% applied
-                        </span>
-                      ) : profileRewardPending ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                          10% reward pending
-                        </span>
-                      ) : customerId && !skipCustomer ? (
-                        <span className="text-xs text-ink-muted">Add address & get 10% off</span>
-                      ) : null}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        placeholder="Address line 1"
-                        value={tempAddressLine1}
-                        onChange={(e) => setTempAddressLine1(e.target.value)}
-                        onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
-                        disabled={!customerId || addressSaving}
-                        className="sm:col-span-2 w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Landmark (optional)"
-                        value={tempAddressLine2}
-                        onChange={(e) => setTempAddressLine2(e.target.value)}
-                        onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
-                        disabled={!customerId || addressSaving}
-                        className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
-                      />
-                      <input
-                        type="text"
-                        placeholder="City"
-                        value={tempAddressCity}
-                        onChange={(e) => setTempAddressCity(e.target.value)}
-                        onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
-                        disabled={!customerId || addressSaving}
-                        className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
-                      />
-                    </div>
-                    {!customerId && (
-                      <p className="mt-1 text-xs text-ink-muted">Save the customer (phone + name) first, then add their address.</p>
+                    {!showAddress ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddress(true)}
+                        className="w-full sm:w-auto text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        + Add address
+                      </button>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/40 p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium text-ink-secondary">
+                            Delivery Address
+                          </p>
+                          <div className="flex items-center gap-3">
+                            {discountSource === 'profile_reward' ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                                Profile reward: 10% applied
+                              </span>
+                            ) : profileRewardPending ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                10% reward pending
+                              </span>
+                            ) : customerId && !skipCustomer ? (
+                              <span className="text-xs text-ink-muted">Add address & get 10% off</span>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTempAddressLine1('');
+                                setTempAddressLine2('');
+                                setTempAddressCity('');
+                                setCustomerAddress(null, null, null, null);
+                                setShowAddress(false);
+                              }}
+                              className="text-xs text-ink-muted hover:text-ink-secondary"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <input
+                            type="text"
+                            placeholder="Address line 1"
+                            value={tempAddressLine1}
+                            onChange={(e) => setTempAddressLine1(e.target.value)}
+                            onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
+                            disabled={!customerId || addressSaving}
+                            className="sm:col-span-2 w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Landmark (optional)"
+                            value={tempAddressLine2}
+                            onChange={(e) => setTempAddressLine2(e.target.value)}
+                            onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
+                            disabled={!customerId || addressSaving}
+                            className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                          />
+                          <input
+                            type="text"
+                            placeholder="City"
+                            value={tempAddressCity}
+                            onChange={(e) => setTempAddressCity(e.target.value)}
+                            onBlur={() => saveCustomerAddress(tempAddressLine1, tempAddressLine2, tempAddressCity)}
+                            disabled={!customerId || addressSaving}
+                            className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+                          />
+                        </div>
+                        {!customerId && (
+                          <p className="mt-1 text-xs text-ink-muted">Save the customer (phone + name) first, then add their address.</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1928,6 +1973,7 @@ export default function StoreCartPage() {
               applyReferralInput(value);
               return;
             }
+            lastLocalDraftEditRef.current.phone = Date.now();
             setTempCustomerPhone(value);
             setCustomer(null, value || null, tempCustomerName || null, tempCustomerArea || null);
             matchCustomersByPhonePrefix(value);
@@ -1979,6 +2025,7 @@ export default function StoreCartPage() {
         <VirtualKeyboard
           value={tempCustomerName}
           onChange={(value) => {
+            lastLocalDraftEditRef.current.name = Date.now();
             setTempCustomerName(value);
             setCustomer(customerId, tempCustomerPhone || null, value || null, tempCustomerArea || null);
             searchCustomersByName(value);

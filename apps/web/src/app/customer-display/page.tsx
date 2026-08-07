@@ -20,6 +20,8 @@ import {
   type DraftFieldUpdatePayload,
 } from "@/lib/customerDisplay/types";
 import { decodeStoreIdFromSession } from "@/lib/customerDisplay/brand";
+import api from "@/lib/api";
+import { parseCustomerListResponse } from "@/lib/customers";
 import IdleScreen from "./components/IdleScreen";
 import BillingScreen from "./components/BillingScreen";
 import PaymentScreen from "./components/PaymentScreen";
@@ -70,10 +72,19 @@ export default function CustomerDisplayPage() {
   /** Which field currently has an open editor (NumPad/VirtualKeyboard). */
   const [draftField, setDraftField] = useState<DraftFieldKey | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "sent" | "error">("idle");
+  /** Matching customers (4+ digits typed) — tap to fill instead of retyping. */
+  const [phoneMatches, setPhoneMatches] = useState<
+    Array<{ id: string; name: string; phone: string; area?: string }>
+  >([]);
+  const phoneSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lastSeqRef = useRef(0);
   const profileSeqRef = useRef(0);
   const draftSeqRef = useRef(0);
+  /** Timestamp of our own most recent local keystroke per field — lets the
+   * inbound handler below ignore a stale/in-flight remote echo that would
+   * otherwise stomp on what the customer just typed here. */
+  const lastLocalDraftEditRef = useRef<Partial<Record<DraftFieldKey, number>>>({});
   const subscriberRef = useRef<DisplaySubscriberHandle | null>(null);
   const modeRef = useRef<DisplayMode>("idle");
   const draftFieldRef = useRef<DraftFieldKey | null>(null);
@@ -86,6 +97,64 @@ export default function CustomerDisplayPage() {
   useEffect(() => {
     draftFieldRef.current = draftField;
   }, [draftField]);
+
+  // Server typeahead once the phone editor is open and 4+ digits are in —
+  // mirrors the same dropdown the cashier sees on the cart page.
+  useEffect(() => {
+    if (draftField !== "phone") {
+      setPhoneMatches([]);
+      return;
+    }
+    const digits = profile.phone.replace(/\D/g, "");
+    if (phoneSearchTimerRef.current) clearTimeout(phoneSearchTimerRef.current);
+    if (digits.length < 4) {
+      setPhoneMatches([]);
+      return;
+    }
+    phoneSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get("/api/v1/customers", { params: { q: digits } });
+        const { customers } = parseCustomerListResponse<{
+          id: string;
+          name: string;
+          phone: string;
+          area?: string;
+        }>(res.data);
+        setPhoneMatches(customers.slice(0, 6));
+      } catch (error) {
+        console.error("Failed to match customers by phone:", error);
+      }
+    }, 250);
+    return () => {
+      if (phoneSearchTimerRef.current) clearTimeout(phoneSearchTimerRef.current);
+    };
+  }, [draftField, profile.phone]);
+
+  /** Customer taps a suggested match — fills phone + name in one go. */
+  const handleSelectPhoneMatch = useCallback(
+    (customer: { id: string; name: string; phone: string }) => {
+      lastLocalDraftEditRef.current.phone = Date.now();
+      lastLocalDraftEditRef.current.name = Date.now();
+      setProfile((p) => ({ ...p, phone: customer.phone, name: customer.name || p.name }));
+      setPhoneMatches([]);
+      draftSeqRef.current += 1;
+      subscriberRef.current?.publishDraft({
+        field: "phone",
+        value: customer.phone,
+        open: false,
+        seq: draftSeqRef.current,
+      });
+      draftSeqRef.current += 1;
+      subscriberRef.current?.publishDraft({
+        field: "name",
+        value: customer.name || "",
+        open: false,
+        seq: draftSeqRef.current,
+      });
+      setDraftField(null);
+    },
+    []
+  );
 
   // Seed the name from whatever the bill already knows once billing starts.
   useEffect(() => {
@@ -213,7 +282,15 @@ export default function CustomerDisplayPage() {
         // would ping-pong the same update between the two sides forever.
         const payload = data as DraftFieldUpdatePayload;
         const key = FIELD_TO_PROFILE_KEY[payload.field];
-        setProfile((p) => ({ ...p, [key]: payload.value }));
+        // A remote update landing just after we typed locally is almost
+        // always a stale/in-flight echo, not a genuine cashier edit —
+        // applying it would snap the field back mid-keystroke.
+        const DRAFT_LOCAL_EDIT_GRACE_MS = 700;
+        const editedLocallyRecently =
+          Date.now() - (lastLocalDraftEditRef.current[payload.field] || 0) < DRAFT_LOCAL_EDIT_GRACE_MS;
+        if (!editedLocallyRecently) {
+          setProfile((p) => ({ ...p, [key]: payload.value }));
+        }
         if (payload.open) {
           setDraftField(payload.field);
         } else if (draftFieldRef.current === payload.field) {
@@ -269,6 +346,7 @@ export default function CustomerDisplayPage() {
 
   /** Customer types into the open editor here — live keystrokes to the cashier. */
   const handleDraftChange = useCallback((field: DraftFieldKey, value: string) => {
+    lastLocalDraftEditRef.current[field] = Date.now();
     setProfile((p) => ({ ...p, [FIELD_TO_PROFILE_KEY[field]]: value }));
     draftSeqRef.current += 1;
     subscriberRef.current?.publishDraft({ field, value, open: true, seq: draftSeqRef.current });
@@ -397,6 +475,15 @@ export default function CustomerDisplayPage() {
           onSubmit={handleCloseField}
           placeholder="Phone number"
           maxLength={12}
+          matches={phoneMatches.map((c) => ({
+            id: c.id,
+            title: c.name || "No name",
+            subtitle: c.area ? `${c.phone} • ${c.area}` : c.phone,
+          }))}
+          onSelectMatch={(match) => {
+            const customer = phoneMatches.find((c) => c.id === match.id);
+            if (customer) handleSelectPhoneMatch(customer);
+          }}
         />
       )}
       {draftField && draftField !== "phone" && (

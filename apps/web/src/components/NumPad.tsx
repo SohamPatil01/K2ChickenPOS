@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 
+interface NumPadMatch {
+  id: string;
+  title: string;
+  subtitle?: string;
+}
+
 interface NumPadProps {
   value: string;
   onChange: (value: string) => void;
@@ -12,18 +18,23 @@ interface NumPadProps {
   maskValue?: boolean; // For password/PIN masking
   allowDecimal?: boolean; // For weight/decimal entry
   quickPresets?: number[]; // Quick preset buttons (e.g., [0.5, 1, 2, 5] for kg)
+  /** Optional tap-to-select suggestions (e.g. matching customers) shown under the input. */
+  matches?: NumPadMatch[];
+  onSelectMatch?: (match: NumPadMatch) => void;
 }
 
-export default function NumPad({ 
-  value, 
-  onChange, 
-  onClose, 
-  onSubmit, 
-  placeholder = 'Enter number', 
-  maxLength = 15, 
+export default function NumPad({
+  value,
+  onChange,
+  onClose,
+  onSubmit,
+  placeholder = 'Enter number',
+  maxLength = 15,
   maskValue = false,
   allowDecimal = false,
-  quickPresets = []
+  quickPresets = [],
+  matches = [],
+  onSelectMatch,
 }: NumPadProps) {
   const [displayValue, setDisplayValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,6 +169,25 @@ export default function NumPad({
               Type or use pad • Enter to confirm
             </p>
           </div>
+
+          {/* Matching customers - tap to select */}
+          {matches.length > 0 && onSelectMatch && (
+            <div className="max-h-32 overflow-y-auto rounded-lg border border-strong divide-y divide-subtle">
+              {matches.map((match) => (
+                <button
+                  key={match.id}
+                  type="button"
+                  onClick={() => onSelectMatch(match)}
+                  className="w-full text-left px-3 py-2 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors"
+                >
+                  <div className="text-sm font-medium text-ink truncate">{match.title}</div>
+                  {match.subtitle && (
+                    <div className="text-xs text-ink-muted truncate">{match.subtitle}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Display - only when maskValue or minimal when value exists */}
           {displayValue && maskValue && (
