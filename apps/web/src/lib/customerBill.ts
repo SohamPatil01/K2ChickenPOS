@@ -599,16 +599,8 @@ export async function downloadCustomerBill(
     const margin = 8;
     const usableW = pageW - margin * 2;
     const maxContentH = maxPageH - margin * 2;
-    let drawW = usableW;
-    let drawH = (canvas.height * drawW) / canvas.width;
-
-    // If only a sliver would spill (footer orphan), scale the whole bill onto one page.
-    const orphanThreshold = maxContentH * 1.12; // up to ~12% over → squeeze onto 1 page
-    if (drawH > maxContentH && drawH <= orphanThreshold) {
-      const scale = maxContentH / drawH;
-      drawW *= scale;
-      drawH = maxContentH;
-    }
+    const drawW = usableW;
+    const drawH = (canvas.height * drawW) / canvas.width;
 
     const imgData = canvas.toDataURL("image/jpeg", 0.93);
 
@@ -638,12 +630,9 @@ export async function downloadCustomerBill(
     let offsetMm = 0;
     let page = 0;
     while (offsetMm < drawH - 0.5) {
-      let sliceH = Math.min(maxContentH, drawH - offsetMm);
-      // If the leftover after this slice is a tiny footer band, absorb it now.
-      const leftover = drawH - offsetMm - sliceH;
-      if (leftover > 0 && leftover < 28) {
-        sliceH = drawH - offsetMm;
-      }
+      // Never exceed the page's printable height — a taller slice would run
+      // past the A4 bottom margin and get clipped when printed or viewed.
+      const sliceH = Math.min(maxContentH, drawH - offsetMm);
       const slicePx = Math.max(1, Math.round(sliceH * pxPerMm));
       const srcY = Math.round(offsetMm * pxPerMm);
       const pageCanvas = document.createElement("canvas");
@@ -667,10 +656,6 @@ export async function downloadCustomerBill(
       }
       const sliceDrawH = pageCanvas.height / pxPerMm;
       if (page > 0) pdf.addPage();
-      // Last short page: shrink page height so we don't leave a blank band.
-      if (page > 0 && offsetMm + sliceDrawH >= drawH - 0.5 && sliceDrawH < maxContentH) {
-        // keep A4 for print consistency on multi-page
-      }
       pdf.addImage(
         pageCanvas.toDataURL("image/jpeg", 0.93),
         "JPEG",
