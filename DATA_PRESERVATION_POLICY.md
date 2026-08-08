@@ -34,7 +34,7 @@ The seed script (`packages/db/prisma/seed.ts`) is **blocked from running on prod
 - ❌ Blocks if `NODE_ENV=production`
 - ❌ Blocks if database URL contains `pooler.supabase.com`
 - ❌ Blocks if database URL contains `vercel`
-- ❌ Blocks if database URL contains `neon.tech`
+- ❌ Blocks if database URL contains `rlwy.net` or `railway.app` (production, on Railway)
 - ❌ Blocks if database URL contains `aws-`
 - ❌ Blocks if database URL contains `production`
 

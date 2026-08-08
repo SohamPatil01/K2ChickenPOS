@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import { saveLocalProducts, saveLocalCustomers } from '@azela-pos/offline';
 
 const CATALOG_REFRESH_KEY = 'azela-offline-catalog-refreshed-at';
-/** Avoid re-pulling full product/customer catalog from Neon more than once per hour. */
+/** Avoid re-pulling full product/customer catalog from the DB more than once per hour. */
 const CATALOG_REFRESH_TTL_MS = 60 * 60 * 1000;
 
 /** Pull catalog from GET /api/v1/sync/bootstrap into IndexedDB for offline POS. */

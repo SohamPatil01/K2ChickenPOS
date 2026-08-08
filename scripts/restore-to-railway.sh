@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Restore a pg_dump into Railway Postgres (then point Vercel at Railway and delete Neon).
+# Restore a pg_dump into Railway Postgres (then point Vercel at Railway).
 #
 # Prerequisites:
 #   1. Railway project with PostgreSQL + public TCP proxy enabled
 #   2. Copy the public DATABASE_URL from Railway → Postgres → Variables
 #      (host looks like xxx.railway.app or proxy.rlwy.net — NOT *.railway.internal)
-#   3. Prefer a FRESH dump from Neon (see scripts/pg-dump-production.sh) so you
+#   3. Prefer a FRESH dump from production (see scripts/pg-dump-production.sh) so you
 #      do not lose sales since the last backup.
 #
 # Usage:
@@ -46,7 +46,7 @@ if [ -z "$DUMP" ]; then
 fi
 
 if [ -z "$DUMP" ] || [ ! -f "$DUMP" ]; then
-  echo -e "${RED}No dump found. Set DUMP=... or run a fresh pg_dump from Neon first.${NC}"
+  echo -e "${RED}No dump found. Set DUMP=... or run a fresh pg_dump from production first.${NC}"
   exit 1
 fi
 
@@ -97,9 +97,7 @@ echo -e "${GREEN}✓ Restore finished${NC}"
 echo ""
 echo "Next — update Vercel (k2-chicken-pos-api Production + Preview):"
 echo "  DATABASE_URL        = same Railway public URL (add ?sslmode=require if missing)"
-echo "  DIRECT_DATABASE_URL = same URL as DATABASE_URL (Railway has no Neon-style pooler)"
+echo "  DIRECT_DATABASE_URL = same URL as DATABASE_URL (Railway has no separate pooler host)"
 echo ""
 echo "Then Redeploy API and hit:"
 echo "  https://k2-chicken-pos-api.vercel.app/health?deep=1"
-echo ""
-echo "Only after that looks healthy, delete Neon."

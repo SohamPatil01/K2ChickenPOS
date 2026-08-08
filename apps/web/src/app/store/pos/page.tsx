@@ -563,7 +563,7 @@ export default function StorePOSPage() {
         return;
       }
 
-      // Local catalog first — avoids a Neon round-trip on every simple SKU/PLU scan.
+      // Local catalog first — avoids a DB round-trip on every simple SKU/PLU scan.
       const localProduct = products.find(
         (p) =>
           normalizeBarcodeForLookup(p.sku) === lookup ||

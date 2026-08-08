@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Helper script to set DATABASE_URL from Vercel or Supabase
+# Helper script to set DATABASE_URL from Vercel, Supabase, or Railway
 # Usage: source ./scripts/set-database-url.sh
 
 echo "🔧 DATABASE_URL Setup Helper"
@@ -8,7 +8,7 @@ echo ""
 echo "Choose your database provider:"
 echo "1. Vercel Postgres"
 echo "2. Supabase"
-echo "3. Neon"
+echo "3. Railway"
 echo "4. Other (enter manually)"
 echo ""
 read -p "Enter choice (1-4): " choice
@@ -43,10 +43,11 @@ case $choice in
     ;;
   3)
     echo ""
-    echo "📋 Steps to get Neon URL:"
-    echo "1. Go to Neon Dashboard"
-    echo "2. Select your project"
-    echo "3. Copy the connection string"
+    echo "📋 Steps to get Railway URL:"
+    echo "1. Go to Railway Dashboard"
+    echo "2. Select your Postgres service"
+    echo "3. Go to Variables → copy the public DATABASE_URL"
+    echo "   (host looks like proxy.rlwy.net — NOT *.railway.internal)"
     echo ""
     read -p "Paste your DATABASE_URL here: " db_url
     export DATABASE_URL="$db_url"

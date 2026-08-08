@@ -87,7 +87,7 @@ export default function StoreDashboardPage() {
 
   useEffect(() => {
     if (!user?.storeId || !autoRefresh) return;
-    // 5GB Neon budget: no timed polling — refresh on sale events + when tab becomes visible
+    // DB egress budget: no timed polling — refresh on sale events + when tab becomes visible
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         handleRefetch({ light: true });

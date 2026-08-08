@@ -107,7 +107,7 @@ export default function GlobalBarcodeScanner() {
         return;
       }
 
-      // Local catalog first — no Neon round-trip for normal SKU/PLU scans.
+      // Local catalog first — no DB round-trip for normal SKU/PLU scans.
       let product = products.find(
         (p) =>
           normalizeBarcodeForLookup(p.sku) === normalized ||

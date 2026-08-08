@@ -99,7 +99,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
 
   const loadSecondary = useCallback(
     async (_userRole: string) => {
-      // 5GB Neon budget: only pending totals once — skip ledger dump + analytics fan-out
+      // DB egress budget: only pending totals once — skip ledger dump + analytics fan-out
       // (dashboard already returns topProducts / payment mix).
       await loadPendingPayments();
     },

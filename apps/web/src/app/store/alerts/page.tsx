@@ -32,7 +32,7 @@ export default function AlertsPage() {
     }
     loadAlerts();
 
-    // 5GB Neon budget: no timed poll — refresh when tab is focused
+    // DB egress budget: no timed poll — refresh when tab is focused
     const onVisible = () => {
       if (document.visibilityState === 'visible') loadAlerts();
     };

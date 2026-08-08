@@ -17,7 +17,7 @@ const RLS_PUBLIC_TABLES = [
 
 /**
  * Cron backups only pull recent transactional rows by default to stay within
- * Neon Free public network transfer (5 GB/mo). Config / master data is still full.
+ * production DB egress budget. Config / master data is still full.
  * Override with BACKUP_TXN_DAYS (1–90). Use POST /create-full for a full dump.
  */
 function backupTxnSince(): { since: Date; days: number } {
@@ -240,7 +240,7 @@ export async function backupRoutes(fastify: FastifyInstance) {
         `[Backup] Starting lean database backup - RequestID: ${requestId}, Timestamp: ${timestamp}, txnDays: ${txnDays}`
       );
 
-      // Master/config tables: full. Transactional tables: last BACKUP_TXN_DAYS only (Neon egress).
+      // Master/config tables: full. Transactional tables: last BACKUP_TXN_DAYS only (DB egress).
       // Use try-catch for queries that might fail due to missing columns in older database schemas
       const [
         stores,

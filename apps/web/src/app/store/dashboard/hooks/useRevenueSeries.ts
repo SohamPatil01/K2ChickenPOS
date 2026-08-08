@@ -37,7 +37,7 @@ function rowsToPoints(rows: Array<{ date: string; total: number }>): RevenuePoin
 
 /**
  * Chart series for the dashboard revenue hero.
- * Loads each range only when selected (5GB Neon budget) and caches until refreshKey bumps.
+ * Loads each range only when selected (DB egress budget) and caches until refreshKey bumps.
  */
 export function useRevenueSeries({
   range,

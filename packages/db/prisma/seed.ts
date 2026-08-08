@@ -15,10 +15,11 @@ async function main() {
   console.log('Seeding database...');
 
   // Safety check: Prevent running seed on production databases
-  const isProduction = process.env.NODE_ENV === 'production' || 
+  const isProduction = process.env.NODE_ENV === 'production' ||
                        process.env.DATABASE_URL?.includes('pooler.supabase.com') ||
                        process.env.DATABASE_URL?.includes('vercel') ||
-                       process.env.DATABASE_URL?.includes('neon.tech') ||
+                       process.env.DATABASE_URL?.includes('rlwy.net') ||
+                       process.env.DATABASE_URL?.includes('railway.app') ||
                        process.env.DATABASE_URL?.includes('aws-') ||
                        process.env.DATABASE_URL?.includes('production');
   
@@ -40,8 +41,8 @@ async function main() {
     if (process.env.DATABASE_URL?.includes('vercel')) {
       console.error('  - Database URL contains "vercel"');
     }
-    if (process.env.DATABASE_URL?.includes('neon.tech')) {
-      console.error('  - Database URL contains "neon.tech"');
+    if (process.env.DATABASE_URL?.includes('rlwy.net') || process.env.DATABASE_URL?.includes('railway.app')) {
+      console.error('  - Database URL looks like Railway production');
     }
     console.error('');
     console.error('To prevent accidental data loss, this script is blocked.');

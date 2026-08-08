@@ -292,25 +292,30 @@ If you want to deploy the API as a separate project:
 postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 ```
 
-### Option 3: Neon (Free Tier Available)
+### Option 3: Railway (used in production)
 
 **Steps:**
 
-1. Go to [neon.tech](https://neon.tech) and create an account
-2. Create a new project
-3. Copy the connection string from the dashboard
+1. Go to [railway.app](https://railway.app) and create an account
+2. Create a new project → **Add PostgreSQL**
+3. Enable the public TCP proxy and copy the `DATABASE_URL` from **Variables**
+   (host looks like `proxy.rlwy.net` — not `*.railway.internal`, which is
+   only reachable from other Railway services)
 4. In Vercel API project → **Settings** → **Environment Variables**
-5. Add `DATABASE_URL` with the connection string from Neon
+5. Add `DATABASE_URL` and `DIRECT_DATABASE_URL` (same value — Railway has no
+   separate pooler host)
 6. **Redeploy** your API project
+
+See `scripts/restore-to-railway.sh` for restoring a `pg_dump` into a fresh
+Railway database.
 
 ### Option 4: Other Cloud Providers
 
-- **Railway** (free tier available)
 - **AWS RDS** (paid)
 - **Google Cloud SQL** (paid)
 - **Azure Database** (paid)
 
-### Option 3: Local Database (Not Recommended for Production)
+### Option 5: Local Database (Not Recommended for Production)
 
 - Only for development/testing
 - Use ngrok or similar to expose local database (not secure)

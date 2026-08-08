@@ -9,7 +9,7 @@ import { getUser } from '../utils/auth.js';
  * The cashier browser publishes live bill snapshots straight to Ably; the
  * customer-facing TV/tablet subscribes straight from Ably. Our API only mints
  * short-lived Ably token requests (and a long-lived display "session" JWT used
- * for pairing) — so no per-cart-change load hits Vercel/Neon.
+ * for pairing) — so no per-cart-change load hits Vercel/DB.
  *
  * Nothing here touches billing, inventory, loyalty or payment workflows.
  */

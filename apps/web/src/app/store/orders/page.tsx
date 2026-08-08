@@ -259,7 +259,7 @@ export default function OrdersPage() {
     window.addEventListener("sale-updated", handleSaleUpdated);
     window.addEventListener("sale-deleted", handleSaleDeleted);
 
-    // 5GB Neon budget: event-driven only (no 5-min full sales list poll)
+    // DB egress budget: event-driven only (no 5-min full sales list poll)
     return () => {
       window.removeEventListener("sale-created", handleSaleCreated);
       window.removeEventListener("sale-updated", handleSaleUpdated);
