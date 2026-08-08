@@ -170,15 +170,15 @@ export default function NumPad({
             </p>
           </div>
 
-          {/* Matching customers - tap to select */}
+          {/* Matching customers - tap to select (touch-sized rows) */}
           {matches.length > 0 && onSelectMatch && (
-            <div className="max-h-32 overflow-y-auto rounded-lg border border-strong divide-y divide-subtle">
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-strong divide-y divide-subtle">
               {matches.map((match) => (
                 <button
                   key={match.id}
                   type="button"
                   onClick={() => onSelectMatch(match)}
-                  className="w-full text-left px-3 py-2 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors"
+                  className="w-full min-h-[44px] text-left px-3 py-2.5 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 active:bg-brand-100/50 dark:active:bg-brand-900/20 active:scale-[0.99] transition-all touch-manipulation"
                 >
                   <div className="text-sm font-medium text-ink truncate">{match.title}</div>
                   {match.subtitle && (

@@ -1100,7 +1100,7 @@ export default function StoreCartPage() {
                             onClick={() => {
                               pickExistingCustomer(customer);
                             }}
-                            className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                            className="w-full min-h-[44px] text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 active:bg-brand-100/50 dark:active:bg-brand-900/20 active:scale-[0.99] transition-all touch-manipulation border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="font-medium text-sm text-ink">{customer.name || 'No name'}</div>
@@ -1221,7 +1221,7 @@ export default function StoreCartPage() {
                             onClick={() => {
                               pickExistingCustomer(customer);
                             }}
-                            className="w-full text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                            className="w-full min-h-[44px] text-left px-4 py-3 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 active:bg-brand-100/50 dark:active:bg-brand-900/20 active:scale-[0.99] transition-all touch-manipulation border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="font-medium text-sm text-ink">{customer.name}</div>
@@ -2018,6 +2018,23 @@ export default function StoreCartPage() {
               : 'Enter phone number'
           }
           maxLength={15}
+          matches={
+            numPadTarget === 'customer'
+              ? phoneMatches.map((c) => ({
+                  id: c.id,
+                  title: c.name || 'No name',
+                  subtitle: c.area ? `${c.phone} • ${c.area}` : c.phone,
+                }))
+              : []
+          }
+          onSelectMatch={
+            numPadTarget === 'customer'
+              ? (match) => {
+                  const customer = phoneMatches.find((c) => c.id === match.id);
+                  if (customer) pickExistingCustomer(customer);
+                }
+              : undefined
+          }
         />
       )}
 
