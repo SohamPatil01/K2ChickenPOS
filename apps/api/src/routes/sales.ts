@@ -786,6 +786,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
           reply.code(400).send({ error: 'Profile reward needs an attached customer' });
           return;
         }
+        // A client can send discountSource: 'profile_reward' with any 10%-shaped
+        // discount regardless of whether this customer actually earned/still has
+        // the reward — verify eligibility server-side, not just the discount math.
+        const rewardCustomer = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { profileRewardStatus: true },
+        });
+        if (rewardCustomer?.profileRewardStatus !== 'PENDING') {
+          reply.code(400).send({ error: 'Profile reward is not available for this customer' });
+          return;
+        }
         const expectedDiscount = Math.round(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
         const actualDiscount = Math.round((Number(data.discountTotal) || 0) * 100) / 100;
         if (Math.abs(expectedDiscount - actualDiscount) > 0.05) {
