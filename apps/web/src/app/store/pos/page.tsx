@@ -1410,13 +1410,13 @@ export default function StorePOSPage() {
               summary
             </p>
           </div>
-          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
+          <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
             <button
               onClick={() => {
                 setAddItemModalFocusWeightFirst(false);
                 setShowAddItemModal(true);
               }}
-              className="px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="min-h-[44px] px-2 sm:px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               <span>+</span> Add Item
             </button>
@@ -1433,27 +1433,27 @@ export default function StorePOSPage() {
                 );
                 setShowQuickCheckout(true);
               }}
-              className="px-4 py-2.5 bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="min-h-[44px] px-2 sm:px-4 py-2.5 bg-gradient-brand text-white shadow-glow-brand hover:shadow-glow-brand-lg hover:brightness-105 rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               ⚡ Quick Pay
             </button>
             <button
               type="button"
               onClick={() => void holdCurrentCart()}
-              className="px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="min-h-[44px] px-2 sm:px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               ⏸ Hold
             </button>
             <button
               type="button"
               onClick={() => void openHoldModal()}
-              className="px-4 py-2.5 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="min-h-[44px] px-2 sm:px-4 py-2.5 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               📋 Held
             </button>
             <Link
               href="/store/cart"
-              className="px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-sm font-medium flex items-center justify-center gap-2 relative transition-all active:scale-[0.98]"
+              className="min-h-[44px] px-2 sm:px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-2 relative transition-all active:scale-[0.98] touch-manipulation"
             >
               🛒 Cart
               <span
@@ -1464,7 +1464,7 @@ export default function StorePOSPage() {
                 {items.length}
               </span>
             </Link>
-            <CustomerDisplayButton className="px-4 py-2.5" />
+            <CustomerDisplayButton className="min-h-[44px] px-2 sm:px-4 py-2.5 text-xs sm:text-sm" />
           </div>
         </div>
       </div>

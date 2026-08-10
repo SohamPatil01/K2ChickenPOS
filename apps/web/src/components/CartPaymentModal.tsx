@@ -376,7 +376,7 @@ export default function CartPaymentModal({
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Payment Method
               </label>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 {paymentMethods.map((method) => (
                   <button
                     type="button"
@@ -536,13 +536,13 @@ export default function CartPaymentModal({
               </div>
 
               <div>
-                <div className="grid grid-cols-6 gap-1.5">
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
                   {quickAmounts.map((quick, idx) => (
                     <button
                       type="button"
                       key={idx}
                       onClick={() => handleQuickAmount(quick.value)}
-                      className="px-2 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded text-[10px] font-semibold transition-colors"
+                      className="min-h-[36px] px-2 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 active:scale-95 rounded text-[10px] font-semibold transition-all touch-manipulation"
                     >
                       {quick.label}
                     </button>

@@ -42,6 +42,7 @@ export default function StoreCartPage() {
   // Cart store selectors
   const items = useCartStore((state) => state.items || []);
   const removeItem = useCartStore((state) => state.removeItem);
+  const updateItem = useCartStore((state) => state.updateItem);
   const getTotal = useCartStore((state) => state.getTotal);
   const customerId = useCartStore((state) => state.customerId);
   const customerPhone = useCartStore((state) => state.customerPhone);
@@ -895,6 +896,23 @@ export default function StoreCartPage() {
     }
   };
 
+  /** +/- stepper on a cart line — pcs items step by 1, weighed items by 0.1kg. */
+  const adjustItemQty = async (item: any, direction: 1 | -1) => {
+    if (!item?.id) return;
+    const isPcs = (item.qtyPcs ?? 0) > 0;
+    const step = isPcs ? 1 : 0.1;
+    const current = isPcs ? item.qtyPcs || 0 : item.qtyKg || 0;
+    const next = Math.round((current + direction * step) * 100) / 100;
+    if (next <= 0) return;
+    const rate = item.rate || 0;
+    const lineTotal = Math.round(next * rate * 100) / 100;
+    try {
+      await updateItem(item.id, isPcs ? { qtyPcs: next, lineTotal } : { qtyKg: next, lineTotal });
+    } catch (error) {
+      showNotification('Failed to update quantity', 'error');
+    }
+  };
+
   return (
     <div className="min-h-full bg-transparent">
       {/* Header - animated entrance */}
@@ -934,8 +952,10 @@ export default function StoreCartPage() {
         </div>
       </div>
 
-      {/* Main Content — shell already pads; avoid nested max-width squeeze */}
-      <div className="pb-6 lg:pb-8">
+      {/* Main Content — shell already pads; avoid nested max-width squeeze.
+          Extra bottom padding on mobile reserves room for the fixed sticky
+          checkout bar so it never covers the last section (Clear Cart). */}
+      <div className="pb-40 lg:pb-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Left Column - Customer & Items */}
           <div className="lg:col-span-2 space-y-6">
@@ -1534,9 +1554,29 @@ export default function StoreCartPage() {
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-ink mb-2 text-lg">{displayName}</h3>
                             <div className="flex items-center gap-3 flex-wrap">
-                              <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm font-medium text-ink-secondary">
-                                {qtyDisplay}
-                              </span>
+                              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                <button
+                                  type="button"
+                                  onClick={() => adjustItemQty(item, -1)}
+                                  disabled={!!removingId}
+                                  aria-label="Decrease quantity"
+                                  className="w-9 h-9 flex items-center justify-center rounded-md text-lg leading-none text-ink-secondary hover:bg-white dark:hover:bg-gray-600 active:scale-90 transition-all touch-manipulation disabled:opacity-50"
+                                >
+                                  −
+                                </button>
+                                <span className="min-w-[64px] text-center text-sm font-medium text-ink-secondary px-1">
+                                  {qtyDisplay}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => adjustItemQty(item, 1)}
+                                  disabled={!!removingId}
+                                  aria-label="Increase quantity"
+                                  className="w-9 h-9 flex items-center justify-center rounded-md text-lg leading-none text-ink-secondary hover:bg-white dark:hover:bg-gray-600 active:scale-90 transition-all touch-manipulation disabled:opacity-50"
+                                >
+                                  +
+                                </button>
+                              </div>
                               <span className="text-gray-400">×</span>
                               <span className="text-ink-secondary font-medium">₹{rate.toFixed(2)}</span>
                               {item.taxRate > 0 && (
@@ -1790,7 +1830,7 @@ export default function StoreCartPage() {
                   </div>
                 </div>
                 
-                {/* Enhanced Checkout Button */}
+                {/* Enhanced Checkout Button — mobile uses the sticky bar below instead */}
                 <button
                   onClick={async () => {
                     await ensureCustomerSaved();
@@ -1798,7 +1838,7 @@ export default function StoreCartPage() {
                     setShowPaymentModal(true);
                   }}
                   disabled={items.length === 0}
-                  className={`w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-orangeGlow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] min-h-[72px] ${ items.length > 0 ? 'animate-soft-pulse' : '' }`}
+                  className={`hidden lg:flex w-full py-5 bg-gradient-to-r from-brand-500 via-brand-600 to-brand-500 hover:from-brand-600 hover:via-brand-700 hover:to-brand-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-orangeGlow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] min-h-[72px] ${ items.length > 0 ? 'animate-soft-pulse' : '' }`}
                 >
                   <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -1809,7 +1849,7 @@ export default function StoreCartPage() {
                   </div>
                 </button>
 
-                {/* Quick Pay Button */}
+                {/* Quick Pay Button — mobile uses the sticky bar below instead */}
                 <button
                   onClick={async () => {
                     await ensureCustomerSaved();
@@ -1819,7 +1859,7 @@ export default function StoreCartPage() {
                     handleCreateSale([{ method: 'CASH', amount: checkoutGrandTotal }]);
                   }}
                   disabled={items.length === 0 || isProcessingPayment}
-                  className="w-full py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="hidden lg:flex w-full py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <span className="text-2xl">⚡</span>
                   <div className="flex flex-col items-start">
@@ -1848,7 +1888,7 @@ export default function StoreCartPage() {
             </div>
 
             {/* Mobile Sticky Checkout Bar */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-panel-strong border-t border-gray-200 dark:border-gray-700 p-4 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 glass-panel-strong border-t border-gray-200 dark:border-gray-700 p-4 safe-bottom z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
