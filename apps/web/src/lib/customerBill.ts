@@ -188,12 +188,10 @@ export async function buildCustomerBillHtml(
         ? "PENDING"
         : String(sale.status).toUpperCase();
 
+  // Paid = confirmed green, Pending = brand amber, Cancelled = red — a
+  // filled pill reads as a real status at a glance instead of a grey chip.
   const statusBg =
-    isPending ? "#fff7ed" : statusLabel === "CANCELLED" ? "#fef2f2" : "#f1f5f9";
-  const statusFg =
-    isPending ? "#9a3412" : statusLabel === "CANCELLED" ? "#991b1b" : "#334155";
-  const statusBd =
-    isPending ? "#fdba74" : statusLabel === "CANCELLED" ? "#fecaca" : "#e2e8f0";
+    isPending ? "#fb923c" : statusLabel === "CANCELLED" ? "#ef4444" : "#16a34a";
 
   const itemRows = sale.items
     .map(
@@ -242,145 +240,160 @@ export async function buildCustomerBillHtml(
       margin: 0;
       padding: 16px;
       font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: #e2e8f0;
-      color: #0f172a;
+      background: #f1f0ee;
+      color: #201a16;
       -webkit-font-smoothing: antialiased;
     }
     .bill {
       position: relative;
       max-width: 680px;
       margin: 0 auto;
-      background: #ffffff;
-      border: 1px solid #cbd5e1;
+      background: #fffdfb;
+      border: 1px solid #f0ded0;
+      border-radius: 14px;
+      box-shadow: 0 1px 3px rgba(122, 46, 0, 0.06), 0 12px 32px rgba(122, 46, 0, 0.08);
       overflow: hidden;
+    }
+    .topbar {
+      height: 6px;
+      background: linear-gradient(90deg, #E65C00, #FF6A00 45%, #FF8A3D);
     }
     .wm {
       position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
       pointer-events: none; z-index: 0; overflow: hidden;
     }
-    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.045; }
+    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.05; }
     .inner { position: relative; z-index: 1; }
     .hdr {
       display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 14px; padding: 16px 18px 12px;
-      border-bottom: 2px solid #0f172a;
+      gap: 14px; padding: 18px 20px 14px;
+      background: linear-gradient(180deg, #FFF3EA 0%, #fffdfb 100%);
+      border-bottom: 1px solid #f4e1cf;
     }
-    .brand-row { display: flex; align-items: center; gap: 10px; }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
     .brand-row img {
-      width: 52px; height: 52px; object-fit: contain; flex-shrink: 0;
-      border: 1px solid #e2e8f0; background: #fff; padding: 3px;
+      width: 54px; height: 54px; object-fit: contain; flex-shrink: 0;
+      border-radius: 10px;
+      border: 1px solid #f4e1cf; background: #fff; padding: 4px;
     }
     .brand-name {
       font-family: "Libre Baskerville", Georgia, serif;
-      font-size: 22px; font-weight: 700; line-height: 1.15; color: #0f172a;
+      font-size: 23px; font-weight: 700; line-height: 1.15; color: #201a16;
       letter-spacing: -0.01em;
     }
     .brand-tag {
-      margin-top: 3px; font-size: 10px; color: #64748b;
-      letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500;
+      margin-top: 4px; font-size: 10px; color: #E65C00;
+      letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
     }
     .meta {
-      margin-top: 8px; font-size: 11px; line-height: 1.45; color: #475569; max-width: 340px;
+      margin-top: 9px; font-size: 11px; line-height: 1.5; color: #6b5d51; max-width: 340px;
     }
     .inv { text-align: right; flex-shrink: 0; }
     .inv-label {
       font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
-      text-transform: uppercase; color: #0f172a;
+      text-transform: uppercase; color: #C04A00;
     }
-    .inv-no { margin-top: 6px; font-size: 14px; font-weight: 700; color: #0f172a; }
-    .inv-dt { margin-top: 3px; font-size: 11px; color: #64748b; }
+    .inv-no { margin-top: 6px; font-size: 15px; font-weight: 700; color: #201a16; }
+    .inv-dt { margin-top: 3px; font-size: 11px; color: #6b5d51; }
     .badge {
-      display: inline-block; margin-top: 8px; padding: 2px 8px;
-      font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
-      border: 1px solid ${statusBd}; background: ${statusBg}; color: ${statusFg};
+      display: inline-block; margin-top: 9px; padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em;
+      background: ${statusBg}; color: #ffffff;
     }
-    .body { padding: 12px 18px 8px; }
+    .body { padding: 14px 20px 8px; }
     .alert {
       display: flex; justify-content: space-between; align-items: center; gap: 10px;
-      margin-bottom: 10px; padding: 8px 12px;
+      margin-bottom: 12px; padding: 10px 14px;
+      border-radius: 10px;
       border: 1px solid #fdba74; background: #fff7ed;
     }
     .alert-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a3412; font-weight: 700; }
     .alert-s { font-size: 11px; color: #c2410c; margin-top: 1px; }
     .alert-amt { font-family: "Libre Baskerville", Georgia, serif; font-size: 18px; font-weight: 700; color: #9a3412; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-    .card { border: 1px solid #e2e8f0; padding: 8px 10px; background: #fff; }
-    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; margin-bottom: 3px; font-weight: 600; }
-    .card-t { font-size: 13px; font-weight: 700; color: #0f172a; }
-    .card-s { font-size: 11px; color: #64748b; margin-top: 2px; }
-    table.items { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .card { border: 1px solid #f0ded0; border-radius: 10px; padding: 10px 12px; background: #fffaf5; }
+    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #b58a68; margin-bottom: 3px; font-weight: 700; }
+    .card-t { font-size: 13px; font-weight: 700; color: #201a16; }
+    .card-s { font-size: 11px; color: #6b5d51; margin-top: 2px; }
+    table.items { width: 100%; border-collapse: collapse; font-size: 12px; border-radius: 10px; overflow: hidden; }
     table.items th {
-      background: #0f172a; color: #f8fafc; font-size: 9px; font-weight: 600;
+      background: #201a16; color: #fff3ea; font-size: 9px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.08em;
-      padding: 7px 6px; text-align: left;
+      padding: 9px 6px; text-align: left;
     }
     table.items th.r { text-align: right; }
     table.items td {
-      padding: 7px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top;
+      padding: 8px 6px; border-bottom: 1px solid #f4e1cf; vertical-align: top;
     }
-    .c-muted { color: #94a3b8; width: 28px; }
-    .c-item { font-weight: 500; color: #0f172a; }
-    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #334155; }
-    .c-strong { font-weight: 700; color: #0f172a; }
-    .totals { margin: 10px 0 4px; display: flex; justify-content: flex-end; }
+    table.items tbody tr:nth-child(even) td { background: #fffaf5; }
+    .c-muted { color: #c9ad96; width: 28px; }
+    .c-item { font-weight: 500; color: #201a16; }
+    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #6b5d51; }
+    .c-strong { font-weight: 700; color: #201a16; }
+    .totals { margin: 12px 0 4px; display: flex; justify-content: flex-end; }
     .totals-box { width: 240px; }
     .t-row {
       display: flex; justify-content: space-between; padding: 2px 0;
-      font-size: 12px; color: #475569;
+      font-size: 12px; color: #6b5d51;
     }
     .t-grand {
-      margin-top: 6px; padding: 8px 10px;
-      background: #0f172a; color: #fff;
+      margin-top: 8px; padding: 10px 12px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #E65C00, #FF6A00);
+      color: #fff;
       display: flex; justify-content: space-between; align-items: center;
       font-size: 12px; font-weight: 600;
+      box-shadow: 0 4px 14px rgba(230, 92, 0, 0.28);
     }
     .t-grand span:last-child {
       font-family: "Libre Baskerville", Georgia, serif;
-      font-size: 16px; font-weight: 700;
+      font-size: 17px; font-weight: 700;
     }
     .pay {
-      margin: 10px 0 4px; padding: 8px 10px; border: 1px solid #e2e8f0;
+      margin: 12px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid #f0ded0; background: #fffaf5;
     }
     .pay-l {
       font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
-      color: #94a3b8; margin-bottom: 6px; font-weight: 600;
+      color: #b58a68; margin-bottom: 6px; font-weight: 700;
     }
     .pay-row {
       display: flex; justify-content: space-between; font-size: 12px;
-      padding: 2px 0; color: #334155;
+      padding: 2px 0; color: #4a3d33;
     }
     .pay-total {
       display: flex; justify-content: space-between; font-size: 12px;
-      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 600;
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e7cdb2; font-weight: 600;
     }
     .pay-due {
       display: flex; justify-content: space-between; font-size: 12px;
       margin-top: 4px; font-weight: 700; color: #9a3412;
     }
     .qr {
-      margin: 8px 0 6px; padding: 10px; border: 1px solid #e2e8f0; text-align: center;
+      margin: 10px 0 6px; padding: 12px; border-radius: 10px; border: 1px solid #f0ded0; background: #fffaf5; text-align: center;
     }
-    .qr-t { font-size: 12px; font-weight: 700; color: #0f172a; }
-    .qr-s { font-size: 10px; color: #64748b; margin: 2px 0 8px; }
+    .qr-t { font-size: 12px; font-weight: 700; color: #201a16; }
+    .qr-s { font-size: 10px; color: #6b5d51; margin: 2px 0 8px; }
     .qr img {
-      width: 128px; height: 128px; background: #fff; padding: 4px;
-      border: 1px solid #f1f5f9;
+      width: 128px; height: 128px; background: #fff; padding: 4px; border-radius: 8px;
+      border: 1px solid #f4e1cf;
     }
     .ftr {
-      border-top: 1px solid #e2e8f0; padding: 10px 18px 12px;
-      text-align: center; font-size: 10.5px; color: #64748b; line-height: 1.45;
-      background: #f8fafc;
+      border-top: 1px solid #f4e1cf; padding: 12px 20px 14px;
+      text-align: center; font-size: 10.5px; color: #6b5d51; line-height: 1.5;
+      background: #fff8f2;
     }
     .ftr-t {
       font-family: "Libre Baskerville", Georgia, serif;
-      font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 2px;
+      font-size: 12.5px; font-weight: 700; color: #201a16; margin-bottom: 2px;
     }
-    .ftr strong { color: #0f172a; font-weight: 600; }
+    .ftr strong { color: #C04A00; font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="bill" id="k2-bill">
+    <div class="topbar"></div>
     <div class="wm"><img src="${logo}" alt=""/></div>
     <div class="inner">
       <div class="hdr">
@@ -512,7 +525,7 @@ export async function buildCustomerBillHtml(
   </div>
 
   <div class="no-print" style="text-align:center;margin-top:14px;">
-    <button onclick="window.print()" style="padding:9px 20px;background:#0f172a;color:#fff;border:none;font-family:IBM Plex Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Print / Save as PDF</button>
+    <button onclick="window.print()" style="padding:10px 22px;border-radius:10px;background:linear-gradient(135deg,#E65C00,#FF6A00);color:#fff;border:none;font-family:IBM Plex Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(230,92,0,0.28);">Print / Save as PDF</button>
   </div>
 </body>
 </html>`;
