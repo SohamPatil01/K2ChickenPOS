@@ -111,10 +111,16 @@ async function embedLogoDataUrl(): Promise<string> {
   }
 }
 
-/** Trim trailing near-white rows so the PDF has no empty band under the footer. */
-function trimCanvasWhitespace(source: HTMLCanvasElement): HTMLCanvasElement {
+/**
+ * Trim trailing near-white rows so the PDF has no empty band under the
+ * footer. Returns the top offset trimmed off too, so callers that computed
+ * DOM-relative pixel positions on the untrimmed canvas can re-align them.
+ */
+function trimCanvasWhitespace(
+  source: HTMLCanvasElement
+): { canvas: HTMLCanvasElement; topOffset: number } {
   const ctx = source.getContext("2d");
-  if (!ctx) return source;
+  if (!ctx) return { canvas: source, topOffset: 0 };
   const { width, height } = source;
   const { data } = ctx.getImageData(0, 0, width, height);
   const isBlank = (y: number) => {
@@ -132,16 +138,36 @@ function trimCanvasWhitespace(source: HTMLCanvasElement): HTMLCanvasElement {
   const y0 = Math.max(0, top - pad);
   const y1 = Math.min(height - 1, bottom + pad);
   const trimH = y1 - y0 + 1;
-  if (trimH >= height - 2) return source;
+  if (trimH >= height - 2) return { canvas: source, topOffset: 0 };
   const out = document.createElement("canvas");
   out.width = width;
   out.height = trimH;
   const octx = out.getContext("2d");
-  if (!octx) return source;
+  if (!octx) return { canvas: source, topOffset: 0 };
   octx.fillStyle = "#ffffff";
   octx.fillRect(0, 0, width, trimH);
   octx.drawImage(source, 0, y0, width, trimH, 0, 0, width, trimH);
-  return out;
+  return { canvas: out, topOffset: y0 };
+}
+
+/**
+ * Bottom-edge Y offsets (in CSS px, relative to billEl's top) of every
+ * "atomic" block that must never be sliced in half across a page break —
+ * item rows and the boxed sections (bill-to/store cards, totals, payment,
+ * QR, pending alert). Used to snap page breaks to a safe gap instead of an
+ * arbitrary pixel height.
+ */
+function collectSafeBreakOffsets(billEl: HTMLElement): number[] {
+  const billTop = billEl.getBoundingClientRect().top;
+  const selector =
+    "table.items tbody tr, .card, .pay, .qr, .alert, .totals, .grid2";
+  const offsets = Array.from(billEl.querySelectorAll(selector)).map(
+    (el) => el.getBoundingClientRect().bottom - billTop
+  );
+  offsets.push(billEl.getBoundingClientRect().height);
+  return Array.from(new Set(offsets.map((n) => Math.round(n)))).sort(
+    (a, b) => a - b
+  );
 }
 
 async function pendingQrDataUrl(
@@ -225,10 +251,16 @@ export async function buildCustomerBillHtml(
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Tax Invoice ${escapeHtml(sale.saleNo)} — ${escapeHtml(BRAND.name)}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
+    /*
+     * Font stack is intentionally system-only — no Google Fonts. Two reasons:
+     * 1) this is rendered inside an offscreen hidden iframe for the PDF/canvas
+     *    capture, where webfont loading is a real, hard-to-debug race;
+     * 2) IBM Plex Sans's served subsets don't cover U+20B9 (₹), so the rupee
+     *    sign silently fell back to a different font than the digits next to
+     *    it on every single price. A system-ui stack loads instantly and has
+     *    full glyph coverage, so every amount renders in one consistent face.
+     */
     @page { size: A4; margin: 10mm; }
     @media print {
       body { background: #fff !important; padding: 0 !important; }
@@ -239,154 +271,146 @@ export async function buildCustomerBillHtml(
     body {
       margin: 0;
       padding: 16px;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: #f1f0ee;
-      color: #201a16;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #eef0f2;
+      color: #16181c;
       -webkit-font-smoothing: antialiased;
     }
     .bill {
       position: relative;
       max-width: 680px;
       margin: 0 auto;
-      background: #fffdfb;
-      border: 1px solid #f0ded0;
-      border-radius: 14px;
-      box-shadow: 0 1px 3px rgba(122, 46, 0, 0.06), 0 12px 32px rgba(122, 46, 0, 0.08);
+      background: #ffffff;
+      border: 1px solid #e4e7eb;
       overflow: hidden;
     }
-    .topbar {
-      height: 6px;
-      background: linear-gradient(90deg, #E65C00, #FF6A00 45%, #FF8A3D);
-    }
+    .topbar { height: 4px; background: #E65C00; }
     .wm {
       position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
       pointer-events: none; z-index: 0; overflow: hidden;
     }
-    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.05; }
+    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.04; }
     .inner { position: relative; z-index: 1; }
     .hdr {
       display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 14px; padding: 18px 20px 14px;
-      background: linear-gradient(180deg, #FFF3EA 0%, #fffdfb 100%);
-      border-bottom: 1px solid #f4e1cf;
+      gap: 16px; padding: 24px 28px 20px;
+      border-bottom: 2px solid #16181c;
     }
     .brand-row { display: flex; align-items: center; gap: 12px; }
     .brand-row img {
-      width: 54px; height: 54px; object-fit: contain; flex-shrink: 0;
-      border-radius: 10px;
-      border: 1px solid #f4e1cf; background: #fff; padding: 4px;
+      width: 46px; height: 46px; object-fit: contain; flex-shrink: 0;
+      border: 1px solid #e4e7eb; background: #fff; padding: 3px;
     }
     .brand-name {
-      font-family: "Libre Baskerville", Georgia, serif;
-      font-size: 23px; font-weight: 700; line-height: 1.15; color: #201a16;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 22px; font-weight: 700; line-height: 1.2; color: #16181c;
       letter-spacing: -0.01em;
     }
     .brand-tag {
-      margin-top: 4px; font-size: 10px; color: #E65C00;
-      letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+      margin-top: 2px; font-size: 9.5px; color: #E65C00;
+      letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;
     }
     .meta {
-      margin-top: 9px; font-size: 11px; line-height: 1.5; color: #6b5d51; max-width: 340px;
+      margin-top: 10px; font-size: 10.5px; line-height: 1.6; color: #5c6470; max-width: 320px;
     }
     .inv { text-align: right; flex-shrink: 0; }
     .inv-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
-      text-transform: uppercase; color: #C04A00;
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #5c6470;
     }
-    .inv-no { margin-top: 6px; font-size: 15px; font-weight: 700; color: #201a16; }
-    .inv-dt { margin-top: 3px; font-size: 11px; color: #6b5d51; }
+    .inv-no { margin-top: 6px; font-size: 16px; font-weight: 700; color: #16181c; font-variant-numeric: tabular-nums; }
+    .inv-dt { margin-top: 3px; font-size: 10.5px; color: #5c6470; }
     .badge {
-      display: inline-block; margin-top: 9px; padding: 3px 10px;
-      border-radius: 999px;
-      font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em;
+      display: inline-block; margin-top: 10px; padding: 3px 10px;
+      border-radius: 3px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
       background: ${statusBg}; color: #ffffff;
     }
-    .body { padding: 14px 20px 8px; }
+    .body { padding: 20px 28px 8px; }
     .alert {
       display: flex; justify-content: space-between; align-items: center; gap: 10px;
-      margin-bottom: 12px; padding: 10px 14px;
-      border-radius: 10px;
-      border: 1px solid #fdba74; background: #fff7ed;
+      margin-bottom: 16px; padding: 12px 16px;
+      border: 1px solid #fdba74; border-left: 3px solid #ea580c; background: #fff7ed;
     }
     .alert-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a3412; font-weight: 700; }
     .alert-s { font-size: 11px; color: #c2410c; margin-top: 1px; }
-    .alert-amt { font-family: "Libre Baskerville", Georgia, serif; font-size: 18px; font-weight: 700; color: #9a3412; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-    .card { border: 1px solid #f0ded0; border-radius: 10px; padding: 10px 12px; background: #fffaf5; }
-    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #b58a68; margin-bottom: 3px; font-weight: 700; }
-    .card-t { font-size: 13px; font-weight: 700; color: #201a16; }
-    .card-s { font-size: 11px; color: #6b5d51; margin-top: 2px; }
-    table.items { width: 100%; border-collapse: collapse; font-size: 12px; border-radius: 10px; overflow: hidden; }
+    .alert-amt { font-size: 19px; font-weight: 700; color: #9a3412; font-variant-numeric: tabular-nums; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-bottom: 20px; border: 1px solid #e4e7eb; }
+    .card { padding: 12px 16px; }
+    .card + .card { border-left: 1px solid #e4e7eb; }
+    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #8a919c; margin-bottom: 4px; font-weight: 700; }
+    .card-t { font-size: 13px; font-weight: 700; color: #16181c; }
+    .card-s { font-size: 11px; color: #5c6470; margin-top: 2px; }
+    table.items { width: 100%; border-collapse: collapse; font-size: 12px; }
     table.items th {
-      background: #201a16; color: #fff3ea; font-size: 9px; font-weight: 600;
+      background: #16181c; color: #fff; font-size: 9px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.08em;
-      padding: 9px 6px; text-align: left;
+      padding: 9px 8px; text-align: left;
     }
     table.items th.r { text-align: right; }
     table.items td {
-      padding: 8px 6px; border-bottom: 1px solid #f4e1cf; vertical-align: top;
+      padding: 9px 8px; border-bottom: 1px solid #e4e7eb; vertical-align: top;
     }
-    table.items tbody tr:nth-child(even) td { background: #fffaf5; }
-    .c-muted { color: #c9ad96; width: 28px; }
-    .c-item { font-weight: 500; color: #201a16; }
-    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #6b5d51; }
-    .c-strong { font-weight: 700; color: #201a16; }
-    .totals { margin: 12px 0 4px; display: flex; justify-content: flex-end; }
+    table.items tbody tr:nth-child(even) td { background: #f8f9fa; }
+    .c-muted { color: #b2b8c2; width: 28px; }
+    .c-item { font-weight: 500; color: #16181c; }
+    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #5c6470; }
+    .c-strong { font-weight: 700; color: #16181c; }
+    .totals { margin: 14px 0 4px; display: flex; justify-content: flex-end; }
     .totals-box { width: 240px; }
     .t-row {
-      display: flex; justify-content: space-between; padding: 2px 0;
-      font-size: 12px; color: #6b5d51;
+      display: flex; justify-content: space-between; padding: 3px 0;
+      font-size: 12px; color: #5c6470;
     }
+    .t-row span:last-child { font-variant-numeric: tabular-nums; }
     .t-grand {
-      margin-top: 8px; padding: 10px 12px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #E65C00, #FF6A00);
+      margin-top: 8px; padding: 11px 14px;
+      background: #E65C00;
       color: #fff;
       display: flex; justify-content: space-between; align-items: center;
       font-size: 12px; font-weight: 600;
-      box-shadow: 0 4px 14px rgba(230, 92, 0, 0.28);
     }
     .t-grand span:last-child {
-      font-family: "Libre Baskerville", Georgia, serif;
-      font-size: 17px; font-weight: 700;
+      font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
     }
     .pay {
-      margin: 12px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid #f0ded0; background: #fffaf5;
+      margin: 16px 0 4px; padding: 12px 16px; border: 1px solid #e4e7eb;
     }
     .pay-l {
       font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
-      color: #b58a68; margin-bottom: 6px; font-weight: 700;
+      color: #8a919c; margin-bottom: 6px; font-weight: 700;
     }
     .pay-row {
       display: flex; justify-content: space-between; font-size: 12px;
-      padding: 2px 0; color: #4a3d33;
+      padding: 3px 0; color: #33383f;
     }
+    .pay-row span:last-child, .pay-total span:last-child, .pay-due span:last-child { font-variant-numeric: tabular-nums; }
     .pay-total {
       display: flex; justify-content: space-between; font-size: 12px;
-      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e7cdb2; font-weight: 600;
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd2d9; font-weight: 600;
     }
     .pay-due {
       display: flex; justify-content: space-between; font-size: 12px;
       margin-top: 4px; font-weight: 700; color: #9a3412;
     }
     .qr {
-      margin: 10px 0 6px; padding: 12px; border-radius: 10px; border: 1px solid #f0ded0; background: #fffaf5; text-align: center;
+      margin: 12px 0 6px; padding: 14px; border: 1px solid #e4e7eb; text-align: center;
     }
-    .qr-t { font-size: 12px; font-weight: 700; color: #201a16; }
-    .qr-s { font-size: 10px; color: #6b5d51; margin: 2px 0 8px; }
+    .qr-t { font-size: 12px; font-weight: 700; color: #16181c; }
+    .qr-s { font-size: 10px; color: #5c6470; margin: 2px 0 8px; }
     .qr img {
-      width: 128px; height: 128px; background: #fff; padding: 4px; border-radius: 8px;
-      border: 1px solid #f4e1cf;
+      width: 128px; height: 128px; background: #fff; padding: 4px;
+      border: 1px solid #e4e7eb;
     }
     .ftr {
-      border-top: 1px solid #f4e1cf; padding: 12px 20px 14px;
-      text-align: center; font-size: 10.5px; color: #6b5d51; line-height: 1.5;
-      background: #fff8f2;
+      border-top: 1px solid #e4e7eb; padding: 16px 28px 18px;
+      text-align: center; font-size: 10.5px; color: #5c6470; line-height: 1.6;
+      background: #fafbfc;
     }
     .ftr-t {
-      font-family: "Libre Baskerville", Georgia, serif;
-      font-size: 12.5px; font-weight: 700; color: #201a16; margin-bottom: 2px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 13px; font-weight: 700; color: #16181c; margin-bottom: 3px;
     }
     .ftr strong { color: #C04A00; font-weight: 600; }
   </style>
@@ -525,7 +549,7 @@ export async function buildCustomerBillHtml(
   </div>
 
   <div class="no-print" style="text-align:center;margin-top:14px;">
-    <button onclick="window.print()" style="padding:10px 22px;border-radius:10px;background:linear-gradient(135deg,#E65C00,#FF6A00);color:#fff;border:none;font-family:IBM Plex Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(230,92,0,0.28);">Print / Save as PDF</button>
+    <button onclick="window.print()" style="padding:10px 22px;border-radius:4px;background:#E65C00;color:#fff;border:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Print / Save as PDF</button>
   </div>
 </body>
 </html>`;
@@ -563,7 +587,8 @@ export async function downloadCustomerBill(
     doc.write(html);
     doc.close();
 
-    // Wait for logo / QR + web fonts so PDF text looks professional.
+    // Wait for logo / QR images. No webfont wait needed — the template only
+    // uses system fonts, which are available synchronously.
     await new Promise<void>((resolve) => {
       const imgs = Array.from(doc.images || []);
       if (imgs.length === 0) {
@@ -584,15 +609,13 @@ export async function downloadCustomerBill(
       });
       setTimeout(resolve, 2500);
     });
-    try {
-      const fonts = (doc as Document & { fonts?: FontFaceSet }).fonts;
-      if (fonts?.ready) await Promise.race([fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
-    } catch {
-      // ignore
-    }
 
     const billEl = doc.getElementById("k2-bill");
     if (!billEl) throw new Error("Bill element missing");
+
+    // Measure safe page-break points (row/section bottoms) before capture —
+    // these are DOM positions, not canvas pixels yet.
+    const safeBreaksCss = collectSafeBreakOffsets(billEl);
 
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
       import("html2canvas"),
@@ -605,7 +628,7 @@ export async function downloadCustomerBill(
       logging: false,
       windowWidth: 720,
     });
-    const canvas = trimCanvasWhitespace(canvasRaw);
+    const { canvas, topOffset } = trimCanvasWhitespace(canvasRaw);
 
     const pageW = 210; // mm
     const maxPageH = 297;
@@ -632,7 +655,22 @@ export async function downloadCustomerBill(
       return;
     }
 
-    // Truly long bills (many line items) — paginate without tiny orphan pages.
+    // Truly long bills (many line items) — paginate without tiny orphan
+    // pages, and without ever slicing through the middle of a table row or
+    // a boxed section (totals/payment/QR/bill-to card). Each measured DOM
+    // break offset maps to canvas pixels at the same uniform scale
+    // html2canvas rendered at (scale:2), shifted by whatever the whitespace
+    // trim above removed from the top.
+    // +3 canvas px nudges the cut a hair past the measured edge, into the
+    // margin/gap that follows each element — otherwise a border's own
+    // anti-aliased edge pixels can land exactly on the cut line and leave a
+    // faint sliver on the next page.
+    const scaleRatio = canvasRaw.width / billEl.getBoundingClientRect().width;
+    const safeBreaksPx = safeBreaksCss
+      .map((y) => Math.min(canvas.height, Math.round(y * scaleRatio) - topOffset + 3))
+      .filter((y) => y > 0)
+      .sort((a, b) => a - b);
+
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -640,14 +678,21 @@ export async function downloadCustomerBill(
       compress: true,
     });
     const pxPerMm = canvas.width / drawW;
-    let offsetMm = 0;
+    const minSlicePx = 20 * pxPerMm; // never produce a sliver page
+    let offsetPx = 0;
     let page = 0;
-    while (offsetMm < drawH - 0.5) {
-      // Never exceed the page's printable height — a taller slice would run
-      // past the A4 bottom margin and get clipped when printed or viewed.
-      const sliceH = Math.min(maxContentH, drawH - offsetMm);
-      const slicePx = Math.max(1, Math.round(sliceH * pxPerMm));
-      const srcY = Math.round(offsetMm * pxPerMm);
+    while (offsetPx < canvas.height - 0.5) {
+      const hardMaxPx = Math.min(canvas.height, offsetPx + maxContentH * pxPerMm);
+      // Prefer the furthest safe break that still fits on this page; only
+      // fall back to a hard pixel cut (old behavior) if none is found —
+      // e.g. a single row genuinely taller than one page.
+      const safeEndPx = safeBreaksPx.reduce(
+        (best, y) => (y > offsetPx + minSlicePx && y <= hardMaxPx ? y : best),
+        0
+      );
+      const sliceEndPx = safeEndPx > 0 ? safeEndPx : hardMaxPx;
+      const slicePx = Math.max(1, Math.round(sliceEndPx - offsetPx));
+      const srcY = Math.round(offsetPx);
       const pageCanvas = document.createElement("canvas");
       pageCanvas.width = canvas.width;
       pageCanvas.height = Math.min(slicePx, canvas.height - srcY);
@@ -677,7 +722,7 @@ export async function downloadCustomerBill(
         drawW,
         sliceDrawH
       );
-      offsetMm += sliceDrawH;
+      offsetPx += pageCanvas.height;
       page += 1;
       if (page > 20) break;
     }
