@@ -68,6 +68,52 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Original line-art rooster mark — a weathervane-style silhouette, drawn
+ * for this invoice specifically (not stock art). `ROOSTER_MARK` is the bare
+ * silhouette for small crisp use (e.g. the footer sign-off); `ROOSTER_BADGE`
+ * wraps it in a ring with wheat-sprig flourishes for use as a large,
+ * low-opacity background watermark.
+ */
+const ROOSTER_MARK = `<g fill="currentColor">
+  <path d="M118 108 C 150 95, 168 62, 160 28 C 158 60, 142 82, 116 100 C 118 103, 118 106, 118 108 Z"/>
+  <path d="M112 112 C 138 88, 148 52, 132 20 C 136 52, 128 80, 104 104 C 107 108, 110 110, 112 112 Z"/>
+  <path d="M104 114 C 120 84, 120 48, 100 22 C 110 50, 108 78, 92 106 C 96 109, 100 112, 104 114 Z"/>
+  <path d="M60 118 C 58 100, 72 86, 92 86 C 112 86, 126 98, 128 116 C 130 132, 120 148, 98 150 C 76 152, 62 138, 60 118 Z"/>
+  <path d="M64 100 C 56 88, 50 74, 54 60 C 58 66, 62 72, 68 76 C 66 84, 66 92, 68 100 Z"/>
+  <circle cx="52" cy="54" r="13"/>
+  <path d="M44 44 C 42 39, 46 36, 49 40 C 50 35, 56 35, 56 40 C 59 36, 64 39, 61 44 C 58 47, 47 47, 44 44 Z"/>
+  <path d="M40 58 L 27 55 L 40 51 Z"/>
+  <path d="M42 62 C 39 65, 39 70, 43 71 C 45 67, 44 64, 42 62 Z"/>
+  <path d="M92 148 L 90 172" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M90 172 L 78 178 M90 172 L 90 180 M90 172 L 100 177" stroke="currentColor" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+</g>
+<ellipse cx="90" cy="181" rx="20" ry="3" fill="currentColor" opacity="0.3"/>`;
+
+function roosterBadgeSvg(opts: {
+  size: number;
+  color: string;
+  opacity?: number;
+  rotate?: number;
+  ring?: boolean;
+}): string {
+  const { size, color, opacity = 1, rotate = 0, ring = true } = opts;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 240 240" style="color:${color};opacity:${opacity};transform:rotate(${rotate}deg)">
+    ${ring ? `<circle cx="120" cy="122" r="100" fill="none" stroke="currentColor" stroke-width="2"/>` : ""}
+    <g transform="translate(30,20)">${ROOSTER_MARK}</g>
+    ${
+      ring
+        ? `<g stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round">
+      <path d="M40 190 Q30 150 45 105"/>
+      <path d="M43 175 L32 170 M45 162 L33 158 M47 149 L35 146 M49 136 L37 134 M51 123 L40 122 M53 111 L42 111"/>
+      <path d="M200 190 Q210 150 195 105"/>
+      <path d="M197 175 L208 170 M195 162 L207 158 M193 149 L205 146 M191 136 L203 134 M189 123 L200 122 M187 111 L198 111"/>
+    </g>`
+        : ""
+    }
+  </svg>`;
+}
+
 /** Cash/card/UPI count as paid; CREDIT is a promise, not money received. */
 export function actualPayments(sale: BillSale) {
   return (sale.payments || []).filter(
@@ -266,6 +312,7 @@ export async function buildCustomerBillHtml(
       body { background: #fff !important; padding: 0 !important; }
       .no-print { display: none !important; }
       .bill { box-shadow: none !important; border: none !important; }
+      .bill { animation: none !important; opacity: 1 !important; transform: none !important; }
     }
     * { box-sizing: border-box; }
     body {
@@ -276,6 +323,12 @@ export async function buildCustomerBillHtml(
       color: #16181c;
       -webkit-font-smoothing: antialiased;
     }
+    /* On-screen only — settles well before the PDF/canvas capture reads the
+       page, and is force-disabled under @media print above regardless. */
+    @keyframes billIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.99); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
     .bill {
       position: relative;
       max-width: 680px;
@@ -283,6 +336,7 @@ export async function buildCustomerBillHtml(
       background: #ffffff;
       border: 1px solid #e4e7eb;
       overflow: hidden;
+      animation: billIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     .topbar { height: 4px; background: #E65C00; }
     .wm {
@@ -290,7 +344,6 @@ export async function buildCustomerBillHtml(
       display: flex; align-items: center; justify-content: center;
       pointer-events: none; z-index: 0; overflow: hidden;
     }
-    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.04; }
     .inner { position: relative; z-index: 1; }
     .hdr {
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -408,6 +461,7 @@ export async function buildCustomerBillHtml(
       text-align: center; font-size: 10.5px; color: #5c6470; line-height: 1.6;
       background: #fafbfc;
     }
+    .ftr-badge { display: flex; justify-content: center; margin-bottom: 6px; }
     .ftr-t {
       font-family: Georgia, "Times New Roman", serif;
       font-size: 13px; font-weight: 700; color: #16181c; margin-bottom: 3px;
@@ -418,7 +472,7 @@ export async function buildCustomerBillHtml(
 <body>
   <div class="bill" id="k2-bill">
     <div class="topbar"></div>
-    <div class="wm"><img src="${logo}" alt=""/></div>
+    <div class="wm">${roosterBadgeSvg({ size: 380, color: "#E65C00", opacity: 0.1, rotate: -6 })}</div>
     <div class="inner">
       <div class="hdr">
         <div>
@@ -536,6 +590,7 @@ export async function buildCustomerBillHtml(
       </div>
 
       <div class="ftr">
+        <div class="ftr-badge">${roosterBadgeSvg({ size: 40, color: "#C04A00", ring: false })}</div>
         <div class="ftr-t">Thank you for shopping with ${escapeHtml(BRAND.name)}</div>
         <div>Freshness you can taste · Quality you can trust</div>
         <div style="margin-top:4px;">
@@ -612,6 +667,16 @@ export async function downloadCustomerBill(
 
     const billEl = doc.getElementById("k2-bill");
     if (!billEl) throw new Error("Bill element missing");
+
+    // The template has a CSS entrance fade for on-screen viewing (billIn).
+    // html2canvas has no guaranteed relationship to the animation timeline —
+    // it can (and did, in testing) snapshot mid-fade, capturing the whole
+    // bill at partial opacity, which reads as "washed out" colors in the
+    // exported PDF. Kill the animation outright before capture instead of
+    // racing it; @media print already does the same for the print path.
+    (billEl as HTMLElement).style.animation = "none";
+    (billEl as HTMLElement).style.opacity = "1";
+    (billEl as HTMLElement).style.transform = "none";
 
     // Measure safe page-break points (row/section bottoms) before capture —
     // these are DOM positions, not canvas pixels yet.
