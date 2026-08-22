@@ -223,7 +223,7 @@ export default function AnalyticsPage() {
                 Profit margin tracker
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Net profit = sales − purchases (expenses not tracked yet)
+                Net profit = sales − cost of goods sold (expenses when tracked)
               </p>
             </div>
             <Link
@@ -241,7 +241,7 @@ export default function AnalyticsPage() {
               </p>
             </div>
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Purchases</p>
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Inventory received</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
                 {formatINR(profitSummary.totalPurchases)}
               </p>
