@@ -57,6 +57,102 @@ function tokenAuthUrl(): string {
   return `${origin}/api/v1/customer-display/token`;
 }
 
+/** Refresh the cashier JWT if the access token expired (Ably renews every ~12h). */
+async function refreshAccessTokenIfNeeded(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (!refreshToken) return null;
+    const base = getApiBaseUrl();
+    const origin = base || window.location.origin;
+    const res = await fetch(`${origin}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { accessToken?: string };
+    if (!data.accessToken) return null;
+    localStorage.setItem("accessToken", data.accessToken);
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch a signed Ably TokenRequest from our API.
+ * Uses a fresh JWT on every call (authCallback) so renewals don't 401 after ~15m.
+ */
+async function fetchAblyTokenRequest(opts: {
+  getAccessToken?: () => string | null;
+  sessionToken?: string;
+}): Promise<Record<string, unknown>> {
+  const url = new URL(tokenAuthUrl());
+  if (opts.sessionToken) {
+    url.searchParams.set("t", opts.sessionToken);
+  }
+
+  const requestToken = async (accessToken: string | null) => {
+    const headers: Record<string, string> = {};
+    if (!opts.sessionToken && accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+    return fetch(url.toString(), { method: "GET", headers });
+  };
+
+  let accessToken = opts.getAccessToken?.() ?? null;
+  let res = await requestToken(accessToken);
+
+  if (res.status === 401 && !opts.sessionToken) {
+    const refreshed = await refreshAccessTokenIfNeeded();
+    if (refreshed) {
+      accessToken = refreshed;
+      res = await requestToken(accessToken);
+    }
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Ably auth ${res.status}${body ? `: ${body.slice(0, 120)}` : ""}`);
+  }
+
+  return res.json() as Promise<Record<string, unknown>>;
+}
+
+function buildAblyAuthCallback(opts: {
+  getAccessToken?: () => string | null;
+  sessionToken?: string;
+}) {
+  return (
+    _tokenParams: import("ably").TokenParams,
+    callback: (
+      error: string | import("ably").ErrorInfo | null,
+      tokenRequest: import("ably").TokenRequest | import("ably").TokenDetails | string | null
+    ) => void
+  ) => {
+    void fetchAblyTokenRequest(opts)
+      .then((tokenRequest) =>
+        callback(null, tokenRequest as unknown as import("ably").TokenRequest)
+      )
+      .catch((err: unknown) => {
+        callback(err instanceof Error ? err.message : String(err), null);
+      });
+  };
+}
+
+function createAblyRealtime(
+  AblyModule: typeof import("ably"),
+  auth: { getAccessToken?: () => string | null; sessionToken?: string },
+  extra?: { closeOnUnload?: boolean }
+): Realtime {
+  return new AblyModule.Realtime({
+    authCallback: buildAblyAuthCallback(auth),
+    ...RESILIENCE_OPTIONS,
+    closeOnUnload: extra?.closeOnUnload ?? true,
+  });
+}
+
 /** Lazily load the Ably SDK so it never affects SSR or unrelated bundles. */
 async function loadAbly(): Promise<typeof import("ably") | null> {
   try {
@@ -119,13 +215,7 @@ export async function createDisplayPublisher(
 
   let client: Realtime;
   try {
-    client = new AblyModule.Realtime({
-      authUrl: tokenAuthUrl(),
-      authMethod: "GET",
-      authHeaders: { Authorization: `Bearer ${token}` },
-      ...RESILIENCE_OPTIONS,
-      closeOnUnload: true,
-    });
+    client = createAblyRealtime(AblyModule, { getAccessToken: opts.getAccessToken });
   } catch {
     opts.onStatus?.("disabled");
     return noop;
@@ -195,16 +285,11 @@ export async function createDisplaySubscriber(
 
   let client: Realtime;
   try {
-    client = new AblyModule.Realtime({
-      authUrl: tokenAuthUrl(),
-      authMethod: "GET",
-      authParams: { t: opts.sessionToken },
-      ...RESILIENCE_OPTIONS,
-      // Always-on display: don't tear the connection down on a stray page
-      // lifecycle event (some TV/kiosk browsers fire pagehide on blur). The SDK
-      // keeps the socket alive / recovers it instead.
-      closeOnUnload: false,
-    });
+    client = createAblyRealtime(
+      AblyModule,
+      { sessionToken: opts.sessionToken },
+      { closeOnUnload: false }
+    );
   } catch {
     opts.onStatus?.("disabled");
     return noop;
@@ -315,13 +400,7 @@ export async function createCustomerProfileInbox(
 
   let client: Realtime;
   try {
-    client = new AblyModule.Realtime({
-      authUrl: tokenAuthUrl(),
-      authMethod: "GET",
-      authHeaders: { Authorization: `Bearer ${token}` },
-      ...RESILIENCE_OPTIONS,
-      closeOnUnload: true,
-    });
+    client = createAblyRealtime(AblyModule, { getAccessToken: opts.getAccessToken });
   } catch {
     opts.onStatus?.("disabled");
     return noop;
