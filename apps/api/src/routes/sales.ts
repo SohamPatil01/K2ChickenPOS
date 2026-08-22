@@ -102,7 +102,9 @@ function saleListSelect(includeItems: boolean) {
     storeId: true,
     customerId: true,
     createdByUserId: true,
-    ...(includeItems ? { items: { select: saleListItemSelect } } : {}),
+    ...(includeItems
+      ? { items: { select: saleListItemSelect } }
+      : { _count: { select: { items: true } } }),
     customer: {
       select: {
         id: true,
@@ -139,9 +141,13 @@ function saleListSelect(includeItems: boolean) {
 }
 
 function withSaleItemCount(sale: any) {
-  const itemCount = Array.isArray(sale.items) ? sale.items.length : 0;
+  const itemCount =
+    sale.itemCount ??
+    sale._count?.items ??
+    (Array.isArray(sale.items) ? sale.items.length : 0);
+  const { _count, ...rest } = sale;
   return {
-    ...sale,
+    ...rest,
     items: Array.isArray(sale.items) ? sale.items : [],
     itemCount,
   };

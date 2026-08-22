@@ -48,6 +48,7 @@ export const getMenuSections = (): NavSection[] => [
   {
     title: "Reports & Settings",
     items: [
+      { label: "Business Reports", href: "/store/business-reports", icon: "reports", roles: ["MANAGER", "OWNER", "CASHIER"] },
       { label: "Reports", href: "/store/reports", icon: "reports", roles: ["MANAGER", "OWNER"] },
       { label: "ITR / Tax", href: "/store/itr", icon: "itr", roles: ["MANAGER", "OWNER"] },
       { label: "Analytics", href: "/analytics", icon: "analytics", roles: ["OWNER"] },

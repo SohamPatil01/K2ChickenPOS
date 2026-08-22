@@ -58,6 +58,7 @@ export default function HQLayout({
     { path: '/compliance', label: 'Compliance', icon: '✅', roles: ['OWNER'] },
     { path: '/payments', label: 'Payments', icon: '💳', roles: ['OWNER'] },
     { path: '/analytics', label: 'Analytics', icon: '📈', roles: ['OWNER'] },
+    { path: '/business-reports', label: 'Business Reports', icon: '📋', roles: ['OWNER'] },
     { path: '/settings', label: 'Settings', icon: '⚙️', roles: ['OWNER'] },
   ];
 

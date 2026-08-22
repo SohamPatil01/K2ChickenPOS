@@ -1476,7 +1476,31 @@ export class AnalyticsService {
     }
     totalPurchases = round2(totalPurchases);
 
-    const netProfit = round2(totalSales - totalPurchases);
+    // Expenses are optional — only subtract when Expense table exists and has rows.
+    // Preserves legacy profit-margin behaviour until expense tracking is enabled.
+    let totalExpenses: number | null = null;
+    let expensesTracked = false;
+    try {
+      const expenseAgg = await prisma.expense.aggregate({
+        where: {
+          storeId: storeFilter,
+          status: 'APPROVED',
+          expenseDate: { gte: rangeStart, lte: rangeEnd },
+        },
+        _sum: { amount: true },
+      });
+      const sum = expenseAgg._sum.amount ?? 0;
+      if (sum > 0) {
+        totalExpenses = round2(sum);
+        expensesTracked = true;
+      }
+    } catch {
+      // Expense table not migrated yet — keep legacy net profit formula
+    }
+
+    const netProfit = round2(
+      totalSales - totalPurchases - (expensesTracked ? totalExpenses! : 0)
+    );
     const profitMarginPct =
       totalSales > 0 ? round2((netProfit / totalSales) * 100) : 0;
 
@@ -1576,9 +1600,9 @@ export class AnalyticsService {
       summary: {
         totalSales,
         totalPurchases,
-        totalExpenses: null,
-        expensesTracked: false,
-        expensesLabel: 'Untracked',
+        totalExpenses,
+        expensesTracked,
+        expensesLabel: expensesTracked ? 'Tracked' : 'Untracked',
         netProfit,
         profitMarginPct,
         estimatedCogsFromSales: round2(estimatedCogsFromSales),

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Receipt, ClipboardList, CalendarDays, Package, BarChart3, ChevronRight, FileText } from 'lucide-react';
+import { Receipt, ClipboardList, CalendarDays, Package, BarChart3, ChevronRight, FileText, LayoutGrid } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { CA_REPORT_ITEMS } from '@/lib/caReports';
 import { fadeInUp, staggerContainer, hoverLift, useMotionSafe } from '@/lib/motion';
@@ -62,6 +63,20 @@ export default function StoreReportsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-ink">Reports</h1>
         <p className="text-sm text-ink-secondary mt-1">CA-style registers for accounts & audit</p>
       </div>
+
+      <Link
+        href="/store/business-reports"
+        className="glass-panel rounded-2xl p-4 mb-4 flex items-center gap-3 hover:ring-2 hover:ring-brand-500/30 transition-all"
+      >
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600">
+          <LayoutGrid className="h-5 w-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-ink text-sm">Business Reports hub</p>
+          <p className="text-xs text-ink-muted">All reports — sales, inventory, financial, analytics — in one place</p>
+        </div>
+        <ChevronRight className="h-5 w-5 text-ink-muted shrink-0" />
+      </Link>
 
       <motion.div
         className="grid grid-cols-1 sm:grid-cols-2 gap-3"

@@ -216,6 +216,9 @@ model Store {
   checklistTemplates ComplianceChecklistTemplate[] @relation("ChecklistTemplate")
   alertRules       AlertRule[] @relation("AlertRule")
   replenishmentRequests ReplenishmentRequest[] @relation("ReplenishmentRequest")
+  expenseCategories ExpenseCategory[]
+  expenses         Expense[]
+  budgets          Budget[]
 
   @@index([parentOwnerStoreId])
 }
@@ -252,6 +255,7 @@ model User {
   discountApprovals     DiscountOverride[] @relation("DiscountApprover")
   dailyClosings         DailyClosing[] @relation("DailyCloser")
   replenishmentApprovals ReplenishmentRequest[] @relation("ReplenishmentApprover")
+  createdExpenses       Expense[] @relation("ExpenseCreator")
 
   @@index([storeId])
   @@index([phone])
@@ -1280,5 +1284,81 @@ model LoyaltyTransaction {
   @@index([storeId])
   @@index([saleId])
   @@index([createdAt])
+}
+
+enum BudgetPeriodType {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ExpenseCategory {
+  id           String   @id @default(cuid())
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  slug         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  expenses     Expense[]
+  budgets      Budget[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, isActive])
+}
+
+model Expense {
+  id               String        @id @default(cuid())
+  storeId          String
+  store            Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId       String
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount           Float
+  expenseDate      DateTime
+  paymentMethod    PaymentMethod @default(CASH)
+  description      String?
+  receiptRef       String?
+  status           ExpenseStatus @default(APPROVED)
+  createdByUserId  String
+  createdBy        User          @relation("ExpenseCreator", fields: [createdByUserId], references: [id])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([storeId, expenseDate])
+  @@index([storeId, categoryId, expenseDate])
+}
+
+model Budget {
+  id           String           @id @default(cuid())
+  storeId      String
+  store        Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name         String
+  periodType   BudgetPeriodType @default(MONTHLY)
+  startDate    DateTime
+  endDate      DateTime
+  categoryId   String?
+  category     ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  amount       Float
+  notes        String?
+  status       BudgetStatus     @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([storeId, startDate, endDate])
+  @@index([storeId, categoryId])
 }
 

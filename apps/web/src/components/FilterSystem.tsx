@@ -135,6 +135,16 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
         start = startOfWeek(today, { weekStartsOn: 1 });
         end = endOfWeek(today, { weekStartsOn: 1 });
         break;
+      case "thisQuarter": {
+        const q = Math.floor(today.getMonth() / 3);
+        start = new Date(today.getFullYear(), q * 3, 1);
+        end = today;
+        break;
+      }
+      case "thisYear":
+        start = new Date(today.getFullYear(), 0, 1);
+        end = today;
+        break;
       default:
         return;
     }
@@ -291,6 +301,8 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
             { label: "This Week", value: "thisWeek" },
             { label: "This Month", value: "thisMonth" },
             { label: "Last Month", value: "lastMonth" },
+            { label: "This Quarter", value: "thisQuarter" },
+            { label: "This Year", value: "thisYear" },
           ].map((preset) => (
             <button
               key={preset.value}

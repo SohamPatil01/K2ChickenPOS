@@ -139,8 +139,11 @@ export default function OrdersPage() {
   const saleItemCount = (sale: Sale) =>
     sale.itemCount ?? sale.items?.length ?? 0;
 
-  const saleNeedsDetails = (sale: Sale) =>
-    saleItemCount(sale) > 0 && (!sale.items || sale.items.length === 0);
+  const saleNeedsDetails = (sale: Sale) => {
+    if (sale.items?.length) return false;
+    if (sale.itemCount === 0) return false;
+    return true;
+  };
 
   const fetchSaleDetails = async (sale: Sale): Promise<Sale> => {
     if (!saleNeedsDetails(sale)) return sale;
@@ -149,15 +152,16 @@ export default function OrdersPage() {
   };
 
   const openSaleDetails = async (sale: Sale) => {
-    if (!saleNeedsDetails(sale)) {
-      setSelectedSale(sale);
-      return;
-    }
     setSelectedSale(sale);
+    if (!saleNeedsDetails(sale)) return;
+
     setLoadingSaleId(sale.id);
     try {
       const full = await fetchSaleDetails(sale);
       setSelectedSale(full);
+      setSales((prev) =>
+        prev.map((s) => (s.id === full.id ? { ...s, ...full } : s))
+      );
     } catch {
       showNotification("Could not load order details", "error");
     } finally {
@@ -218,6 +222,7 @@ export default function OrdersPage() {
         businessDayStart: bounds.businessDayStart,
         businessDayEnd: bounds.businessDayEnd,
         limit: 500,
+        includeItems: 1,
       };
 
       if (filters.status && filters.status.trim() !== "") {
@@ -693,9 +698,23 @@ export default function OrdersPage() {
                             {saleItemCount(sale) > 0
                               ? `${saleItemCount(sale)} item(s) • `
                               : ""}
-                            Total: ₹
-                            {sale.grandTotal.toFixed(2)}
+                            {sale.payments?.length
+                              ? `${sale.payments.map((p) => p.method).join(", ")} • `
+                              : ""}
+                            Total: ₹{sale.grandTotal.toFixed(2)}
                           </p>
+                          {sale.items?.length > 0 && (
+                            <p className="text-xs text-ink-muted truncate">
+                              {sale.items
+                                .map((item) => {
+                                  const qty = item.qtyKg
+                                    ? `${item.qtyKg.toFixed(2)} kg`
+                                    : `${item.qtyPcs ?? 1} pcs`;
+                                  return `${item.product?.name || "Item"} (${qty})`;
+                                })
+                                .join(", ")}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -841,6 +860,8 @@ export default function OrdersPage() {
                 </h3>
                 {loadingSaleId === selectedSale.id ? (
                   <p className="text-sm text-ink-muted">Loading items...</p>
+                ) : (selectedSale.items || []).length === 0 ? (
+                  <p className="text-sm text-ink-muted">No line items</p>
                 ) : (
                 <div className="space-y-2">
                   {(selectedSale.items || []).map((item) => (
