@@ -49,6 +49,7 @@ export default function GlobalBarcodeScanner() {
   const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastKeyTime = useRef(0);
   const isProcessingRef = useRef(false);
+  const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const productsRef = useRef<Product[]>([]);
   const pathnameRef = useRef(pathname);
   const userRef = useRef(user);
@@ -99,9 +100,17 @@ export default function GlobalBarcodeScanner() {
     async (barcode: string) => {
       const normalized = normalizeBarcodeForLookup(barcode);
       const currentUser = userRef.current;
-      if (!normalized || isProcessingRef.current || !currentUser) return;
+      if (!normalized || !currentUser) return;
+
+      const now = Date.now();
+      const last = lastScanRef.current;
+      if (last && last.code === normalized && now - last.at < 600) {
+        return;
+      }
+      if (isProcessingRef.current) return;
 
       isProcessingRef.current = true;
+      lastScanRef.current = { code: normalized, at: now };
 
       try {
         const storeId = currentUser.storeId || currentUser.store?.id;
@@ -329,7 +338,7 @@ export default function GlobalBarcodeScanner() {
       }
     };
 
-    if (user) {
+    if (user && pathname !== '/store/pos') {
       window.addEventListener('keydown', handleKeyDown, true);
     }
 
@@ -339,7 +348,7 @@ export default function GlobalBarcodeScanner() {
         clearTimeout(barcodeTimeout.current);
       }
     };
-  }, [user, processBarcode]);
+  }, [user, pathname, processBarcode]);
 
   useEffect(() => {
     if (pathname !== '/store/pos') return;

@@ -248,6 +248,9 @@ export default function StorePOSPage() {
     config?: string;
   }>({});
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  /** Prevents double-add when Enter fires both keydown and form submit. */
+  const barcodeInFlightRef = useRef(false);
+  const lastBarcodeScanRef = useRef<{ code: string; at: number } | null>(null);
   const [showQuickCheckout, setShowQuickCheckout] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   /** Sync guard — React state is async; prevents double /sales + /pay (credit often hit twice). */
@@ -546,7 +549,6 @@ export default function StorePOSPage() {
 
   const handleBarcodeSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    // Scanners type + Enter faster than React state updates — always read the live DOM value.
     const raw =
       barcodeInputRef.current?.value ?? barcodeInput;
     const lookup = normalizeBarcodeForLookup(raw);
@@ -554,6 +556,16 @@ export default function StorePOSPage() {
       showNotification("Please enter or scan a barcode", "warning", 3000);
       return;
     }
+
+    const now = Date.now();
+    const last = lastBarcodeScanRef.current;
+    if (last && last.code === lookup && now - last.at < 600) {
+      return;
+    }
+    if (barcodeInFlightRef.current) return;
+
+    barcodeInFlightRef.current = true;
+    lastBarcodeScanRef.current = { code: lookup, at: now };
 
     try {
       const storeId = user?.storeId || user?.store?.id;
@@ -709,6 +721,8 @@ export default function StorePOSPage() {
       });
       setShowAddItemModal(true);
       setBarcodeInput("");
+    } finally {
+      barcodeInFlightRef.current = false;
     }
   };
 
@@ -1496,13 +1510,6 @@ export default function StorePOSPage() {
                     placeholder="Scan or type, then Enter"
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter") return;
-                      // Capture-phase scanners / laggy controlled inputs: submit from DOM now.
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void handleBarcodeSubmit();
-                    }}
                     className="w-full min-h-[48px] px-4 py-3 pr-11 text-base border-2 border-strong rounded-xl text-ink bg-surface focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 placeholder:text-ink-muted touch-manipulation"
                     autoComplete="off"
                     autoCorrect="off"
