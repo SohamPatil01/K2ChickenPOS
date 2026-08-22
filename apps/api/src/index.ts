@@ -46,8 +46,6 @@ import { backupRoutes } from './routes/backup.js';
 import { customerDisplayRoutes } from './routes/customerDisplay.js';
 import { cronRoutes } from './routes/cron.js';
 import { portalRoutes } from './routes/portal.js';
-import { reportingRoutes } from './routes/reporting.js';
-import { hqReportingRoutes } from './routes/hq-reporting.js';
 
 const fastify = Fastify({
   logger: true,
@@ -140,8 +138,6 @@ async function build() {
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(portalRoutes, { prefix: '/api/v1/portal' });
-  await fastify.register(reportingRoutes, { prefix: '/api/v1/reporting' });
-  await fastify.register(hqReportingRoutes, { prefix: '/api/v1/hq/reporting' });
   await fastify.register(cronRoutes);
 
   return fastify;

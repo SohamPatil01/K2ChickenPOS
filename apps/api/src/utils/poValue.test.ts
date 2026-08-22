@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { poLineReceivedValue, poLineValue, sumReceivedPoValue } from './poValue.js';
+import { poLineReceivedValue, sumReceivedPoValue } from './poValue.js';
 
 describe('poValue', () => {
   it('uses received kg only, not kg + pcs', () => {
@@ -12,23 +12,14 @@ describe('poValue', () => {
     ).toBe(2000);
   });
 
-  it('does not fall back to ordered qty for received value', () => {
+  it('does not count ordered qty without received qty', () => {
     expect(
       poLineReceivedValue({
         requestedRate: 100,
-        qtyKg: 50,
-        qtyPcs: 10,
+        receivedQtyKg: 0,
+        receivedQtyPcs: 0,
       })
     ).toBe(0);
-  });
-
-  it('poLineValue falls back to ordered qty when nothing received', () => {
-    expect(
-      poLineValue({
-        requestedRate: 100,
-        qtyKg: 5,
-      })
-    ).toBe(500);
   });
 
   it('sumReceivedPoValue skips non-closed POs', () => {
@@ -36,7 +27,7 @@ describe('poValue', () => {
       sumReceivedPoValue([
         {
           status: 'DRAFT',
-          items: [{ requestedRate: 100, qtyKg: 100 }],
+          items: [{ requestedRate: 100, receivedQtyKg: 100 }],
         },
         {
           status: 'CLOSED',

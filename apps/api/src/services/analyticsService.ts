@@ -5,7 +5,7 @@ import {
   ymdInStoreTz,
   eachStoreYmdInclusive,
 } from '@azela-pos/shared';
-import { getReceivedPurchaseValueInRange } from '../reporting/shared/poValue.js';
+import { getReceivedPurchaseValueInRange } from '../utils/poValue.js';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -1462,28 +1462,6 @@ export class AnalyticsService {
 
     const totalPurchases = purchaseTotals.total;
 
-    // Expenses are optional — only subtract when Expense table exists and has rows.
-    // Preserves legacy profit-margin behaviour until expense tracking is enabled.
-    let totalExpenses: number | null = null;
-    let expensesTracked = false;
-    try {
-      const expenseAgg = await prisma.expense.aggregate({
-        where: {
-          storeId: storeFilter,
-          status: 'APPROVED',
-          expenseDate: { gte: rangeStart, lte: rangeEnd },
-        },
-        _sum: { amount: true },
-      });
-      const sum = expenseAgg._sum.amount ?? 0;
-      if (sum > 0) {
-        totalExpenses = round2(sum);
-        expensesTracked = true;
-      }
-    } catch {
-      // Expense table not migrated yet — keep legacy net profit formula
-    }
-
     type ProductAgg = {
       productId: string;
       productName: string;
@@ -1572,8 +1550,7 @@ export class AnalyticsService {
 
     estimatedCogsFromSales = round2(estimatedCogsFromSales);
 
-    const expenseDeduction = expensesTracked ? totalExpenses! : 0;
-    const netProfit = round2(totalSales - estimatedCogsFromSales - expenseDeduction);
+    const netProfit = round2(totalSales - estimatedCogsFromSales);
     const profitMarginPct =
       totalSales > 0 ? round2((netProfit / totalSales) * 100) : 0;
 
@@ -1587,9 +1564,9 @@ export class AnalyticsService {
       summary: {
         totalSales,
         totalPurchases,
-        totalExpenses,
-        expensesTracked,
-        expensesLabel: expensesTracked ? 'Tracked' : 'Untracked',
+        totalExpenses: null,
+        expensesTracked: false,
+        expensesLabel: 'Untracked',
         netProfit,
         profitMarginPct,
         estimatedCogsFromSales: round2(estimatedCogsFromSales),

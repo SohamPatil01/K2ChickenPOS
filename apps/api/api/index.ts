@@ -96,8 +96,6 @@ import { backupRoutes } from '../src/routes/backup.js';
 import { customerDisplayRoutes } from '../src/routes/customerDisplay.js';
 import { publicBillRoutes } from '../src/routes/publicBill.js';
 import { portalRoutes } from '../src/routes/portal.js';
-import { reportingRoutes } from '../src/routes/reporting.js';
-import { hqReportingRoutes } from '../src/routes/hq-reporting.js';
 
 let app: any = null;
 
@@ -301,8 +299,6 @@ async function build() {
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(publicBillRoutes, { prefix: '/api/v1/public' });
   await fastify.register(portalRoutes, { prefix: '/api/v1/portal' });
-  await fastify.register(reportingRoutes, { prefix: '/api/v1/reporting' });
-  await fastify.register(hqReportingRoutes, { prefix: '/api/v1/hq/reporting' });
 
   // 404 handler for undefined routes
   fastify.setNotFoundHandler(async (request: any, reply: FastifyReply) => {

@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { resolveStoreDateRange } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
-import { getReceivedPurchaseValueInRange } from '../reporting/shared/poValue.js';
+import { getReceivedPurchaseValueInRange } from '../utils/poValue.js';
 
 /** Date range for queries — store calendar (IST), aligned with reports. */
 function getDateRange(startDate?: string, endDate?: string) {
