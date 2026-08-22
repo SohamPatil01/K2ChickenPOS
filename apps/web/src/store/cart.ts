@@ -295,7 +295,9 @@ export const useCartStore = create<CartState>((set, get) => ({
       subTotal += (item.qtyKg || item.qtyPcs || 0) * item.rate;
     }
     subTotal = Math.round(subTotal * 100) / 100;
-    const discountAmount = Math.round(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
+    // Floor so auto-applied 10% never exceeds the franchise discount cap.
+    const discountAmount =
+      Math.floor(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
     set({
       discountType: 'percentage',
       discountPercentage: PROFILE_REWARD_PERCENT,

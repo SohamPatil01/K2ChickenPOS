@@ -662,14 +662,20 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       const allowedDiscountPercent = config?.allowedDiscountPercent || 10.0;
-      const maxAllowedDiscount = (subTotal * allowedDiscountPercent) / 100;
+      const maxAllowedDiscount =
+        Math.round(((subTotal * allowedDiscountPercent) / 100) * 100) / 100;
       const discountPercent = subTotal > 0 ? (data.discountTotal / subTotal) * 100 : 0;
       const requestedProfileReward =
         Boolean((data as any).profileRewardApplied) ||
         (data as any).discountSource === 'profile_reward';
 
+      // Profile 10% is a system reward — never send the cashier through
+      // manager-approval. Rounding used to push 10.00% just over the franchise
+      // cap and stall every other bill (HTTP 202 + discount-approvals redirect).
+      const skipLimitForProfileReward = requestedProfileReward && customerId;
+
       // If discount exceeds limit, require override approval
-      if (data.discountTotal > maxAllowedDiscount) {
+      if (!skipLimitForProfileReward && data.discountTotal > maxAllowedDiscount) {
         // Create sale first with original discount
         const sale = await prisma.sale.create({
           data: {
@@ -797,7 +803,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
           reply.code(400).send({ error: 'Profile reward is not available for this customer' });
           return;
         }
-        const expectedDiscount = Math.round(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
+        const expectedDiscount =
+          Math.floor(((subTotal * PROFILE_REWARD_PERCENT) / 100) * 100) / 100;
         const actualDiscount = Math.round((Number(data.discountTotal) || 0) * 100) / 100;
         if (Math.abs(expectedDiscount - actualDiscount) > 0.05) {
           reply.code(400).send({ error: 'Profile reward discount must be exactly 10% of subtotal' });

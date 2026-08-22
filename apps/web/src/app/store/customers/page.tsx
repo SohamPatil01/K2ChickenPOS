@@ -218,7 +218,9 @@ export default function StoreCustomersPage() {
 
   const fetchCustomerDetail = useCallback(async (id: string): Promise<Customer | null> => {
     try {
-      const res = await api.get(`/api/v1/customers/${id}`);
+      const res = await api.get(`/api/v1/customers/${id}`, {
+        params: { includeSales: 1 },
+      });
       return res.data;
     } catch {
       return null;

@@ -1054,6 +1054,12 @@ export default function StorePOSPage() {
         customerName: customerName || undefined,
         customerArea: useCartStore.getState().customerArea || undefined,
         discountTotal: discountTotal || 0,
+        discountSource:
+          useCartStore.getState().discountSource === "profile_reward"
+            ? "profile_reward"
+            : undefined,
+        profileRewardApplied:
+          useCartStore.getState().discountSource === "profile_reward" || undefined,
         deliveryFee: ft === "DELIVERY" ? fee || 0 : 0,
         loyaltyPointsRedeemed: customerId
           ? useCartStore.getState().getTotal().loyaltyPointsApplied

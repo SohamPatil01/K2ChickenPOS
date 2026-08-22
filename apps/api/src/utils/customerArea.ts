@@ -34,6 +34,11 @@ export const customerAreaAddressInclude = {
   take: 1,
 } as const;
 
+/** Delivery / Home addresses only — never the Area mirror row. */
+export const customerDeliveryAddressInclude = {
+  where: { label: { not: CUSTOMER_AREA_LABEL } },
+} as const;
+
 function isMissingCustomerAreaColumn(error: unknown): boolean {
   const msg = String((error as { message?: string })?.message || error || '');
   return msg.includes('Customer.area') && msg.includes('does not exist');

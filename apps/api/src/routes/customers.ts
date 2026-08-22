@@ -4,7 +4,7 @@ import { prisma } from '@azela-pos/db';
 import { customerSchema, customerAddressSchema } from '@azela-pos/shared';
 import { requireRole, getUser } from '../utils/auth.js';
 import {
-  customerAreaAddressInclude,
+  customerDeliveryAddressInclude,
   upsertCustomerArea,
   withCustomerArea,
 } from '../utils/customerArea.js';
@@ -110,7 +110,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           OR: orClause,
         },
         include: {
-          addresses: true,
+          addresses: customerDeliveryAddressInclude,
           _count: {
             select: { sales: true, addresses: true },
           },
@@ -130,16 +130,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
           },
         },
         include: {
-          addresses: true,
-          sales: {
-            take: 10,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              items: {
-                include: { product: true },
-              },
-            },
-          },
+          addresses: customerDeliveryAddressInclude,
         },
       });
 
@@ -150,7 +141,6 @@ export async function customerRoutes(fastify: FastifyInstance) {
       prisma.customer.findMany({
         where: { storeId },
         include: {
-          addresses: true,
           _count: {
             select: { sales: true },
           },
@@ -176,6 +166,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
   fastify.get('/:customerId', async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
+      const includeSales =
+        String((request.query as any)?.includeSales || '') === '1' ||
+        String((request.query as any)?.includeSales || '').toLowerCase() === 'true';
       // Get default store (since auth is disabled)
       // Use the oldest OWNER store to ensure consistency
       const store = await prisma.store.findFirst({ 
@@ -187,16 +180,20 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
         include: {
-          addresses: true,
-          sales: {
-            take: 10,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              items: {
-                include: { product: true },
-              },
-            },
-          },
+          addresses: customerDeliveryAddressInclude,
+          ...(includeSales
+            ? {
+                sales: {
+                  take: 10,
+                  orderBy: { createdAt: 'desc' as const },
+                  include: {
+                    items: {
+                      include: { product: true },
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       });
 
@@ -245,21 +242,22 @@ export async function customerRoutes(fastify: FastifyInstance) {
         area: data.area?.trim() || null,
       },
       include: {
-        addresses: true,
+        addresses: customerDeliveryAddressInclude,
       },
     });
 
     if (data.area !== undefined) {
       await upsertCustomerArea(prisma, customer.id, data.area);
-      await grantProfileRewardIfEligible(prisma, customer.id, 'pos');
-      const refreshed = await prisma.customer.findUnique({
-        where: { id: customer.id },
-        include: { addresses: true },
-      });
-      return serializeCustomer(refreshed);
     }
 
-    return serializeCustomer(customer);
+    return serializeCustomer(
+      data.area !== undefined
+        ? await prisma.customer.findUnique({
+            where: { id: customer.id },
+            include: { addresses: customerDeliveryAddressInclude },
+          })
+        : customer
+    );
   });
 
   fastify.put('/:customerId', async (request: any, reply: FastifyReply) => {
@@ -360,16 +358,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         where: { id: customerId },
         data: updateData,
         include: {
-          addresses: true,
-          sales: {
-            take: 10,
-            orderBy: { createdAt: 'desc' },
-            include: {
-              items: {
-                include: { product: true },
-              },
-            },
-          },
+          addresses: customerDeliveryAddressInclude,
         },
       });
 
@@ -379,23 +368,6 @@ export async function customerRoutes(fastify: FastifyInstance) {
           customerId,
           body.area ? String(body.area).trim() : null
         );
-        await grantProfileRewardIfEligible(prisma, customerId, 'pos');
-        const refreshed = await prisma.customer.findUnique({
-          where: { id: customerId },
-          include: {
-            addresses: true,
-            sales: {
-              take: 10,
-              orderBy: { createdAt: 'desc' },
-              include: {
-                items: {
-                  include: { product: true },
-                },
-              },
-            },
-          },
-        });
-        return serializeCustomer(refreshed);
       }
 
       return serializeCustomer(customer);
