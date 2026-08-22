@@ -9,7 +9,10 @@ import {
   startOfWeek,
   endOfWeek,
 } from "date-fns";
-import { defaultDateRangeLast30Days } from "@/lib/dateRangeParams";
+import {
+  defaultDateRangeLast30Days,
+  todayLocalYmd,
+} from "@/lib/dateRangeParams";
 
 export interface FilterCriteria {
   dateRange: {
@@ -43,9 +46,14 @@ interface FilterSystemProps {
   showStatusFilter?: boolean;
   showAmountFilter?: boolean;
   storageKey?: string;
+  defaultRange?: "today" | "last30days";
 }
 
-function buildDefaultFilters(): FilterCriteria {
+function buildDefaultFilters(defaultRange: "today" | "last30days" = "last30days"): FilterCriteria {
+  if (defaultRange === "today") {
+    const today = todayLocalYmd();
+    return { dateRange: { start: today, end: today } };
+  }
   const { start, end } = defaultDateRangeLast30Days();
   return { dateRange: { start, end } };
 }
@@ -62,8 +70,11 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
   showStatusFilter = false,
   showAmountFilter = false,
   storageKey = "report_filters",
+  defaultRange = "last30days",
 }) => {
-  const [filters, setFilters] = useState<FilterCriteria>(buildDefaultFilters);
+  const [filters, setFilters] = useState<FilterCriteria>(() =>
+    buildDefaultFilters(defaultRange)
+  );
   const onFilterChangeRef = useRef(onFilterChange);
   onFilterChangeRef.current = onFilterChange;
   const [presets, setPresets] = useState<FilterPreset[]>([]);
@@ -161,7 +172,7 @@ export const FilterSystem: React.FC<FilterSystemProps> = ({
   };
 
   const handleClearFilters = () => {
-    setFilters(buildDefaultFilters());
+    setFilters(buildDefaultFilters(defaultRange));
   };
 
   const activeFilterCount = Object.keys(filters).filter((key) => {

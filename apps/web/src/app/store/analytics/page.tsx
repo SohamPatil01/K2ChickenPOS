@@ -70,6 +70,7 @@ export default function AnalyticsPage() {
           endDate: dateRange.end,
           status: 'PAID',
           limit: '10000',
+          includeItems: 1,
         },
       });
 

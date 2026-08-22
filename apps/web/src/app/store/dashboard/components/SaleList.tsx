@@ -55,7 +55,7 @@ export default function SaleList({ sales, onView, onEdit }: SaleListProps) {
                 </div>
                 <div className="mt-2 flex items-center gap-4 text-sm">
                   <span className="text-ink-secondary">
-                    {sale.items.length} items
+                    {(sale.items?.length ?? sale.itemCount ?? 0)} items
                   </span>
                   <span className="font-semibold text-ink">
                     ₹{sale.grandTotal.toFixed(2)}

@@ -51,6 +51,9 @@ async function fetchSaleForPayResponse(saleId: string) {
       items: { include: { product: true } },
       payments: true,
       customer: customerWithAreaInclude,
+      createdBy: { select: { id: true, name: true } },
+      store: { select: { id: true, name: true, type: true } },
+      deliveryOrder: { select: { id: true, deliveryFee: true } },
     },
   });
   return sale ? enrichSaleResponse(sale) : null;
@@ -58,6 +61,90 @@ async function fetchSaleForPayResponse(saleId: string) {
 
 function enrichSaleResponse(sale: any) {
   return enrichSaleWithDeliveryFee(enrichSaleCustomer(sale));
+}
+
+function truthyQueryFlag(value: unknown) {
+  const raw = String(value || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
+const saleListItemSelect = {
+  id: true,
+  qtyKg: true,
+  qtyPcs: true,
+  rate: true,
+  lineTotal: true,
+  taxRate: true,
+  taxAmount: true,
+  productId: true,
+  product: {
+    select: {
+      id: true,
+      name: true,
+      unitType: true,
+      sku: true,
+      plu: true,
+    },
+  },
+} as const;
+
+function saleListSelect(includeItems: boolean) {
+  return {
+    id: true,
+    saleNo: true,
+    status: true,
+    subTotal: true,
+    discountTotal: true,
+    taxTotal: true,
+    grandTotal: true,
+    createdAt: true,
+    updatedAt: true,
+    storeId: true,
+    customerId: true,
+    createdByUserId: true,
+    ...(includeItems ? { items: { select: saleListItemSelect } } : {}),
+    customer: {
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        area: true,
+      },
+    },
+    payments: {
+      select: {
+        id: true,
+        method: true,
+        amount: true,
+        txnRef: true,
+      },
+    },
+    store: {
+      select: {
+        id: true,
+        name: true,
+        type: true,
+      },
+    },
+    createdBy: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+    deliveryOrder: {
+      select: { id: true, deliveryFee: true },
+    },
+  };
+}
+
+function withSaleItemCount(sale: any) {
+  const itemCount = Array.isArray(sale.items) ? sale.items.length : 0;
+  return {
+    ...sale,
+    items: Array.isArray(sale.items) ? sale.items : [],
+    itemCount,
+  };
 }
 
 export async function saleRoutes(fastify: FastifyInstance) {
@@ -72,6 +159,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const businessDayStart = (request.query as any).businessDayStart;
       const businessDayEnd = (request.query as any).businessDayEnd;
       const paymentMethod = (request.query as any).paymentMethod;
+      const includeItems = truthyQueryFlag((request.query as any).includeItems);
 
       // Try to get storeId from authenticated user, fallback to default store
       let storeId = '';
@@ -124,7 +212,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
           select: { id: true },
         });
         storeIds = [storeId, ...franchises.map(f => f.id)];
-        console.log('[Sales API] Owner accessing sales from stores:', storeIds);
       }
 
       const where: any = {
@@ -166,67 +253,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       const sales = await prisma.sale.findMany({
         where,
-        select: {
-          id: true,
-          saleNo: true,
-          status: true,
-          subTotal: true,
-          discountTotal: true,
-          taxTotal: true,
-          grandTotal: true,
-          createdAt: true,
-          updatedAt: true,
-          storeId: true,
-          customerId: true,
-          createdByUserId: true,
-          items: {
-            select: {
-              id: true,
-              qtyKg: true,
-              qtyPcs: true,
-              rate: true,
-              lineTotal: true,
-              taxRate: true,
-              taxAmount: true,
-              metaJson: true,
-              productId: true,
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  unitType: true,
-                  sku: true,
-                  plu: true,
-                },
-              },
-            },
-          },
-          customer: customerWithAreaInclude,
-          payments: true,
-          store: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            },
-          },
-          deliveryOrder: {
-            select: { id: true, deliveryFee: true },
-          },
-        },
+        select: saleListSelect(includeItems),
         orderBy: { createdAt: 'desc' },
         take: limit,
       });
 
-      return sales.map(enrichSaleResponse);
+      return sales.map((sale) => withSaleItemCount(enrichSaleResponse(sale)));
     } catch (error: any) {
       console.error('Failed to get sales:', error);
       reply.code(500).send({
@@ -458,6 +490,37 @@ export async function saleRoutes(fastify: FastifyInstance) {
       reply.code(500).send({
         error: 'Failed to load dashboard',
         details: error.message
+      });
+    }
+  });
+
+  fastify.get('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = request.params as { id: string };
+      // Never treat static route names as sale ids (belt-and-suspenders).
+      if (!id || id === 'dashboard') {
+        reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+      const authUser = getUser(request) as any;
+      const storeId = authUser?.storeId;
+      if (!storeId) {
+        reply.code(400).send({ error: 'Store ID is required' });
+        return;
+      }
+
+      const sale = await fetchSaleForPayResponse(id);
+      if (!sale || !(await canAccessStoreResource(storeId, authUser.role, sale.storeId))) {
+        reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+
+      return withSaleItemCount(sale);
+    } catch (error: any) {
+      console.error('Failed to get sale:', error);
+      reply.code(500).send({
+        error: 'Failed to get sale',
+        details: error.message,
       });
     }
   });

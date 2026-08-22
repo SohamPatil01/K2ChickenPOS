@@ -544,9 +544,12 @@ export default function StorePOSPage() {
     }
   };
 
-  const handleBarcodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const lookup = normalizeBarcodeForLookup(barcodeInput);
+  const handleBarcodeSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    // Scanners type + Enter faster than React state updates — always read the live DOM value.
+    const raw =
+      barcodeInputRef.current?.value ?? barcodeInput;
+    const lookup = normalizeBarcodeForLookup(raw);
     if (!lookup) {
       showNotification("Please enter or scan a barcode", "warning", 3000);
       return;
@@ -1493,7 +1496,17 @@ export default function StorePOSPage() {
                     placeholder="Scan or type, then Enter"
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      // Capture-phase scanners / laggy controlled inputs: submit from DOM now.
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleBarcodeSubmit();
+                    }}
                     className="w-full min-h-[48px] px-4 py-3 pr-11 text-base border-2 border-strong rounded-xl text-ink bg-surface focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 placeholder:text-ink-muted touch-manipulation"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                   <button type="submit" className="sr-only" tabIndex={-1}>
                     Add barcode

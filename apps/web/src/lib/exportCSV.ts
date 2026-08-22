@@ -82,7 +82,7 @@ export function exportSalesCSV(sales: any[], filename = 'sales-report.csv') {
     'Sale No': sale.saleNo,
     'Date': new Date(sale.createdAt).toLocaleString(),
     'Customer': sale.customer?.name || 'Walk-in',
-    'Items': sale.items?.length || 0,
+    'Items': sale.itemCount ?? sale.items?.length ?? 0,
     'Subtotal': sale.subtotal?.toFixed(2) || '0.00',
     'Discount': sale.discountAmount?.toFixed(2) || '0.00',
     'Tax': sale.taxAmount?.toFixed(2) || '0.00',

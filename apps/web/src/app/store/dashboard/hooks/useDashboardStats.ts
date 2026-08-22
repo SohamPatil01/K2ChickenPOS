@@ -86,7 +86,9 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
 
   const loadPendingPayments = useCallback(async () => {
     try {
-      const response = await api.get('/api/v1/customers/pending-payments');
+      const response = await api.get('/api/v1/customers/pending-payments', {
+        params: { summary: 1 },
+      });
       const customers = response.data || [];
       const total = customers.reduce((sum: number, c: any) => sum + c.totalPending, 0);
       const count = customers.reduce((sum: number, c: any) => sum + c.orderCount, 0);

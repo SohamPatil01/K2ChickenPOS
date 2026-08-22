@@ -16,6 +16,7 @@ export interface Sale {
   grandTotal: number;
   createdAt: string;
   createdBy: { id?: string; name: string; email?: string; phone?: string };
+  itemCount?: number;
   items: Array<{
     id: string;
     product: { id: string; name: string; sku: string; unitType: 'KG' | 'PCS' };
@@ -68,6 +69,7 @@ export function useCashierSales({ user }: UseCashierSalesOptions) {
           params: {
             startDate: today.toISOString(),
             endDate: tomorrow.toISOString(),
+            includeItems: 1,
           },
         }),
         api.get('/api/v1/products'),

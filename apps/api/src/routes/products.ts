@@ -113,9 +113,40 @@ export async function productRoutes(fastify: FastifyInstance) {
     }
   });
 
+  fastify.get('/categories', async (request: FastifyRequest, reply: FastifyReply) => {
+    // Get default store for now (since auth is disabled)
+    const store = await prisma.store.findFirst({ 
+      where: { type: 'OWNER' },
+      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+    });
+
+    if (!store) {
+      reply.code(404).send({ error: 'Store not found' });
+      return;
+    }
+
+    const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
+    if (!ownerStoreId) {
+      reply.code(400).send({ error: 'Owner store not found' });
+      return;
+    }
+
+    const categories = await prisma.category.findMany({
+      where: { ownerStoreId },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return categories;
+  });
+
   fastify.get('/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
+      if (!id || id === 'categories') {
+        reply.code(404).send({ error: 'Product not found' });
+        return;
+      }
       const user = getUser(request);
       const userStore = await prisma.store.findUnique({ 
         where: { id: user.storeId },
@@ -168,33 +199,6 @@ export async function productRoutes(fastify: FastifyInstance) {
       console.error('Failed to get product:', error);
       reply.code(500).send({ error: 'Failed to get product', details: error.message });
     }
-  });
-
-  fastify.get('/categories', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Get default store for now (since auth is disabled)
-    const store = await prisma.store.findFirst({ 
-      where: { type: 'OWNER' },
-      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-    });
-
-    if (!store) {
-      reply.code(404).send({ error: 'Store not found' });
-      return;
-    }
-
-    const ownerStoreId = store.type === 'OWNER' ? store.id : store.parentOwnerStoreId;
-    if (!ownerStoreId) {
-      reply.code(400).send({ error: 'Owner store not found' });
-      return;
-    }
-
-    const categories = await prisma.category.findMany({
-      where: { ownerStoreId },
-      orderBy: { sortOrder: 'asc' },
-    });
-
-    reply.header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
-    return categories;
   });
 
   // Product CRUD routes

@@ -111,9 +111,6 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
         include: {
           addresses: customerDeliveryAddressInclude,
-          _count: {
-            select: { sales: true, addresses: true },
-          },
         },
         orderBy: [{ name: 'asc' }, { phone: 'asc' }],
         take: 30,
@@ -137,14 +134,22 @@ export async function customerRoutes(fastify: FastifyInstance) {
       return serializeCustomer(customer);
     }
 
+    const includeCounts =
+      String((request.query as any)?.includeCounts || '') === '1' ||
+      String((request.query as any)?.includeCounts || '').toLowerCase() === 'true';
+
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
         where: { storeId },
-        include: {
-          _count: {
-            select: { sales: true },
-          },
-        },
+        ...(includeCounts
+          ? {
+              include: {
+                _count: {
+                  select: { sales: true },
+                },
+              },
+            }
+          : {}),
         orderBy: { createdAt: 'desc' },
         // Customers tab needs the full roster; 1000 is enough for this store and stays light.
         take: Math.min(Math.max(parseInt(String(limitRaw || '1000'), 10) || 1000, 1), 2000),
@@ -610,6 +615,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const storeId = (user as any).storeId || '';
       const userRole = (user as any).role || '';
       
+      // Dashboard only needs totals — pass summary=1 to skip line items.
+      const summaryOnly =
+        String((request.query as any)?.summary || '') === '1' ||
+        String((request.query as any)?.summary || '').toLowerCase() === 'true';
+
       console.log('[Pending Payments API] Using authenticated user storeId:', storeId, 'for user:', user.userId, 'role:', userRole);
       
       if (!storeId) {
@@ -643,23 +653,37 @@ export async function customerRoutes(fastify: FastifyInstance) {
       // Get all sales that are credit orders:
       // 1. OPEN status orders (unpaid), OR
       // 2. Orders with CREDIT payment method (even if marked PAID, check for pending balance)
-      const pendingSaleInclude = {
-        customer: true,
-        payments: true,
-        createdBy: { select: { name: true } },
-        deliveryOrder: { select: { deliveryFee: true } },
-        items: {
-          include: {
-            product: {
+      const pendingSaleInclude = summaryOnly
+        ? {
+            customer: {
               select: {
                 id: true,
                 name: true,
-                unitType: true,
+                phone: true,
+                email: true,
+                area: true,
               },
             },
-          },
-        },
-      } as const;
+            payments: { select: { method: true, amount: true } },
+            deliveryOrder: { select: { deliveryFee: true } },
+          }
+        : {
+            customer: true,
+            payments: true,
+            createdBy: { select: { name: true } },
+            deliveryOrder: { select: { deliveryFee: true } },
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    unitType: true,
+                  },
+                },
+              },
+            },
+          };
 
       // First get OPEN sales (capped — full roster not needed for pending UI)
       const openSales = await prisma.sale.findMany({
@@ -764,7 +788,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
               method: p.method,
               amount: p.amount,
             })),
-            items: sale.items,
+            items: summaryOnly ? [] : sale.items,
             hasCreditPayment,
           });
           customer.orderCount += 1;
@@ -803,7 +827,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
               method: p.method,
               amount: p.amount,
             })),
-            items: sale.items,
+            items: summaryOnly ? [] : sale.items,
             hasCreditPayment,
           });
           walkIn.orderCount += 1;

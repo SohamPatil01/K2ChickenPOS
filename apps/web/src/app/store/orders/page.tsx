@@ -12,7 +12,7 @@ import { downloadCustomerBill } from "@/lib/customerBill";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import { exportSalesCSV } from "@/lib/exportCSV";
 import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
-import { localDateRangeToApiBounds, buildDefaultFilterCriteria } from "@/lib/dateRangeParams";
+import { localDateRangeToApiBounds, buildDefaultFilterCriteriaToday } from "@/lib/dateRangeParams";
 
 interface Sale {
   id: string;
@@ -34,6 +34,7 @@ interface Sale {
   createdBy: {
     name: string;
   };
+  itemCount?: number;
   items: Array<{
     id: string;
     product: {
@@ -80,7 +81,7 @@ export default function OrdersPage() {
       taxRate: number;
     }>,
   });
-  const [filters, setFilters] = useState<FilterCriteria>(buildDefaultFilterCriteria);
+  const [filters, setFilters] = useState<FilterCriteria>(buildDefaultFilterCriteriaToday);
   const [products, setProducts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -97,6 +98,7 @@ export default function OrdersPage() {
   const [completing, setCompleting] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
   const [billForPrint, setBillForPrint] = useState<Sale | null>(null);
+  const [loadingSaleId, setLoadingSaleId] = useState<string | null>(null);
 
   const storeBillInfo = {
     name: user?.store?.name || "K2 Chicken",
@@ -134,14 +136,49 @@ export default function OrdersPage() {
     `,
   });
 
-  const triggerPrintBill = (sale: Sale) => {
-    setBillForPrint(sale);
-    setTimeout(() => handlePrint(), 150);
+  const saleItemCount = (sale: Sale) =>
+    sale.itemCount ?? sale.items?.length ?? 0;
+
+  const saleNeedsDetails = (sale: Sale) =>
+    saleItemCount(sale) > 0 && (!sale.items || sale.items.length === 0);
+
+  const fetchSaleDetails = async (sale: Sale): Promise<Sale> => {
+    if (!saleNeedsDetails(sale)) return sale;
+    const response = await api.get(`/api/v1/sales/${sale.id}`);
+    return response.data;
+  };
+
+  const openSaleDetails = async (sale: Sale) => {
+    if (!saleNeedsDetails(sale)) {
+      setSelectedSale(sale);
+      return;
+    }
+    setSelectedSale(sale);
+    setLoadingSaleId(sale.id);
+    try {
+      const full = await fetchSaleDetails(sale);
+      setSelectedSale(full);
+    } catch {
+      showNotification("Could not load order details", "error");
+    } finally {
+      setLoadingSaleId(null);
+    }
+  };
+
+  const triggerPrintBill = async (sale: Sale) => {
+    try {
+      const full = await fetchSaleDetails(sale);
+      setBillForPrint(full);
+      setTimeout(() => handlePrint(), 150);
+    } catch {
+      showNotification("Could not load bill for printing", "error");
+    }
   };
 
   const triggerDownloadBill = async (sale: Sale) => {
     try {
-      await downloadCustomerBill(sale, storeBillInfo);
+      const full = await fetchSaleDetails(sale);
+      await downloadCustomerBill(full, storeBillInfo);
       showNotification(`Bill ${sale.saleNo} downloaded as PDF`, "success");
     } catch {
       showNotification("Could not download bill PDF", "error");
@@ -203,13 +240,14 @@ export default function OrdersPage() {
   loadSalesRef.current = loadSales;
 
   const loadProducts = useCallback(async () => {
+    if (products.length > 0) return;
     try {
       const response = await api.get("/api/v1/products");
       setProducts(response.data || []);
     } catch (error) {
       console.error("Failed to load products:", error);
     }
-  }, []);
+  }, [products.length]);
 
   useEffect(() => {
     if (
@@ -222,18 +260,6 @@ export default function OrdersPage() {
     }
     loadSales();
   }, [user, filters, loadSales]);
-
-  useEffect(() => {
-    if (
-      !user ||
-      (user.role !== "OWNER" &&
-        user.role !== "MANAGER" &&
-        user.role !== "CASHIER")
-    ) {
-      return;
-    }
-    loadProducts();
-  }, [user, loadProducts]);
 
   useEffect(() => {
     if (
@@ -267,11 +293,19 @@ export default function OrdersPage() {
     };
   }, [user]);
 
-  const openEditModal = (sale: Sale) => {
-    setEditingSale(sale);
+  const openEditModal = async (sale: Sale) => {
+    let full = sale;
+    try {
+      await loadProducts();
+      full = await fetchSaleDetails(sale);
+    } catch {
+      showNotification("Could not load order for editing", "error");
+      return;
+    }
+    setEditingSale(full);
     setEditForm({
-      discountTotal: sale.discountTotal.toString(),
-      items: sale.items.map((item) => ({
+      discountTotal: full.discountTotal.toString(),
+      items: (full.items || []).map((item) => ({
         id: item.id,
         productId: item.product.id,
         productName: item.product.name,
@@ -596,6 +630,7 @@ export default function OrdersPage() {
         showPaymentMethodFilter={true}
         showStatusFilter={true}
         storageKey="orders_filters"
+        defaultRange="today"
       />
 
       {/* Sales List */}
@@ -622,7 +657,7 @@ export default function OrdersPage() {
                     className={`p-4 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 transition-colors ${ selectedSale?.id === sale.id ?"bg-brand-50 dark:bg-brand-900/20"
                         : ""
                     }`}
-                    onClick={() => setSelectedSale(sale)}
+                    onClick={() => openSaleDetails(sale)}
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
                       <div className="flex-1 min-w-0">
@@ -655,7 +690,10 @@ export default function OrdersPage() {
                             {new Date(sale.createdAt).toLocaleString()}
                           </p>
                           <p className="text-xs">
-                            {sale.items.length} item(s) • Total: ₹
+                            {saleItemCount(sale) > 0
+                              ? `${saleItemCount(sale)} item(s) • `
+                              : ""}
+                            Total: ₹
                             {sale.grandTotal.toFixed(2)}
                           </p>
                         </div>
@@ -664,7 +702,7 @@ export default function OrdersPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedSale(sale);
+                            openSaleDetails(sale);
                           }}
                           className="px-3 sm:px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 text-sm transition-colors touch-target font-medium"
                         >
@@ -799,10 +837,13 @@ export default function OrdersPage() {
               {/* Items */}
               <div className="mb-4 sm:mb-6">
                 <h3 className="text-sm font-semibold text-ink-secondary mb-2">
-                  Items ({selectedSale.items.length})
+                  Items ({saleItemCount(selectedSale)})
                 </h3>
+                {loadingSaleId === selectedSale.id ? (
+                  <p className="text-sm text-ink-muted">Loading items...</p>
+                ) : (
                 <div className="space-y-2">
-                  {selectedSale.items.map((item) => (
+                  {(selectedSale.items || []).map((item) => (
                     <div
                       key={item.id}
                       className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 flex justify-between items-start"
@@ -821,7 +862,7 @@ export default function OrdersPage() {
                           × ₹{item.rate.toFixed(2)} = ₹
                           {item.lineTotal.toFixed(2)}
                         </p>
-                        {item.taxRate > 0 && (
+                          {item.taxRate > 0 && (
                           <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                             Tax ({item.taxRate}%): ₹{item.taxAmount.toFixed(2)}
                           </p>
@@ -830,6 +871,7 @@ export default function OrdersPage() {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
 
               {/* Price Breakdown */}

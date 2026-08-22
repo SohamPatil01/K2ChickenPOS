@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useCartStore } from '@/store/cart';
@@ -25,6 +25,14 @@ interface Product {
   } | null;
 }
 
+function findProductBySkuOrPlu(products: Product[], normalized: string) {
+  return products.find(
+    (p) =>
+      normalizeBarcodeForLookup(p.sku) === normalized ||
+      normalizeBarcodeForLookup(p.plu) === normalized
+  );
+}
+
 export default function GlobalBarcodeScanner() {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,37 +40,36 @@ export default function GlobalBarcodeScanner() {
   const { addItem } = useCartStore();
   const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [cartAnimation, setCartAnimation] = useState<{
     productName: string;
     productImage?: string | null;
   } | null>(null);
-  
-  // Barcode scanning state
-  const barcodeBuffer = useRef('');
-  const barcodeTimeout = useRef<NodeJS.Timeout | null>(null);
-  const lastKeyTime = useRef(0);
-  const isTypingInInput = useRef(false);
 
-  // Load products on mount
+  const barcodeBuffer = useRef('');
+  const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastKeyTime = useRef(0);
+  const isProcessingRef = useRef(false);
+  const productsRef = useRef<Product[]>([]);
+  const pathnameRef = useRef(pathname);
+  const userRef = useRef(user);
+
+  productsRef.current = products;
+  pathnameRef.current = pathname;
+  userRef.current = user;
+
   useEffect(() => {
     if (user) {
-      loadProducts();
+      void (async () => {
+        try {
+          const response = await api.get('/api/v1/products');
+          setProducts(response.data || []);
+        } catch (error) {
+          console.error('Failed to load products for barcode scanner:', error);
+        }
+      })();
     }
   }, [user]);
 
-  const loadProducts = async () => {
-    try {
-      const response = await api.get('/api/v1/products');
-      const productsData = response.data || [];
-      // productMaster comes from GET /products — avoid N+1 HQ calls
-      setProducts(productsData);
-    } catch (error: any) {
-      console.error('Failed to load products:', error);
-    }
-  };
-
-  /** When in-memory list is empty or stale, resolve by API (same store as session). */
   const fetchProductById = async (
     productId: string
   ): Promise<Product | undefined> => {
@@ -82,183 +89,149 @@ export default function GlobalBarcodeScanner() {
         params: { search: normalized },
       });
       const list: Product[] = res.data || [];
-      return list.find(
-        (p) =>
-          normalizeBarcodeForLookup(p.sku) === normalized ||
-          normalizeBarcodeForLookup(p.plu) === normalized
-      );
+      return findProductBySkuOrPlu(list, normalized);
     } catch {
       return undefined;
     }
   };
 
+  const processBarcode = useCallback(
+    async (barcode: string) => {
+      const normalized = normalizeBarcodeForLookup(barcode);
+      const currentUser = userRef.current;
+      if (!normalized || isProcessingRef.current || !currentUser) return;
 
-  const processBarcode = async (barcode: string) => {
-    const normalized = normalizeBarcodeForLookup(barcode);
-    if (!normalized || isProcessing || !user) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      const storeId = user?.storeId || user?.store?.id;
-      if (!storeId) {
-        console.error('Store ID not found');
-        setIsProcessing(false);
-        return;
-      }
+      isProcessingRef.current = true;
 
-      // Local catalog first — no DB round-trip for normal SKU/PLU scans.
-      let product = products.find(
-        (p) =>
-          normalizeBarcodeForLookup(p.sku) === normalized ||
-          normalizeBarcodeForLookup(p.plu) === normalized
-      );
-      if (product) {
-        const qty = 1;
-        const rate = product.pricePerUnit;
-        const roundedRate = Math.round(rate * 100) / 100;
-        const lineTotal = Math.round(qty * roundedRate * 100) / 100;
-
-        await addItem({
-          productId: product.id,
-          productName: product.name,
-          qtyKg: product.unitType === 'KG' ? 1 : undefined,
-          qtyPcs: product.unitType === 'PCS' ? 1 : undefined,
-          rate: roundedRate,
-          taxRate: product.taxRate,
-          lineTotal,
-        });
-
-        setCartAnimation({
-          productName: product.name,
-          productImage: product.imageUrl || null,
-        });
-
-        const qtyText = product.unitType === 'KG' ? '1 kg' : '1 pcs';
-        showNotification(
-          `✅ Added ${product.name} (${qtyText}) to cart`,
-          'success',
-          2000
-        );
-        if (pathname !== '/store/cart') {
-          router.push('/store/cart');
+      try {
+        const storeId = currentUser.storeId || currentUser.store?.id;
+        if (!storeId) {
+          showNotification(
+            'Store ID not found. Please log in again.',
+            'error',
+            4000
+          );
+          return;
         }
-        setIsProcessing(false);
-        return;
-      }
 
-      // Scale / weighted barcodes (or catalog miss) — server parse.
-      const parsed = await parseScaleBarcode(normalized, storeId);
+        const catalog = productsRef.current;
+        let product = findProductBySkuOrPlu(catalog, normalized);
 
-      if (parsed) {
-        product = products.find((p) => p.id === parsed.productId);
-        if (!product) {
-          product = await fetchProductById(parsed.productId);
-        }
-        if (product) {
-          const qty = parsed.weightKg || parsed.qtyPcs || 1;
-          const rate = parsed.pricePerKg || product.pricePerUnit;
+        const addAndNotify = async (
+          p: Product,
+          qtyKg?: number,
+          qtyPcs?: number,
+          rateOverride?: number
+        ) => {
+          const useKg =
+            qtyKg != null
+              ? qtyKg
+              : qtyPcs == null && p.unitType === 'KG'
+                ? 1
+                : undefined;
+          const usePcs =
+            qtyPcs != null
+              ? qtyPcs
+              : qtyKg == null && p.unitType === 'PCS'
+                ? 1
+                : undefined;
+          const qty = useKg || usePcs || 1;
+          const rate = rateOverride ?? p.pricePerUnit;
           const roundedRate = Math.round(rate * 100) / 100;
           const lineTotal = Math.round(qty * roundedRate * 100) / 100;
 
           await addItem({
-            productId: product.id,
-            productName: product.name,
-            qtyKg: parsed.weightKg,
-            qtyPcs: parsed.qtyPcs,
+            productId: p.id,
+            productName: p.name,
+            qtyKg: useKg,
+            qtyPcs: usePcs,
             rate: roundedRate,
-            taxRate: product.taxRate,
+            taxRate: p.taxRate,
             lineTotal,
           });
 
           setCartAnimation({
-            productName: product.name,
-            productImage: product.imageUrl || null,
+            productName: p.name,
+            productImage: p.imageUrl || null,
           });
 
-          const qtyText = parsed.weightKg
-            ? `${parsed.weightKg.toFixed(2)} kg`
-            : parsed.qtyPcs
-            ? `${parsed.qtyPcs} pcs`
-            : '1';
+          const qtyText = useKg
+            ? `${useKg.toFixed(2)} kg`
+            : usePcs
+              ? `${usePcs} pcs`
+              : p.unitType === 'KG'
+                ? '1 kg'
+                : '1 pcs';
           showNotification(
-            `✅ Added ${product.name} (${qtyText}) to cart`,
+            `✅ Added ${p.name} (${qtyText}) to cart`,
             'success',
             2000
           );
-          if (pathname !== '/store/cart') {
+          if (pathnameRef.current !== '/store/cart') {
             router.push('/store/cart');
           }
-          setIsProcessing(false);
+        };
+
+        if (product) {
+          await addAndNotify(product);
           return;
         }
-      }
 
-      // Last resort: search API by SKU/PLU (catalog may be stale)
-      product = await fetchProductBySkuOrPlu(normalized);
-      if (product) {
-        const qty = 1;
-        const rate = product.pricePerUnit;
-        const roundedRate = Math.round(rate * 100) / 100;
-        const lineTotal = Math.round(qty * roundedRate * 100) / 100;
-
-        await addItem({
-          productId: product.id,
-          productName: product.name,
-          qtyKg: product.unitType === 'KG' ? 1 : undefined,
-          qtyPcs: product.unitType === 'PCS' ? 1 : undefined,
-          rate: roundedRate,
-          taxRate: product.taxRate,
-          lineTotal,
-        });
-
-        setCartAnimation({
-          productName: product.name,
-          productImage: product.imageUrl || null,
-        });
-
-        const qtyText = product.unitType === 'KG' ? '1 kg' : '1 pcs';
-        showNotification(
-          `✅ Added ${product.name} (${qtyText}) to cart`,
-          'success',
-          2000
-        );
-        if (pathname !== '/store/cart') {
-          router.push('/store/cart');
+        const parsed = await parseScaleBarcode(normalized, storeId);
+        if (parsed) {
+          product =
+            catalog.find((p) => p.id === parsed.productId) ||
+            (await fetchProductById(parsed.productId));
+          if (product) {
+            await addAndNotify(
+              product,
+              parsed.weightKg,
+              parsed.qtyPcs,
+              parsed.pricePerKg
+            );
+            return;
+          }
         }
-        setIsProcessing(false);
-        return;
-      }
 
-      // If product not found, show error notification
-      showNotification(
-        `❌ Product not found for barcode: ${normalized}`,
-        'error',
-        3000
-      );
-      
-      setIsProcessing(false);
-    } catch (error: any) {
-      console.error('Failed to process barcode:', error);
-      showNotification(
-        `❌ Failed to process barcode: ${error.message || 'Unknown error'}`,
-        'error',
-        3000
-      );
-      setIsProcessing(false);
-    }
-  };
+        product = await fetchProductBySkuOrPlu(normalized);
+        if (product) {
+          await addAndNotify(product);
+          return;
+        }
+
+        showNotification(
+          `❌ Product not found for barcode: ${normalized}`,
+          'error',
+          3000
+        );
+      } catch (error: any) {
+        console.error('Failed to process barcode:', error);
+        showNotification(
+          `❌ Failed to process barcode: ${error.message || 'Unknown error'}`,
+          'error',
+          3000
+        );
+      } finally {
+        isProcessingRef.current = false;
+      }
+    },
+    [addItem, router, showNotification]
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if user is actively typing in an input
       const target = e.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      const isInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable;
 
-      // POS page form owns this field — do not buffer keys or handle Enter here (avoids double add with onSubmit)
       const isPosPrimaryBarcode =
         isInput &&
-        (target as HTMLInputElement).getAttribute('data-pos-primary-barcode') === 'true';
+        (target as HTMLInputElement).getAttribute('data-pos-primary-barcode') ===
+          'true';
+
+      // POS barcode field owns Enter — do not steal keys into the global buffer.
       if (isPosPrimaryBarcode) {
         if (e.key === 'Enter') {
           barcodeBuffer.current = '';
@@ -270,10 +243,10 @@ export default function GlobalBarcodeScanner() {
         return;
       }
 
-      // Product forms (SKU/PLU) — scanner should fill the field only, not add to cart
       const skipGlobalBarcode =
         isInput &&
-        ((target as HTMLElement).getAttribute('data-skip-global-barcode') === 'true' ||
+        ((target as HTMLElement).getAttribute('data-skip-global-barcode') ===
+          'true' ||
           !!(target as HTMLElement).closest('[data-skip-global-barcode]'));
       if (skipGlobalBarcode) {
         if (e.key === 'Enter') {
@@ -285,87 +258,70 @@ export default function GlobalBarcodeScanner() {
         }
         return;
       }
-      
-      // Check if it's the barcode input field specifically
-      const isBarcodeInput = isInput && (target as HTMLInputElement).placeholder?.toLowerCase().includes('barcode') || 
-                            (target as HTMLInputElement).type === 'text' && 
-                            (target as HTMLInputElement).placeholder?.toLowerCase().includes('scan');
-      
-      // If typing in input, check timing to distinguish barcode scanner from manual typing
+
+      const placeholder = (
+        (target as HTMLInputElement).placeholder || ''
+      ).toLowerCase();
+      const isBarcodeInput =
+        isInput &&
+        (placeholder.includes('barcode') ||
+          placeholder.includes('scan') ||
+          (target as HTMLInputElement).type === 'text' &&
+            placeholder.includes('sku'));
+
       const now = Date.now();
       const timeSinceLastKey = now - lastKeyTime.current;
-      
-      // Barcode scanners typically send characters in < 50ms intervals
-      // Manual typing is usually > 100ms between keystrokes
       const isLikelyScanner = timeSinceLastKey < 50;
-      
-      // If typing in an input field (but not the barcode input) and it's been slow, it's manual typing
-      // But if it's fast, it might be a scanner, so we should still capture it
-      if (isInput && !isBarcodeInput && timeSinceLastKey > 100 && barcodeBuffer.current.length > 0) {
-        // Reset buffer on slow typing (manual input) only if not in barcode input
+
+      if (
+        isInput &&
+        !isBarcodeInput &&
+        timeSinceLastKey > 100 &&
+        barcodeBuffer.current.length > 0
+      ) {
         barcodeBuffer.current = '';
       }
-      
+
       lastKeyTime.current = now;
 
-      // Ignore modifier keys and special keys (except Enter)
       if (e.key.length > 1 && e.key !== 'Enter') {
         return;
       }
 
-      // If Enter is pressed, process the barcode
       if (e.key === 'Enter') {
-        // Always process barcode if we have a buffer
-        // Prioritize barcode scanning over form submission
         if (barcodeBuffer.current.length > 0) {
-          // Process if:
-          // 1. Not in an input field, OR
-          // 2. In barcode input field, OR
-          // 3. Input was fast (scanner pattern), OR
-          // 4. Buffer is long enough to be a barcode (>= 8 chars suggests scanner)
           const isLongBarcode = barcodeBuffer.current.length >= 8;
-          
+
           if (!isInput || isBarcodeInput || isLikelyScanner || isLongBarcode) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             const barcode = barcodeBuffer.current.trim();
             barcodeBuffer.current = '';
-            
-            // Clear any pending timeout
+
             if (barcodeTimeout.current) {
               clearTimeout(barcodeTimeout.current);
               barcodeTimeout.current = null;
             }
-            
-            // Process barcode if it looks valid (at least 3 characters after normalizing)
+
             if (normalizeBarcodeForLookup(barcode).length >= 3) {
-              processBarcode(barcode);
+              void processBarcode(barcode);
             }
           } else {
-            // Slow typing in input field - clear buffer and let form handle Enter
             barcodeBuffer.current = '';
           }
         }
         return;
       }
 
-      // Accumulate characters for barcode
-      // Always capture characters to detect barcode scanners
       if (e.key.length === 1) {
-        // Always accumulate, but be smart about it
-        // If in input and slow typing, we'll clear it on Enter
         barcodeBuffer.current += e.key;
-        
-        // Clear buffer after 500ms of no input (timeout)
-        // This helps distinguish scanner input (fast) from manual typing (slow)
+
         if (barcodeTimeout.current) {
           clearTimeout(barcodeTimeout.current);
         }
-        
+
         barcodeTimeout.current = setTimeout(() => {
-          // Only clear if we're not in a barcode input field
-          // and the buffer is short (likely manual typing)
           if (!isBarcodeInput && barcodeBuffer.current.length < 8) {
             barcodeBuffer.current = '';
           }
@@ -373,10 +329,8 @@ export default function GlobalBarcodeScanner() {
       }
     };
 
-    // Enable barcode scanning for authenticated users on all pages
-    // This allows barcode scanning to work globally, not just on specific pages
     if (user) {
-      window.addEventListener('keydown', handleKeyDown, true); // Use capture phase for better detection
+      window.addEventListener('keydown', handleKeyDown, true);
     }
 
     return () => {
@@ -385,24 +339,20 @@ export default function GlobalBarcodeScanner() {
         clearTimeout(barcodeTimeout.current);
       }
     };
-  }, [user, pathname, products, router, addItem, isProcessing]);
+  }, [user, processBarcode]);
 
-  // Handle barcode from URL query (when navigating from scanner)
   useEffect(() => {
-    if (pathname === '/store/pos') {
-      const params = new URLSearchParams(window.location.search);
-      const barcode = params.get('barcode');
-      if (barcode && !isProcessing) {
-        // Remove from URL
-        window.history.replaceState({}, '', '/store/pos');
-        processBarcode(barcode);
-      }
+    if (pathname !== '/store/pos') return;
+    const params = new URLSearchParams(window.location.search);
+    const barcode = params.get('barcode');
+    if (barcode && !isProcessingRef.current) {
+      window.history.replaceState({}, '', '/store/pos');
+      void processBarcode(barcode);
     }
-  }, [pathname, isProcessing]);
+  }, [pathname, processBarcode]);
 
   return (
     <>
-      {/* Cart Animation */}
       {cartAnimation && (
         <CartAnimation
           productName={cartAnimation.productName}
@@ -413,4 +363,3 @@ export default function GlobalBarcodeScanner() {
     </>
   );
 }
-

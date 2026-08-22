@@ -45,3 +45,10 @@ export function buildDefaultFilterCriteria() {
     dateRange: { start, end },
   };
 }
+
+export function buildDefaultFilterCriteriaToday() {
+  const today = todayLocalYmd();
+  return {
+    dateRange: { start: today, end: today },
+  };
+}

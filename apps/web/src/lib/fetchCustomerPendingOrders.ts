@@ -10,7 +10,9 @@ type PendingPaymentsCustomer = {
 export async function fetchCustomerPendingOrders(customerId: string | null | undefined): Promise<PendingOpenOrder[]> {
   if (!customerId) return [];
 
-  const response = await api.get('/api/v1/customers/pending-payments');
+  const response = await api.get('/api/v1/customers/pending-payments', {
+    params: { summary: 1 },
+  });
   const rows: PendingPaymentsCustomer[] = response.data || [];
   const match = rows.find((c) => c.id === customerId);
   if (!match?.openOrders?.length) return [];

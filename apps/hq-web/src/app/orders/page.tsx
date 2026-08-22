@@ -342,7 +342,14 @@ export default function OrdersPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => setSelectedSale(sale)}
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/api/v1/sales/${sale.id}`);
+                                setSelectedSale(res.data);
+                              } catch {
+                                setSelectedSale({ ...sale, items: sale.items || [] });
+                              }
+                            }}
                             className="text-brand-600 hover:text-brand-800 dark:text-brand-400"
                           >
                             View
@@ -435,7 +442,7 @@ export default function OrdersPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Items</h3>
                   <div className="space-y-2">
-                    {selectedSale.items.map((item) => (
+                    {selectedSale.items?.map((item) => (
                       <div
                         key={item.id}
                         className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"

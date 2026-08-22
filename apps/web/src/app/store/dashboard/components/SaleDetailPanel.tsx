@@ -76,7 +76,7 @@ export default function SaleDetailPanel({
     if (mode === 'edit') {
       setEditForm({
         discountTotal: String(sale.discountTotal ?? 0),
-        items: sale.items.map((item) => ({
+        items: (sale.items || []).map((item) => ({
           id: item.id,
           productId: item.product.id,
           productName: item.product.name,
@@ -201,7 +201,7 @@ export default function SaleDetailPanel({
           <div>
             <p className="text-sm text-ink-secondary mb-2">Items</p>
             <div className="space-y-2">
-              {sale.items.map((item, idx) => (
+              {sale.items?.map((item, idx) => (
                 <div
                   key={item.id || idx}
                   className="flex justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
