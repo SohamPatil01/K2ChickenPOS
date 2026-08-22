@@ -206,7 +206,7 @@ function trimCanvasWhitespace(
 function collectSafeBreakOffsets(billEl: HTMLElement): number[] {
   const billTop = billEl.getBoundingClientRect().top;
   const selector =
-    "table.items tbody tr, .card, .pay, .qr, .alert, .totals, .grid2";
+    "table.items tbody tr, table tbody tr, .card, .pay, .qr, .alert, .totals, .grid2";
   const offsets = Array.from(billEl.querySelectorAll(selector)).map(
     (el) => el.getBoundingClientRect().bottom - billTop
   );
@@ -270,7 +270,7 @@ export async function buildCustomerBillHtml(
       (item, i) => `
     <tr>
       <td class="c-muted">${i + 1}</td>
-      <td class="c-item">${escapeHtml(item.product.name)}</td>
+      <td class="c-item">${escapeHtml(item.product?.name || "Item")}</td>
       <td class="c-num">${formatQty(item)}</td>
       <td class="c-num">${formatMoney(item.rate)}</td>
       <td class="c-num c-strong">${formatMoney(item.lineTotal)}</td>
@@ -629,7 +629,24 @@ export async function downloadCustomerBill(
   sale: BillSale,
   store?: BillStoreInfo
 ) {
-  const html = await buildCustomerBillHtml(sale, store);
+  try {
+    const html = await buildCustomerBillHtml(sale, store);
+    await downloadHtmlRootAsPdf(html, "k2-bill", `K2-Bill-${sale.saleNo}.pdf`);
+  } catch (err) {
+    console.error("PDF bill download failed, opening print view:", err);
+    await printCustomerBill(sale, store);
+  }
+}
+
+/**
+ * Render an HTML document (with a known root id) to a paginated PDF.
+ * Shared by single bills and pending statements.
+ */
+export async function downloadHtmlRootAsPdf(
+  html: string,
+  rootId: string,
+  filename: string
+) {
   const iframe = document.createElement("iframe");
   iframe.style.cssText =
     "position:fixed;left:-10000px;top:0;width:720px;height:1400px;border:0;opacity:0;pointer-events:none;";
@@ -642,8 +659,6 @@ export async function downloadCustomerBill(
     doc.write(html);
     doc.close();
 
-    // Wait for logo / QR images. No webfont wait needed — the template only
-    // uses system fonts, which are available synchronously.
     await new Promise<void>((resolve) => {
       const imgs = Array.from(doc.images || []);
       if (imgs.length === 0) {
@@ -665,21 +680,13 @@ export async function downloadCustomerBill(
       setTimeout(resolve, 2500);
     });
 
-    const billEl = doc.getElementById("k2-bill");
+    const billEl = doc.getElementById(rootId);
     if (!billEl) throw new Error("Bill element missing");
 
-    // The template has a CSS entrance fade for on-screen viewing (billIn).
-    // html2canvas has no guaranteed relationship to the animation timeline —
-    // it can (and did, in testing) snapshot mid-fade, capturing the whole
-    // bill at partial opacity, which reads as "washed out" colors in the
-    // exported PDF. Kill the animation outright before capture instead of
-    // racing it; @media print already does the same for the print path.
     (billEl as HTMLElement).style.animation = "none";
     (billEl as HTMLElement).style.opacity = "1";
     (billEl as HTMLElement).style.transform = "none";
 
-    // Measure safe page-break points (row/section bottoms) before capture —
-    // these are DOM positions, not canvas pixels yet.
     const safeBreaksCss = collectSafeBreakOffsets(billEl);
 
     const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
@@ -695,7 +702,7 @@ export async function downloadCustomerBill(
     });
     const { canvas, topOffset } = trimCanvasWhitespace(canvasRaw);
 
-    const pageW = 210; // mm
+    const pageW = 210;
     const maxPageH = 297;
     const margin = 8;
     const usableW = pageW - margin * 2;
@@ -706,7 +713,6 @@ export async function downloadCustomerBill(
     const imgData = canvas.toDataURL("image/jpeg", 0.93);
 
     if (drawH <= maxContentH) {
-      // Custom page height = content (no blank A4 bottom); never taller than A4.
       const pageH = Math.min(maxPageH, Math.max(drawH + margin * 2, 80));
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -716,20 +722,10 @@ export async function downloadCustomerBill(
       });
       const x = margin + (usableW - drawW) / 2;
       pdf.addImage(imgData, "JPEG", x, margin, drawW, drawH);
-      pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
+      pdf.save(filename);
       return;
     }
 
-    // Truly long bills (many line items) — paginate without tiny orphan
-    // pages, and without ever slicing through the middle of a table row or
-    // a boxed section (totals/payment/QR/bill-to card). Each measured DOM
-    // break offset maps to canvas pixels at the same uniform scale
-    // html2canvas rendered at (scale:2), shifted by whatever the whitespace
-    // trim above removed from the top.
-    // +3 canvas px nudges the cut a hair past the measured edge, into the
-    // margin/gap that follows each element — otherwise a border's own
-    // anti-aliased edge pixels can land exactly on the cut line and leave a
-    // faint sliver on the next page.
     const scaleRatio = canvasRaw.width / billEl.getBoundingClientRect().width;
     const safeBreaksPx = safeBreaksCss
       .map((y) => Math.min(canvas.height, Math.round(y * scaleRatio) - topOffset + 3))
@@ -743,14 +739,11 @@ export async function downloadCustomerBill(
       compress: true,
     });
     const pxPerMm = canvas.width / drawW;
-    const minSlicePx = 20 * pxPerMm; // never produce a sliver page
+    const minSlicePx = 20 * pxPerMm;
     let offsetPx = 0;
     let page = 0;
     while (offsetPx < canvas.height - 0.5) {
       const hardMaxPx = Math.min(canvas.height, offsetPx + maxContentH * pxPerMm);
-      // Prefer the furthest safe break that still fits on this page; only
-      // fall back to a hard pixel cut (old behavior) if none is found —
-      // e.g. a single row genuinely taller than one page.
       const safeEndPx = safeBreaksPx.reduce(
         (best, y) => (y > offsetPx + minSlicePx && y <= hardMaxPx ? y : best),
         0
@@ -791,10 +784,7 @@ export async function downloadCustomerBill(
       page += 1;
       if (page > 20) break;
     }
-    pdf.save(`K2-Bill-${sale.saleNo}.pdf`);
-  } catch (err) {
-    console.error("PDF bill download failed, opening print view:", err);
-    await printCustomerBill(sale, store);
+    pdf.save(filename);
   } finally {
     document.body.removeChild(iframe);
   }

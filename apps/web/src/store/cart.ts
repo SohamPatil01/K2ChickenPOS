@@ -280,11 +280,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
   setProfileRewardPending: (pending) => {
     set({ profileRewardPending: pending });
-    // Auto-apply the moment we learn the reward is pending, unless the cashier
-    // already picked a manual discount on this bill.
-    if (pending && get().discountSource !== 'manual') {
-      get().applyProfileReward();
-    } else if (!pending && get().discountSource === 'profile_reward') {
+    if (!pending && get().discountSource === 'profile_reward') {
       get().clearProfileReward();
     }
   },

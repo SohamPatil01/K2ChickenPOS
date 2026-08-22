@@ -1,4 +1,5 @@
 import type { BillStoreInfo } from '@/lib/customerBill';
+import { downloadHtmlRootAsPdf } from '@/lib/customerBill';
 
 export interface PendingStatementOrder {
   saleNo: string;
@@ -80,7 +81,7 @@ export function buildPendingStatementHtml(
         .map(
           (item) => `
         <tr>
-          <td style="padding:4px 6px;border-bottom:1px solid #f3f4f6;">${item.product.name}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #f3f4f6;">${item.product?.name || 'Item'}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #f3f4f6;text-align:center;">${formatQty(item)}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #f3f4f6;text-align:right;">${formatMoney(item.rate)}</td>
           <td style="padding:4px 6px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600;">${formatMoney(item.lineTotal)}</td>
@@ -145,7 +146,7 @@ export function buildPendingStatementHtml(
   </style>
 </head>
 <body>
-  <div class="sheet">
+  <div class="sheet" id="k2-pending-statement">
     <div style="background:linear-gradient(135deg,#111827 0%,#1f2937 100%);color:#fff;padding:20px 24px;display:flex;justify-content:space-between;gap:16px;">
       <div>
         <img src="${logoUrl}" alt="K2 Chicken" style="height:44px;display:block;margin-bottom:8px"/>
@@ -219,16 +220,8 @@ export function buildPendingStatementHtml(
 </html>`;
 }
 
-export function downloadPendingStatement(data: PendingStatementData, store?: BillStoreInfo) {
+export async function downloadPendingStatement(data: PendingStatementData, store?: BillStoreInfo) {
   const html = buildPendingStatementHtml(data, store);
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
   const safeName = (data.customerName || 'Customer').replace(/[^\w\-]+/g, '_').slice(0, 40);
-  a.download = `K2-Pending-${safeName}.html`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  await downloadHtmlRootAsPdf(html, 'k2-pending-statement', `K2-Pending-${safeName}.pdf`);
 }

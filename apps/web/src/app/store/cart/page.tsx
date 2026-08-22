@@ -118,6 +118,8 @@ export default function StoreCartPage() {
   const discountSource = useCartStore((state) => state.discountSource);
   const profileRewardPending = useCartStore((state) => state.profileRewardPending);
   const setProfileRewardPending = useCartStore((state) => state.setProfileRewardPending);
+  const applyProfileReward = useCartStore((state) => state.applyProfileReward);
+  const clearProfileReward = useCartStore((state) => state.clearProfileReward);
   const [tempAddressLine1, setTempAddressLine1] = useState(customerAddressLine1 || '');
   const [tempAddressLine2, setTempAddressLine2] = useState(customerAddressLine2 || '');
   const [tempAddressCity, setTempAddressCity] = useState(customerAddressCity || '');
@@ -1012,6 +1014,40 @@ export default function StoreCartPage() {
                     Walk-in customer • No customer info will be saved
                   </div>
                 )}
+                {!skipCustomer && customerId && profileRewardPending && discountSource !== 'profile_reward' && (
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-4 py-3">
+                    <p className="flex-1 text-sm font-medium text-amber-900 dark:text-amber-100">
+                      This customer has a 10% profile discount you can claim on this bill.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyProfileReward();
+                        showNotification('10% profile discount applied', 'success');
+                      }}
+                      className="shrink-0 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold"
+                    >
+                      Claim 10%
+                    </button>
+                  </div>
+                )}
+                {!skipCustomer && customerId && discountSource === 'profile_reward' && (
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700 px-4 py-3">
+                    <p className="flex-1 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                      10% profile discount is applied on this bill.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearProfileReward();
+                        showNotification('Profile discount removed', 'info');
+                      }}
+                      className="shrink-0 px-4 py-2 rounded-lg border border-emerald-400 text-emerald-800 dark:text-emerald-200 text-sm font-semibold"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
                     {customerName && customerPhone && !showCustomerSection && (
                   <div className="mt-2 flex items-center justify-between gap-3 px-3 py-2.5 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg text-sm">
                     <div className="min-w-0 flex-1">
@@ -1036,9 +1072,16 @@ export default function StoreCartPage() {
                             </div>
                           )}
                           {discountSource !== 'profile_reward' && profileRewardPending && (
-                            <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                              10% reward pending
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                applyProfileReward();
+                                showNotification('10% profile discount applied', 'success');
+                              }}
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200"
+                            >
+                              Claim 10% off
+                            </button>
                           )}
                         </div>
                       )}
@@ -1383,9 +1426,16 @@ export default function StoreCartPage() {
                                 Profile reward: 10% applied
                               </span>
                             ) : profileRewardPending ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                                10% reward pending
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  applyProfileReward();
+                                  showNotification('10% profile discount applied', 'success');
+                                }}
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-200"
+                              >
+                                Claim 10% off
+                              </button>
                             ) : customerId && !skipCustomer ? (
                               <span className="text-xs text-ink-muted">Add address & get 10% off</span>
                             ) : null}

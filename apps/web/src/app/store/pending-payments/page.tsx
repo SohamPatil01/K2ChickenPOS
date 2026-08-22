@@ -79,8 +79,8 @@ function toBillSale(order: PendingOrder, customer: CustomerWithPending): BillSal
     },
     items: items.map((item) => ({
       product: {
-        name: item.product.name,
-        unitType: item.product.unitType,
+        name: item.product?.name || 'Item',
+        unitType: item.product?.unitType,
       },
       qtyKg: item.qtyKg,
       qtyPcs: item.qtyPcs,
@@ -126,7 +126,7 @@ function toPendingStatement(
         order.remainingBalance !== undefined ? order.remainingBalance : order.pending
       ),
       items: (order.items || []).map((item) => ({
-        product: { name: item.product.name },
+        product: { name: item.product?.name || 'Item' },
         qtyKg: item.qtyKg,
         qtyPcs: item.qtyPcs,
         rate: item.rate,
@@ -234,7 +234,7 @@ export default function PendingPaymentsPage() {
     setTimeout(() => handlePrint(), 150);
   };
 
-  const triggerDownloadClubbed = (customer: CustomerWithPending, onlySelected: boolean) => {
+  const triggerDownloadClubbed = async (customer: CustomerWithPending, onlySelected: boolean) => {
     if (!customer.openOrders.length) {
       showNotification('No pending bills to download', 'error');
       return;
@@ -249,13 +249,18 @@ export default function PendingPaymentsPage() {
       showNotification('No pending bills to download', 'error');
       return;
     }
-    downloadPendingStatement(statement, storeBillInfo);
-    showNotification(
-      onlySelected
-        ? `Downloaded ${statement.orders.length} selected bill${statement.orders.length === 1 ? '' : 's'} for ${customer.name}`
-        : `Pending statement for ${customer.name} downloaded`,
-      'success'
-    );
+    try {
+      await downloadPendingStatement(statement, storeBillInfo);
+      showNotification(
+        onlySelected
+          ? `Downloaded ${statement.orders.length} selected bill${statement.orders.length === 1 ? '' : 's'} for ${customer.name}`
+          : `Pending statement for ${customer.name} downloaded`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Pending statement PDF failed:', err);
+      showNotification('Could not download pending bills PDF', 'error');
+    }
   };
 
   const togglePrintOrder = (orderId: string) => {
@@ -355,10 +360,12 @@ export default function PendingPaymentsPage() {
   const handlePayPending = (customer: CustomerWithPending, orderId?: string) => {
     setSelectedCustomer(customer);
     setSelectedOrder(orderId || null);
-    const amount = orderId 
-      ? customer.openOrders.find(o => o.id === orderId)?.pending || customer.totalPending
+    const amount = orderId
+      ? customer.openOrders.find((o) => o.id === orderId)?.remainingBalance ??
+        customer.openOrders.find((o) => o.id === orderId)?.pending ??
+        customer.totalPending
       : customer.totalPending;
-    setPaymentAmount(amount.toString());
+    setPaymentAmount(String(Math.round(Number(amount) || 0)));
     setPaymentMethod('UPI');
     setShowPaymentModal(true);
   };
@@ -370,6 +377,20 @@ export default function PendingPaymentsPage() {
     if (isNaN(amount) || amount <= 0) {
       showNotification('Please enter a valid payment amount', 'error');
       return;
+    }
+
+    const maxDue = selectedOrder
+      ? selectedCustomer.openOrders.find((o) => o.id === selectedOrder)?.remainingBalance ??
+        selectedCustomer.openOrders.find((o) => o.id === selectedOrder)?.pending ??
+        selectedCustomer.totalPending
+      : selectedCustomer.totalPending;
+    const capped = Math.min(Math.round(amount), Math.round(Number(maxDue) || 0));
+    if (capped <= 0) {
+      showNotification('Nothing due on this bill', 'error');
+      return;
+    }
+    if (capped < Math.round(amount)) {
+      showNotification(`Amount capped to remaining ₹${capped}`, 'info');
     }
 
     const method = String(paymentMethod || 'CASH').toUpperCase();
@@ -384,7 +405,7 @@ export default function PendingPaymentsPage() {
           return;
         }
 
-        const totalPaid = order.totalPaid + amount;
+        const totalPaid = order.totalPaid + capped;
         const remaining = order.grandTotal - totalPaid;
 
         // Add payment to the order
@@ -392,14 +413,14 @@ export default function PendingPaymentsPage() {
           payments: [
             {
               method,
-              amount: Math.round(amount),
+              amount: capped,
             },
           ],
         });
 
         // Show success animation
         setSuccessData({
-          amount: Math.round(amount),
+          amount: capped,
           customerName: selectedCustomer.name,
           orderNo: order.saleNo,
         });
@@ -409,14 +430,14 @@ export default function PendingPaymentsPage() {
         if (remaining <= 0.01) {
           showNotification(`✅ Order ${order.saleNo} fully paid (${method})!`, 'success');
         } else {
-          showNotification(`Payment of ₹${Math.round(amount)} (${method}) recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
+          showNotification(`Payment of ₹${capped} (${method}) recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
         }
       } else {
         // Pay all pending orders in one server-side settlement (FIFO)
         const res = await api.post(
           `/api/v1/customers/${selectedCustomer.id}/settle-pending`,
           {
-            amount: Math.round(amount),
+            amount: capped,
             method,
           }
         );
@@ -448,8 +469,8 @@ export default function PendingPaymentsPage() {
         if (unallocated > 0) {
           successMessage += `. ₹${unallocated} not allocated (no more pending bills)`;
         }
-        if (applied < Math.round(amount) && unallocated === 0) {
-          successMessage += ` (requested ₹${Math.round(amount)})`;
+        if (applied < capped && unallocated === 0) {
+          successMessage += ` (requested ₹${capped})`;
         }
 
         showNotification(successMessage, 'success');
@@ -789,6 +810,13 @@ export default function PendingPaymentsPage() {
                               Print All
                             </button>
                             <button
+                              onClick={() => triggerDownloadClubbed(customer, false)}
+                              className="px-4 py-2 bg-indigo-700 text-white rounded-lg hover:bg-indigo-800 transition-all duration-200 font-semibold text-sm"
+                              title="Download all pending bills as one PDF statement"
+                            >
+                              Download All
+                            </button>
+                            <button
                               onClick={() => handlePayPending(customer)}
                               className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-bold text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
                             >
@@ -1036,12 +1064,30 @@ export default function PendingPaymentsPage() {
                 <div>
                   <label className="block text-sm font-semibold text-ink-secondary mb-2">
                     Payment Amount
+                    {selectedCustomer && (
+                      <span className="ml-2 font-normal text-ink-muted">
+                        Due ₹
+                        {Math.round(
+                          selectedOrder
+                            ? selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
+                                ?.remainingBalance ??
+                                selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
+                                  ?.pending ??
+                                selectedCustomer.totalPending
+                            : selectedCustomer.totalPending
+                        )}
+                      </span>
+                    )}
                   </label>
                   <div className="relative">
                     <input
                       type="text"
+                      inputMode="decimal"
                       value={paymentAmount}
-                      readOnly
+                      onChange={(e) => {
+                        const next = e.target.value.replace(/[^\d.]/g, '');
+                        setPaymentAmount(next);
+                      }}
                       onClick={() => setShowNumPad(true)}
                       className="w-full px-4 py-4 text-2xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-bold cursor-pointer text-center"
                       placeholder="0.00"
@@ -1056,6 +1102,24 @@ export default function PendingPaymentsPage() {
                       </svg>
                     </button>
                   </div>
+                  {selectedCustomer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const due = selectedOrder
+                          ? selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
+                              ?.remainingBalance ??
+                            selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
+                              ?.pending ??
+                            selectedCustomer.totalPending
+                          : selectedCustomer.totalPending;
+                        setPaymentAmount(String(Math.round(Number(due) || 0)));
+                      }}
+                      className="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                    >
+                      Pay full remaining
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1102,6 +1166,7 @@ export default function PendingPaymentsPage() {
           onChange={(value) => setPaymentAmount(value)}
           onClose={() => setShowNumPad(false)}
           onSubmit={() => setShowNumPad(false)}
+          allowDecimal
         />
       )}
 
