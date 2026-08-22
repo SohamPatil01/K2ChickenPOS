@@ -5,6 +5,7 @@ import {
   ymdInStoreTz,
   eachStoreYmdInclusive,
 } from '@azela-pos/shared';
+import { RECEIVED_PO_STATUSES, sumReceivedPoValue } from '../reporting/shared/poValue.js';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -1445,6 +1446,7 @@ export class AnalyticsService {
       prisma.purchaseOrder.findMany({
         where: {
           franchiseStoreId: storeFilter,
+          status: { in: [...RECEIVED_PO_STATUSES] },
           createdAt: { gte: rangeStart, lte: rangeEnd },
         },
         include: { items: true },
@@ -1465,16 +1467,7 @@ export class AnalyticsService {
       paidSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0)
     );
 
-    let totalPurchases = 0;
-    for (const po of posWithItems) {
-      for (const item of po.items) {
-        const rate = item.requestedRate ?? 0;
-        const qtyKg = item.receivedQtyKg ?? item.qtyKg ?? 0;
-        const qtyPcs = item.receivedQtyPcs ?? item.qtyPcs ?? 0;
-        totalPurchases += rate * qtyKg + rate * qtyPcs;
-      }
-    }
-    totalPurchases = round2(totalPurchases);
+    const totalPurchases = sumReceivedPoValue(posWithItems);
 
     // Expenses are optional — only subtract when Expense table exists and has rows.
     // Preserves legacy profit-margin behaviour until expense tracking is enabled.
@@ -1497,12 +1490,6 @@ export class AnalyticsService {
     } catch {
       // Expense table not migrated yet — keep legacy net profit formula
     }
-
-    const netProfit = round2(
-      totalSales - totalPurchases - (expensesTracked ? totalExpenses! : 0)
-    );
-    const profitMarginPct =
-      totalSales > 0 ? round2((netProfit / totalSales) * 100) : 0;
 
     type ProductAgg = {
       productId: string;
@@ -1589,6 +1576,13 @@ export class AnalyticsService {
         };
       })
       .sort((a, b) => b.revenue - a.revenue);
+
+    estimatedCogsFromSales = round2(estimatedCogsFromSales);
+
+    const expenseDeduction = expensesTracked ? totalExpenses! : 0;
+    const netProfit = round2(totalSales - estimatedCogsFromSales - expenseDeduction);
+    const profitMarginPct =
+      totalSales > 0 ? round2((netProfit / totalSales) * 100) : 0;
 
     return {
       period: {

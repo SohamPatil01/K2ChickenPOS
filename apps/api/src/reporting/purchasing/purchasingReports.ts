@@ -1,25 +1,13 @@
 // @ts-nocheck
 import { prisma } from '@azela-pos/db';
 import { round2, pct, weightedAvgCost } from '../shared/metrics.js';
+import { poLineValue } from '../shared/poValue.js';
 import { parsePagination } from '../shared/pagination.js';
 
 type StoreFilter = string | { in: string[] };
 
 const CLOSED_PO_STATUSES = ['RECEIVED', 'CLOSED'] as const;
 const OPEN_PO_STATUSES = ['DRAFT', 'SUBMITTED', 'APPROVED', 'DISPATCHED'] as const;
-
-function poLineValue(item: {
-  requestedRate?: number | null;
-  receivedQtyKg?: number | null;
-  receivedQtyPcs?: number | null;
-  qtyKg?: number | null;
-  qtyPcs?: number | null;
-}): number {
-  const rate = item.requestedRate ?? 0;
-  const qtyKg = item.receivedQtyKg ?? item.qtyKg ?? 0;
-  const qtyPcs = item.receivedQtyPcs ?? item.qtyPcs ?? 0;
-  return rate * qtyKg + rate * qtyPcs;
-}
 
 export async function getPurchaseSummary(
   storeFilter: StoreFilter,

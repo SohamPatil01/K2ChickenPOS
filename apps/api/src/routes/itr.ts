@@ -3,6 +3,7 @@ import { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { resolveStoreDateRange } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
+import { RECEIVED_PO_STATUSES, sumReceivedPoValue } from '../reporting/shared/poValue.js';
 
 /** Date range for queries — store calendar (IST), aligned with reports. */
 function getDateRange(startDate?: string, endDate?: string) {
@@ -61,6 +62,7 @@ async function computeSummary(
     prisma.purchaseOrder.findMany({
       where: {
         franchiseStoreId: storeIds.length === 1 ? storeIds[0] : { in: storeIds },
+        status: { in: [...RECEIVED_PO_STATUSES] },
         createdAt: dateFilter,
       },
       include: { items: true },
@@ -69,16 +71,7 @@ async function computeSummary(
 
   const totalSales = Math.round((salesAgg._sum.grandTotal ?? 0) * 100) / 100;
 
-  let totalPurchases = 0;
-  for (const po of posWithItems) {
-    for (const item of po.items) {
-      const rate = item.requestedRate ?? 0;
-      const qtyKg = item.receivedQtyKg ?? item.qtyKg ?? 0;
-      const qtyPcs = item.receivedQtyPcs ?? item.qtyPcs ?? 0;
-      totalPurchases += rate * qtyKg + rate * qtyPcs;
-    }
-  }
-  totalPurchases = Math.round(totalPurchases * 100) / 100;
+  const totalPurchases = sumReceivedPoValue(posWithItems);
 
   const profit = Math.round((totalSales - totalPurchases - totalExpenses) * 100) / 100;
   const presumptiveIncome = Math.round(totalSales * 0.06 * 100) / 100;

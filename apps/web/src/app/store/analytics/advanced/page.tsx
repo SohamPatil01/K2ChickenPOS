@@ -1637,7 +1637,7 @@ export default function AdvancedAnalyticsPage() {
                   </p>
                 </div>
                 <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Purchases</p>
+                  <p className="text-xs uppercase text-gray-500">Inventory received</p>
                   <p className="text-xl font-bold text-ink mt-1">
                     {formatINR(profitMargin.summary.totalPurchases)}
                   </p>
@@ -1673,8 +1673,10 @@ export default function AdvancedAnalyticsPage() {
               </div>
 
               <p className="text-sm text-ink-secondary">
-                Net profit uses paid sales minus purchase orders in range. Expenses are not tracked
-                yet. Product costs use the average of the last 10 closed franchise POs.
+                Net profit uses paid sales minus estimated cost of goods sold in the period, minus
+                approved expenses when tracked. Inventory received shows closed/received PO value
+                only (not open orders). Product costs use the average of the last 10 closed franchise
+                POs.
               </p>
 
               {profitMargin.summary.productsMissingCost > 0 && (
