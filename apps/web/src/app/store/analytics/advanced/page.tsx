@@ -1674,9 +1674,9 @@ export default function AdvancedAnalyticsPage() {
 
               <p className="text-sm text-ink-secondary">
                 Net profit uses paid sales minus estimated cost of goods sold in the period, minus
-                approved expenses when tracked. Inventory received shows closed/received PO value
-                only (not open orders). Product costs use the average of the last 10 closed franchise
-                POs.
+                approved expenses when tracked. Inventory received counts POs by GRN receive date
+                in the selected range (not PO order date). Product costs use the average of the last
+                10 closed franchise POs.
               </p>
 
               {profitMargin.summary.productsMissingCost > 0 && (

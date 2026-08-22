@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { resolveStoreDateRange } from '@azela-pos/shared';
 import { getUser, requireRole } from '../utils/auth.js';
-import { RECEIVED_PO_STATUSES, sumReceivedPoValue } from '../reporting/shared/poValue.js';
+import { getReceivedPurchaseValueInRange } from '../reporting/shared/poValue.js';
 
 /** Date range for queries — store calendar (IST), aligned with reports. */
 function getDateRange(startDate?: string, endDate?: string) {
@@ -50,7 +50,7 @@ async function computeSummary(
 }> {
   const totalExpenses = 0;
 
-  const [salesAgg, posWithItems] = await Promise.all([
+  const [salesAgg, purchaseTotals] = await Promise.all([
     prisma.sale.aggregate({
       where: {
         storeId: storeIds.length === 1 ? storeIds[0] : { in: storeIds },
@@ -59,19 +59,16 @@ async function computeSummary(
       },
       _sum: { grandTotal: true },
     }),
-    prisma.purchaseOrder.findMany({
-      where: {
-        franchiseStoreId: storeIds.length === 1 ? storeIds[0] : { in: storeIds },
-        status: { in: [...RECEIVED_PO_STATUSES] },
-        createdAt: dateFilter,
-      },
-      include: { items: true },
-    }),
+    getReceivedPurchaseValueInRange(
+      storeIds.length === 1 ? storeIds[0] : { in: storeIds },
+      dateFilter.gte,
+      dateFilter.lte
+    ),
   ]);
 
   const totalSales = Math.round((salesAgg._sum.grandTotal ?? 0) * 100) / 100;
 
-  const totalPurchases = sumReceivedPoValue(posWithItems);
+  const totalPurchases = purchaseTotals.total;
 
   const profit = Math.round((totalSales - totalPurchases - totalExpenses) * 100) / 100;
   const presumptiveIncome = Math.round(totalSales * 0.06 * 100) / 100;

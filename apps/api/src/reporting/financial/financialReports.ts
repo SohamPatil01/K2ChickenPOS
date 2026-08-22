@@ -2,7 +2,7 @@
 import { prisma } from '@azela-pos/db';
 import { paymentMixChartRows, salesInDateRangeWhere } from '@azela-pos/shared';
 import { round2, netProfit, budgetVariancePct } from '../shared/metrics.js';
-import { RECEIVED_PO_STATUSES, sumReceivedPoValue } from '../shared/poValue.js';
+import { getReceivedPurchaseValueInRange } from '../shared/poValue.js';
 
 type StoreFilter = string | { in: string[] };
 
@@ -201,20 +201,13 @@ export async function getFinancialSummary(
   gte: Date,
   lte: Date
 ) {
-  const [revenue, expenses, purchaseAgg] = await Promise.all([
+  const [revenue, expenses, purchases] = await Promise.all([
     getRevenueSummary(storeFilter, gte, lte),
     getExpenseReport(storeFilter, gte, lte),
-    prisma.purchaseOrder.findMany({
-      where: {
-        franchiseStoreId: storeFilter,
-        status: { in: [...RECEIVED_PO_STATUSES] },
-        createdAt: { gte, lte },
-      },
-      include: { items: true },
-    }),
+    getReceivedPurchaseValueInRange(storeFilter, gte, lte),
   ]);
 
-  const totalPurchases = sumReceivedPoValue(purchaseAgg);
+  const totalPurchases = purchases.total;
 
   const profit = netProfit(
     revenue.netSales,

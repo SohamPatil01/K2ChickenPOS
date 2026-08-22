@@ -5,7 +5,7 @@ import {
   ymdInStoreTz,
   eachStoreYmdInclusive,
 } from '@azela-pos/shared';
-import { RECEIVED_PO_STATUSES, sumReceivedPoValue } from '../reporting/shared/poValue.js';
+import { getReceivedPurchaseValueInRange } from '../reporting/shared/poValue.js';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -1442,15 +1442,8 @@ export class AnalyticsService {
     const paidSales = await this.getPaidSalesInAnalyticsRange(storeIds, start, end);
     const saleIds = paidSales.map((s) => s.id);
 
-    const [posWithItems, saleItems] = await Promise.all([
-      prisma.purchaseOrder.findMany({
-        where: {
-          franchiseStoreId: storeFilter,
-          status: { in: [...RECEIVED_PO_STATUSES] },
-          createdAt: { gte: rangeStart, lte: rangeEnd },
-        },
-        include: { items: true },
-      }),
+    const [purchaseTotals, saleItems] = await Promise.all([
+      getReceivedPurchaseValueInRange(storeFilter, rangeStart, rangeEnd),
       saleIds.length > 0
         ? prisma.saleItem.findMany({
             where: { saleId: { in: saleIds } },
@@ -1467,7 +1460,7 @@ export class AnalyticsService {
       paidSales.reduce((sum, s) => sum + (s.grandTotal || 0), 0)
     );
 
-    const totalPurchases = sumReceivedPoValue(posWithItems);
+    const totalPurchases = purchaseTotals.total;
 
     // Expenses are optional — only subtract when Expense table exists and has rows.
     // Preserves legacy profit-margin behaviour until expense tracking is enabled.

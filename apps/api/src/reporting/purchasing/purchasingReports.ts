@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { prisma } from '@azela-pos/db';
 import { round2, pct, weightedAvgCost } from '../shared/metrics.js';
-import { poLineValue } from '../shared/poValue.js';
+import { poLineValue, findPosReceivedInRange } from '../shared/poValue.js';
 import { parsePagination } from '../shared/pagination.js';
 
 type StoreFilter = string | { in: string[] };
@@ -14,13 +14,7 @@ export async function getPurchaseSummary(
   gte: Date,
   lte: Date
 ) {
-  const pos = await prisma.purchaseOrder.findMany({
-    where: {
-      franchiseStoreId: storeFilter,
-      createdAt: { gte, lte },
-    },
-    include: { items: { include: { product: { select: { id: true, name: true } } } } },
-  });
+  const { pos } = await findPosReceivedInRange(storeFilter, gte, lte);
 
   let totalValue = 0;
   const byStatus: Record<string, number> = {};
