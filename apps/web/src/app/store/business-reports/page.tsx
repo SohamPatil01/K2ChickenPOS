@@ -13,7 +13,6 @@ import {
   Users,
   Wallet,
   ClipboardList,
-  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
@@ -36,10 +35,8 @@ const SECTION_ICONS: Record<ReportSection, React.ReactNode> = {
   inventory: <Package className="h-4 w-4" />,
   purchasing: <ClipboardList className="h-4 w-4" />,
   customers: <Users className="h-4 w-4" />,
-  'loyalty-referral': <Star className="h-4 w-4" />,
+  loyalty: <Star className="h-4 w-4" />,
   staff: <Users className="h-4 w-4" />,
-  insights: <Sparkles className="h-4 w-4" />,
-  settings: <ClipboardList className="h-4 w-4" />,
 };
 
 function loadJson(key: string): string[] {

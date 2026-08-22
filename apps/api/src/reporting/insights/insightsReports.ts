@@ -52,7 +52,7 @@ export async function getReportingInsights(
       value: currentFinancial.revenue.netSales,
       previousValue: priorFinancial.revenue.netSales,
       deltaPct: revDelta,
-      reportPath: '/store/business-reports/financial/revenue-summary',
+      reportPath: '/store/business-reports/view/financial-summary',
     });
   }
 
@@ -70,7 +70,7 @@ export async function getReportingInsights(
       value: wastage.totalWastageKg,
       previousValue: priorWastage.totalWastageKg,
       deltaPct: wastageDelta,
-      reportPath: '/store/business-reports/inventory/wastage',
+      reportPath: '/store/business-reports/view/wastage',
     });
   }
 
@@ -86,7 +86,7 @@ export async function getReportingInsights(
       value: retention.atRiskCustomers,
       previousValue: null,
       deltaPct: null,
-      reportPath: '/store/business-reports/customers/retention',
+      reportPath: '/store/business-reports/view/customer-overview',
     });
   }
 
@@ -102,7 +102,7 @@ export async function getReportingInsights(
       value: referral.referralRevenue,
       previousValue: null,
       deltaPct: null,
-      reportPath: '/store/business-reports/loyalty-referral/referral-performance',
+      reportPath: '/store/business-reports/view/referral-performance',
     });
   }
 
