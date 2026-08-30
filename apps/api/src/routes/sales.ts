@@ -13,7 +13,7 @@ import {
   upsertCustomerArea,
 } from '../utils/customerArea.js';
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
-import { canAccessStoreResource } from '../utils/storeScope.js';
+import { canAccessCustomerStore, canAccessStoreResource } from '../utils/storeScope.js';
 import {
   PROFILE_REWARD_PERCENT,
   redeemProfileReward,
@@ -531,6 +531,73 @@ export async function saleRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Save a one-tap rating submitted from the paired customer display.
+  // AuditLog keeps this additive and idempotent without requiring a schema
+  // migration; the sale remains the source of truth for the checkout.
+  fastify.post('/:id/feedback', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { id } = request.params as { id: string };
+      const rating = Number((request.body as any)?.rating);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        reply.code(400).send({ error: 'Rating must be an integer from 1 to 5' });
+        return;
+      }
+
+      const user = getUser(request) as any;
+      const sale = await prisma.sale.findUnique({
+        where: { id },
+        select: { id: true, saleNo: true, storeId: true, status: true },
+      });
+      if (!sale || !(await canAccessStoreResource(user.storeId, user.role, sale.storeId))) {
+        reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+      if (sale.status !== 'PAID') {
+        reply.code(400).send({ error: 'Feedback is available after payment' });
+        return;
+      }
+
+      const existing = await prisma.auditLog.findFirst({
+        where: { action: 'CUSTOMER_FEEDBACK', entityType: 'Sale', entityId: id },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (existing) {
+        return { success: true, rating: (existing.metaJson as any)?.rating ?? rating };
+      }
+
+      await prisma.auditLog.create({
+        data: {
+          storeId: sale.storeId,
+          actorUserId: user.userId,
+          action: 'CUSTOMER_FEEDBACK',
+          entityType: 'Sale',
+          entityId: id,
+          metaJson: {
+            rating,
+            source: String((request.body as any)?.source || 'customer_display'),
+            saleNo: sale.saleNo,
+          },
+        },
+      });
+      return { success: true, rating };
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        const existing = await prisma.auditLog.findFirst({
+          where: { action: 'CUSTOMER_FEEDBACK', entityType: 'Sale', entityId: (request.params as any).id },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (existing) {
+          return {
+            success: true,
+            rating: (existing.metaJson as any)?.rating ?? Number((request.body as any)?.rating),
+          };
+        }
+      }
+      console.error('[Sales] Failed to save customer feedback:', error);
+      reply.code(500).send({ error: 'Failed to save customer feedback' });
+    }
+  });
+
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       console.log('[Sales API] Creating sale, request body:', request.body);
@@ -621,6 +688,27 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // Get or create customer
       let customerId = data.customerId;
+      if (customerId) {
+        const attachedCustomer = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, storeId: true, phone: true },
+        });
+        if (
+          !attachedCustomer ||
+          !(await canAccessCustomerStore(storeId, user.role, attachedCustomer.storeId))
+        ) {
+          reply.code(400).send({ error: 'Customer is not available in this store' });
+          return;
+        }
+        if (
+          data.customerPhone &&
+          String(data.customerPhone).replace(/\D/g, '') !==
+            String(attachedCustomer.phone).replace(/\D/g, '')
+        ) {
+          reply.code(400).send({ error: 'Customer phone does not match the selected customer' });
+          return;
+        }
+      }
       if (!customerId && data.customerPhone) {
         const customer = await prisma.customer.upsert({
           where: {

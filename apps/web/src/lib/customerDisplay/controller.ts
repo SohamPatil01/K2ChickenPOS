@@ -9,6 +9,7 @@ import {
 import {
   DISPLAY_EVENTS,
   type BillUpdatePayload,
+  type CustomerSelectionPayload,
   type DisplayMode,
   type DraftFieldKey,
   type PaymentModePayload,
@@ -25,6 +26,8 @@ let lastSeq = 0;
 let presenceTimer: ReturnType<typeof setInterval> | null = null;
 /** Last event queued while Ably was still connecting — flushed on connect. */
 let pendingEvent: { name: string; data: any } | null = null;
+let pendingRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingRetryAttempts = 0;
 
 /**
  * Monotonic sequence number based on the wall clock so it keeps increasing even
@@ -42,21 +45,62 @@ function publishOrQueue(name: string, data: any): boolean {
     pendingEvent = { name, data };
     return true; // queued — flushed when Ably connects
   }
+  const event = { name, data };
+  if (pendingEvent !== event) {
+    pendingRetryAttempts = 0;
+    if (pendingRetryTimer) {
+      clearTimeout(pendingRetryTimer);
+      pendingRetryTimer = null;
+    }
+  }
+  pendingEvent = event;
   try {
-    handle.publish(name as any, data);
-    pendingEvent = null;
+    void handle
+      .publish(name as any, data)
+      .then((published) => {
+        if (published && pendingEvent === event) {
+          pendingEvent = null;
+          pendingRetryAttempts = 0;
+        } else if (!published && pendingEvent === event) {
+          schedulePendingRetry();
+        }
+      })
+      .catch(() => {
+        if (pendingEvent === event) schedulePendingRetry();
+      });
     return true;
   } catch {
-    pendingEvent = { name, data };
     return true;
   }
 }
 
+function schedulePendingRetry(): void {
+  if (!pendingEvent || !handle || pendingRetryTimer || pendingRetryAttempts >= 3) return;
+  const delay = 500 * (pendingRetryAttempts + 1);
+  pendingRetryTimer = setTimeout(() => {
+    pendingRetryTimer = null;
+    pendingRetryAttempts += 1;
+    flushPending();
+  }, delay);
+}
+
 function flushPending(): void {
   if (!handle || !pendingEvent) return;
+  const event = pendingEvent;
   try {
-    handle.publish(pendingEvent.name as any, pendingEvent.data);
-    pendingEvent = null;
+    void handle
+      .publish(event.name as any, event.data)
+      .then((published) => {
+        if (published && pendingEvent === event) {
+          pendingEvent = null;
+          pendingRetryAttempts = 0;
+        } else if (!published && pendingEvent === event) {
+          schedulePendingRetry();
+        }
+      })
+      .catch(() => {
+        if (pendingEvent === event) schedulePendingRetry();
+      });
   } catch {
     // keep queued
   }
@@ -97,6 +141,8 @@ interface CustomerDisplayState {
   publishPayment: (payload: Omit<PaymentModePayload, "seq">) => boolean;
   publishSuccess: (payload: Omit<SuccessModePayload, "seq">) => boolean;
   publishIdle: (force?: boolean) => boolean;
+  /** Confirm an existing customer selected by the cashier to the display. */
+  publishCustomerSelection: (payload: Omit<CustomerSelectionPayload, "seq">) => boolean;
   /** Live keystroke mirroring — cashier's own field → display, and back. */
   publishDraftField: (field: DraftFieldKey, value: string, open: boolean) => boolean;
   /** True once the Ably publisher socket is usable. */
@@ -118,7 +164,10 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
       void createDisplayPublisher({
         storeId,
         getAccessToken,
-        onStatus: (status) => get()._setStatus(status),
+        onStatus: (status) => {
+          get()._setStatus(status);
+          if (status === "connected") flushPending();
+        },
       })
         .then((h) => {
           handle = h;
@@ -153,6 +202,11 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
         clearInterval(presenceTimer);
         presenceTimer = null;
       }
+      if (pendingRetryTimer) {
+        clearTimeout(pendingRetryTimer);
+        pendingRetryTimer = null;
+      }
+      pendingRetryAttempts = 0;
       pendingEvent = null;
       if (handle) {
         try {
@@ -205,6 +259,12 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
       return publishOrQueue(DISPLAY_EVENTS.MODE_IDLE, {
         seq: nextSeq(),
         force: force || undefined,
+      });
+    },
+    publishCustomerSelection: (payload) => {
+      return publishOrQueue(DISPLAY_EVENTS.CUSTOMER_SELECTED, {
+        ...payload,
+        seq: nextSeq(),
       });
     },
     publishDraftField: (field, value, open) => {

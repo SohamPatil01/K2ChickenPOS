@@ -28,14 +28,14 @@ export default function CustomerInfoPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/70 p-4 shadow-2xl backdrop-blur">
+    <div className="rounded-2xl border border-orange-100 bg-white p-4 text-slate-900 shadow-2xl">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-semibold text-white/60">Your details</p>
+        <p className="text-sm font-extrabold text-slate-700">Your details</p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="rounded-lg p-1 text-white/40 transition hover:bg-white/10 hover:text-white/70"
+          className="rounded-lg p-1 text-slate-400 transition hover:bg-orange-50 hover:text-slate-700"
         >
           ✕
         </button>
@@ -49,13 +49,13 @@ export default function CustomerInfoPanel({
         <button
           type="button"
           onClick={onSave}
-          className="rounded-xl bg-amber-500 px-4 py-2 text-base font-bold text-black active:scale-95"
+          className="rounded-xl bg-[#b98269] px-4 py-2 text-base font-bold text-white active:scale-95"
         >
           {saveState === "sent" ? "Saved ✓" : "Save"}
         </button>
       </div>
       {saveState === "error" && (
-        <p className="mt-2 text-sm font-medium text-rose-300">
+        <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
           Couldn&apos;t save — please ask the cashier for help.
         </p>
       )}
@@ -81,11 +81,11 @@ function Row({
       type="button"
       onClick={onTap}
       className={`rounded-xl border px-4 py-2 text-left transition ${
-        active ? "border-amber-400/60 bg-amber-500/10" : "border-white/10 bg-white/5"
+        active ? "border-orange-300 bg-orange-50" : "border-orange-100 bg-[#fffaf4]"
       }`}
     >
-      <span className="block text-xs font-medium text-white/40">{label}</span>
-      <span className={`block truncate text-base font-semibold ${value ? "text-white" : "text-white/30"}`}>
+      <span className="block text-xs font-bold text-slate-400">{label}</span>
+      <span className={`block truncate text-base font-semibold ${value ? "text-slate-800" : "text-slate-400"}`}>
         {value || placeholder}
       </span>
     </button>

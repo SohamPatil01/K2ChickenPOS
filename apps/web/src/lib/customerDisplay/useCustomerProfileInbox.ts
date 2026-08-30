@@ -6,7 +6,15 @@ import { useCartStore } from "@/store/cart";
 import { useNotificationStore } from "@/store/notification";
 import api from "@/lib/api";
 import { createCustomerProfileInbox } from "./ablyClient";
-import { DISPLAY_EVENTS, type CustomerProfileSubmitPayload, type DraftFieldUpdatePayload } from "./types";
+import { publishCustomerSelection } from "./publishHelpers";
+import {
+  DISPLAY_EVENTS,
+  type CustomerFeedbackPayload,
+  type CustomerLoyaltyChoicePayload,
+  type CustomerProfileSubmitPayload,
+  type CustomerSelectionPayload,
+  type DraftFieldUpdatePayload,
+} from "./types";
 
 function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -27,11 +35,21 @@ function getAccessToken(): string | null {
  */
 type DraftListener = (payload: DraftFieldUpdatePayload) => void;
 const draftListeners = new Set<DraftListener>();
+type CustomerSelectionListener = (payload: CustomerSelectionPayload) => void;
+const customerSelectionListeners = new Set<CustomerSelectionListener>();
+const profileSubmissionsInFlight = new Set<string>();
 
 export function onCustomerDraftFieldUpdate(fn: DraftListener): () => void {
   draftListeners.add(fn);
   return () => {
     draftListeners.delete(fn);
+  };
+}
+
+export function onCustomerSelection(fn: CustomerSelectionListener): () => void {
+  customerSelectionListeners.add(fn);
+  return () => {
+    customerSelectionListeners.delete(fn);
   };
 }
 
@@ -45,18 +63,40 @@ async function applyCustomerSubmittedProfile(payload: CustomerProfileSubmitPaylo
   const phone = payload.phone.trim();
   const name = payload.name.trim();
   if (phone.length < 10 || !name) return;
+  const submissionKey = `${phone}|${name}|${payload.addressLine1 || ""}|${payload.city || ""}`;
+  if (profileSubmissionsInFlight.has(submissionKey)) return;
+  profileSubmissionsInFlight.add(submissionKey);
 
   try {
     const cart = useCartStore.getState();
     const existingId = cart.customerId;
     const body = { phone, name, area: cart.customerArea || undefined };
-    const response = existingId
-      ? await api.put(`/api/v1/customers/${existingId}`, body)
+    const currentPhone = String(cart.customerPhone || "").replace(/\D/g, "");
+    // A stale cart customer must never be renamed to another customer's phone.
+    // Resolve the exact phone first, then update that record or create a new one.
+    const lookup = await api.get("/api/v1/customers", { params: { phone } });
+    const phoneOwner = lookup.data;
+    const targetId =
+      phoneOwner?.id ||
+      (existingId && currentPhone === phone ? existingId : null);
+    const response = targetId
+      ? await api.put(`/api/v1/customers/${targetId}`, body)
       : await api.post("/api/v1/customers", body);
     const customer = response.data;
     if (!customer) return;
 
     useCartStore.getState().setCustomer(customer.id, customer.phone, customer.name, customer.area || null);
+    useCartStore
+      .getState()
+      .setCustomerLoyaltyPoints(Number(customer.loyaltyPoints) || 0);
+    const selection = {
+      customerId: customer.id,
+      phone: customer.phone,
+      name: customer.name || "",
+      loyaltyPoints: Math.max(0, Math.floor(Number(customer.loyaltyPoints) || 0)),
+    };
+    customerSelectionListeners.forEach((fn) => fn({ ...selection, seq: 0 }));
+    publishCustomerSelection(selection);
 
     if (payload.addressLine1 && payload.city) {
       const addrPayload = {
@@ -81,6 +121,8 @@ async function applyCustomerSubmittedProfile(payload: CustomerProfileSubmitPaylo
     useNotificationStore
       .getState()
       .showNotification("Failed to save customer details from display: " + (err.response?.data?.error || err.message), "error");
+  } finally {
+    profileSubmissionsInFlight.delete(submissionKey);
   }
 }
 
@@ -94,6 +136,9 @@ export function useCustomerProfileInbox(): void {
   const storeId = useAuthStore((s) => s.user?.storeId);
   const lastSubmitSeqRef = useRef(0);
   const lastDraftSeqRef = useRef(0);
+  const lastSelectionSeqRef = useRef(0);
+  const lastLoyaltySeqRef = useRef(0);
+  const lastFeedbackSeqRef = useRef(0);
 
   useEffect(() => {
     if (!storeId) return;
@@ -109,6 +154,36 @@ export function useCustomerProfileInbox(): void {
           if (payload.seq <= lastSubmitSeqRef.current) return;
           lastSubmitSeqRef.current = payload.seq;
           void applyCustomerSubmittedProfile(payload);
+        } else if (name === DISPLAY_EVENTS.CUSTOMER_SELECTED) {
+          const payload = data as CustomerSelectionPayload;
+          if (payload.seq <= lastSelectionSeqRef.current) return;
+          lastSelectionSeqRef.current = payload.seq;
+          const cart = useCartStore.getState();
+          cart.setCustomer(payload.customerId, payload.phone, payload.name);
+          cart.setCustomerLoyaltyPoints(payload.loyaltyPoints);
+          customerSelectionListeners.forEach((fn) => fn(payload));
+          useNotificationStore
+            .getState()
+            .showNotification(`${payload.name || "Customer"} selected from display`, "success");
+        } else if (name === DISPLAY_EVENTS.CUSTOMER_LOYALTY_CHOICE) {
+          const payload = data as CustomerLoyaltyChoicePayload;
+          if (payload.seq <= lastLoyaltySeqRef.current) return;
+          lastLoyaltySeqRef.current = payload.seq;
+          const cart = useCartStore.getState();
+          if (cart.customerId !== payload.customerId) return;
+          cart.setLoyaltyRedeemPoints(payload.points);
+        } else if (name === DISPLAY_EVENTS.CUSTOMER_FEEDBACK) {
+          const payload = data as CustomerFeedbackPayload;
+          if (payload.seq <= lastFeedbackSeqRef.current) return;
+          lastFeedbackSeqRef.current = payload.seq;
+          void api
+            .post(`/api/v1/sales/${payload.saleId}/feedback`, {
+              rating: payload.rating,
+              source: "customer_display",
+            })
+            .catch((error) => {
+              console.error("[CustomerProfileInbox] Failed to save display feedback:", error);
+            });
         } else if (name === DISPLAY_EVENTS.DRAFT_FIELD_UPDATE) {
           const payload = data as DraftFieldUpdatePayload;
           if (payload.seq <= lastDraftSeqRef.current) return;

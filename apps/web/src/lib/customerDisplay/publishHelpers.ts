@@ -6,6 +6,7 @@ import { getUpiConfig, buildUpiString } from "./upi";
 import {
   estimateLoyaltyPoints,
   type BillUpdatePayload,
+  type CustomerSelectionPayload,
   type DisplayLineItem,
   type DraftFieldKey,
   type PaymentLineDisplay,
@@ -21,7 +22,14 @@ import {
 /** Build a bill snapshot from current cart state, mirroring getTotal() math. */
 export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
   const cart = useCartStore.getState();
-  const { subTotal, taxTotal, deliveryFee, grandTotal, loyaltyDiscount } =
+  const {
+    subTotal,
+    taxTotal,
+    deliveryFee,
+    grandTotal,
+    loyaltyDiscount,
+    loyaltyPointsApplied,
+  } =
     cart.getTotal();
 
   let discount = cart.discountTotal;
@@ -66,6 +74,9 @@ export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
     deliveryFee,
     grandTotal,
     loyaltyPointsEst: estimateLoyaltyPoints(grandTotal),
+    loyaltyPointsAvailable: Math.max(0, Math.floor(cart.customerLoyaltyPoints || 0)),
+    loyaltyPointsRedeemed: loyaltyPointsApplied,
+    loyaltyDiscount,
     savings: totalSavings,
     hasFullAddress,
     profileRewardPending,
@@ -83,6 +94,15 @@ export function publishCurrentBill(): void {
   } catch {
     // never break billing
   }
+}
+
+/** Tell the customer display which customer the cashier selected as fallback. */
+export function publishCustomerSelection(
+  payload: Omit<CustomerSelectionPayload, "seq">
+): void {
+  const store = useCustomerDisplayStore.getState();
+  if (!store.active) return;
+  store.publishCustomerSelection(payload);
 }
 
 function isUpiLike(method: string): boolean {
@@ -148,14 +168,25 @@ export function publishPaymentMode(
 export function publishSuccessMode(
   amountPaid: number,
   invoiceNo: string | null,
-  saleId: string | null = null
+  saleId: string | null = null,
+  options?: {
+    loyaltyPointsRedeemed?: number;
+    loyaltyPointsEarned?: number;
+    loyaltyPointsBalance?: number | null;
+  }
 ): void {
   const store = useCustomerDisplayStore.getState();
   if (!store.active) return;
   store.publishSuccess({
     amountPaid,
     invoiceNo,
-    loyaltyPointsEarned: estimateLoyaltyPoints(amountPaid),
+    loyaltyPointsEarned:
+      options?.loyaltyPointsEarned ?? estimateLoyaltyPoints(amountPaid),
+    loyaltyPointsRedeemed: Math.max(0, Math.floor(options?.loyaltyPointsRedeemed || 0)),
+    loyaltyPointsBalance:
+      options?.loyaltyPointsBalance == null
+        ? null
+        : Math.max(0, Math.floor(options.loyaltyPointsBalance)),
     saleId,
   });
 }

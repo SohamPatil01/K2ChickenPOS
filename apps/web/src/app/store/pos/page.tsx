@@ -1222,6 +1222,24 @@ export default function StorePOSPage() {
       }
       setShowQuickCheckout(false);
 
+      const loyaltyPointsRedeemed = Number(saleData.loyaltyPointsRedeemed || 0);
+      let loyaltyPointsBalance: number | null = null;
+      if (customerId) {
+        try {
+          const loyaltyResponse = await api.get(`/api/v1/customers/${customerId}/loyalty`);
+          const rawBalance =
+            loyaltyResponse.data?.customer?.loyaltyPoints ??
+            loyaltyResponse.data?.loyaltyPoints ??
+            null;
+          if (rawBalance != null) {
+            loyaltyPointsBalance = Math.max(0, Math.floor(Number(rawBalance) || 0));
+            useCartStore.getState().setCustomerLoyaltyPoints(loyaltyPointsBalance);
+          }
+        } catch (loyaltyError) {
+          console.error("[POS] Failed to refresh points after Quick Pay:", loyaltyError);
+        }
+      }
+
       setCompletedSale({
         saleNo: sale.saleNo || "N/A",
         grandTotal: checkoutTotal,
@@ -1230,7 +1248,10 @@ export default function StorePOSPage() {
 
       // Publish success BEFORE clearing the cart so the display sync does not
       // emit idle and skip the review screen.
-      publishSuccessMode(checkoutTotal, sale.saleNo || null, sale.id || null);
+      publishSuccessMode(checkoutTotal, sale.saleNo || null, sale.id || null, {
+        loyaltyPointsRedeemed,
+        loyaltyPointsBalance,
+      });
 
       try {
         await useCartStore.getState().clearCart();

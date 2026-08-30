@@ -1873,7 +1873,7 @@ export default function StoreInventoryPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-              After creating the product, you can use the "Adjust" button in the
+              After creating the product, you can use the &quot;Adjust&quot; button in the
               inventory table to add opening stock.
             </p>
             <div className="flex gap-2 mt-6">

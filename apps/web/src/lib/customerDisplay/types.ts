@@ -10,6 +10,12 @@ export const DISPLAY_EVENTS = {
   MODE_IDLE: "mode.idle",
   /** Customer→cashier direction, published on the separate inbound channel. */
   CUSTOMER_PROFILE_SUBMIT: "customer.profile_submit",
+  /** Cashier→display and display→cashier customer selection confirmation. */
+  CUSTOMER_SELECTED: "customer.selected",
+  /** Customer→cashier loyalty redemption choice for the active bill. */
+  CUSTOMER_LOYALTY_CHOICE: "customer.loyalty_choice",
+  /** Customer→cashier one-tap service feedback after a completed sale. */
+  CUSTOMER_FEEDBACK: "customer.feedback",
   /**
    * Bidirectional live keystroke mirroring for the phone/name/address fields.
    * Cashier→display: published on the main channel. Display→cashier:
@@ -44,6 +50,12 @@ export interface BillUpdatePayload {
   deliveryFee: number;
   grandTotal: number;
   loyaltyPointsEst: number;
+  /** Current points balance for the attached customer, when available. */
+  loyaltyPointsAvailable: number;
+  /** Points currently selected for redemption on this bill. */
+  loyaltyPointsRedeemed: number;
+  /** Rupee value currently deducted for loyalty redemption. */
+  loyaltyDiscount: number;
   savings: number;
   /** Has a full delivery address (line1 + city) attached. */
   hasFullAddress: boolean;
@@ -77,6 +89,8 @@ export interface SuccessModePayload {
   amountPaid: number;
   invoiceNo: string | null;
   loyaltyPointsEarned: number;
+  loyaltyPointsRedeemed: number;
+  loyaltyPointsBalance: number | null;
   /** Sale id used to build the scannable digital-bill link (/bill/<id>). */
   saleId: string | null;
 }
@@ -97,6 +111,29 @@ export interface CustomerProfileSubmitPayload {
   city?: string;
 }
 
+/** Customer selected an existing POS customer by phone, or cashier confirmed one. */
+export interface CustomerSelectionPayload {
+  seq: number;
+  customerId: string;
+  phone: string;
+  name: string;
+  loyaltyPoints: number;
+}
+
+/** Points the customer wants applied to the current bill. */
+export interface CustomerLoyaltyChoicePayload {
+  seq: number;
+  customerId: string;
+  points: number;
+}
+
+/** One-tap feedback associated with the completed sale. */
+export interface CustomerFeedbackPayload {
+  seq: number;
+  saleId: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+}
+
 export type DraftFieldKey = "phone" | "name" | "line1" | "line2" | "city";
 
 /** One live keystroke/open-close update for a single field, from either side. */
@@ -113,6 +150,7 @@ export type DisplayMode =
   | "billing"
   | "payment"
   | "success"
+  | "feedback"
   | "review";
 
 export const DISPLAY_CHANNEL_PREFIX = "store:";

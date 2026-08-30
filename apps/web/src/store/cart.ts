@@ -53,6 +53,8 @@ interface CartState {
   customerPhone: string | null;
   customerName: string | null;
   customerArea: string | null;
+  /** Cached balance shared by the cashier cart and customer display bridge. */
+  customerLoyaltyPoints: number | null;
   customerAddressLine1: string | null;
   customerAddressLine2: string | null;
   customerAddressCity: string | null;
@@ -79,6 +81,7 @@ interface CartState {
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
+  setCustomerLoyaltyPoints: (points: number | null) => void;
   setCustomerAddress: (
     line1: string | null,
     line2: string | null,
@@ -123,6 +126,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerPhone: null,
   customerName: null,
   customerArea: null,
+  customerLoyaltyPoints: null,
   customerAddressLine1: null,
   customerAddressLine2: null,
   customerAddressCity: null,
@@ -230,6 +234,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         customerPhone,
         customerName: name,
         ...areaUpdate,
+        customerLoyaltyPoints: null,
         customerAddressLine1: null,
         customerAddressLine2: null,
         customerAddressCity: null,
@@ -260,6 +265,7 @@ export const useCartStore = create<CartState>((set, get) => ({
             referredByPhone: null,
             referredByCode: null,
             loyaltyRedeemPoints: 0,
+            customerLoyaltyPoints: null,
             customerAddressLine1: null,
             customerAddressLine2: null,
             customerAddressCity: null,
@@ -269,6 +275,10 @@ export const useCartStore = create<CartState>((set, get) => ({
         : {}),
     });
     if (customerChanged) get().clearProfileReward();
+  },
+  setCustomerLoyaltyPoints: (points) => {
+    const safe = points == null ? null : Math.max(0, Math.floor(Number(points) || 0));
+    set({ customerLoyaltyPoints: safe });
   },
   setCustomerAddress: (line1, line2, city, addressId) => {
     set({
@@ -405,6 +415,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       customerPhone: null,
       customerName: null,
       customerArea: null,
+      customerLoyaltyPoints: null,
       customerAddressLine1: null,
       customerAddressLine2: null,
       customerAddressCity: null,

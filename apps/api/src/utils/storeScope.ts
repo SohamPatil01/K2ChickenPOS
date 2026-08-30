@@ -47,3 +47,38 @@ export async function canAccessStoreResource(
     resourceStore.parentOwnerStoreId === userStoreId
   );
 }
+
+/** Customers normally belong to the owner store, even for franchise users. */
+export async function canAccessCustomerStore(
+  userStoreId: string,
+  userRole: string,
+  customerStoreId: string
+): Promise<boolean> {
+  if (!userStoreId || !customerStoreId) return false;
+  if (customerStoreId === userStoreId) return true;
+
+  const [userStore, customerStore] = await Promise.all([
+    prisma.store.findUnique({
+      where: { id: userStoreId },
+      select: { type: true, parentOwnerStoreId: true },
+    }),
+    prisma.store.findUnique({
+      where: { id: customerStoreId },
+      select: { type: true, parentOwnerStoreId: true },
+    }),
+  ]);
+
+  if (
+    userStore?.type === 'FRANCHISE' &&
+    userStore.parentOwnerStoreId === customerStoreId
+  ) {
+    return true;
+  }
+
+  return (
+    userRole === 'OWNER' &&
+    userStore?.type === 'OWNER' &&
+    customerStore?.type === 'FRANCHISE' &&
+    customerStore.parentOwnerStoreId === userStoreId
+  );
+}

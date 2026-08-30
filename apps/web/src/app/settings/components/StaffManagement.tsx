@@ -186,7 +186,7 @@ export default function StaffManagement() {
               {staff.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    No staff members found. Click "+ Add Staff" to create one.
+                    No staff members found. Click &quot;+ Add Staff&quot; to create one.
                   </td>
                 </tr>
               ) : (

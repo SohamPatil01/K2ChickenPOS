@@ -13,6 +13,7 @@ import {
   getProfileRewardState,
   grantProfileRewardIfEligible,
 } from '../lib/profileReward.js';
+import { canAccessCustomerStore } from '../utils/storeScope.js';
 
 interface QueryParams {
   phone?: string;
@@ -31,62 +32,23 @@ function serializeCustomer<T extends { area?: string | null; addresses?: any[] }
   };
 }
 
-/**
- * Customers are usually stored under the OWNER store, while cashiers may be
- * logged into a franchise. Match settle-pending: allow access across that link.
- */
-async function canAccessCustomerStore(
-  userStoreId: string,
-  userRole: string,
-  customerStoreId: string
-): Promise<boolean> {
-  if (!userStoreId || !customerStoreId) return false;
-  if (customerStoreId === userStoreId) return true;
-
-  const userStore = await prisma.store.findUnique({
-    where: { id: userStoreId },
+async function resolveCustomerStoreId(request: any): Promise<string> {
+  const user = getUser(request) as any;
+  const store = await prisma.store.findUnique({
+    where: { id: user.storeId },
     select: { id: true, type: true, parentOwnerStoreId: true },
   });
-  if (!userStore) return false;
-
-  // Franchise / manager at a franchise: customers live on the parent OWNER store.
-  if (
-    userStore.type === 'FRANCHISE' &&
-    userStore.parentOwnerStoreId &&
-    userStore.parentOwnerStoreId === customerStoreId
-  ) {
-    return true;
-  }
-
-  // OWNER: also allow customers created under any of their franchises.
-  if (userRole === 'OWNER' && userStore.type === 'OWNER') {
-    const child = await prisma.store.findFirst({
-      where: {
-        id: customerStoreId,
-        type: 'FRANCHISE',
-        parentOwnerStoreId: userStoreId,
-      },
-      select: { id: true },
-    });
-    if (child) return true;
-  }
-
-  return false;
+  return store?.type === 'FRANCHISE'
+    ? store.parentOwnerStoreId || store.id
+    : store?.id || user.storeId || '';
 }
 
 export async function customerRoutes(fastify: FastifyInstance) {
 
-  fastify.get('/', async (request: any, reply: FastifyReply) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
     const { phone, q, limit: limitRaw } = (request.query as any);
-    // Get default store (since auth is disabled)
-    // Use the oldest OWNER store to ensure consistency
-    const store = await prisma.store.findFirst({ 
-      where: { type: 'OWNER' },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-    });
-    const storeId = store?.id || '';
+    const storeId = await resolveCustomerStoreId(request);
 
     if (!storeId) {
       reply.code(503).send({ error: 'Store not configured' });
@@ -168,19 +130,13 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/:customerId', async (request: any, reply: FastifyReply) => {
+  fastify.get('/:customerId', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
       const includeSales =
         String((request.query as any)?.includeSales || '') === '1' ||
         String((request.query as any)?.includeSales || '').toLowerCase() === 'true';
-      // Get default store (since auth is disabled)
-      // Use the oldest OWNER store to ensure consistency
-      const store = await prisma.store.findFirst({ 
-        where: { type: 'OWNER' },
-        orderBy: { createdAt: 'asc' }
-      });
-      const storeId = store?.id || '';
+      const user = getUser(request) as any;
 
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
@@ -202,7 +158,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
         },
       });
 
-      if (!customer || customer.storeId !== storeId) {
+      if (
+        !customer ||
+        !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+      ) {
         reply.code(404).send({ error: 'Customer not found' });
         return;
       }
@@ -214,16 +173,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/', async (request: any, reply: FastifyReply) => {
+  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const data = customerSchema.parse(request.body as any);
-    // Get default store (since auth is disabled)
-    // Use the oldest OWNER store to ensure consistency
-    const store = await prisma.store.findFirst({ 
-      where: { type: 'OWNER' },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-    });
-    const storeId = store?.id || '';
+    const storeId = await resolveCustomerStoreId(request);
 
     const customer = await prisma.customer.upsert({
       where: {
@@ -265,7 +217,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
     );
   });
 
-  fastify.put('/:customerId', async (request: any, reply: FastifyReply) => {
+  fastify.put('/:customerId', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
       const body = request.body as any;
@@ -324,6 +276,14 @@ export async function customerRoutes(fastify: FastifyInstance) {
 
       if (!existingCustomer) {
         reply.code(404).send({ error: 'Customer not found' });
+        return;
+      }
+
+      const user = getUser(request) as any;
+      if (
+        !(await canAccessCustomerStore(user.storeId, user.role, existingCustomer.storeId))
+      ) {
+        reply.code(403).send({ error: 'Access denied' });
         return;
       }
 
@@ -395,6 +355,16 @@ export async function customerRoutes(fastify: FastifyInstance) {
         return;
       }
       
+      // A phone can be claimed concurrently by another request. Return a
+      // client error instead of exposing this expected uniqueness race as 500.
+      if (error.code === 'P2002') {
+        reply.code(409).send({
+          error: 'Phone number already exists for another customer',
+          code: 'PHONE_ALREADY_EXISTS',
+        });
+        return;
+      }
+
       // Handle Prisma errors
       if (error.code) {
         reply.code(500).send({ 
@@ -438,7 +408,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      if (existingCustomer.storeId !== storeId) {
+      if (
+        !(await canAccessCustomerStore(storeId, (getUser(request) as any).role, existingCustomer.storeId))
+      ) {
         reply.code(403).send({ error: 'Access denied' });
         return;
       }
@@ -476,7 +448,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/:customerId/addresses', async (request: any, reply: FastifyReply) => {
+  fastify.post('/:customerId/addresses', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { customerId } = (request.params as any);
     const data = customerAddressSchema.parse(request.body as any);
 
@@ -484,7 +456,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
       where: { id: customerId },
     });
 
-    if (!customer) {
+    const user = getUser(request) as any;
+    if (
+      !customer ||
+      !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+    ) {
       reply.code(404).send({ error: 'Customer not found' });
       return;
     }
@@ -507,7 +483,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
     return address;
   });
 
-  fastify.put('/:customerId/addresses/:addressId', async (request: any, reply: FastifyReply) => {
+  fastify.put('/:customerId/addresses/:addressId', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     const { customerId, addressId } = (request.params as any);
     const data = customerAddressSchema.parse(request.body as any);
 
@@ -516,6 +492,19 @@ export async function customerRoutes(fastify: FastifyInstance) {
     });
     if (!existing) {
       reply.code(404).send({ error: 'Address not found' });
+      return;
+    }
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { storeId: true },
+    });
+    const user = getUser(request) as any;
+    if (
+      !customer ||
+      !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+    ) {
+      reply.code(404).send({ error: 'Customer not found' });
       return;
     }
 
@@ -538,21 +527,21 @@ export async function customerRoutes(fastify: FastifyInstance) {
   });
 
   // Get customer purchase history
-  fastify.get('/:customerId/purchase-history', async (request: any, reply: FastifyReply) => {
+  fastify.get('/:customerId/purchase-history', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { customerId } = (request.params as any);
       const limit = parseInt((request.query as any).limit || '50');
       const offset = parseInt((request.query as any).offset || '0');
 
-      // Get default store (since auth is disabled)
-      const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-      const storeId = store?.id || '';
-
       const customer = await prisma.customer.findUnique({
         where: { id: customerId },
       });
 
-      if (!customer || customer.storeId !== storeId) {
+      const user = getUser(request) as any;
+      if (
+        !customer ||
+        !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+      ) {
         reply.code(404).send({ error: 'Customer not found' });
         return;
       }

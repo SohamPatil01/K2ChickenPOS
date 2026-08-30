@@ -497,7 +497,7 @@ export default function InventoryPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Inventory</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Click "Adjust" on any product to add or subtract inventory
+            Click &quot;Adjust&quot; on any product to add or subtract inventory
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
@@ -1009,7 +1009,7 @@ export default function InventoryPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-3">
-              After creating the product, you can use the "Adjust" button in the
+              After creating the product, you can use the &quot;Adjust&quot; button in the
               inventory table to add opening stock.
             </p>
             <div className="flex gap-2 mt-6">

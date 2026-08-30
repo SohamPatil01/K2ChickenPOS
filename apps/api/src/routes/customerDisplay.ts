@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyReply } from 'fastify';
 import crypto from 'crypto';
+import { prisma } from '@azela-pos/db';
+import { customerSchema } from '@azela-pos/shared';
 import { getUser } from '../utils/auth.js';
 
 /**
@@ -76,6 +78,39 @@ function buildAblyTokenRequest(
     nonce,
     mac,
   };
+}
+
+function displayCustomerView(customer: any) {
+  return {
+    id: customer.id,
+    name: customer.name || '',
+    phone: customer.phone,
+    area: customer.area || null,
+    loyaltyPoints: Math.max(0, Math.floor(Number(customer.loyaltyPoints) || 0)),
+  };
+}
+
+async function getDisplayStoreId(
+  fastify: FastifyInstance,
+  request: any,
+  reply: FastifyReply
+): Promise<string | null> {
+  const token = String(request.query?.t || '');
+  if (!token) {
+    reply.code(401).send({ error: 'Display session token is required' });
+    return null;
+  }
+  try {
+    const payload: any = fastify.jwt.verify(token);
+    if (payload?.kind !== 'cd-session' || !payload?.storeId) {
+      reply.code(401).send({ error: 'Invalid display session' });
+      return null;
+    }
+    return String(payload.storeId);
+  } catch {
+    reply.code(401).send({ error: 'Invalid or expired display session' });
+    return null;
+  }
 }
 
 export async function customerDisplayRoutes(fastify: FastifyInstance) {
@@ -166,5 +201,75 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
     }
     // Ably SDK expects the raw TokenRequest object back from authUrl.
     reply.send(tokenRequest);
+  });
+
+  /** Store-scoped customer lookup for the paired display typeahead. */
+  fastify.get('/customers', async (request: any, reply: FastifyReply) => {
+    const storeId = await getDisplayStoreId(fastify, request, reply);
+    if (!storeId) return;
+
+    const phone = String(request.query?.phone || '').trim();
+    const searchTerm = String(request.query?.q || '').trim();
+    if (!phone && !searchTerm) {
+      reply.code(400).send({ error: 'A phone number or search query is required' });
+      return;
+    }
+
+    if (phone) {
+      const customer = await prisma.customer.findUnique({
+        where: { storeId_phone: { storeId, phone } },
+        select: { id: true, name: true, phone: true, area: true, loyaltyPoints: true },
+      });
+      return customer ? displayCustomerView(customer) : null;
+    }
+
+    const digits = searchTerm.replace(/\D/g, '');
+    const matches = await prisma.customer.findMany({
+      where: {
+        storeId,
+        OR: [
+          { phone: { contains: searchTerm } },
+          ...(digits && digits !== searchTerm ? [{ phone: { contains: digits } }] : []),
+        ],
+      },
+      orderBy: [{ name: 'asc' }, { phone: 'asc' }],
+      take: 6,
+      select: { id: true, name: true, phone: true, area: true, loyaltyPoints: true },
+    });
+    return matches.map(displayCustomerView);
+  });
+
+  /** Store-scoped registration fallback for a paired display. */
+  fastify.post('/customers', async (request: any, reply: FastifyReply) => {
+    const storeId = await getDisplayStoreId(fastify, request, reply);
+    if (!storeId) return;
+
+    try {
+      const data = customerSchema.parse(request.body as any);
+      const customer = await prisma.customer.upsert({
+        where: { storeId_phone: { storeId, phone: data.phone } },
+        update: {
+          name: data.name,
+          ...(data.email !== undefined ? { email: data.email } : {}),
+          ...(data.area !== undefined ? { area: data.area?.trim() || null } : {}),
+        },
+        create: {
+          storeId,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          area: data.area?.trim() || null,
+        },
+        select: { id: true, name: true, phone: true, area: true, loyaltyPoints: true },
+      });
+      return displayCustomerView(customer);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        reply.code(400).send({ error: 'Invalid customer details', details: error.errors });
+        return;
+      }
+      console.error('[Customer Display] Failed to register customer:', error);
+      reply.code(500).send({ error: 'Failed to register customer' });
+    }
   });
 }

@@ -98,6 +98,16 @@ export default function SuccessScreen({ data }: { data: SuccessModePayload }) {
             ⭐ {data.loyaltyPointsEarned} loyalty points earned
           </span>
         )}
+        {data.loyaltyPointsRedeemed > 0 && (
+          <span className="rounded-full bg-sky-500/15 px-6 py-2.5 text-xl font-semibold text-sky-200/90 sm:text-2xl">
+            🎁 {data.loyaltyPointsRedeemed} points redeemed
+          </span>
+        )}
+        {data.loyaltyPointsBalance != null && (
+          <span className="text-lg font-semibold text-white/65 sm:text-xl">
+            New balance: {data.loyaltyPointsBalance} points
+          </span>
+        )}
         {data.invoiceNo && (
           <p className="text-lg text-white/45">Bill {data.invoiceNo}</p>
         )}

@@ -7,6 +7,9 @@ import {
   displayInboundChannelName,
   DISPLAY_EVENTS,
   type CustomerProfileSubmitPayload,
+  type CustomerLoyaltyChoicePayload,
+  type CustomerFeedbackPayload,
+  type CustomerSelectionPayload,
   type DisplayEventName,
   type DraftFieldUpdatePayload,
 } from "./types";
@@ -182,7 +185,7 @@ function mapState(state: string): ConnectionStatus {
 }
 
 export interface DisplayPublisherHandle {
-  publish: (event: DisplayEventName, data: any) => void;
+  publish: (event: DisplayEventName, data: any) => Promise<boolean>;
   isDisplayConnected: () => Promise<boolean>;
   close: () => void;
 }
@@ -196,7 +199,7 @@ export async function createDisplayPublisher(
   opts: PublisherOptions
 ): Promise<DisplayPublisherHandle> {
   const noop: DisplayPublisherHandle = {
-    publish: () => {},
+    publish: async () => false,
     isDisplayConnected: async () => false,
     close: () => {},
   };
@@ -228,11 +231,13 @@ export async function createDisplayPublisher(
   });
 
   return {
-    publish: (event, data) => {
+    publish: async (event, data) => {
       try {
-        void channel.publish(event, data);
+        await channel.publish(event, data);
+        return true;
       } catch {
         // Never let a publish failure surface into the billing flow.
+        return false;
       }
     },
     isDisplayConnected: async () => {
@@ -258,6 +263,12 @@ export async function createDisplayPublisher(
 export interface DisplaySubscriberHandle {
   /** Publish a customer-typed profile submission back to the cashier. */
   publishProfile: (payload: CustomerProfileSubmitPayload) => void;
+  /** Publish the customer's loyalty redemption choice back to the cashier. */
+  publishLoyaltyChoice: (payload: CustomerLoyaltyChoicePayload) => void;
+  /** Publish an existing POS customer selected by the display. */
+  publishCustomerSelection: (payload: CustomerSelectionPayload) => void;
+  /** Publish one-tap feedback back to the cashier for persistence. */
+  publishFeedback: (payload: CustomerFeedbackPayload) => void;
   /** Publish a live keystroke/open-close update for a field back to the cashier. */
   publishDraft: (payload: DraftFieldUpdatePayload) => void;
   close: () => void;
@@ -273,6 +284,9 @@ export async function createDisplaySubscriber(
 ): Promise<DisplaySubscriberHandle> {
   const noop: DisplaySubscriberHandle = {
     publishProfile: () => {},
+    publishLoyaltyChoice: () => {},
+    publishCustomerSelection: () => {},
+    publishFeedback: () => {},
     publishDraft: () => {},
     close: () => {},
   };
@@ -342,18 +356,19 @@ export async function createDisplaySubscriber(
 
   return {
     publishProfile: (payload) => {
-      try {
-        void inboundChannel.publish(DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT, payload);
-      } catch {
-        // Best-effort — the display shows its own "couldn't send" state on failure.
-      }
+      publishInboundWithRetry(inboundChannel, DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT, payload);
+    },
+    publishLoyaltyChoice: (payload) => {
+      publishInboundWithRetry(inboundChannel, DISPLAY_EVENTS.CUSTOMER_LOYALTY_CHOICE, payload);
+    },
+    publishCustomerSelection: (payload) => {
+      publishInboundWithRetry(inboundChannel, DISPLAY_EVENTS.CUSTOMER_SELECTED, payload);
+    },
+    publishFeedback: (payload) => {
+      publishInboundWithRetry(inboundChannel, DISPLAY_EVENTS.CUSTOMER_FEEDBACK, payload);
     },
     publishDraft: (payload) => {
-      try {
-        void inboundChannel.publish(DISPLAY_EVENTS.DRAFT_FIELD_UPDATE, payload);
-      } catch {
-        // Best-effort — live mirroring is a nice-to-have, never blocks input.
-      }
+      publishInboundWithRetry(inboundChannel, DISPLAY_EVENTS.DRAFT_FIELD_UPDATE, payload);
     },
     close: () => {
       try {
@@ -363,6 +378,21 @@ export async function createDisplaySubscriber(
       }
     },
   };
+}
+
+function publishInboundWithRetry(
+  channel: RealtimeChannel,
+  event: DisplayEventName,
+  payload: any,
+  attempt = 0
+): void {
+  void channel.publish(event, payload).catch(() => {
+    if (attempt >= 2) return;
+    setTimeout(
+      () => publishInboundWithRetry(channel, event, payload, attempt + 1),
+      400 * (attempt + 1)
+    );
+  });
 }
 
 interface ProfileInboxOptions extends BaseOptions {

@@ -29,10 +29,14 @@ import {
   publishSuccessMode,
   publishIdleMode,
   publishCurrentBill,
+  publishCustomerSelection,
   releaseDisplaySuccessLatch,
   publishDraftField,
 } from '@/lib/customerDisplay/publishHelpers';
-import { onCustomerDraftFieldUpdate } from '@/lib/customerDisplay/useCustomerProfileInbox';
+import {
+  onCustomerDraftFieldUpdate,
+  onCustomerSelection,
+} from '@/lib/customerDisplay/useCustomerProfileInbox';
 
 export default function StoreCartPage() {
   const router = useRouter();
@@ -48,6 +52,7 @@ export default function StoreCartPage() {
   const customerPhone = useCartStore((state) => state.customerPhone);
   const customerName = useCartStore((state) => state.customerName);
   const customerArea = useCartStore((state) => state.customerArea);
+  const setCustomerLoyaltyPoints = useCartStore((state) => state.setCustomerLoyaltyPoints);
   const setCustomer = useCartStore((state) => state.setCustomer);
   const referredByPhone = useCartStore((state) => state.referredByPhone);
   const setReferredByPhone = useCartStore((state) => state.setReferredByPhone);
@@ -202,14 +207,20 @@ export default function StoreCartPage() {
           res.data?.points ??
           0;
         const pts = Math.floor(Number(raw) || 0);
-        if (!cancelled) setCustomerPoints(pts);
+        if (!cancelled) {
+          setCustomerPoints(pts);
+          setCustomerLoyaltyPoints(pts);
+        }
       } catch (err) {
         console.error('[Cart] Failed to load loyalty balance:', err);
         // Fall back to the customer record itself (list/search already has points).
         try {
           const res = await api.get(`/api/v1/customers/${customerId}`);
           const pts = Math.floor(Number(res.data?.loyaltyPoints) || 0);
-          if (!cancelled) setCustomerPoints(pts);
+          if (!cancelled) {
+            setCustomerPoints(pts);
+            setCustomerLoyaltyPoints(pts);
+          }
         } catch {
           if (!cancelled) setCustomerPoints((prev) => (prev === null ? 0 : prev));
         }
@@ -364,7 +375,16 @@ export default function StoreCartPage() {
       if (payload.field === 'phone') {
         if (Date.now() - lastLocalDraftEditRef.current.phone < LOCAL_EDIT_GRACE_MS) return;
         setTempCustomerPhone(payload.value);
-        setCustomer(customerId, payload.value || null, tempCustomerName || null, tempCustomerArea || null);
+        const previousDigits = String(customerPhone || '').replace(/\D/g, '');
+        const nextDigits = String(payload.value || '').replace(/\D/g, '');
+        const sameCustomerPhone =
+          Boolean(customerId) && Boolean(previousDigits) && previousDigits === nextDigits;
+        setCustomer(
+          sameCustomerPhone ? customerId : null,
+          payload.value || null,
+          tempCustomerName || null,
+          sameCustomerPhone ? tempCustomerArea || null : null
+        );
         matchCustomersByPhonePrefix(payload.value);
       } else if (payload.field === 'name') {
         if (Date.now() - lastLocalDraftEditRef.current.name < LOCAL_EDIT_GRACE_MS) return;
@@ -373,7 +393,19 @@ export default function StoreCartPage() {
         searchCustomersByName(payload.value);
       }
     });
-  }, [customerId, tempCustomerPhone, tempCustomerName, tempCustomerArea, setCustomer, matchCustomersByPhonePrefix, searchCustomersByName]);
+  }, [customerId, customerPhone, tempCustomerPhone, tempCustomerName, tempCustomerArea, setCustomer, matchCustomersByPhonePrefix, searchCustomersByName]);
+
+  // A customer selected on the display is authoritative for this checkout,
+  // including when the cashier had previously chosen walk-in mode.
+  useEffect(() => {
+    return onCustomerSelection((payload) => {
+      setSkipCustomer(false);
+      setTempCustomerPhone(payload.phone);
+      setTempCustomerName(payload.name);
+      setCustomerPoints(payload.loyaltyPoints);
+      setShowCustomerSection(false);
+    });
+  }, []);
 
   /** Single referral box: digits → phone, letters → code. */
   const applyReferralInput = (raw: string) => {
@@ -430,9 +462,15 @@ export default function StoreCartPage() {
       applyCustomerProfileData(customer);
     }
     // Seed balance immediately from the search hit; the loyalty API refreshes it.
-    if (customer.loyaltyPoints != null) {
-      setCustomerPoints(Math.floor(Number(customer.loyaltyPoints) || 0));
-    }
+    const points = Math.floor(Number(customer.loyaltyPoints) || 0);
+    setCustomerPoints(points);
+    setCustomerLoyaltyPoints(points);
+    publishCustomerSelection({
+      customerId: customer.id,
+      phone: customer.phone,
+      name: customer.name || '',
+      loyaltyPoints: points,
+    });
     setPhoneMatches([]);
     setShowPhoneDropdown(false);
     setCustomerSearchResults([]);
@@ -491,9 +529,15 @@ export default function StoreCartPage() {
             setTempCustomerName(response.data.name);
             setTempCustomerArea(response.data.area || '');
             applyCustomerProfileData(response.data);
-            if (response.data.loyaltyPoints != null) {
-              setCustomerPoints(Math.floor(Number(response.data.loyaltyPoints) || 0));
-            }
+            const points = Math.floor(Number(response.data.loyaltyPoints) || 0);
+            setCustomerPoints(points);
+            setCustomerLoyaltyPoints(points);
+            publishCustomerSelection({
+              customerId: response.data.id,
+              phone: response.data.phone,
+              name: response.data.name || '',
+              loyaltyPoints: points,
+            });
             showNotification('Customer updated successfully', 'success');
             setShowCustomerSection(false); // Auto-collapse after success
           }
@@ -523,9 +567,15 @@ export default function StoreCartPage() {
           setTempCustomerName(response.data.name);
           setTempCustomerArea(response.data.area || '');
           applyCustomerProfileData(response.data);
-          if (response.data.loyaltyPoints != null) {
-            setCustomerPoints(Math.floor(Number(response.data.loyaltyPoints) || 0));
-          }
+          const points = Math.floor(Number(response.data.loyaltyPoints) || 0);
+          setCustomerPoints(points);
+          setCustomerLoyaltyPoints(points);
+          publishCustomerSelection({
+            customerId: response.data.id,
+            phone: response.data.phone,
+            name: response.data.name || '',
+            loyaltyPoints: points,
+          });
           showNotification('Customer added successfully', 'success');
           setShowCustomerSection(false); // Auto-collapse after success
         }
@@ -618,6 +668,9 @@ export default function StoreCartPage() {
         useCartStore.getState().fulfillmentType
       );
       setShowPaymentModal(false);
+      publishSuccessMode(grandTotal, null, null, {
+        loyaltyPointsRedeemed: useCartStore.getState().getTotal().loyaltyPointsApplied,
+      });
       try {
         await clearCart();
       } catch (clearErr) {
@@ -749,6 +802,26 @@ export default function StoreCartPage() {
         }
       }
       setShowPaymentModal(false);
+
+      const loyaltyCustomerId = useCartStore.getState().customerId;
+      const loyaltyPointsRedeemed = useCartStore.getState().getTotal().loyaltyPointsApplied;
+      let loyaltyPointsBalance: number | null = null;
+      if (loyaltyCustomerId && !skipCustomer) {
+        try {
+          const loyaltyResponse = await api.get(`/api/v1/customers/${loyaltyCustomerId}/loyalty`);
+          const rawBalance =
+            loyaltyResponse.data?.customer?.loyaltyPoints ??
+            loyaltyResponse.data?.loyaltyPoints ??
+            null;
+          if (rawBalance != null) {
+            loyaltyPointsBalance = Math.max(0, Math.floor(Number(rawBalance) || 0));
+            setCustomerPoints(loyaltyPointsBalance);
+            setCustomerLoyaltyPoints(loyaltyPointsBalance);
+          }
+        } catch (loyaltyError) {
+          console.error('[Cart] Failed to refresh points after checkout:', loyaltyError);
+        }
+      }
       
       setCompletedSale({
         saleNo: sale.saleNo || 'N/A',
@@ -758,7 +831,10 @@ export default function StoreCartPage() {
 
       // Publish success BEFORE clearing the cart so the display sync does not
       // emit idle and skip the review screen.
-      publishSuccessMode(checkoutGrandTotal, sale.saleNo || null, sale.id || null);
+      publishSuccessMode(checkoutGrandTotal, sale.saleNo || null, sale.id || null, {
+        loyaltyPointsRedeemed,
+        loyaltyPointsBalance,
+      });
 
       try {
         await clearCart();
