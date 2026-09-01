@@ -33,6 +33,7 @@ import {
   completeNewSaleCheckout,
   checkoutPaymentMismatch,
 } from "@/lib/pendingCreditCheckout";
+import { runPostCheckoutSideEffects } from "@/lib/checkoutPostSuccess";
 import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
 import {
   publishPaymentMode,
@@ -1204,74 +1205,34 @@ export default function StorePOSPage() {
 
       const fulfillType = useCartStore.getState().fulfillmentType;
       const isHomeDelivery = fulfillType === "DELIVERY" && sale.customerId;
-      if (isHomeDelivery) {
-        try {
-          await api.post("/api/v1/delivery", {
-            saleId: sale.id,
-            type: "DELIVERY",
-            deliveryFee: useCartStore.getState().getTotal().deliveryFee,
-          });
-        } catch (delErr: any) {
-          console.error("[POS] Create delivery failed:", delErr);
-          showNotification(
-            delErr.response?.data?.error || "Order paid. Add delivery from Delivery section.",
-            "info",
-            4000
-          );
-        }
-      }
-      setShowQuickCheckout(false);
-
       const loyaltyPointsRedeemed = Number(saleData.loyaltyPointsRedeemed || 0);
-      let loyaltyPointsBalance: number | null = null;
-      if (customerId) {
-        try {
-          const loyaltyResponse = await api.get(`/api/v1/customers/${customerId}/loyalty`);
-          const rawBalance =
-            loyaltyResponse.data?.customer?.loyaltyPoints ??
-            loyaltyResponse.data?.loyaltyPoints ??
-            null;
-          if (rawBalance != null) {
-            loyaltyPointsBalance = Math.max(0, Math.floor(Number(rawBalance) || 0));
-            useCartStore.getState().setCustomerLoyaltyPoints(loyaltyPointsBalance);
-          }
-        } catch (loyaltyError) {
-          console.error("[POS] Failed to refresh points after Quick Pay:", loyaltyError);
-        }
-      }
 
+      setShowQuickCheckout(false);
       setCompletedSale({
         saleNo: sale.saleNo || "N/A",
         grandTotal: checkoutTotal,
       });
       setShowSuccessAnimation(true);
 
-      // Publish success BEFORE clearing the cart so the display sync does not
-      // emit idle and skip the review screen.
       publishSuccessMode(checkoutTotal, sale.saleNo || null, sale.id || null, {
         loyaltyPointsRedeemed,
-        loyaltyPointsBalance,
+        loyaltyPointsBalance: null,
       });
 
-      try {
-        await useCartStore.getState().clearCart();
-      } catch (clearErr) {
-        console.error("[POS] clearCart after payment:", clearErr);
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("sale-created", {
-          detail: { saleId: sale.id, payments: paymentInput },
-        })
-      );
-
-      if (method === "CASH") {
-        window.dispatchEvent(
-          new CustomEvent("cash-sale-completed", {
-            detail: { amount: checkoutTotal },
-          })
-        );
-      }
+      runPostCheckoutSideEffects({
+        api,
+        saleId: sale.id,
+        payments: paymentInput,
+        checkoutGrandTotal: checkoutTotal,
+        loyaltyCustomerId: customerId,
+        isHomeDelivery,
+        deliveryFee: useCartStore.getState().getTotal().deliveryFee,
+        clearCart: () => useCartStore.getState().clearCart(),
+        onLoyaltyBalance: (balance) => {
+          useCartStore.getState().setCustomerLoyaltyPoints(balance);
+        },
+        onDeliveryError: (message) => showNotification(message, "info", 4000),
+      });
     } catch (error: any) {
       console.error("[Quick Checkout] Payment error:", error);
 

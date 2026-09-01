@@ -1148,91 +1148,52 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // First check if sale exists (without storeId filter to get better error message)
-      const saleExists = await prisma.sale.findUnique({
-        where: { id },
-        select: { id: true, storeId: true, saleNo: true },
-      });
+      const authUser = getUser(request);
 
-      if (!saleExists) {
-        console.error('[Payment API] Sale not found:', id);
-        reply.code(404).send({ error: 'Sale not found', saleId: id });
-        return;
-      }
-
-      // Get user's role and store to check access
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          store: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            }
-          }
-        },
-      });
-
-      if (!user) {
-        console.error('[Payment API] User not found:', userId);
-        reply.code(401).send({ error: 'User not found' });
-        return;
-      }
-
-      // Check if user has access to this sale's store
-      let hasAccess = false;
-
-      if (saleExists.storeId === storeId) {
-        // Direct match - user's store matches sale's store
-        hasAccess = true;
-      } else if (user.role === 'OWNER' && user.store?.type === 'OWNER') {
-        // OWNER users can access sales from their franchise stores
-        const saleStore = await prisma.store.findUnique({
-          where: { id: saleExists.storeId },
-          select: { id: true, type: true, parentOwnerStoreId: true },
-        });
-
-        if (saleStore && saleStore.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === storeId) {
-          // Sale belongs to a franchise store owned by this user
-          hasAccess = true;
-        }
-      }
-
-      if (!hasAccess) {
-        console.error('[Payment API] User does not have access to sale. Sale storeId:', saleExists.storeId, 'User storeId:', storeId, 'User role:', user.role);
-        reply.code(403).send({
-          error: 'You do not have permission to process this sale',
-          saleId: id,
-          saleStoreId: saleExists.storeId,
-          userStoreId: storeId,
-          userRole: user.role,
-        });
-        return;
-      }
-
-      // Fetch sale with items and payments using the sale's storeId (not user's storeId)
-      // This allows OWNER users to pay for sales from franchise stores
+      // Single fetch: sale + items + payments + store scope for access check.
       const sale = await prisma.sale.findUnique({
-        where: {
-          id,
-        },
+        where: { id },
         include: {
           items: { include: { product: true } },
           payments: true,
+          store: {
+            select: { id: true, type: true, parentOwnerStoreId: true },
+          },
         },
       });
 
       if (!sale) {
         console.error('[Payment API] Sale not found:', id);
-        reply.code(404).send({ error: 'Sale not found' });
+        reply.code(404).send({ error: 'Sale not found', saleId: id });
         return;
       }
 
-      // Verify the sale's storeId matches what we checked earlier
-      if (sale.storeId !== saleExists.storeId) {
-        console.error('[Payment API] Sale storeId mismatch');
-        reply.code(500).send({ error: 'Internal error: Sale data inconsistency' });
+      let hasAccess = sale.storeId === storeId;
+      if (
+        !hasAccess &&
+        authUser.role === 'OWNER' &&
+        sale.store?.type === 'FRANCHISE' &&
+        sale.store.parentOwnerStoreId === storeId
+      ) {
+        hasAccess = true;
+      }
+
+      if (!hasAccess) {
+        console.error(
+          '[Payment API] User does not have access to sale. Sale storeId:',
+          sale.storeId,
+          'User storeId:',
+          storeId,
+          'User role:',
+          authUser.role
+        );
+        reply.code(403).send({
+          error: 'You do not have permission to process this sale',
+          saleId: id,
+          saleStoreId: sale.storeId,
+          userStoreId: storeId,
+          userRole: authUser.role,
+        });
         return;
       }
 

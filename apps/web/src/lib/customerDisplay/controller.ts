@@ -140,6 +140,7 @@ interface CustomerDisplayState {
   publishBill: (payload: Omit<BillUpdatePayload, "seq">) => boolean;
   publishPayment: (payload: Omit<PaymentModePayload, "seq">) => boolean;
   publishSuccess: (payload: Omit<SuccessModePayload, "seq">) => boolean;
+  publishReview: () => boolean;
   publishIdle: (force?: boolean) => boolean;
   /** Confirm an existing customer selected by the cashier to the display. */
   publishCustomerSelection: (payload: Omit<CustomerSelectionPayload, "seq">) => boolean;
@@ -251,6 +252,11 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
       set({ localMode: "success" });
       return publishOrQueue(DISPLAY_EVENTS.MODE_SUCCESS, {
         ...payload,
+        seq: nextSeq(),
+      });
+    },
+    publishReview: () => {
+      return publishOrQueue(DISPLAY_EVENTS.MODE_REVIEW, {
         seq: nextSeq(),
       });
     },

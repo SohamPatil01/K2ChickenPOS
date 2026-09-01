@@ -346,6 +346,12 @@ export default function CustomerDisplayPage() {
       setPhase("connected");
       return;
     }
+    if (params.get("preview") === "review") {
+      setPreviewIdle(true);
+      setMode("review");
+      setPhase("connected");
+      return;
+    }
     const pair = params.get("pair");
     let token = pair || loadDisplaySession();
 
@@ -411,6 +417,9 @@ export default function CustomerDisplayPage() {
         resetCustomerJourney();
         setSuccess(data as SuccessModePayload);
         setMode("success");
+        break;
+      case DISPLAY_EVENTS.MODE_REVIEW:
+        setMode("review");
         break;
       case DISPLAY_EVENTS.MODE_IDLE:
         // Cashier often publishes idle when the cart clears / success toast

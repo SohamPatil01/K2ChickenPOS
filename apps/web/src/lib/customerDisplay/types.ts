@@ -7,6 +7,8 @@ export const DISPLAY_EVENTS = {
   BILL_UPDATE: "bill.update",
   MODE_PAYMENT: "mode.payment",
   MODE_SUCCESS: "mode.success",
+  /** Cashier-triggered review QR — does not affect the post-checkout auto flow. */
+  MODE_REVIEW: "mode.review",
   MODE_IDLE: "mode.idle",
   /** Customer→cashier direction, published on the separate inbound channel. */
   CUSTOMER_PROFILE_SUBMIT: "customer.profile_submit",
@@ -99,6 +101,10 @@ export interface IdleModePayload {
   seq: number;
   /** When true, display must honor idle even during the post-bill ignore window. */
   force?: boolean;
+}
+
+export interface ReviewModePayload {
+  seq: number;
 }
 
 /** Customer-typed profile data submitted from the display back to the POS. */

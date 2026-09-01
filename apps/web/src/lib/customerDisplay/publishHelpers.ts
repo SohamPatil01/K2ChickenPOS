@@ -191,6 +191,13 @@ export function publishSuccessMode(
   });
 }
 
+/** Show the Google review QR on the customer display (cashier-triggered). */
+export function publishReviewMode(): void {
+  const store = useCustomerDisplayStore.getState();
+  if (!store.active) return;
+  store.publishReview();
+}
+
 /** Reset the display back to the idle / branding state. */
 export function publishIdleMode(force = true): void {
   const store = useCustomerDisplayStore.getState();

@@ -22,17 +22,20 @@ import {
   completeNewSaleCheckout,
   checkoutPaymentMismatch,
 } from '@/lib/pendingCreditCheckout';
+import { runPostCheckoutSideEffects } from '@/lib/checkoutPostSuccess';
 import { LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 import CustomerDisplayButton from '@/components/customerDisplay/CustomerDisplayButton';
 import {
   publishPaymentMode,
   publishSuccessMode,
   publishIdleMode,
+  publishReviewMode,
   publishCurrentBill,
   publishCustomerSelection,
   releaseDisplaySuccessLatch,
   publishDraftField,
 } from '@/lib/customerDisplay/publishHelpers';
+import { useCustomerDisplayStore } from '@/lib/customerDisplay/controller';
 import {
   onCustomerDraftFieldUpdate,
   onCustomerSelection,
@@ -76,6 +79,7 @@ export default function StoreCartPage() {
   const getCheckoutTotal = useCartStore((state) => state.getCheckoutTotal);
   const getPendingSettlementTotal = useCartStore((state) => state.getPendingSettlementTotal);
   const getSelectedPendingSettlements = useCartStore((state) => state.getSelectedPendingSettlements);
+  const customerDisplayActive = useCustomerDisplayStore((state) => state.active);
 
   // State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -616,6 +620,11 @@ export default function StoreCartPage() {
     paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
 
+    const clientSaleId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cart-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     const buildSaleData = () => {
       const state = useCartStore.getState();
       const {
@@ -634,6 +643,7 @@ export default function StoreCartPage() {
       const loyaltyPointsRedeemed =
         !skipCustomer && customerId ? state.getTotal().loyaltyPointsApplied : 0;
       return {
+        clientSaleId,
         items: items.map((item) => ({
           productId: item.productId,
           qtyKg: item.qtyKg,
@@ -787,74 +797,39 @@ export default function StoreCartPage() {
       }
 
       const fulfillType = useCartStore.getState().fulfillmentType;
-      // Only create a delivery row for home delivery (customer + delivery). Pickup / walk-in stays out of Delivery section.
       const isHomeDelivery = fulfillType === 'DELIVERY' && sale.customerId;
-      if (isHomeDelivery) {
-        try {
-          await api.post('/api/v1/delivery', {
-            saleId: sale.id,
-            type: 'DELIVERY',
-            deliveryFee: useCartStore.getState().getTotal().deliveryFee,
-          });
-        } catch (delErr: any) {
-          console.error('[Cart] Create delivery failed:', delErr);
-          showNotification(delErr.response?.data?.error || 'Order paid. Add delivery from Delivery section.', 'info', 4000);
-        }
-      }
-      setShowPaymentModal(false);
-
       const loyaltyCustomerId = useCartStore.getState().customerId;
       const loyaltyPointsRedeemed = useCartStore.getState().getTotal().loyaltyPointsApplied;
-      let loyaltyPointsBalance: number | null = null;
-      if (loyaltyCustomerId && !skipCustomer) {
-        try {
-          const loyaltyResponse = await api.get(`/api/v1/customers/${loyaltyCustomerId}/loyalty`);
-          const rawBalance =
-            loyaltyResponse.data?.customer?.loyaltyPoints ??
-            loyaltyResponse.data?.loyaltyPoints ??
-            null;
-          if (rawBalance != null) {
-            loyaltyPointsBalance = Math.max(0, Math.floor(Number(rawBalance) || 0));
-            setCustomerPoints(loyaltyPointsBalance);
-            setCustomerLoyaltyPoints(loyaltyPointsBalance);
-          }
-        } catch (loyaltyError) {
-          console.error('[Cart] Failed to refresh points after checkout:', loyaltyError);
-        }
-      }
-      
+
+      setShowPaymentModal(false);
       setCompletedSale({
         saleNo: sale.saleNo || 'N/A',
         grandTotal: checkoutGrandTotal,
       });
       setShowSuccessAnimation(true);
 
-      // Publish success BEFORE clearing the cart so the display sync does not
-      // emit idle and skip the review screen.
+      // Publish success before cart clears so the display stays on success → review.
       publishSuccessMode(checkoutGrandTotal, sale.saleNo || null, sale.id || null, {
         loyaltyPointsRedeemed,
-        loyaltyPointsBalance,
+        loyaltyPointsBalance: null,
       });
 
-      try {
-        await clearCart();
-      } catch (clearErr) {
-        console.error('[Cart] clearCart after payment:', clearErr);
-      }
-
-      window.dispatchEvent(new CustomEvent('sale-created', { detail: { saleId: sale.id, payments } }));
-      
-      // If there's any cash payment, dispatch cash event
-      const cashPayment = payments.find(p => p.method === 'CASH');
-      if (cashPayment) {
-        window.dispatchEvent(new CustomEvent('cash-sale-completed', { 
-          detail: { 
-            saleId: sale.id, 
-            amount: cashPayment.amount,
-            grandTotal: checkoutGrandTotal 
-          } 
-        }));
-      }
+      runPostCheckoutSideEffects({
+        api,
+        saleId: sale.id,
+        payments,
+        checkoutGrandTotal,
+        loyaltyCustomerId,
+        skipCustomer,
+        isHomeDelivery,
+        deliveryFee: useCartStore.getState().getTotal().deliveryFee,
+        clearCart,
+        onLoyaltyBalance: (balance) => {
+          setCustomerPoints(balance);
+          setCustomerLoyaltyPoints(balance);
+        },
+        onDeliveryError: (message) => showNotification(message, 'info', 4000),
+      });
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
 
@@ -1015,6 +990,20 @@ export default function StoreCartPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => publishReviewMode()}
+                disabled={!customerDisplayActive}
+                title={
+                  customerDisplayActive
+                    ? 'Show review QR on customer display'
+                    : 'Enable customer display first'
+                }
+                className="min-h-[44px] px-2.5 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-1.5 transition-all active:scale-[0.98] touch-manipulation border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                <span aria-hidden>⭐</span>
+                <span className="hidden sm:inline">Review QR</span>
+              </button>
               <CustomerDisplayButton />
               <button
                 onClick={() => router.push('/store/pos')}
