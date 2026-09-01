@@ -69,6 +69,74 @@ function getRetryDelayMs(retryCount: number): number {
   return schedule[Math.min(retryCount - 1, schedule.length - 1)];
 }
 
+export function buildSyncEventsPayload(
+  deviceId: string,
+  pendingEvents: QueuedEvent[]
+) {
+  return {
+    deviceId,
+    events: pendingEvents.map((e) => ({
+      eventType: e.eventType,
+      payloadJson: e.payloadJson,
+      clientCreatedAt: e.clientCreatedAt,
+      clientQueueId: e.id,
+    })),
+  };
+}
+
+/** Apply a successful /api/v1/sync/events response to the local queue. */
+export async function applySyncServerResult(
+  pendingEvents: QueuedEvent[],
+  result: { ackedQueueIds?: unknown }
+): Promise<SyncResult> {
+  const ackedQueueIds: number[] = Array.isArray(result.ackedQueueIds)
+    ? result.ackedQueueIds.filter((n: unknown) => typeof n === 'number')
+    : [];
+
+  if (ackedQueueIds.length > 0) {
+    await markEventsAcked(ackedQueueIds);
+  }
+
+  const attemptedIds = pendingEvents
+    .map((event) => event.id)
+    .filter((id): id is number => typeof id === 'number');
+  if (attemptedIds.length > 0) {
+    await offlineDB.queuedEvents
+      .where('id')
+      .anyOf(attemptedIds)
+      .modify({
+        lastAttemptAt: new Date().toISOString(),
+        lastError: undefined,
+        nextRetryAt: undefined,
+      });
+  }
+
+  const errors: Array<{ id: number; error: string }> = [];
+  const ackedSet = new Set(ackedQueueIds);
+  for (const event of pendingEvents) {
+    if (!ackedSet.has(event.id!)) {
+      await markEventError(event.id!, 'Not acknowledged by server');
+      errors.push({ id: event.id!, error: 'Not acknowledged by server' });
+    }
+  }
+
+  return { success: true, ackedIds: ackedQueueIds, errors };
+}
+
+export async function markSyncEventsFailed(
+  pendingEvents: QueuedEvent[],
+  errorMessage: string
+): Promise<SyncResult> {
+  for (const event of pendingEvents) {
+    await markEventError(event.id!, errorMessage);
+  }
+  return {
+    success: false,
+    ackedIds: [],
+    errors: pendingEvents.map((e) => ({ id: e.id!, error: errorMessage })),
+  };
+}
+
 export async function syncEventsToServer(
   deviceId: string,
   apiUrl: string,
@@ -90,15 +158,7 @@ export async function syncEventsToServer(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        deviceId,
-        events: pendingEvents.map((e) => ({
-          eventType: e.eventType,
-          payloadJson: e.payloadJson,
-          clientCreatedAt: e.clientCreatedAt,
-          clientQueueId: e.id,
-        })),
-      }),
+      body: JSON.stringify(buildSyncEventsPayload(deviceId, pendingEvents)),
     });
 
     if (!response.ok) {
@@ -107,47 +167,9 @@ export async function syncEventsToServer(
     }
 
     const result = await response.json();
-    const ackedQueueIds: number[] = Array.isArray(result.ackedQueueIds)
-      ? result.ackedQueueIds.filter((n: unknown) => typeof n === 'number')
-      : [];
-
-    if (ackedQueueIds.length > 0) {
-      await markEventsAcked(ackedQueueIds);
-    }
-
-    const attemptedIds = pendingEvents
-      .map((event) => event.id)
-      .filter((id): id is number => typeof id === 'number');
-    if (attemptedIds.length > 0) {
-      await offlineDB.queuedEvents
-        .where('id')
-        .anyOf(attemptedIds)
-        .modify({
-          lastAttemptAt: new Date().toISOString(),
-          lastError: undefined,
-          nextRetryAt: undefined,
-        });
-    }
-
-    const errors: Array<{ id: number; error: string }> = [];
-    const ackedSet = new Set(ackedQueueIds);
-    for (const event of pendingEvents) {
-      if (!ackedSet.has(event.id!)) {
-        await markEventError(event.id!, 'Not acknowledged by server');
-        errors.push({ id: event.id!, error: 'Not acknowledged by server' });
-      }
-    }
-
-    return { success: true, ackedIds: ackedQueueIds, errors };
+    return applySyncServerResult(pendingEvents, result);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    for (const event of pendingEvents) {
-      await markEventError(event.id!, errorMessage);
-    }
-    return {
-      success: false,
-      ackedIds: [],
-      errors: pendingEvents.map((e) => ({ id: e.id!, error: errorMessage })),
-    };
+    return markSyncEventsFailed(pendingEvents, errorMessage);
   }
 }

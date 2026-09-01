@@ -72,13 +72,14 @@ export default function StoreShell({ children }: StoreShellProps) {
   useEffect(() => {
     const onOnlineFlush = async () => {
       setIsOffline(false);
+      if (!user) return;
       await flushPendingPosSync();
       await refreshOfflineCatalog({ force: true });
       await refreshPendingSync();
     };
     window.addEventListener("online", onOnlineFlush);
     return () => window.removeEventListener("online", onOnlineFlush);
-  }, [refreshPendingSync]);
+  }, [refreshPendingSync, user]);
 
   useEffect(() => {
     if (!user || isOffline) return;
