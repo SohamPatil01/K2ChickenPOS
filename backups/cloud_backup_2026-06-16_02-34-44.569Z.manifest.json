@@ -1,0 +1,29 @@
+{
+  "filename": "backup-2026-02-02T03-04-06.611Z.json",
+  "downloadedAt": "2026-06-16T02:34:46Z",
+  "metadata": {
+    "version": "1.0",
+    "timestamp": "2026-02-02T03:04:06.611Z",
+    "source": "vercel-cron-backup",
+    "databaseUrl": "aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true"
+  },
+  "tableCounts": {
+    "stores": null,
+    "users": null,
+    "products": null,
+    "customers": null,
+    "sales": null,
+    "saleItems": null,
+    "payments": null,
+    "inventoryLedger": null,
+    "purchaseOrders": null,
+    "purchaseOrderItems": null,
+    "deliveryOrders": null,
+    "franchiseConfigs": null,
+    "royaltyInvoices": null,
+    "royaltyLedgers": null,
+    "complianceRecords": null,
+    "discountOverrides": null,
+    "dailyClosings": null
+  }
+}

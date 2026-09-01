@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tax Invoice INV-2026-00842 — K2 Chicken</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    @page { size: A4; margin: 10mm; }
+    @media print {
+      body { background: #fff !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .bill { box-shadow: none !important; border: none !important; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: #f1f0ee;
+      color: #201a16;
+      -webkit-font-smoothing: antialiased;
+    }
+    .bill {
+      position: relative;
+      max-width: 680px;
+      margin: 0 auto;
+      background: #fffdfb;
+      border: 1px solid #f0ded0;
+      border-radius: 14px;
+      box-shadow: 0 1px 3px rgba(122, 46, 0, 0.06), 0 12px 32px rgba(122, 46, 0, 0.08);
+      overflow: hidden;
+    }
+    .topbar {
+      height: 6px;
+      background: linear-gradient(90deg, #E65C00, #FF6A00 45%, #FF8A3D);
+    }
+    .wm {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .wm img { width: 220px; height: 220px; object-fit: contain; opacity: 0.05; }
+    .inner { position: relative; z-index: 1; }
+    .hdr {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 14px; padding: 18px 20px 14px;
+      background: linear-gradient(180deg, #FFF3EA 0%, #fffdfb 100%);
+      border-bottom: 1px solid #f4e1cf;
+    }
+    .brand-row { display: flex; align-items: center; gap: 12px; }
+    .brand-row img {
+      width: 54px; height: 54px; object-fit: contain; flex-shrink: 0;
+      border-radius: 10px;
+      border: 1px solid #f4e1cf; background: #fff; padding: 4px;
+    }
+    .brand-name {
+      font-family: "Libre Baskerville", Georgia, serif;
+      font-size: 23px; font-weight: 700; line-height: 1.15; color: #201a16;
+      letter-spacing: -0.01em;
+    }
+    .brand-tag {
+      margin-top: 4px; font-size: 10px; color: #E65C00;
+      letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+    }
+    .meta {
+      margin-top: 9px; font-size: 11px; line-height: 1.5; color: #6b5d51; max-width: 340px;
+    }
+    .inv { text-align: right; flex-shrink: 0; }
+    .inv-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #C04A00;
+    }
+    .inv-no { margin-top: 6px; font-size: 15px; font-weight: 700; color: #201a16; }
+    .inv-dt { margin-top: 3px; font-size: 11px; color: #6b5d51; }
+    .badge {
+      display: inline-block; margin-top: 9px; padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em;
+      background: #16a34a; color: #ffffff;
+    }
+    .body { padding: 14px 20px 8px; }
+    .alert {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      margin-bottom: 12px; padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid #fdba74; background: #fff7ed;
+    }
+    .alert-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a3412; font-weight: 700; }
+    .alert-s { font-size: 11px; color: #c2410c; margin-top: 1px; }
+    .alert-amt { font-family: "Libre Baskerville", Georgia, serif; font-size: 18px; font-weight: 700; color: #9a3412; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .card { border: 1px solid #f0ded0; border-radius: 10px; padding: 10px 12px; background: #fffaf5; }
+    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #b58a68; margin-bottom: 3px; font-weight: 700; }
+    .card-t { font-size: 13px; font-weight: 700; color: #201a16; }
+    .card-s { font-size: 11px; color: #6b5d51; margin-top: 2px; }
+    table.items { width: 100%; border-collapse: collapse; font-size: 12px; border-radius: 10px; overflow: hidden; }
+    table.items th {
+      background: #201a16; color: #fff3ea; font-size: 9px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 9px 6px; text-align: left;
+    }
+    table.items th.r { text-align: right; }
+    table.items td {
+      padding: 8px 6px; border-bottom: 1px solid #f4e1cf; vertical-align: top;
+    }
+    table.items tbody tr:nth-child(even) td { background: #fffaf5; }
+    .c-muted { color: #c9ad96; width: 28px; }
+    .c-item { font-weight: 500; color: #201a16; }
+    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #6b5d51; }
+    .c-strong { font-weight: 700; color: #201a16; }
+    .totals { margin: 12px 0 4px; display: flex; justify-content: flex-end; }
+    .totals-box { width: 240px; }
+    .t-row {
+      display: flex; justify-content: space-between; padding: 2px 0;
+      font-size: 12px; color: #6b5d51;
+    }
+    .t-grand {
+      margin-top: 8px; padding: 10px 12px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #E65C00, #FF6A00);
+      color: #fff;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 12px; font-weight: 600;
+      box-shadow: 0 4px 14px rgba(230, 92, 0, 0.28);
+    }
+    .t-grand span:last-child {
+      font-family: "Libre Baskerville", Georgia, serif;
+      font-size: 17px; font-weight: 700;
+    }
+    .pay {
+      margin: 12px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid #f0ded0; background: #fffaf5;
+    }
+    .pay-l {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #b58a68; margin-bottom: 6px; font-weight: 700;
+    }
+    .pay-row {
+      display: flex; justify-content: space-between; font-size: 12px;
+      padding: 2px 0; color: #4a3d33;
+    }
+    .pay-total {
+      display: flex; justify-content: space-between; font-size: 12px;
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e7cdb2; font-weight: 600;
+    }
+    .pay-due {
+      display: flex; justify-content: space-between; font-size: 12px;
+      margin-top: 4px; font-weight: 700; color: #9a3412;
+    }
+    .qr {
+      margin: 10px 0 6px; padding: 12px; border-radius: 10px; border: 1px solid #f0ded0; background: #fffaf5; text-align: center;
+    }
+    .qr-t { font-size: 12px; font-weight: 700; color: #201a16; }
+    .qr-s { font-size: 10px; color: #6b5d51; margin: 2px 0 8px; }
+    .qr img {
+      width: 128px; height: 128px; background: #fff; padding: 4px; border-radius: 8px;
+      border: 1px solid #f4e1cf;
+    }
+    .ftr {
+      border-top: 1px solid #f4e1cf; padding: 12px 20px 14px;
+      text-align: center; font-size: 10.5px; color: #6b5d51; line-height: 1.5;
+      background: #fff8f2;
+    }
+    .ftr-t {
+      font-family: "Libre Baskerville", Georgia, serif;
+      font-size: 12.5px; font-weight: 700; color: #201a16; margin-bottom: 2px;
+    }
+    .ftr strong { color: #C04A00; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="bill" id="k2-bill">
+    <div class="topbar"></div>
+    <div class="wm"><img src="http://localhost:8934/chicken-vicken-logo.png" alt=""/></div>
+    <div class="inner">
+      <div class="hdr">
+        <div>
+          <div class="brand-row">
+            <img src="http://localhost:8934/chicken-vicken-logo.png" alt="K2 Chicken"/>
+            <div>
+              <div class="brand-name">K2 Chicken</div>
+              <div class="brand-tag">Fresh · Pure · Trusted</div>
+            </div>
+          </div>
+          <div class="meta">
+            WhatsApp / Call +91 84849 78622 · GSTIN 27ATGPP7842L1Z0<br/>
+            Shop No. 4, 24K Glitterati, New DP Rd, Kolte Patil, Vishal Nagar, Pimple Nilakh, Pimpri-Chinchwad, Maharashtra 411027
+          </div>
+        </div>
+        <div class="inv">
+          <div class="inv-label">Tax Invoice</div>
+          <div class="inv-no">INV-2026-00842</div>
+          <div class="inv-dt">13 Aug 2026, 06:33 pm</div>
+          <div><span class="badge">PAID</span></div>
+        </div>
+      </div>
+
+      <div class="body">
+        
+
+        <div class="grid2">
+          <div class="card">
+            <div class="card-l">Bill to</div>
+            <div class="card-t">Priya Sharma</div>
+            <div class="card-s">9876543210</div>
+            <div class="card-s">Pimple Nilakh</div>
+          </div>
+          <div class="card">
+            <div class="card-l">Store</div>
+            <div class="card-t">K2 Chicken - Pimple Nilakh</div>
+            <div class="card-s">+91 84849 78622</div>
+            <div class="card-s">Cashier: Rahul</div>
+          </div>
+        </div>
+
+        <table class="items">
+          <thead>
+            <tr>
+              <th style="width:28px">#</th>
+              <th>Item</th>
+              <th class="r">Qty</th>
+              <th class="r">Rate</th>
+              <th class="r">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+    <tr>
+      <td class="c-muted">1</td>
+      <td class="c-item">Chicken Curry Cut</td>
+      <td class="c-num">1.50 kg</td>
+      <td class="c-num">₹240</td>
+      <td class="c-num c-strong">₹360</td>
+    </tr>
+    <tr>
+      <td class="c-muted">2</td>
+      <td class="c-item">Chicken Breast Boneless</td>
+      <td class="c-num">1.00 kg</td>
+      <td class="c-num">₹320</td>
+      <td class="c-num c-strong">₹320</td>
+    </tr>
+    <tr>
+      <td class="c-muted">3</td>
+      <td class="c-item">Chicken Liver</td>
+      <td class="c-num">0.50 kg</td>
+      <td class="c-num">₹160</td>
+      <td class="c-num c-strong">₹80</td>
+    </tr>
+    <tr>
+      <td class="c-muted">4</td>
+      <td class="c-item">Egg Tray (30 pcs)</td>
+      <td class="c-num">1 pcs</td>
+      <td class="c-num">₹210</td>
+      <td class="c-num c-strong">₹210</td>
+    </tr>
+    <tr>
+      <td class="c-muted">5</td>
+      <td class="c-item">Chicken Mince (Keema)</td>
+      <td class="c-num">1.00 kg</td>
+      <td class="c-num">₹270</td>
+      <td class="c-num c-strong">₹270</td>
+    </tr></tbody>
+        </table>
+
+        <div class="totals">
+          <div class="totals-box">
+            <div class="t-row"><span>Subtotal</span><span>₹1,240</span></div>
+            <div class="t-row"><span>Discount</span><span>- ₹40</span></div>
+            
+            
+            <div class="t-grand"><span>Grand Total</span><span>₹1,200</span></div>
+          </div>
+        </div>
+
+        <div class="pay">
+          <div class="pay-l">Payment details</div>
+          
+    <div class="pay-row">
+      <span>CASH</span>
+      <span>₹1,200</span>
+    </div>
+          <div class="pay-total"><span>Total paid</span><span>₹1,200</span></div>
+          
+        </div>
+
+        
+      </div>
+
+      <div class="ftr">
+        <div class="ftr-t">Thank you for shopping with K2 Chicken</div>
+        <div>Freshness you can taste · Quality you can trust</div>
+        <div style="margin-top:4px;">
+          Loyalty <strong>points.k2chicken.com</strong>
+          · <strong>www.k2chicken.com</strong>
+          · WhatsApp <strong>+91 84849 78622</strong>
+          · Redeem in shop · Computer-generated tax invoice
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print" style="text-align:center;margin-top:14px;">
+    <button onclick="window.print()" style="padding:9px 20px;background:#0f172a;color:#fff;border:none;font-family:IBM Plex Sans,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Print / Save as PDF</button>
+  </div>
+</body>
+</html>

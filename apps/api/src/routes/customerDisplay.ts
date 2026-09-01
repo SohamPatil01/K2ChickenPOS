@@ -113,6 +113,14 @@ async function getDisplayStoreId(
   }
 }
 
+async function getDisplayCustomerStoreIds(storeId: string): Promise<string[]> {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { id: true, parentOwnerStoreId: true },
+  });
+  return Array.from(new Set([store?.parentOwnerStoreId || storeId, storeId]));
+}
+
 export async function customerDisplayRoutes(fastify: FastifyInstance) {
   /**
    * Cashier-only: mint a pairing session for the customer display.
@@ -207,6 +215,7 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
   fastify.get('/customers', async (request: any, reply: FastifyReply) => {
     const storeId = await getDisplayStoreId(fastify, request, reply);
     if (!storeId) return;
+    const customerStoreIds = await getDisplayCustomerStoreIds(storeId);
 
     const phone = String(request.query?.phone || '').trim();
     const searchTerm = String(request.query?.q || '').trim();
@@ -216,8 +225,8 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
     }
 
     if (phone) {
-      const customer = await prisma.customer.findUnique({
-        where: { storeId_phone: { storeId, phone } },
+      const customer = await prisma.customer.findFirst({
+        where: { storeId: { in: customerStoreIds }, phone },
         select: { id: true, name: true, phone: true, area: true, loyaltyPoints: true },
       });
       return customer ? displayCustomerView(customer) : null;
@@ -226,7 +235,7 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
     const digits = searchTerm.replace(/\D/g, '');
     const matches = await prisma.customer.findMany({
       where: {
-        storeId,
+        storeId: { in: customerStoreIds },
         OR: [
           { phone: { contains: searchTerm } },
           ...(digits && digits !== searchTerm ? [{ phone: { contains: digits } }] : []),
@@ -243,18 +252,19 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
   fastify.post('/customers', async (request: any, reply: FastifyReply) => {
     const storeId = await getDisplayStoreId(fastify, request, reply);
     if (!storeId) return;
+    const customerStoreId = (await getDisplayCustomerStoreIds(storeId))[0];
 
     try {
       const data = customerSchema.parse(request.body as any);
       const customer = await prisma.customer.upsert({
-        where: { storeId_phone: { storeId, phone: data.phone } },
+        where: { storeId_phone: { storeId: customerStoreId, phone: data.phone } },
         update: {
           name: data.name,
           ...(data.email !== undefined ? { email: data.email } : {}),
           ...(data.area !== undefined ? { area: data.area?.trim() || null } : {}),
         },
         create: {
-          storeId,
+          storeId: customerStoreId,
           name: data.name,
           phone: data.phone,
           email: data.email,
