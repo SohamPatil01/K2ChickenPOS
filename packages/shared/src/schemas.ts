@@ -64,6 +64,18 @@ export const saleItemSchema = z.object({
   metaJson: z.record(z.any()).optional(),
 });
 
+const paymentMethodEnum = z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']);
+
+export const paymentSchema = z.object({
+  method: z.preprocess(
+    (v) => (typeof v === 'string' ? v.trim().toUpperCase() : v),
+    paymentMethodEnum
+  ),
+  /** Coerce: JSON/clients sometimes send amounts as strings */
+  amount: z.coerce.number().min(0),
+  txnRef: z.string().optional(),
+});
+
 export const createSaleSchema = z.object({
   /** Client-generated idempotency key to dedupe retried/offline-replayed sales */
   clientSaleId: z.string().min(1).max(64).optional(),
@@ -100,18 +112,6 @@ export function computeLoyaltyEarnPoints(grandTotal: number): number {
 
 /** Points awarded to each side after a referred friend's first settled bill. */
 export const REFERRAL_BONUS_POINTS = 50;
-
-const paymentMethodEnum = z.enum(['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE']);
-
-export const paymentSchema = z.object({
-  method: z.preprocess(
-    (v) => (typeof v === 'string' ? v.trim().toUpperCase() : v),
-    paymentMethodEnum
-  ),
-  /** Coerce: JSON/clients sometimes send amounts as strings */
-  amount: z.coerce.number().min(0),
-  txnRef: z.string().optional(),
-});
 
 export const paySaleSchema = z.object({
   payments: z.array(paymentSchema).min(1),
