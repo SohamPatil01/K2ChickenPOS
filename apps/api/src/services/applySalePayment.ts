@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { prisma, PaymentMethod } from '@azela-pos/db';
 import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
-import { customerWithAreaInclude } from './customerArea.js';
-import { ensureInventoryDeductedForSale } from './saleItemLedger.js';
+import { customerWithAreaInclude } from '../utils/customerArea.js';
+import { ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
 
 async function loadProductUnitTypes(productIds: string[]) {
   const ids = [...new Set((productIds || []).filter(Boolean))];

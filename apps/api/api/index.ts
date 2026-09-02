@@ -21,6 +21,21 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 
+const ALLOWED_ORIGINS = [
+  'https://k2-chicken-pos-web.vercel.app',
+  'https://k2-chicken-pos-hq-web.vercel.app',
+  'https://pos.azeelaai.com',
+  'https://hq.azeelaai.com',
+  'https://points.k2chicken.com',
+  'https://loyalty.k2chicken.com',
+  'https://www.k2chicken.com',
+  'https://k2chicken.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3004',
+];
+
 const globalForPrisma = globalThis as unknown as {
   prisma: typeof prisma | undefined;
 };
@@ -109,18 +124,7 @@ async function build() {
   await fastify.register(cors, {
     origin: (origin, cb) => {
       // Allow all origins, including Vercel deployments
-      const allowedOrigins = [
-        'https://k2-chicken-pos-web.vercel.app',
-        'https://k2-chicken-pos-hq-web.vercel.app',
-        'https://points.k2chicken.com',
-        'https://loyalty.k2chicken.com',
-        'https://www.k2chicken.com',
-        'https://k2chicken.com',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:3002',
-        'http://localhost:3004',
-      ];
+      const allowedOrigins = ALLOWED_ORIGINS;
       
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) {
@@ -320,18 +324,7 @@ export default async function handler(req: any, res: any) {
     // Handle OPTIONS preflight requests immediately with CORS headers
     if (req.method === 'OPTIONS') {
       const origin = req.headers.origin || req.headers.Origin;
-      const allowedOrigins = [
-        'https://k2-chicken-pos-web.vercel.app',
-        'https://k2-chicken-pos-hq-web.vercel.app',
-        'https://points.k2chicken.com',
-        'https://loyalty.k2chicken.com',
-        'https://www.k2chicken.com',
-        'https://k2chicken.com',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:3002',
-        'http://localhost:3004',
-      ];
+      const allowedOrigins = ALLOWED_ORIGINS;
       
       if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -413,16 +406,7 @@ export default async function handler(req: any, res: any) {
       
       // Set CORS headers before sending error
       const origin = req.headers.origin || req.headers.Origin;
-      const allowedOrigins = [
-        'https://k2-chicken-pos-web.vercel.app',
-        'https://k2-chicken-pos-hq-web.vercel.app',
-        'https://points.k2chicken.com',
-        'https://loyalty.k2chicken.com',
-        'https://www.k2chicken.com',
-        'https://k2chicken.com',
-        'http://localhost:3000',
-        'http://localhost:3001',
-      ];
+      const allowedOrigins = ALLOWED_ORIGINS;
       
       if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -506,16 +490,7 @@ export default async function handler(req: any, res: any) {
     // Ensure CORS headers are set even on error
     if (!res.headersSent) {
       const origin = req.headers?.origin || req.headers?.Origin;
-      const allowedOrigins = [
-        'https://k2-chicken-pos-web.vercel.app',
-        'https://k2-chicken-pos-hq-web.vercel.app',
-        'https://points.k2chicken.com',
-        'https://loyalty.k2chicken.com',
-        'https://www.k2chicken.com',
-        'https://k2chicken.com',
-        'http://localhost:3000',
-        'http://localhost:3001',
-      ];
+      const allowedOrigins = ALLOWED_ORIGINS;
       
       if (origin && (allowedOrigins.includes(origin) || origin.includes('.vercel.app') || origin.includes('localhost'))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
