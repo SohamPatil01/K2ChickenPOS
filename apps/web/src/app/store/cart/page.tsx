@@ -992,7 +992,15 @@ export default function StoreCartPage() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => publishReviewMode()}
+                onClick={() => {
+                  if (!publishReviewMode()) {
+                    showNotification(
+                      'Turn on Customer Display mirroring first (🖥️ button).',
+                      'warning',
+                      4000
+                    );
+                  }
+                }}
                 disabled={!customerDisplayActive}
                 title={
                   customerDisplayActive

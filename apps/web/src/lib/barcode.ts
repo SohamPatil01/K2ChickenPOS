@@ -1,5 +1,6 @@
 import { normalizeBarcodeForLookup } from '@azela-pos/shared';
 import api from './api';
+import { ensureAccessToken } from './authSession';
 
 export interface ParsedBarcode {
   productId: string;
@@ -17,6 +18,9 @@ export async function parseScaleBarcode(
   configId?: string
 ): Promise<ParsedBarcode | null> {
   const normalized = normalizeBarcodeForLookup(barcode);
+  if (!(await ensureAccessToken())) {
+    return null;
+  }
   try {
     const response = await api.post('/api/v1/scale/parse', {
       barcode: normalized,
@@ -24,6 +28,9 @@ export async function parseScaleBarcode(
     });
     return response.data;
   } catch (error: any) {
+    if (error.response?.status === 401) {
+      return null;
+    }
     console.error('Failed to parse barcode:', error);
     console.error('Error details:', {
       message: error.message,

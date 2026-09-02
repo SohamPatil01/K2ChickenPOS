@@ -10,6 +10,7 @@ import GlobalBarcodeScanner from "../GlobalBarcodeScanner";
 import Notification from "../Notification";
 import { flushPendingPosSync, getPendingSyncCount } from "@/lib/posSync";
 import { refreshOfflineCatalog } from "@/lib/offlineBootstrap";
+import { ensureAccessToken } from "@/lib/authSession";
 import { useCustomerDisplayPublisher } from "@/lib/customerDisplay/useCustomerDisplayPublisher";
 import Sidebar from "./Sidebar";
 import StatusPills from "./StatusPills";
@@ -84,6 +85,17 @@ export default function StoreShell({ children }: StoreShellProps) {
   useEffect(() => {
     if (!user || isOffline) return;
     void refreshOfflineCatalog();
+  }, [user, isOffline]);
+
+  // Refresh JWT before it expires so barcode/payment calls don't hit 401 mid-shift.
+  useEffect(() => {
+    if (!user || isOffline) return;
+    const tick = () => {
+      void ensureAccessToken();
+    };
+    tick();
+    const id = window.setInterval(tick, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
   }, [user, isOffline]);
 
   // Enter key: ensure form submit works across entire POS/store (keyboard-friendly)

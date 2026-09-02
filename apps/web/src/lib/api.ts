@@ -1,5 +1,9 @@
 import axios from 'axios';
 import { getApiBaseUrl } from './apiBaseUrl';
+import {
+  clearSessionAndRedirectToLogin,
+  refreshAccessToken,
+} from './authSession';
 
 /**
  * When `NEXT_PUBLIC_API_URL` is set (e.g. on Vercel), call the API directly. Browsers send
@@ -17,6 +21,10 @@ export const api = axios.create({
   },
 });
 
+function isAuthRoute(url?: string): boolean {
+  return !!url && (url.includes('/auth/refresh') || url.includes('/auth/login'));
+}
+
 // Add auth token to requests
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
@@ -30,47 +38,40 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Enhanced error logging
+    const originalRequest = error.config;
+    const status = error.response?.status;
+    const url = originalRequest?.url as string | undefined;
+    const willRetryAuth =
+      status === 401 &&
+      !isAuthRoute(url) &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !!localStorage.getItem('refreshToken');
+
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
       console.error('Network Error - API may be down or proxy incorrect:', {
-        url: error.config?.url,
+        url,
         baseURL: error.config?.baseURL,
         message: 'Check if API server is running and Next.js rewrite proxy (next.config.js) can reach it',
       });
-    } else {
-      // Don't log 404 errors for daily-closing endpoints as they're expected when no closing exists
-      const isDailyClosing404 = error.response?.status === 404 && 
-                                 error.config?.url?.includes('/daily-closing/');
-      
+    } else if (!willRetryAuth) {
+      const isDailyClosing404 =
+        status === 404 && url?.includes('/daily-closing/');
       if (!isDailyClosing404) {
-        console.error('API response error:', error.config?.url, error.response?.status, error.response?.data);
+        console.error('API response error:', url, status, error.response?.data);
       }
     }
-    const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (status === 401 && !isAuthRoute(url) && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
-      console.log('Attempting token refresh...');
 
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          const response = await api.post('/api/v1/auth/refresh', {
-            refreshToken,
-          });
-          const { accessToken } = response.data;
-          localStorage.setItem('accessToken', accessToken);
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-          console.log('Token refreshed, retrying request');
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed, redirecting to login');
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+      const accessToken = await refreshAccessToken();
+      if (accessToken) {
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
       }
+
+      clearSessionAndRedirectToLogin();
     }
 
     return Promise.reject(error);
@@ -78,4 +79,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-

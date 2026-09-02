@@ -163,6 +163,16 @@ export function useCustomerDisplayPublisher(): void {
     try {
       if (mode === "success") return;
 
+      // Cashier pinned the display to review — hold until the cart changes.
+      if (mode === "review") {
+        if (hasItems && fp !== lastSentFpRef.current) {
+          useCustomerDisplayStore.setState({ localMode: "billing" });
+          const ok = cd.publishBill(buildBillPayload());
+          if (ok) lastSentFpRef.current = fp;
+        }
+        return;
+      }
+
       if (!hasItems) {
         // Idle ONLY when this tab's cart just went from items → empty.
         // Stale empty tabs with localMode "billing" must not heartbeat-idle

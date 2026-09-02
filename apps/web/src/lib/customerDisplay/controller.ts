@@ -256,6 +256,7 @@ export const useCustomerDisplayStore = create<CustomerDisplayState>(
       });
     },
     publishReview: () => {
+      set({ localMode: "review" });
       return publishOrQueue(DISPLAY_EVENTS.MODE_REVIEW, {
         seq: nextSeq(),
       });
