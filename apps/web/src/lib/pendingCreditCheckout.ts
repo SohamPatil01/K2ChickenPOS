@@ -136,7 +136,7 @@ export async function settlePendingSalesAfterCheckout(
  */
 export async function completeNewSaleCheckout(
   api: { post: (url: string, data: unknown) => Promise<unknown> },
-  sale: { id: string; grandTotal: number },
+  sale: { id: string; grandTotal: number; status?: string },
   allPayments: Array<{ method: string; amount: number }>,
   pendingLines: PendingSettlementLine[],
   /** Optional client cart-only total; used when server grandTotal is missing/odd. */
@@ -170,7 +170,9 @@ export async function completeNewSaleCheckout(
   const { allocated: cartPayments, remaining } = allocatePaymentsFromPool(pool, roundedSaleGrandTotal);
   pool = remaining;
 
-  await paySaleWithRecovery(api, sale.id, cartPayments, roundedSaleGrandTotal);
+  if (sale.status !== 'PAID') {
+    await paySaleWithRecovery(api, sale.id, cartPayments, roundedSaleGrandTotal);
+  }
 
   if (pendingTotal <= 0) {
     return { settledSaleNos: [] };

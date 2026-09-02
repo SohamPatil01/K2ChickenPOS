@@ -718,8 +718,21 @@ export default function StoreCartPage() {
         return;
       }
 
+      const pendingLines = getSelectedPendingSettlements();
+      const checkoutGrandTotal = getCheckoutTotal();
+      if (checkoutPaymentMismatch(payments, checkoutGrandTotal)) {
+        showNotification(
+          `Payment total must match checkout amount ₹${checkoutGrandTotal}`,
+          'error'
+        );
+        return;
+      }
+
       console.log('[Cart] Creating sale with data:', saleData);
-      const saleResponse = await api.post('/api/v1/sales', saleData);
+      const saleResponse = await api.post('/api/v1/sales', {
+        ...saleData,
+        ...(pendingLines.length === 0 ? { payments } : {}),
+      });
       console.log('[Cart] Sale response:', saleResponse.data);
 
       const payload = saleResponse.data;
@@ -757,16 +770,6 @@ export default function StoreCartPage() {
         throw new Error('Invalid sale response: Sale ID not found');
       }
 
-      const checkoutGrandTotal = getCheckoutTotal();
-      if (checkoutPaymentMismatch(payments, checkoutGrandTotal)) {
-        showNotification(
-          `Payment total must match checkout amount ₹${checkoutGrandTotal}`,
-          'error'
-        );
-        return;
-      }
-
-      const pendingLines = getSelectedPendingSettlements();
       const cartOnlyTotal = getTotal().grandTotal;
 
       try {

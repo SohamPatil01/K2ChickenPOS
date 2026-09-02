@@ -1129,7 +1129,14 @@ export default function StorePOSPage() {
         return;
       }
 
-      const saleResponse = await api.post("/api/v1/sales", saleData);
+      const pendingLines = useCartStore.getState().getSelectedPendingSettlements();
+      const checkoutTotal = useCartStore.getState().getCheckoutTotal();
+      const paymentInput = [{ method, amount: checkoutTotal }];
+
+      const saleResponse = await api.post("/api/v1/sales", {
+        ...saleData,
+        ...(pendingLines.length === 0 ? { payments: paymentInput } : {}),
+      });
       const payload = saleResponse.data;
       const needsDiscountApproval =
         payload?.requiresApproval === true ||
@@ -1163,8 +1170,6 @@ export default function StorePOSPage() {
         throw new Error("Invalid sale response");
       }
 
-      const checkoutTotal = useCartStore.getState().getCheckoutTotal();
-      const paymentInput = [{ method, amount: checkoutTotal }];
       if (checkoutPaymentMismatch(paymentInput, checkoutTotal)) {
         showNotification(
           `Payment total must match checkout amount ₹${checkoutTotal}`,
@@ -1173,7 +1178,6 @@ export default function StorePOSPage() {
         return;
       }
 
-      const pendingLines = useCartStore.getState().getSelectedPendingSettlements();
       const cartOnlyTotal = useCartStore.getState().getTotal().grandTotal;
 
       try {

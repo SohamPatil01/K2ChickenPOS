@@ -65,44 +65,84 @@ async function getOrCreateManualProduct(
 
 /**
  * Map client product ids (including "manual" / unknown SKU strings) to real Product rows.
- * Manual lines use a per-owner placeholder product and skip stock deduction via metaJson.manualLine.
+ * Batched lookups — one query per resolution pass instead of per line item.
  */
 export async function resolveSaleItemsForCreate(
   db: Pick<PrismaClient, 'product' | 'category'>,
   items: SaleLineInput[],
   ownerStoreId: string
 ): Promise<SaleLineInput[]> {
+  if (!items.length) return [];
+
+  const candidateIds = [
+    ...new Set(
+      items
+        .map((item) => item.productId)
+        .filter((id) => id && !isPlaceholderProductId(id))
+    ),
+  ];
+
+  const byId = new Map<string, string>();
+  if (candidateIds.length > 0) {
+    const rows = await db.product.findMany({
+      where: { id: { in: candidateIds } },
+      select: { id: true },
+    });
+    for (const row of rows) {
+      byId.set(row.id, row.id);
+    }
+  }
+
+  const unresolvedHints = new Set<string>();
+  for (const item of items) {
+    if (byId.has(item.productId)) continue;
+    const meta = (item.metaJson || {}) as Record<string, unknown>;
+    for (const hint of [skuFromMeta(meta), item.productId]) {
+      if (hint && !isPlaceholderProductId(hint)) {
+        unresolvedHints.add(hint);
+      }
+    }
+  }
+
+  const bySkuOrPlu = new Map<string, string>();
+  if (unresolvedHints.size > 0) {
+    const hints = [...unresolvedHints];
+    const rows = await db.product.findMany({
+      where: {
+        ownerStoreId,
+        OR: [{ sku: { in: hints } }, { plu: { in: hints } }],
+      },
+      select: { id: true, sku: true, plu: true },
+    });
+    for (const row of rows) {
+      if (row.sku) bySkuOrPlu.set(row.sku, row.id);
+      if (row.plu) bySkuOrPlu.set(row.plu, row.id);
+    }
+  }
+
   let manualProductId: string | null = null;
   const resolved: SaleLineInput[] = [];
 
   for (const item of items) {
-    const meta = (item.metaJson || {}) as Record<string, unknown>;
-    const byId = await db.product.findUnique({
-      where: { id: item.productId },
-      select: { id: true },
-    });
-    if (byId) {
+    if (byId.has(item.productId)) {
       resolved.push(item);
       continue;
     }
 
+    const meta = (item.metaJson || {}) as Record<string, unknown>;
     const hints = [skuFromMeta(meta), item.productId].filter(
       (h): h is string => !!h && !isPlaceholderProductId(h)
     );
+
     let matchedId: string | null = null;
     for (const hint of hints) {
-      const bySku = await db.product.findFirst({
-        where: {
-          ownerStoreId,
-          OR: [{ sku: hint }, { plu: hint }],
-        },
-        select: { id: true },
-      });
-      if (bySku) {
-        matchedId = bySku.id;
+      const id = bySkuOrPlu.get(hint);
+      if (id) {
+        matchedId = id;
         break;
       }
     }
+
     if (matchedId) {
       resolved.push({ ...item, productId: matchedId });
       continue;

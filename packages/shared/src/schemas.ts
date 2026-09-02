@@ -83,6 +83,8 @@ export const createSaleSchema = z.object({
   referredByPhone: z.string().optional(),
   /** Optional: referrer's loyalty referral code (alternate to phone at the counter). */
   referredByCode: z.string().optional(),
+  /** When set, payment is applied in the same request (one round-trip checkout). */
+  payments: z.array(paymentSchema).min(1).optional(),
 });
 
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */
