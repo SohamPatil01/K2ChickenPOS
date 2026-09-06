@@ -134,8 +134,8 @@ export default function NumPad({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 safe-top safe-bottom p-2 sm:p-3">
-      <div className="glass-panel-strong w-full max-w-[280px] sm:max-w-xs rounded-xl sm:rounded-2xl animate-fade-in-up flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 safe-top safe-bottom p-2 sm:p-3">
+      <div className={`glass-panel-strong w-full rounded-xl sm:rounded-2xl animate-fade-in-up flex flex-col overflow-hidden ${matches.length > 0 ? "max-w-[340px] sm:max-w-sm" : "max-w-[280px] sm:max-w-xs"}`}>
         {/* Header - compact */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-subtle flex-shrink-0">
           <h3 className="text-sm font-semibold text-ink truncate pr-2">{placeholder}</h3>
@@ -170,21 +170,25 @@ export default function NumPad({
             </p>
           </div>
 
-          {/* Matching customers - tap to select (touch-sized rows) */}
+          {/* Matching customers — larger list, pointer-down so taps aren't lost to input blur */}
           {matches.length > 0 && onSelectMatch && (
-            <div className="overflow-hidden rounded-lg border border-brand-200 bg-brand-50/40">
+            <div className="relative z-20 overflow-hidden rounded-lg border-2 border-brand-300 bg-brand-50/60 shadow-sm">
               <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-brand-700">
-                Matching customers
+                Matching customers — tap to select
               </p>
-              <div className="max-h-24 overflow-y-auto divide-y divide-subtle">
+              <div className="max-h-40 overflow-y-auto overscroll-contain divide-y divide-subtle">
               {matches.map((match) => (
                 <button
                   key={match.id}
                   type="button"
-                  onClick={() => onSelectMatch(match)}
-                  className="w-full min-h-[40px] bg-surface px-3 py-2 text-left hover:bg-brand-100/30 dark:hover:bg-brand-900/10 active:bg-brand-100/50 dark:active:bg-brand-900/20 active:scale-[0.99] transition-all touch-manipulation"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelectMatch(match);
+                  }}
+                  className="w-full min-h-[48px] bg-surface px-3 py-2.5 text-left hover:bg-brand-100/40 dark:hover:bg-brand-900/15 active:bg-brand-100/60 dark:active:bg-brand-900/25 transition-all touch-manipulation"
                 >
-                  <div className="text-sm font-medium text-ink truncate">{match.title}</div>
+                  <div className="text-sm font-semibold text-ink truncate">{match.title}</div>
                   {match.subtitle && (
                     <div className="text-xs text-ink-muted truncate">{match.subtitle}</div>
                   )}

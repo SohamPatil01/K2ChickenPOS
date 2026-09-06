@@ -89,7 +89,7 @@ export default function VirtualKeyboard({ value, onChange, onClose, onSubmit, pl
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end justify-center z-50 safe-top safe-bottom">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 safe-top safe-bottom p-2">
       <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-t-2xl shadow-2xl animate-fade-in-up border-t border-gray-200 dark:border-gray-700 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Enter Name</h3>

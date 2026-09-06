@@ -104,27 +104,33 @@ export default function CustomerJourneyModal({
               </button>
 
               {matches.length > 0 && (
-                <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+                <div className="relative z-10 overflow-hidden rounded-2xl border-2 border-orange-200 bg-white shadow-md">
                   <p className="border-b border-orange-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Matching customers
+                    Matching customers — tap to select
                   </p>
-                  {matches.slice(0, 6).map((match) => (
-                    <button
-                      type="button"
-                      key={match.id}
-                      onClick={() => onSelectMatch(match)}
-                      className="flex min-h-14 w-full items-center justify-between border-b border-orange-50 px-4 py-3 text-left last:border-0 hover:bg-orange-50 active:bg-orange-100"
-                    >
-                      <span>
-                        <span className="block font-bold text-slate-800">{match.name || "Customer"}</span>
-                        <span className="block text-sm text-slate-500">
-                          {match.phone.replace(/^(\d{4})\d+(\d{2})$/, "$1••••••$2")}
-                          {match.area ? ` · ${match.area}` : ""}
+                  <div className="max-h-56 overflow-y-auto overscroll-contain">
+                    {matches.slice(0, 6).map((match) => (
+                      <button
+                        type="button"
+                        key={match.id}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSelectMatch(match);
+                        }}
+                        className="flex min-h-14 w-full items-center justify-between border-b border-orange-50 px-4 py-3 text-left last:border-0 hover:bg-orange-50 active:bg-orange-100 touch-manipulation"
+                      >
+                        <span>
+                          <span className="block font-bold text-slate-800">{match.name || "Customer"}</span>
+                          <span className="block text-sm text-slate-500">
+                            {match.phone.replace(/^(\d{4})\d+(\d{2})$/, "$1••••••$2")}
+                            {match.area ? ` · ${match.area}` : ""}
+                          </span>
                         </span>
-                      </span>
-                      <span className="text-xl text-[#d65a32]">›</span>
-                    </button>
-                  ))}
+                        <span className="text-xl text-[#d65a32]">›</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -165,14 +171,46 @@ export default function CustomerJourneyModal({
                 <button
                   type="button"
                   onClick={onTapName}
-                  className="rounded-2xl border-2 border-orange-200 bg-white px-4 py-4 text-left"
+                  className="rounded-2xl border-2 border-[#d65a32] bg-orange-50 px-4 py-4 text-left ring-2 ring-[#d65a32]/20"
                 >
-                  <span className="block text-xs font-bold uppercase tracking-wide text-slate-400">Name</span>
-                  <span className={`mt-1 block truncate text-lg font-bold ${name ? "text-slate-900" : "text-slate-300"}`}>
-                    {name || "Tap to enter"}
+                  <span className="block text-xs font-bold uppercase tracking-wide text-[#a92e21]">Name</span>
+                  <span className={`mt-1 block truncate text-lg font-bold ${name ? "text-slate-900" : "text-slate-400"}`}>
+                    {name || "Tap to enter your name"}
                   </span>
                 </button>
               </div>
+
+              {matches.length > 0 && (
+                <div className="relative z-10 overflow-hidden rounded-2xl border-2 border-orange-200 bg-white shadow-md">
+                  <p className="border-b border-orange-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Account found — tap to use it
+                  </p>
+                  <div className="max-h-40 overflow-y-auto overscroll-contain">
+                    {matches.slice(0, 6).map((match) => (
+                      <button
+                        type="button"
+                        key={match.id}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSelectMatch(match);
+                        }}
+                        className="flex min-h-14 w-full items-center justify-between border-b border-orange-50 px-4 py-3 text-left last:border-0 hover:bg-orange-50 active:bg-orange-100 touch-manipulation"
+                      >
+                        <span>
+                          <span className="block font-bold text-slate-800">{match.name || "Customer"}</span>
+                          <span className="block text-sm text-slate-500">
+                            {match.phone.replace(/^(\d{4})\d+(\d{2})$/, "$1••••••$2")}
+                            {match.area ? ` · ${match.area}` : ""}
+                          </span>
+                        </span>
+                        <span className="text-xl text-[#d65a32]">›</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {saveState === "error" && (
                 <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
                   Please enter a valid mobile number and your name.

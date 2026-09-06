@@ -111,6 +111,9 @@ export default function StoreCartPage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const paymentInFlightRef = useRef(false);
+  /** Blocks Pay/Cash clicks for a short window after NumPad/keyboard closes (ghost-click). */
+  const checkoutGhostClickGuardUntilRef = useRef(0);
+  const [checkoutGhostBlocker, setCheckoutGhostBlocker] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
   const [showCustomerSection, setShowCustomerSection] = useState(true); // Show by default
@@ -449,6 +452,30 @@ export default function StoreCartPage() {
 
   ];
 
+  const armCheckoutGhostClickGuard = useCallback(() => {
+    checkoutGhostClickGuardUntilRef.current = Date.now() + 450;
+    setCheckoutGhostBlocker(true);
+    window.setTimeout(() => setCheckoutGhostBlocker(false), 450);
+  }, []);
+
+  const isCheckoutGhostBlocked = useCallback(
+    () => Date.now() < checkoutGhostClickGuardUntilRef.current,
+    []
+  );
+
+  const focusNameField = () => {
+    setTimeout(() => {
+      // Focus only — never scrollIntoView (that jumps the cart and delays Pay).
+      nameInputRef.current?.focus({ preventScroll: true });
+    }, 80);
+  };
+
+  const focusAreaField = () => {
+    setTimeout(() => {
+      areaInputRef.current?.focus({ preventScroll: true });
+    }, 80);
+  };
+
   const pickExistingCustomer = (customer: {
     id: string;
     phone: string;
@@ -483,26 +510,13 @@ export default function StoreCartPage() {
     setShowKeyboard(false);
     setShowCustomerSection(false);
     setSkipCustomer(false);
+    armCheckoutGhostClickGuard();
     showNotification(
       customer.area
         ? `${customer.name || 'Customer'} · ${customer.area}`
         : `${customer.name || 'Customer'} selected`,
       'success'
     );
-  };
-
-  const focusNameField = () => {
-    setTimeout(() => {
-      nameInputRef.current?.focus();
-      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 80);
-  };
-
-  const focusAreaField = () => {
-    setTimeout(() => {
-      areaInputRef.current?.focus();
-      areaInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 80);
   };
 
   const createOrUpdateCustomer = async (phone: string, name: string, area?: string) => {
@@ -902,6 +916,7 @@ export default function StoreCartPage() {
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
+        if (isCheckoutGhostBlocked()) return;
         if (items.length > 0 && !isProcessingPayment && !showPaymentModal) {
           void (async () => {
             await ensureCustomerSaved();
@@ -1959,6 +1974,7 @@ export default function StoreCartPage() {
                 {/* Enhanced Checkout Button — mobile uses the sticky bar below instead */}
                 <button
                   onClick={async () => {
+                    if (isCheckoutGhostBlocked()) return;
                     await ensureCustomerSaved();
                     publishPaymentMode(checkoutGrandTotal, null);
                     setShowPaymentModal(true);
@@ -1978,6 +1994,7 @@ export default function StoreCartPage() {
                 {/* Quick Pay Button — mobile uses the sticky bar below instead */}
                 <button
                   onClick={async () => {
+                    if (isCheckoutGhostBlocked()) return;
                     await ensureCustomerSaved();
                     publishPaymentMode(checkoutGrandTotal, null, {
                       payments: [{ method: 'CASH', amount: checkoutGrandTotal }],
@@ -2023,6 +2040,7 @@ export default function StoreCartPage() {
                   </div>
                   <button
                     onClick={async () => {
+                      if (isCheckoutGhostBlocked()) return;
                       await ensureCustomerSaved();
                       publishPaymentMode(checkoutGrandTotal, null);
                       setShowPaymentModal(true);
@@ -2035,6 +2053,7 @@ export default function StoreCartPage() {
                 </div>
                 <button
                   onClick={async () => {
+                    if (isCheckoutGhostBlocked()) return;
                     await ensureCustomerSaved();
                     publishPaymentMode(checkoutGrandTotal, null, {
                       payments: [{ method: 'CASH', amount: checkoutGrandTotal }],
@@ -2151,6 +2170,7 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowNumPad(false);
+            armCheckoutGhostClickGuard();
             if (numPadTarget === 'customer') publishDraftField('phone', tempCustomerPhone, false);
             if (
               numPadTarget === 'customer' &&
@@ -2168,15 +2188,9 @@ export default function StoreCartPage() {
             }
           }}
           onSubmit={() => {
-            setShowNumPad(false);
+            // NumPad also calls onClose after onSubmit — keep focus logic only in onClose
+            // so we don't double-focus / jump the page.
             setShowPhoneDropdown(false);
-            if (numPadTarget !== 'customer') return;
-            if (tempCustomerPhone.replace(/\D/g, '').length < 10) return;
-            if (!(tempCustomerName || '').trim()) {
-              focusNameField();
-            } else {
-              focusAreaField();
-            }
           }}
           placeholder={
             numPadTarget === 'referrer'
@@ -2216,18 +2230,31 @@ export default function StoreCartPage() {
           }}
           onClose={() => {
             setShowKeyboard(false);
+            armCheckoutGhostClickGuard();
             publishDraftField('name', tempCustomerName, false);
             if ((tempCustomerName || '').trim()) {
               focusAreaField();
             }
           }}
           onSubmit={() => {
-            setShowKeyboard(false);
-            if ((tempCustomerName || '').trim()) {
-              focusAreaField();
-            }
+            // VirtualKeyboard also calls onClose — focus only there.
           }}
           placeholder="Enter customer name"
+        />
+      )}
+
+      {checkoutGhostBlocker && (
+        <div
+          className="fixed inset-0 z-[60]"
+          aria-hidden
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         />
       )}
     </div>

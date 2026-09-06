@@ -150,10 +150,12 @@ export default function CustomerDisplayPage() {
     useState<SelectedDisplayCustomer | null>(null);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSaleId, setFeedbackSaleId] = useState<string | null>(null);
-  /** Matching customers (4+ digits typed) — tap to fill instead of retyping. */
+  /** Matching customers (3+ digits typed) — tap to fill instead of retyping. */
   const [phoneMatches, setPhoneMatches] = useState<
     Array<{ id: string; name: string; phone: string; area?: string; loyaltyPoints?: number }>
   >([]);
+  /** True after the latest phone lookup finishes (success or empty). Used to auto-open name. */
+  const [phoneLookupSettled, setPhoneLookupSettled] = useState(false);
   const phoneSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phoneSearchRequestRef = useRef(0);
 
@@ -192,6 +194,8 @@ export default function CustomerDisplayPage() {
     cashierCustomerEditingRef.current = false;
     setFeedbackSent(false);
     setFeedbackSaleId(null);
+    setPhoneMatches([]);
+    setPhoneLookupSettled(false);
   }, []);
 
   useEffect(() => {
@@ -204,21 +208,18 @@ export default function CustomerDisplayPage() {
     selectedCustomerRef.current = selectedCustomer;
   }, [selectedCustomer]);
 
-  // Server typeahead once the phone editor is open and 3+ digits are in —
-  // mirrors the same dropdown the cashier sees on the cart page.
+  // Server typeahead for 3+ digits — keep results after the pad closes so the
+  // journey modal dropdown stays clickable.
   useEffect(() => {
-    if (draftField !== "phone") {
-      phoneSearchRequestRef.current += 1;
-      setPhoneMatches([]);
-      return;
-    }
     const digits = profile.phone.replace(/\D/g, "");
     if (phoneSearchTimerRef.current) clearTimeout(phoneSearchTimerRef.current);
     if (digits.length < 3 || !sessionToken) {
       phoneSearchRequestRef.current += 1;
       setPhoneMatches([]);
+      setPhoneLookupSettled(false);
       return;
     }
+    setPhoneLookupSettled(false);
     const requestId = ++phoneSearchRequestRef.current;
     phoneSearchTimerRef.current = setTimeout(async () => {
       try {
@@ -234,15 +235,34 @@ export default function CustomerDisplayPage() {
           loyaltyPoints?: number;
         }>(res.data);
         setPhoneMatches(customers.slice(0, 6));
+        setPhoneLookupSettled(true);
       } catch (error) {
         if (requestId !== phoneSearchRequestRef.current) return;
         console.error("Failed to match customers by phone:", error);
+        setPhoneMatches([]);
+        setPhoneLookupSettled(true);
       }
     }, 250);
     return () => {
       if (phoneSearchTimerRef.current) clearTimeout(phoneSearchTimerRef.current);
     };
-  }, [draftField, profile.phone, sessionToken]);
+  }, [profile.phone, sessionToken]);
+
+  // Unknown number (10+ digits, lookup finished, no matches) → show name step.
+  useEffect(() => {
+    if (!customerPromptOpen || customerJourneyStep !== "identify") return;
+    if (selectedCustomerRef.current) return;
+    const digits = profile.phone.replace(/\D/g, "");
+    if (digits.length < 10 || !phoneLookupSettled || phoneMatches.length > 0) return;
+    setCustomerJourneyStep("register");
+    setSaveState("idle");
+  }, [
+    customerPromptOpen,
+    customerJourneyStep,
+    profile.phone,
+    phoneLookupSettled,
+    phoneMatches.length,
+  ]);
 
   /** Customer taps a suggested match — fills phone + name in one go. */
   const handleSelectPhoneMatch = useCallback(
@@ -570,9 +590,35 @@ export default function CustomerDisplayPage() {
         open: false,
         seq: draftSeqRef.current,
       });
+
+      // After phone entry: unknown number → jump to name entry immediately.
+      if (field === "phone") {
+        const digits = p.phone.replace(/\D/g, "");
+        const unknown =
+          digits.length >= 10 &&
+          phoneLookupSettled &&
+          phoneMatches.length === 0 &&
+          !selectedCustomerRef.current;
+        if (unknown) {
+          setCustomerJourneyStep("register");
+          setSaveState("idle");
+          // Open name keyboard on next tick so phone pad unmounts first.
+          window.setTimeout(() => {
+            if (selectedCustomerRef.current) return;
+            setDraftField("name");
+            draftSeqRef.current += 1;
+            subscriberRef.current?.publishDraft({
+              field: "name",
+              value: p.name,
+              open: true,
+              seq: draftSeqRef.current,
+            });
+          }, 50);
+        }
+      }
       return p;
     });
-  }, []);
+  }, [phoneLookupSettled, phoneMatches.length]);
 
   const handleSave = useCallback(() => {
     setProfile((p) => {
