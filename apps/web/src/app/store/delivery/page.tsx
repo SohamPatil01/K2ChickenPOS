@@ -27,9 +27,10 @@ interface Delivery {
     grandTotal: number;
     customerId?: string | null;
     customer: { id?: string; name: string; phone: string } | null;
+    payments?: Array<{ method: string; amount: number }>;
   };
-  address: { id?: string; line1: string; city: string } | null;
-  assignedDriver: { name: string } | null;
+  address: { id?: string; line1: string; line2?: string | null; city: string } | null;
+  assignedDriver: { name: string; phone?: string | null } | null;
 }
 
 interface SaleOption {
@@ -51,16 +52,6 @@ interface CustomerAddress {
   state: string;
   zip: string;
 }
-
-const DELIVERY_STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'CREATED', label: 'Created' },
-  { value: 'READY', label: 'Ready' },
-  { value: 'ASSIGNED', label: 'Assigned' },
-  { value: 'OUT_FOR_DELIVERY', label: 'Out for delivery' },
-  { value: 'DELIVERED', label: 'Delivered' },
-  { value: 'FAILED', label: 'Failed' },
-  { value: 'RETURNED', label: 'Returned' },
-];
 
 const KANBAN_STATUSES = [
   'CREATED',
@@ -97,8 +88,43 @@ function statusBadgeClass(status: string): string {
   return map[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
 }
 
+const ACTIVE_STATUSES = ['CREATED', 'READY', 'ASSIGNED', 'OUT_FOR_DELIVERY'] as const;
+const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED'] as const;
+
+type QueueTab = 'active' | 'done' | 'all';
+
 function formatStatusLabel(status: string) {
+  if (status === 'OUT_FOR_DELIVERY') return 'On the way';
+  if (status === 'CREATED') return 'New';
   return status.replace(/_/g, ' ');
+}
+
+function isCreditSale(delivery: Delivery) {
+  return (delivery.sale.payments || []).some((p) => String(p.method).toUpperCase() === 'CREDIT');
+}
+
+function phoneDigits(phone?: string | null) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+function nextAction(status: string): { status: string; label: string } | null {
+  switch (status) {
+    case 'CREATED':
+      return { status: 'READY', label: 'Ready' };
+    case 'READY':
+    case 'ASSIGNED':
+      return { status: 'OUT_FOR_DELIVERY', label: 'Send out' };
+    case 'OUT_FOR_DELIVERY':
+      return { status: 'DELIVERED', label: 'Delivered' };
+    default:
+      return null;
+  }
+}
+
+function mapsUrl(address: Delivery['address']) {
+  if (!address?.line1) return null;
+  const q = [address.line1, address.line2, address.city].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
 export default function StoreDeliveryPage() {
@@ -112,6 +138,7 @@ export default function StoreDeliveryPage() {
   const [customEnd, setCustomEnd] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
+  const [queueTab, setQueueTab] = useState<QueueTab>('active');
 
   const [showCreate, setShowCreate] = useState(false);
   const [paidSales, setPaidSales] = useState<SaleOption[]>([]);
@@ -212,25 +239,47 @@ export default function StoreDeliveryPage() {
     loadDeliveries();
   }, [loadDeliveries]);
 
-  const filteredDeliveries = useMemo(() => {
+  const searchedDeliveries = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return deliveries;
     return deliveries.filter((d) => {
       const no = d.sale.saleNo?.toLowerCase() || '';
       const name = d.sale.customer?.name?.toLowerCase() || '';
       const phone = d.sale.customer?.phone?.toLowerCase() || '';
-      return no.includes(q) || name.includes(q) || phone.includes(q);
+      const area = d.address?.city?.toLowerCase() || '';
+      const line = d.address?.line1?.toLowerCase() || '';
+      return no.includes(q) || name.includes(q) || phone.includes(q) || area.includes(q) || line.includes(q);
     });
   }, [deliveries, search]);
+
+  const filteredDeliveries = useMemo(() => {
+    if (queueTab === 'all') return searchedDeliveries;
+    if (queueTab === 'active') {
+      return searchedDeliveries.filter((d) =>
+        (ACTIVE_STATUSES as readonly string[]).includes(d.status)
+      );
+    }
+    return searchedDeliveries.filter((d) => (DONE_STATUSES as readonly string[]).includes(d.status));
+  }, [searchedDeliveries, queueTab]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of KANBAN_STATUSES) counts[s] = 0;
-    for (const d of filteredDeliveries) {
+    for (const d of searchedDeliveries) {
       if (counts[d.status] !== undefined) counts[d.status] += 1;
     }
     return counts;
-  }, [filteredDeliveries]);
+  }, [searchedDeliveries]);
+
+  const queueCounts = useMemo(() => {
+    let active = 0;
+    let done = 0;
+    for (const d of searchedDeliveries) {
+      if ((ACTIVE_STATUSES as readonly string[]).includes(d.status)) active += 1;
+      else if ((DONE_STATUSES as readonly string[]).includes(d.status)) done += 1;
+    }
+    return { active, done, all: searchedDeliveries.length };
+  }, [searchedDeliveries]);
 
   const loadPaidSalesWithoutDelivery = async () => {
     setLoadingSales(true);
@@ -240,22 +289,30 @@ export default function StoreDeliveryPage() {
       today.setHours(0, 0, 0, 0);
       const thirtyDaysAgo = new Date(today);
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const response = await api.get('/api/v1/sales', {
-        params: {
-          status: 'PAID',
-          startDate: thirtyDaysAgo.toISOString(),
-          endDate: new Date().toISOString(),
-          limit: 100,
-        },
+      const dateParams = {
+        startDate: thirtyDaysAgo.toISOString(),
+        endDate: new Date().toISOString(),
+        limit: 100,
+      };
+      const [paidRes, creditRes] = await Promise.all([
+        api.get('/api/v1/sales', { params: { ...dateParams, status: 'PAID' } }),
+        api.get('/api/v1/sales', {
+          params: { ...dateParams, status: 'OPEN', paymentMethod: 'CREDIT' },
+        }),
+      ]);
+      const sales: SaleOption[] = [...(paidRes.data || []), ...(creditRes.data || [])];
+      const seen = new Set<string>();
+      const withoutDelivery = sales.filter((s: SaleOption) => {
+        if (!s?.id || seen.has(s.id)) return false;
+        seen.add(s.id);
+        return !s.deliveryOrder && s.customerId;
       });
-      const sales: SaleOption[] = response.data || [];
-      const withoutDelivery = sales.filter((s: SaleOption) => !s.deliveryOrder && s.customerId);
       setPaidSales(withoutDelivery);
       setForm((f) => ({ ...f, saleId: '', addressId: '' }));
       setAddresses([]);
     } catch (e) {
       console.error('Failed to load sales:', e);
-      setCreateError('Failed to load paid sales');
+      setCreateError('Failed to load paid and credit sales');
     } finally {
       setLoadingSales(false);
     }
@@ -450,62 +507,239 @@ export default function StoreDeliveryPage() {
   const formatOrderTime = (iso: string) => {
     try {
       const d = parseISO(iso);
-      return isValid(d) ? format(d, 'dd MMM yyyy, h:mm a') : '—';
+      if (!isValid(d)) return '—';
+      const today = format(new Date(), 'yyyy-MM-dd');
+      if (format(d, 'yyyy-MM-dd') === today) return format(d, 'h:mm a');
+      return format(d, 'dd MMM, h:mm a');
     } catch {
       return '—';
     }
   };
 
+  const canManage = user?.role === 'MANAGER' || user?.role === 'OWNER';
+  const isDriver = user?.role === 'DRIVER';
+
   const presets: DatePreset[] = ['today', 'yesterday', 'last7', 'thisWeek', 'thisMonth', 'all', 'custom'];
+
+  const renderDeliveryCard = (delivery: Delivery, compact = false) => {
+    const credit = isCreditSale(delivery);
+    const phone = phoneDigits(delivery.sale.customer?.phone);
+    const next = nextAction(delivery.status);
+    const mapLink = mapsUrl(delivery.address);
+    const missingAddress = delivery.type === 'DELIVERY' && !delivery.address;
+
+    return (
+      <article
+        key={delivery.id}
+        className={`rounded-2xl border bg-white dark:bg-gray-800/80 shadow-sm ${
+          missingAddress
+            ? 'border-amber-300 dark:border-amber-700'
+            : 'border-gray-200/80 dark:border-gray-700'
+        } ${compact ? 'p-3' : 'p-4 sm:p-5'}`}
+      >
+        <div className={`flex ${compact ? 'flex-col gap-2' : 'flex-col lg:flex-row lg:items-start gap-4'}`}>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className={`font-bold text-ink ${compact ? 'text-sm' : 'text-lg'}`}>
+                {delivery.sale.saleNo}
+              </h3>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadgeClass(delivery.status)}`}>
+                {formatStatusLabel(delivery.status)}
+              </span>
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                {delivery.type === 'DELIVERY' ? 'Home delivery' : 'Pickup'}
+              </span>
+              {credit && (
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  Credit
+                </span>
+              )}
+            </div>
+            <p className={`font-semibold text-ink ${compact ? 'text-sm' : 'text-base'}`}>
+              {delivery.sale.customer?.name || 'Customer'}
+            </p>
+            <p className="text-xs text-ink-muted">{formatOrderTime(delivery.createdAt)}</p>
+            {delivery.address ? (
+              <p className="text-sm text-ink-secondary line-clamp-2">
+                {delivery.address.line1}
+                {delivery.address.city ? `, ${delivery.address.city}` : ''}
+              </p>
+            ) : delivery.type === 'DELIVERY' ? (
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Address needed</p>
+            ) : null}
+            {delivery.assignedDriver && (
+              <p className="text-xs text-slate-500">Driver: {delivery.assignedDriver.name}</p>
+            )}
+          </div>
+          <div className={`shrink-0 ${compact ? '' : 'lg:text-right'}`}>
+            <p className={`font-black text-brand-700 dark:text-brand-400 ${compact ? 'text-lg' : 'text-2xl'}`}>
+              ₹{Math.round(delivery.sale.grandTotal).toLocaleString('en-IN')}
+            </p>
+            {delivery.deliveryFee > 0 && (
+              <p className="text-xs text-ink-muted">Fee ₹{Math.round(delivery.deliveryFee)}</p>
+            )}
+          </div>
+        </div>
+
+        <div className={`flex flex-wrap gap-2 ${compact ? 'mt-3' : 'mt-4 pt-4 border-t border-gray-100 dark:border-gray-700'}`}>
+          {canManage && next && (
+            <button
+              type="button"
+              onClick={() => updateStatus(delivery.id, next.status)}
+              className="min-h-11 px-4 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 active:scale-[0.98]"
+            >
+              {next.label}
+            </button>
+          )}
+          {isDriver && delivery.status === 'OUT_FOR_DELIVERY' && (
+            <button
+              type="button"
+              onClick={() => {
+                const otp = window.prompt('Enter OTP:');
+                if (otp) {
+                  api
+                    .post(`/api/v1/delivery/${delivery.id}/otp/verify`, { otp })
+                    .then(() => loadDeliveries())
+                    .catch((err) => alert(err.response?.data?.error || 'Invalid OTP'));
+                }
+              }}
+              className="min-h-11 px-4 rounded-xl bg-brand-600 text-white text-sm font-semibold"
+            >
+              Verify OTP
+            </button>
+          )}
+          {phone.length >= 10 && (
+            <a
+              href={`tel:${phone}`}
+              className="min-h-11 inline-flex items-center px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
+            >
+              Call
+            </a>
+          )}
+          {phone.length >= 10 && (
+            <a
+              href={`https://wa.me/91${phone.slice(-10)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="min-h-11 inline-flex items-center px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
+            >
+              WhatsApp
+            </a>
+          )}
+          {mapLink && (
+            <a
+              href={mapLink}
+              target="_blank"
+              rel="noreferrer"
+              className="min-h-11 inline-flex items-center px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
+            >
+              Map
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => openDetailsModal(delivery)}
+            className="min-h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
+          >
+            {delivery.address ? 'Details' : 'Add address'}
+          </button>
+          {canManage && !['DELIVERED', 'FAILED', 'RETURNED'].includes(delivery.status) && (
+            <button
+              type="button"
+              onClick={() => handleStatusSelectChange(delivery, 'FAILED')}
+              className="min-h-11 px-4 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              Failed
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto min-h-0 flex flex-col gap-4 pb-8">
-      {/* Hero header */}
-      <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white p-5 sm:p-6 shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Deliveries</h1>
-            <p className="text-white/85 text-sm mt-1 max-w-xl">
-              Filter by date, search by sale or customer, update status, and manage addresses — all in one place.
-            </p>
-            <p className="text-white/70 text-xs mt-2 font-medium">{rangeLabel}</p>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink">Deliveries</h1>
+          <p className="text-sm text-ink-muted mt-0.5">{rangeLabel} · tap a job to move it forward</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => loadDeliveries()}
+            disabled={loading}
+            className="min-h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink disabled:opacity-50"
+          >
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
           <button
             type="button"
             onClick={openCreateModal}
-            className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white text-brand-700 font-semibold text-sm shadow-md hover:bg-brand-50 transition-colors"
+            className="min-h-11 px-5 rounded-xl bg-brand-600 text-white text-sm font-semibold shadow-sm hover:bg-brand-700"
           >
-            <span className="text-lg leading-none">＋</span> New delivery
+            + New
           </button>
         </div>
       </div>
 
-      {/* Date presets */}
-      <div className="glass-panel rounded-2xl p-4">
-        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide mb-3">
-          Date range
-        </p>
+      <div className="grid grid-cols-3 gap-2">
+        {(
+          [
+            { id: 'active' as const, label: 'To do', count: queueCounts.active },
+            { id: 'done' as const, label: 'Done', count: queueCounts.done },
+            { id: 'all' as const, label: 'All', count: queueCounts.all },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setQueueTab(tab.id)}
+            className={`min-h-14 rounded-2xl border px-3 py-2 text-center transition ${
+              queueTab === tab.id
+                ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-800 dark:text-brand-200 shadow-sm'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-ink'
+            }`}
+          >
+            <span className="block text-xl font-black leading-none">{tab.count}</span>
+            <span className="block text-xs font-semibold mt-1">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="glass-panel rounded-2xl p-3 sm:p-4 space-y-3">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, phone, sale #, area…"
+          className="w-full min-h-12 px-4 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-base placeholder:text-gray-400"
+        />
         <div className="flex flex-wrap gap-2">
           {presets.map((p) => (
             <button
               key={p}
               type="button"
               onClick={() => setDatePreset(p)}
-              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${ datePreset === p ? 'bg-brand-600 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600' }`}
+              className={`min-h-10 px-3 rounded-xl text-sm font-medium ${
+                datePreset === p
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+              }`}
             >
               {PRESET_LABELS[p]}
             </button>
           ))}
         </div>
         {datePreset === 'custom' && (
-          <div className="flex flex-wrap items-end gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex flex-wrap items-end gap-3 pt-1">
             <div>
               <label className="block text-xs font-medium text-ink-muted mb-1">From</label>
               <input
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
               />
             </div>
             <div>
@@ -514,58 +748,49 @@ export default function StoreDeliveryPage() {
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
               />
             </div>
           </div>
         )}
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
-        <div className="flex flex-1 flex-col sm:flex-row gap-3">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="flex-1 min-w-0 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm font-medium"
-            aria-label="Filter by status"
-          >
-            <option value="">All statuses</option>
-            {DELIVERY_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {KANBAN_STATUSES.filter((s) => statusCounts[s] > 0).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => {
+                  if (statusFilter === s) {
+                    setStatusFilter('');
+                    return;
+                  }
+                  setStatusFilter(s);
+                  setQueueTab(
+                    (ACTIVE_STATUSES as readonly string[]).includes(s) ? 'active' : 'done'
+                  );
+                }}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${statusBadgeClass(s)} ${
+                  statusFilter === s ? 'ring-2 ring-brand-600 ring-offset-1' : ''
+                }`}
+              >
+                {formatStatusLabel(s)} {statusCounts[s]}
+              </button>
             ))}
-          </select>
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sale #, name, phone…"
-            className="flex-1 min-w-0 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm placeholder:text-gray-400"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => loadDeliveries()}
-            disabled={loading}
-            className="px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-brand-100/30 dark:hover:bg-brand-900/10 disabled:opacity-50"
-          >
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-          <div className="flex rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+          </div>
+          <div className="flex rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`px-4 py-3 text-sm font-medium ${ viewMode === 'list' ? 'bg-brand-600 text-white' : 'glass-panel text-gray-600 dark:text-gray-300' }`}
+              className={`px-3 py-2 text-xs font-semibold ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'text-ink'}`}
             >
               List
             </button>
             <button
               type="button"
               onClick={() => setViewMode('board')}
-              className={`px-4 py-3 text-sm font-medium border-l border-gray-200 dark:border-gray-600 ${ viewMode === 'board' ? 'bg-brand-600 text-white' : 'glass-panel text-gray-600 dark:text-gray-300' }`}
+              className={`px-3 py-2 text-xs font-semibold border-l border-gray-200 dark:border-gray-600 ${
+                viewMode === 'board' ? 'bg-brand-600 text-white' : 'text-ink'
+              }`}
             >
               Board
             </button>
@@ -574,198 +799,49 @@ export default function StoreDeliveryPage() {
       </div>
 
       {listError && (
-        <div
-          className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200"
-          role="alert"
-        >
-          <strong className="font-semibold">Couldn’t load deliveries.</strong> {listError}
+        <div className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200" role="alert">
+          <strong className="font-semibold">Couldn’t load deliveries. </strong>
+          {listError}
         </div>
       )}
 
-      {/* Quick stats */}
-      <div className="flex flex-wrap gap-2">
-        {KANBAN_STATUSES.filter((s) => statusCounts[s] > 0).map((s) => (
-          <span
-            key={s}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${statusBadgeClass(s)}`}
-          >
-            {formatStatusLabel(s)} <span className="opacity-80">({statusCounts[s]})</span>
-          </span>
-        ))}
-        {!loading && filteredDeliveries.length === 0 && (
-          <span className="text-sm text-ink-muted py-1">No orders in this view.</span>
-        )}
-      </div>
-
-      {/* Main content */}
       <div className="flex-1 min-h-0">
         {loading ? (
           <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="h-24 rounded-2xl bg-gray-100 dark:bg-gray-800 animate-pulse border border-gray-200/80 dark:border-gray-700"
-              />
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-28 rounded-2xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
             ))}
+          </div>
+        ) : filteredDeliveries.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 px-6 py-14 text-center">
+            <p className="text-lg font-bold text-ink">Nothing in this view</p>
+            <p className="text-sm text-ink-muted mt-1">Try All, another date, or add a delivery from a paid or credit bill.</p>
           </div>
         ) : viewMode === 'list' ? (
-          <div className="space-y-3">
-            {filteredDeliveries.map((delivery) => (
-              <div
-                key={delivery.id}
-                className="rounded-2xl glass-panel p-4 sm:p-5 hover: transition-shadow"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-lg text-ink">{delivery.sale.saleNo}</span>
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${statusBadgeClass(delivery.status)}`}
-                      >
-                        {formatStatusLabel(delivery.status)}
-                      </span>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                        {delivery.type === 'DELIVERY' ? 'Delivery' : 'Pickup'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                      <span className="font-medium text-ink">
-                        {delivery.sale.customer?.name || 'Customer'}
-                      </span>
-                      {delivery.sale.customer?.phone && (
-                        <span className="text-ink-muted"> · {delivery.sale.customer.phone}</span>
-                      )}
-                    </p>
-                    <p className="text-xs text-ink-muted">{formatOrderTime(delivery.createdAt)}</p>
-                    {delivery.address && (
-                      <p className="text-xs text-ink-secondary line-clamp-2">
-                        📍 {delivery.address.line1}, {delivery.address.city}
-                      </p>
-                    )}
-                    {delivery.assignedDriver && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400">Driver: {delivery.assignedDriver.name}</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-stretch gap-2 lg:w-64 xl:w-auto">
-                    <div className="text-right sm:text-left lg:text-right min-w-[5rem]">
-                      <p className="text-xs text-ink-muted">Amount</p>
-                      <p className="text-xl font-bold text-brand-600 dark:text-brand-400">
-                        ₹{delivery.sale.grandTotal.toFixed(0)}
-                      </p>
-                      {delivery.deliveryFee > 0 && (
-                        <p className="text-xs text-gray-500">Fee ₹{delivery.deliveryFee.toFixed(0)}</p>
-                      )}
-                    </div>
-                    {(user?.role === 'MANAGER' || user?.role === 'OWNER') && (
-                      <select
-                        value={delivery.status}
-                        onChange={(e) => handleStatusSelectChange(delivery, e.target.value)}
-                        className="w-full sm:w-44 lg:w-full xl:w-44 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm font-medium"
-                        aria-label="Change status"
-                      >
-                        {DELIVERY_STATUS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                  {user?.role !== 'DRIVER' && delivery.status === 'ASSIGNED' && (
-                    <button
-                      type="button"
-                      onClick={() => updateStatus(delivery.id, 'OUT_FOR_DELIVERY')}
-                      className="px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700"
-                    >
-                      Mark out for delivery
-                    </button>
-                  )}
-                  {user?.role === 'DRIVER' && delivery.status === 'OUT_FOR_DELIVERY' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const otp = window.prompt('Enter OTP:');
-                        if (otp) {
-                          api
-                            .post(`/api/v1/delivery/${delivery.id}/otp/verify`, { otp })
-                            .then(() => loadDeliveries())
-                            .catch((err) => alert(err.response?.data?.error || 'Invalid OTP'));
-                        }
-                      }}
-                      className="px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700"
-                    >
-                      Verify OTP
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => openDetailsModal(delivery)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-brand-100/30 dark:hover:bg-brand-900/10"
-                  >
-                    {delivery.address ? 'Edit customer & address' : 'Add address'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <div className="space-y-3">{filteredDeliveries.map((d) => renderDeliveryCard(d))}</div>
         ) : (
           <div className="overflow-x-auto pb-2 -mx-1">
             <div className="flex gap-3 min-w-max px-1">
-              {KANBAN_STATUSES.map((status) => (
-                <div
-                  key={status}
-                  className="w-64 sm:w-72 flex-shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/50 p-3"
-                >
-                  <h2 className="font-bold text-xs uppercase tracking-wide text-ink-secondary mb-3 px-1">
-                    {formatStatusLabel(status)}
-                    <span className="ml-1 text-gray-400">({(groupedByStatus[status] || []).length})</span>
-                  </h2>
-                  <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
-                    {(groupedByStatus[status] || []).length === 0 ? (
-                      <p className="text-xs text-gray-400 text-center py-6">Empty</p>
-                    ) : (
-                      (groupedByStatus[status] || []).map((delivery) => (
-                        <div
-                          key={delivery.id}
-                          className="rounded-2xl border border-gray-200 dark:border-gray-600 glass-panel p-3"
-                        >
-                          <div className="font-semibold text-sm text-ink truncate">
-                            {delivery.sale.saleNo}
-                          </div>
-                          <div className="text-xs text-ink-secondary truncate">
-                            {delivery.sale.customer?.name}
-                          </div>
-                          <div className="text-xs font-medium text-brand-600 dark:text-brand-400 mt-1">
-                            ₹{delivery.sale.grandTotal.toFixed(0)}
-                          </div>
-                          {(user?.role === 'MANAGER' || user?.role === 'OWNER') && (
-                            <select
-                              value={delivery.status}
-                              onChange={(e) => handleStatusSelectChange(delivery, e.target.value)}
-                              className="mt-2 w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                            >
-                              {DELIVERY_STATUS_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => openDetailsModal(delivery)}
-                            className="mt-2 w-full text-xs py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                          >
-                            Details
-                          </button>
-                        </div>
-                      ))
-                    )}
+              {(queueTab === 'done' ? DONE_STATUSES : queueTab === 'active' ? ACTIVE_STATUSES : KANBAN_STATUSES).map(
+                (status) => (
+                  <div
+                    key={status}
+                    className="w-72 flex-shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-900/50 p-3"
+                  >
+                    <h2 className="font-bold text-xs uppercase tracking-wide text-ink-secondary mb-3 px-1">
+                      {formatStatusLabel(status)}
+                      <span className="ml-1 text-gray-400">({(groupedByStatus[status] || []).length})</span>
+                    </h2>
+                    <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+                      {(groupedByStatus[status] || []).length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-6">None</p>
+                      ) : (
+                        (groupedByStatus[status] || []).map((delivery) => renderDeliveryCard(delivery, true))
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           </div>
         )}
@@ -793,7 +869,7 @@ export default function StoreDeliveryPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Paid sale</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1">Paid or credit sale</label>
                 <select
                   value={form.saleId}
                   onChange={(e) => onSelectSale(e.target.value)}
@@ -804,6 +880,7 @@ export default function StoreDeliveryPage() {
                   {paidSales.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.saleNo} — {s.customer?.name} — ₹{s.grandTotal.toFixed(0)}
+                      {s.status === 'OPEN' ? ' (credit)' : ''}
                     </option>
                   ))}
                 </select>

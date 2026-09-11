@@ -430,6 +430,43 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     },
   });
 
+  fastify.get('/customer-demographics', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = (getUser(request) as any).storeId;
+        const q = request.query as Record<string, unknown>;
+        const franchiseStoreId = parseFranchiseStoreId(q);
+        const { startDate, endDate } = q as { startDate?: string; endDate?: string };
+
+        if (!storeId) {
+          return reply.status(400).send({
+            error: 'Store ID is required',
+            message: 'User must be associated with a store',
+          });
+        }
+
+        const { start, end } = rangeFromQuery(startDate, endDate);
+        const data = await analyticsService.getCustomerDemographics(
+          storeId,
+          start,
+          end,
+          franchiseStoreId ?? null
+        );
+        return reply.send(data);
+      } catch (error: any) {
+        if (isBadScopeError(error.message)) {
+          return reply.status(400).send({ error: 'Invalid scope', message: error.message });
+        }
+        request.log.error(error, 'Failed to load customer demographics');
+        return reply.status(500).send({
+          error: 'Failed to load customer demographics',
+          message: error.message,
+        });
+      }
+    },
+  });
+
   // Delivery KPIs (placeholder - returns empty for now)
   fastify.get('/delivery-kpis', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],

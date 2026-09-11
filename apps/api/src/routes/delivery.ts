@@ -51,14 +51,25 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
 
     const sale = await prisma.sale.findUnique({
       where: { id: data.saleId },
-      include: { deliveryOrder: { select: { id: true } } },
+      include: {
+        deliveryOrder: { select: { id: true } },
+        payments: { select: { method: true } },
+      },
     });
 
     if (!sale) {
       reply.code(404).send({ error: 'Sale not found' });
       return;
     }
-    if (sale.status !== 'PAID') {
+    if (sale.status === 'VOID' || sale.status === 'REFUNDED') {
+      reply.code(400).send({ error: 'Cancelled sales cannot be sent for delivery' });
+      return;
+    }
+    const isPaid = sale.status === 'PAID';
+    const isBookedCredit =
+      sale.status === 'OPEN' &&
+      (sale.payments || []).some((p) => String(p.method).toUpperCase() === 'CREDIT');
+    if (!isPaid && !isBookedCredit) {
       reply.code(400).send({ error: 'Sale is not paid yet' });
       return;
     }
@@ -237,6 +248,7 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
           include: {
             customer: true,
             items: { include: { product: true } },
+            payments: { select: { method: true, amount: true } },
           },
         },
         address: true,

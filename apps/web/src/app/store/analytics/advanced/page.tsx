@@ -173,6 +173,42 @@ interface ProfitMarginPayload {
   period: { start: string; end: string };
 }
 
+interface CustomerDemographicsPayload {
+  period: { start: string; end: string };
+  summary: {
+    totalCustomers: number;
+    newCustomersInPeriod: number;
+    activeCustomers: number;
+    repeatCustomers: number;
+    walkInOrders: number;
+    identifiedOrders: number;
+    periodRevenue: number;
+    avgSpendPerActiveCustomer: number;
+    avgOrderValue: number;
+    portalRegistered: number;
+    profileCompleted: number;
+    creditOrders: number;
+    returningActive: number;
+    newActive: number;
+  };
+  byArea: Array<{ name: string; customers: number; revenue: number; orders: number }>;
+  byCity: Array<{ name: string; customers: number }>;
+  byTier: Array<{ name: string; customers: number }>;
+  spendBands: Array<{ name: string; customers: number }>;
+  newVsReturning: Array<{ name: string; value: number }>;
+  orderMix: Array<{ name: string; value: number }>;
+  topCustomers: Array<{
+    id: string;
+    name: string;
+    phone: string;
+    area: string;
+    orders: number;
+    revenue: number;
+    loyaltyPoints: number;
+    creditOrders: number;
+  }>;
+}
+
 function formatINR(n: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -209,8 +245,16 @@ export default function AdvancedAnalyticsPage() {
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [profitMargin, setProfitMargin] = useState<ProfitMarginPayload | null>(null);
   const [profitMarginError, setProfitMarginError] = useState<string | null>(null);
+  const [demographics, setDemographics] = useState<CustomerDemographicsPayload | null>(null);
+  const [demographicsError, setDemographicsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "sales-overview" | "profit-margin" | "forecast" | "demand" | "inventory" | "insights"
+    | "sales-overview"
+    | "profit-margin"
+    | "forecast"
+    | "demand"
+    | "inventory"
+    | "insights"
+    | "demographics"
   >("sales-overview");
 
   const isOwner = user?.store?.type === "OWNER";
@@ -247,6 +291,7 @@ export default function AdvancedAnalyticsPage() {
     loadSalesOverview();
     loadInsights();
     loadProfitMargin();
+    loadDemographics();
   }, [user, startDateStr, endDateStr, franchiseStoreId, demandByStore]);
 
   const loadAnalytics = async () => {
@@ -361,6 +406,25 @@ export default function AdvancedAnalyticsPage() {
         "Failed to load profit margin";
       setProfitMargin(null);
       setProfitMarginError(msg);
+    }
+  };
+
+  const loadDemographics = async () => {
+    if (!user?.storeId) return;
+    setDemographicsError(null);
+    try {
+      const res = await api.get("/api/v1/analytics/customer-demographics", {
+        params: scopeParams(),
+      });
+      setDemographics(res.data || null);
+    } catch (e: any) {
+      const msg =
+        e.response?.data?.message ||
+        e.response?.data?.error ||
+        e.message ||
+        "Failed to load customer demographics";
+      setDemographics(null);
+      setDemographicsError(msg);
     }
   };
 
@@ -551,6 +615,19 @@ export default function AdvancedAnalyticsPage() {
                     })),
                     filename: `profit_margin_${tag}.csv`,
                   });
+                } else if (activeTab === "demographics" && demographics) {
+                  exportToCSV({
+                    data: demographics.topCustomers.map((c) => ({
+                      name: c.name,
+                      phone: c.phone,
+                      area: c.area,
+                      orders: c.orders,
+                      revenue: c.revenue,
+                      loyaltyPoints: c.loyaltyPoints,
+                      creditOrders: c.creditOrders,
+                    })),
+                    filename: `customer_demographics_${tag}.csv`,
+                  });
                 }
               }}
               className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
@@ -562,6 +639,8 @@ export default function AdvancedAnalyticsPage() {
                 loadAnalytics();
                 loadSalesOverview();
                 loadInsights();
+                loadProfitMargin();
+                loadDemographics();
               }}
               className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
             >
@@ -631,11 +710,12 @@ export default function AdvancedAnalyticsPage() {
           )}
         </div>
 
-        {(analyticsErrors.length > 0 || overviewError || insightsError || profitMarginError) && (
+        {(analyticsErrors.length > 0 || overviewError || insightsError || profitMarginError || demographicsError) && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-1">
             {overviewError && <p>Overview: {overviewError}</p>}
             {insightsError && <p>Insights: {insightsError}</p>}
             {profitMarginError && <p>Profit margin: {profitMarginError}</p>}
+            {demographicsError && <p>Demographics: {demographicsError}</p>}
             {analyticsErrors.map((e, i) => (
               <p key={i}>{e}</p>
             ))}
@@ -698,6 +778,15 @@ export default function AdvancedAnalyticsPage() {
           }`}
         >
           💡 Insights
+        </button>
+        <button
+          onClick={() => setActiveTab("demographics")}
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="demographics"
+              ? "border-blue-600 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+          }`}
+        >
+          👥 Customer Demographics
         </button>
       </div>
 
@@ -1800,6 +1889,157 @@ export default function AdvancedAnalyticsPage() {
               Compared current {insights.period.start}–{insights.period.end} vs prior{" "}
               {insights.period.priorStart}–{insights.period.priorEnd}.
             </p>
+          )}
+        </div>
+      )}
+
+      {activeTab === "demographics" && (
+        <div className="space-y-6">
+          {demographics ? (
+            <>
+              <p className="text-sm text-ink-secondary">
+                Mix of saved customers for this store scope. Age and gender are not collected, so this view uses area, loyalty, spend, and new vs returning shoppers.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+                {[
+                  { label: "Customers", value: demographics.summary.totalCustomers.toLocaleString("en-IN"), tone: "from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800", text: "text-blue-900 dark:text-blue-100", sub: "text-blue-700 dark:text-blue-300" },
+                  { label: "Active in range", value: demographics.summary.activeCustomers.toLocaleString("en-IN"), tone: "from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800", text: "text-green-900 dark:text-green-100", sub: "text-green-700 dark:text-green-300" },
+                  { label: "New this range", value: demographics.summary.newCustomersInPeriod.toLocaleString("en-IN"), tone: "from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800", text: "text-purple-900 dark:text-purple-100", sub: "text-purple-700 dark:text-purple-300" },
+                  { label: "Repeat buyers", value: demographics.summary.repeatCustomers.toLocaleString("en-IN"), tone: "from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-amber-200 dark:border-amber-800", text: "text-amber-900 dark:text-amber-100", sub: "text-amber-700 dark:text-amber-300" },
+                  { label: "Avg spend (active)", value: formatINR(demographics.summary.avgSpendPerActiveCustomer), tone: "from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 border-cyan-200 dark:border-cyan-800", text: "text-cyan-900 dark:text-cyan-100", sub: "text-cyan-700 dark:text-cyan-300" },
+                  { label: "Portal registered", value: demographics.summary.portalRegistered.toLocaleString("en-IN"), tone: "from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-800", text: "text-indigo-900 dark:text-indigo-100", sub: "text-indigo-700 dark:text-indigo-300" },
+                  { label: "Profiles complete", value: demographics.summary.profileCompleted.toLocaleString("en-IN"), tone: "from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 border-teal-200 dark:border-teal-800", text: "text-teal-900 dark:text-teal-100", sub: "text-teal-700 dark:text-teal-300" },
+                  { label: "Credit orders", value: demographics.summary.creditOrders.toLocaleString("en-IN"), tone: "from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 border-rose-200 dark:border-rose-800", text: "text-rose-900 dark:text-rose-100", sub: "text-rose-700 dark:text-rose-300" },
+                ].map((card) => (
+                  <div key={card.label} className={`bg-gradient-to-br rounded-lg p-4 border ${card.tone}`}>
+                    <h3 className={`text-xs font-medium mb-1 ${card.sub}`}>{card.label}</h3>
+                    <p className={`text-xl font-bold ${card.text}`}>{card.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="glass-panel rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-ink mb-4">Customers by area</h3>
+                  {demographics.byArea.length > 0 ? (
+                    <SimpleBarChart
+                      data={demographics.byArea}
+                      dataKey="customers"
+                      xAxisKey="name"
+                      height={280}
+                      barColor="#3b82f6"
+                    />
+                  ) : (
+                    <p className="text-ink-muted text-center py-8">No customer areas yet</p>
+                  )}
+                </div>
+                <div className="glass-panel rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-ink mb-4">Period revenue by area</h3>
+                  {demographics.byArea.some((a) => a.revenue > 0) ? (
+                    <SimpleBarChart
+                      data={demographics.byArea}
+                      dataKey="revenue"
+                      xAxisKey="name"
+                      height={280}
+                      barColor="#10b981"
+                    />
+                  ) : (
+                    <p className="text-ink-muted text-center py-8">No named-customer revenue in this range</p>
+                  )}
+                </div>
+                <div className="glass-panel rounded-2xl p-6">
+                  <SimplePieChart
+                    data={demographics.byTier.map((t) => ({ name: t.name, value: t.customers }))}
+                    title="Loyalty tier"
+                    height={280}
+                    dataKey="value"
+                  />
+                </div>
+                <div className="glass-panel rounded-2xl p-6">
+                  <SimplePieChart
+                    data={demographics.newVsReturning}
+                    title="Active shoppers: new vs returning"
+                    height={280}
+                    dataKey="value"
+                  />
+                </div>
+                <div className="glass-panel rounded-2xl p-6">
+                  <SimpleBarChart
+                    data={demographics.spendBands}
+                    dataKey="customers"
+                    xAxisKey="name"
+                    title="Lifetime spend bands"
+                    height={280}
+                    barColor="#8b5cf6"
+                  />
+                </div>
+                <div className="glass-panel rounded-2xl p-6">
+                  <SimplePieChart
+                    data={demographics.orderMix}
+                    title="Named customer vs walk-in orders"
+                    height={280}
+                    dataKey="value"
+                  />
+                </div>
+              </div>
+
+              {demographics.byCity.length > 0 && (
+                <div className="glass-panel rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-ink mb-3">Cities from saved addresses</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {demographics.byCity.map((city) => (
+                      <span
+                        key={city.name}
+                        className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-2 px-3 py-1 text-sm text-ink"
+                      >
+                        {city.name}
+                        <span className="text-ink-muted">{city.customers}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="glass-panel rounded-2xl p-6 overflow-x-auto">
+                <h3 className="text-lg font-semibold text-ink mb-4">Top customers in this range</h3>
+                {demographics.topCustomers.length > 0 ? (
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-ink-secondary border-b border-subtle">
+                        <th className="py-2 pr-4 font-medium">Name</th>
+                        <th className="py-2 pr-4 font-medium">Phone</th>
+                        <th className="py-2 pr-4 font-medium">Area</th>
+                        <th className="py-2 pr-4 font-medium text-right">Orders</th>
+                        <th className="py-2 pr-4 font-medium text-right">Revenue</th>
+                        <th className="py-2 pr-4 font-medium text-right">Points</th>
+                        <th className="py-2 font-medium text-right">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {demographics.topCustomers.map((c) => (
+                        <tr key={c.id} className="border-b border-subtle/70 last:border-0">
+                          <td className="py-2 pr-4 font-medium text-ink">{c.name}</td>
+                          <td className="py-2 pr-4 text-ink-secondary">{c.phone}</td>
+                          <td className="py-2 pr-4 text-ink-secondary">{c.area}</td>
+                          <td className="py-2 pr-4 text-right text-ink">{c.orders}</td>
+                          <td className="py-2 pr-4 text-right text-ink">{formatINR(c.revenue)}</td>
+                          <td className="py-2 pr-4 text-right text-ink-secondary">{c.loyaltyPoints}</td>
+                          <td className="py-2 text-right text-ink-secondary">{c.creditOrders}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-ink-muted text-center py-8">No named customers billed in this range</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {demographicsError
+                ? "Load failed. Use Refresh or check errors above."
+                : "Loading customer demographics…"}
+            </div>
           )}
         </div>
       )}

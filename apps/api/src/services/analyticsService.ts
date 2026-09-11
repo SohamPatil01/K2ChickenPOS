@@ -1580,6 +1580,232 @@ export class AnalyticsService {
       products,
     };
   }
+
+  /**
+   * Customer mix by area, loyalty, spend, and new vs returning — from existing Customer + Sale rows.
+   */
+  async getCustomerDemographics(
+    userStoreId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+    franchiseStoreId?: string | null
+  ) {
+    const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
+    const { startStr, endStr } = storeRangeYmd(rangeStart, rangeEnd);
+    const queryStart = new Date(rangeStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(rangeEnd.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const storeWhere = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+
+    const [customers, sales, priorSaleRows] = await Promise.all([
+      prisma.customer.findMany({
+        where: { storeId: storeWhere },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          area: true,
+          loyaltyTier: true,
+          loyaltyPoints: true,
+          totalSpent: true,
+          createdAt: true,
+          portalRegisteredAt: true,
+          profileCompletedAt: true,
+          addresses: { select: { city: true }, take: 3 },
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          storeId: storeWhere,
+          status: { in: ['PAID', 'OPEN'] },
+          OR: [
+            { createdAt: { gte: queryStart, lte: queryEnd } },
+            { businessDate: { gte: queryStart, lte: queryEnd } },
+          ],
+        },
+        select: {
+          customerId: true,
+          grandTotal: true,
+          createdAt: true,
+          businessDate: true,
+          status: true,
+          payments: { select: { method: true, amount: true } },
+        },
+      }),
+      prisma.sale.groupBy({
+        by: ['customerId'],
+        where: {
+          storeId: storeWhere,
+          status: { in: ['PAID', 'OPEN'] },
+          customerId: { not: null },
+          createdAt: { lt: queryStart },
+        },
+      }),
+    ]);
+
+    const inRange = sales.filter((s) => {
+      const key = saleBucketDateKey(s);
+      if (key < startStr || key > endStr) return false;
+      if (s.status === 'PAID') return true;
+      return (s.payments || []).some((p) => String(p.method).toUpperCase() === 'CREDIT');
+    });
+
+    const priorCustomerIds = new Set(
+      priorSaleRows.map((s) => s.customerId).filter(Boolean) as string[]
+    );
+
+    const areaKey = (c: (typeof customers)[number]) => {
+      const area = String(c.area || '').trim();
+      if (area && area !== '—') return area;
+      const city = String(c.addresses?.[0]?.city || '').trim();
+      if (city && city !== '—') return city;
+      return 'Unspecified';
+    };
+
+    const byCustomerPeriod: Record<
+      string,
+      { orders: number; revenue: number; credit: number }
+    > = {};
+    let walkInOrders = 0;
+    let identifiedOrders = 0;
+    let periodRevenue = 0;
+    let creditOrders = 0;
+
+    for (const sale of inRange) {
+      periodRevenue += sale.grandTotal || 0;
+      const hasCredit = (sale.payments || []).some(
+        (p) => String(p.method).toUpperCase() === 'CREDIT'
+      );
+      if (hasCredit) creditOrders += 1;
+      if (!sale.customerId) {
+        walkInOrders += 1;
+        continue;
+      }
+      identifiedOrders += 1;
+      const row = byCustomerPeriod[sale.customerId] || {
+        orders: 0,
+        revenue: 0,
+        credit: 0,
+      };
+      row.orders += 1;
+      row.revenue += sale.grandTotal || 0;
+      if (hasCredit) row.credit += 1;
+      byCustomerPeriod[sale.customerId] = row;
+    }
+
+    const areaMap: Record<string, { customers: number; revenue: number; orders: number }> = {};
+    const tierMap: Record<string, number> = {};
+    const cityMap: Record<string, number> = {};
+    let newInPeriod = 0;
+    let portalRegistered = 0;
+    let profileCompleted = 0;
+    let returningActive = 0;
+    let newActive = 0;
+
+    for (const c of customers) {
+      const area = areaKey(c);
+      if (!areaMap[area]) areaMap[area] = { customers: 0, revenue: 0, orders: 0 };
+      areaMap[area].customers += 1;
+      const period = byCustomerPeriod[c.id];
+      if (period) {
+        areaMap[area].revenue += period.revenue;
+        areaMap[area].orders += period.orders;
+      }
+      const tier = String(c.loyaltyTier || 'BRONZE').toUpperCase();
+      tierMap[tier] = (tierMap[tier] || 0) + 1;
+      const city = String(c.addresses?.[0]?.city || '').trim();
+      if (city && city !== '—') cityMap[city] = (cityMap[city] || 0) + 1;
+      if (c.createdAt >= rangeStart && c.createdAt <= rangeEnd) newInPeriod += 1;
+      if (c.portalRegisteredAt) portalRegistered += 1;
+      if (c.profileCompletedAt) profileCompleted += 1;
+      if (period) {
+        if (priorCustomerIds.has(c.id)) returningActive += 1;
+        else newActive += 1;
+      }
+    }
+
+    const spendBands = [
+      { name: '₹0–500', min: 0, max: 500, customers: 0 },
+      { name: '₹500–1,500', min: 500, max: 1500, customers: 0 },
+      { name: '₹1,500–5,000', min: 1500, max: 5000, customers: 0 },
+      { name: '₹5,000+', min: 5000, max: Infinity, customers: 0 },
+    ];
+    for (const c of customers) {
+      const spent = Number(c.totalSpent) || 0;
+      const band = spendBands.find((b) => spent >= b.min && spent < b.max) || spendBands[spendBands.length - 1];
+      band.customers += 1;
+    }
+
+    const byArea = Object.entries(areaMap)
+      .map(([name, v]) => ({ name, ...v, revenue: Math.round(v.revenue) }))
+      .sort((a, b) => b.revenue - a.revenue || b.customers - a.customers)
+      .slice(0, 12);
+
+    const byCity = Object.entries(cityMap)
+      .map(([name, customersCount]) => ({ name, customers: customersCount }))
+      .sort((a, b) => b.customers - a.customers)
+      .slice(0, 10);
+
+    const byTier = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM']
+      .filter((t) => tierMap[t])
+      .map((name) => ({ name, customers: tierMap[name] }));
+
+    const customerById = new Map(customers.map((c) => [c.id, c]));
+    const topCustomers = Object.entries(byCustomerPeriod)
+      .map(([id, v]) => {
+        const c = customerById.get(id);
+        return {
+          id,
+          name: c?.name || 'Customer',
+          phone: c?.phone || '',
+          area: c ? areaKey(c) : 'Unspecified',
+          orders: v.orders,
+          revenue: Math.round(v.revenue),
+          loyaltyPoints: Math.round(c?.loyaltyPoints || 0),
+          creditOrders: v.credit,
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 15);
+
+    const activeCustomers = Object.keys(byCustomerPeriod).length;
+    const repeatCustomers = Object.values(byCustomerPeriod).filter((v) => v.orders >= 2).length;
+    const identifiedRevenue = Object.values(byCustomerPeriod).reduce((sum, v) => sum + v.revenue, 0);
+
+    return {
+      period: { start: startStr, end: endStr },
+      summary: {
+        totalCustomers: customers.length,
+        newCustomersInPeriod: newInPeriod,
+        activeCustomers,
+        repeatCustomers,
+        walkInOrders,
+        identifiedOrders,
+        periodRevenue: Math.round(periodRevenue),
+        avgSpendPerActiveCustomer:
+          activeCustomers > 0 ? Math.round(identifiedRevenue / activeCustomers) : 0,
+        avgOrderValue:
+          inRange.length > 0 ? Math.round(periodRevenue / inRange.length) : 0,
+        portalRegistered,
+        profileCompleted,
+        creditOrders,
+        returningActive,
+        newActive,
+      },
+      orderMix: [
+        { name: 'Named customer', value: identifiedOrders },
+        { name: 'Walk-in', value: walkInOrders },
+      ],
+      byArea,
+      byCity,
+      byTier,
+      spendBands: spendBands.map(({ name, customers: n }) => ({ name, customers: n })),
+      newVsReturning: [
+        { name: 'Returning', value: returningActive },
+        { name: 'New this period', value: newActive },
+      ],
+      topCustomers,
+    };
+  }
 }
 
 export const analyticsService = new AnalyticsService();
