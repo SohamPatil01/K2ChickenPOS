@@ -53,15 +53,7 @@ interface CustomerAddress {
   zip: string;
 }
 
-const KANBAN_STATUSES = [
-  'CREATED',
-  'READY',
-  'ASSIGNED',
-  'OUT_FOR_DELIVERY',
-  'DELIVERED',
-  'FAILED',
-  'RETURNED',
-] as const;
+const SIMPLE_COLUMNS = ['OPEN', 'DELIVERED', 'FAILED'] as const;
 
 type DatePreset = 'today' | 'yesterday' | 'last7' | 'thisWeek' | 'thisMonth' | 'all' | 'custom';
 
@@ -75,17 +67,20 @@ const PRESET_LABELS: Record<DatePreset, string> = {
   custom: 'Custom',
 };
 
+function isOpenStatus(status: string) {
+  return !['DELIVERED', 'FAILED', 'RETURNED'].includes(status);
+}
+
+function simpleColumn(status: string): (typeof SIMPLE_COLUMNS)[number] {
+  if (status === 'FAILED' || status === 'RETURNED') return 'FAILED';
+  if (status === 'DELIVERED') return 'DELIVERED';
+  return 'OPEN';
+}
+
 function statusBadgeClass(status: string): string {
-  const map: Record<string, string> = {
-    CREATED: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
-    READY: 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-200',
-    ASSIGNED: 'bg-violet-100 text-violet-900 dark:bg-violet-900/40 dark:text-violet-200',
-    OUT_FOR_DELIVERY: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200',
-    DELIVERED: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200',
-    FAILED: 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200',
-    RETURNED: 'bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-200',
-  };
-  return map[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+  if (status === 'DELIVERED') return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+  if (status === 'FAILED' || status === 'RETURNED') return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
+  return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
 }
 
 const ACTIVE_STATUSES = ['CREATED', 'READY', 'ASSIGNED', 'OUT_FOR_DELIVERY'] as const;
@@ -94,9 +89,10 @@ const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED'] as const;
 type QueueTab = 'active' | 'done' | 'all';
 
 function formatStatusLabel(status: string) {
-  if (status === 'OUT_FOR_DELIVERY') return 'On the way';
-  if (status === 'CREATED') return 'New';
-  return status.replace(/_/g, ' ');
+  if (status === 'DELIVERED') return 'Delivered';
+  if (status === 'FAILED' || status === 'RETURNED') return 'Failed';
+  if (status === 'OPEN') return 'Open';
+  return 'Open';
 }
 
 function isCreditSale(delivery: Delivery) {
@@ -105,20 +101,6 @@ function isCreditSale(delivery: Delivery) {
 
 function phoneDigits(phone?: string | null) {
   return String(phone || '').replace(/\D/g, '');
-}
-
-function nextAction(status: string): { status: string; label: string } | null {
-  switch (status) {
-    case 'CREATED':
-      return { status: 'READY', label: 'Ready' };
-    case 'READY':
-    case 'ASSIGNED':
-      return { status: 'OUT_FOR_DELIVERY', label: 'Send out' };
-    case 'OUT_FOR_DELIVERY':
-      return { status: 'DELIVERED', label: 'Delivered' };
-    default:
-      return null;
-  }
 }
 
 function mapsUrl(address: Delivery['address']) {
@@ -131,14 +113,13 @@ export default function StoreDeliveryPage() {
   const { user } = useAuthStore();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  // Default last 7 days so list isn’t empty when “today” doesn’t match UTC / no orders today
-  const [datePreset, setDatePreset] = useState<DatePreset>('last7');
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const [customStart, setCustomStart] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [queueTab, setQueueTab] = useState<QueueTab>('active');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [paidSales, setPaidSales] = useState<SaleOption[]>([]);
@@ -210,7 +191,6 @@ export default function StoreDeliveryPage() {
     setListError(null);
     try {
       const params: Record<string, string> = {};
-      if (statusFilter) params.status = statusFilter;
       // Send local calendar-day bounds as ISO so API filters match the user’s timezone (not UTC midnight)
       if (dateRangeParams) {
         const startLocal = startOfDay(parse(dateRangeParams.startDate, 'yyyy-MM-dd', new Date()));
@@ -233,7 +213,7 @@ export default function StoreDeliveryPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, dateRangeParams]);
+  }, [dateRangeParams]);
 
   useEffect(() => {
     loadDeliveries();
@@ -263,11 +243,8 @@ export default function StoreDeliveryPage() {
   }, [searchedDeliveries, queueTab]);
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const s of KANBAN_STATUSES) counts[s] = 0;
-    for (const d of searchedDeliveries) {
-      if (counts[d.status] !== undefined) counts[d.status] += 1;
-    }
+    const counts = { OPEN: 0, DELIVERED: 0, FAILED: 0 };
+    for (const d of searchedDeliveries) counts[simpleColumn(d.status)] += 1;
     return counts;
   }, [searchedDeliveries]);
 
@@ -397,26 +374,18 @@ export default function StoreDeliveryPage() {
     }
   };
 
-  const updateStatus = async (id: string, status: string, extra?: { failureReason?: string }) => {
+  const updateStatus = async (id: string, status: string) => {
+    setBusyId(id);
     try {
-      await api.post(`/api/v1/delivery/${id}/status`, {
-        status,
-        ...(extra?.failureReason ? { failureReason: extra.failureReason } : {}),
-      });
-      loadDeliveries();
+      await api.post(`/api/v1/delivery/${id}/status`, { status });
+      setDeliveries((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, status } : d))
+      );
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to update status');
+    } finally {
+      setBusyId(null);
     }
-  };
-
-  const handleStatusSelectChange = async (delivery: Delivery, newStatus: string) => {
-    if (newStatus === delivery.status) return;
-    let failureReason: string | undefined;
-    if (newStatus === 'FAILED') {
-      const reason = window.prompt('Reason for failure (optional):') ?? '';
-      failureReason = reason.trim() || undefined;
-    }
-    await updateStatus(delivery.id, newStatus, { failureReason });
   };
 
   const openDetailsModal = async (delivery: Delivery) => {
@@ -489,8 +458,9 @@ export default function StoreDeliveryPage() {
   const groupedByStatus = useMemo(() => {
     return filteredDeliveries.reduce(
       (acc, delivery) => {
-        if (!acc[delivery.status]) acc[delivery.status] = [];
-        acc[delivery.status].push(delivery);
+        const col = simpleColumn(delivery.status);
+        if (!acc[col]) acc[col] = [];
+        acc[col].push(delivery);
         return acc;
       },
       {} as Record<string, Delivery[]>
@@ -524,9 +494,10 @@ export default function StoreDeliveryPage() {
   const renderDeliveryCard = (delivery: Delivery, compact = false) => {
     const credit = isCreditSale(delivery);
     const phone = phoneDigits(delivery.sale.customer?.phone);
-    const next = nextAction(delivery.status);
+    const open = isOpenStatus(delivery.status);
     const mapLink = mapsUrl(delivery.address);
     const missingAddress = delivery.type === 'DELIVERY' && !delivery.address;
+    const busy = busyId === delivery.id;
 
     return (
       <article
@@ -582,30 +553,14 @@ export default function StoreDeliveryPage() {
         </div>
 
         <div className={`flex flex-wrap gap-2 ${compact ? 'mt-3' : 'mt-4 pt-4 border-t border-gray-100 dark:border-gray-700'}`}>
-          {canManage && next && (
+          {(canManage || isDriver) && open && (
             <button
               type="button"
-              onClick={() => updateStatus(delivery.id, next.status)}
-              className="min-h-11 px-4 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 active:scale-[0.98]"
+              disabled={busy}
+              onClick={() => updateStatus(delivery.id, 'DELIVERED')}
+              className="min-h-12 px-6 rounded-xl bg-emerald-600 text-white text-base font-bold hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50"
             >
-              {next.label}
-            </button>
-          )}
-          {isDriver && delivery.status === 'OUT_FOR_DELIVERY' && (
-            <button
-              type="button"
-              onClick={() => {
-                const otp = window.prompt('Enter OTP:');
-                if (otp) {
-                  api
-                    .post(`/api/v1/delivery/${delivery.id}/otp/verify`, { otp })
-                    .then(() => loadDeliveries())
-                    .catch((err) => alert(err.response?.data?.error || 'Invalid OTP'));
-                }
-              }}
-              className="min-h-11 px-4 rounded-xl bg-brand-600 text-white text-sm font-semibold"
-            >
-              Verify OTP
+              {busy ? 'Saving…' : 'Delivered'}
             </button>
           )}
           {phone.length >= 10 && (
@@ -643,11 +598,12 @@ export default function StoreDeliveryPage() {
           >
             {delivery.address ? 'Details' : 'Add address'}
           </button>
-          {canManage && !['DELIVERED', 'FAILED', 'RETURNED'].includes(delivery.status) && (
+          {canManage && open && (
             <button
               type="button"
-              onClick={() => handleStatusSelectChange(delivery, 'FAILED')}
-              className="min-h-11 px-4 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              disabled={busy}
+              onClick={() => updateStatus(delivery.id, 'FAILED')}
+              className="min-h-11 px-4 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
             >
               Failed
             </button>
@@ -662,7 +618,7 @@ export default function StoreDeliveryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink">Deliveries</h1>
-          <p className="text-sm text-ink-muted mt-0.5">{rangeLabel} · tap a job to move it forward</p>
+          <p className="text-sm text-ink-muted mt-0.5">{rangeLabel} · tap Delivered when the order is done</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -754,29 +710,9 @@ export default function StoreDeliveryPage() {
           </div>
         )}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-1.5">
-            {KANBAN_STATUSES.filter((s) => statusCounts[s] > 0).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => {
-                  if (statusFilter === s) {
-                    setStatusFilter('');
-                    return;
-                  }
-                  setStatusFilter(s);
-                  setQueueTab(
-                    (ACTIVE_STATUSES as readonly string[]).includes(s) ? 'active' : 'done'
-                  );
-                }}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${statusBadgeClass(s)} ${
-                  statusFilter === s ? 'ring-2 ring-brand-600 ring-offset-1' : ''
-                }`}
-              >
-                {formatStatusLabel(s)} {statusCounts[s]}
-              </button>
-            ))}
-          </div>
+          <p className="text-xs text-ink-muted">
+            {statusCounts.OPEN} open · {statusCounts.DELIVERED} delivered · {statusCounts.FAILED} failed
+          </p>
           <div className="flex rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
             <button
               type="button"
@@ -814,16 +750,46 @@ export default function StoreDeliveryPage() {
           </div>
         ) : filteredDeliveries.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 px-6 py-14 text-center">
-            <p className="text-lg font-bold text-ink">Nothing in this view</p>
-            <p className="text-sm text-ink-muted mt-1">Try All, another date, or add a delivery from a paid or credit bill.</p>
+            <p className="text-lg font-bold text-ink">
+              {queueTab === 'active' && queueCounts.done > 0
+                ? 'No open deliveries'
+                : queueTab === 'done' && queueCounts.active > 0
+                  ? 'No completed deliveries in this view'
+                  : 'No deliveries found'}
+            </p>
+            <p className="text-sm text-ink-muted mt-1">
+              {queueTab === 'active' && queueCounts.done > 0
+                ? `${queueCounts.done} finished ${queueCounts.done === 1 ? 'order is' : 'orders are'} under Done. Open All to see every order.`
+                : datePreset !== 'all'
+                  ? 'This date filter hides older orders. Click All time, then All.'
+                  : search.trim()
+                    ? 'No match for this search. Clear the search box.'
+                    : 'Only bills that created a delivery row appear here. Walk-in bills without a customer stay off this list.'}
+            </p>
+            {(queueTab !== 'all' || datePreset !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQueueTab('all');
+                  setDatePreset('all');
+                }}
+                className="mt-4 min-h-11 px-4 rounded-xl bg-brand-600 text-white text-sm font-semibold"
+              >
+                Show all deliveries
+              </button>
+            )}
           </div>
         ) : viewMode === 'list' ? (
           <div className="space-y-3">{filteredDeliveries.map((d) => renderDeliveryCard(d))}</div>
         ) : (
           <div className="overflow-x-auto pb-2 -mx-1">
             <div className="flex gap-3 min-w-max px-1">
-              {(queueTab === 'done' ? DONE_STATUSES : queueTab === 'active' ? ACTIVE_STATUSES : KANBAN_STATUSES).map(
-                (status) => (
+              {(queueTab === 'done'
+                ? (['DELIVERED', 'FAILED'] as const)
+                : queueTab === 'active'
+                  ? (['OPEN'] as const)
+                  : SIMPLE_COLUMNS
+              ).map((status) => (
                   <div
                     key={status}
                     className="w-72 flex-shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-900/50 p-3"
