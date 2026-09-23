@@ -1770,9 +1770,98 @@ export class AnalyticsService {
     const activeCustomers = Object.keys(byCustomerPeriod).length;
     const repeatCustomers = Object.values(byCustomerPeriod).filter((v) => v.orders >= 2).length;
     const identifiedRevenue = Object.values(byCustomerPeriod).reduce((sum, v) => sum + v.revenue, 0);
+    const totalOrders = inRange.length;
+    const namedOrderPct =
+      totalOrders > 0 ? Math.round((identifiedOrders / totalOrders) * 100) : 0;
+    const walkInPct = totalOrders > 0 ? Math.round((walkInOrders / totalOrders) * 100) : 0;
+    const returningPct =
+      activeCustomers > 0 ? Math.round((returningActive / activeCustomers) * 100) : 0;
+    const repeatPct =
+      activeCustomers > 0 ? Math.round((repeatCustomers / activeCustomers) * 100) : 0;
+    const avgSpend =
+      activeCustomers > 0 ? Math.round(identifiedRevenue / activeCustomers) : 0;
+    const avgOrderValue =
+      totalOrders > 0 ? Math.round(periodRevenue / totalOrders) : 0;
+
+    const areaWithShare = byArea.map((a) => ({
+      ...a,
+      revenueSharePct:
+        identifiedRevenue > 0 ? Math.round((a.revenue / identifiedRevenue) * 100) : 0,
+    }));
+    const topArea = areaWithShare.find((a) => a.name !== 'Unspecified' && a.revenue > 0) ||
+      areaWithShare[0] ||
+      null;
+
+    const takeaways: Array<{ title: string; detail: string; tone: 'good' | 'warn' | 'info' }> = [];
+
+    if (totalOrders === 0) {
+      takeaways.push({
+        title: 'No bills in this date range',
+        detail: 'Pick a wider date range above to see who bought from you.',
+        tone: 'warn',
+      });
+    } else {
+      takeaways.push({
+        title: `${activeCustomers} known customers bought`,
+        detail:
+          activeCustomers > 0
+            ? `They placed ${identifiedOrders} bill${identifiedOrders === 1 ? '' : 's'} and spent about ${formatInrShort(identifiedRevenue)} in this period.`
+            : 'Almost every bill was a walk-in with no phone/name saved. Ask cashiers to save the customer on the bill.',
+        tone: activeCustomers > 0 ? 'good' : 'warn',
+      });
+
+      if (activeCustomers > 0) {
+        takeaways.push({
+          title:
+            returningPct >= 50
+              ? 'Most buyers are regulars'
+              : returningPct >= 25
+                ? 'A healthy mix of regulars and new faces'
+                : 'Many buyers are new this period',
+          detail: `${returningActive} returning · ${newActive} first-time in this range · ${repeatCustomers} bought more than once (${repeatPct}%).`,
+          tone: returningPct >= 40 ? 'good' : 'info',
+        });
+      }
+
+      takeaways.push({
+        title:
+          namedOrderPct >= 70
+            ? 'Most bills have a customer name'
+            : namedOrderPct >= 40
+              ? 'About half the bills have a saved customer'
+              : 'Too many walk-in bills (no name/phone)',
+        detail: `${namedOrderPct}% named · ${walkInPct}% walk-in. Saving the phone helps loyalty, credit, and delivery.`,
+        tone: namedOrderPct >= 60 ? 'good' : namedOrderPct >= 40 ? 'info' : 'warn',
+      });
+
+      if (topArea && topArea.revenue > 0) {
+        takeaways.push({
+          title: `Strongest area: ${topArea.name}`,
+          detail: `${formatInrShort(topArea.revenue)} from ${topArea.customers} saved customer${topArea.customers === 1 ? '' : 's'} (${topArea.revenueSharePct}% of named-customer sales).`,
+          tone: 'info',
+        });
+      }
+
+      if (creditOrders > 0) {
+        takeaways.push({
+          title: `${creditOrders} credit bill${creditOrders === 1 ? '' : 's'}`,
+          detail: 'These are booked on credit in this period — check Pending Payments to collect.',
+          tone: 'warn',
+        });
+      }
+    }
+
+    const headline =
+      totalOrders === 0
+        ? 'No customer activity in this date range.'
+        : activeCustomers > 0
+          ? `${activeCustomers} known customers spent ${formatInrShort(identifiedRevenue)} · ${namedOrderPct}% of bills had a name saved.`
+          : `${totalOrders} bill${totalOrders === 1 ? '' : 's'} in this range, but almost none had a customer name saved.`;
 
     return {
       period: { start: startStr, end: endStr },
+      headline,
+      takeaways,
       summary: {
         totalCustomers: customers.length,
         newCustomersInPeriod: newInPeriod,
@@ -1780,32 +1869,45 @@ export class AnalyticsService {
         repeatCustomers,
         walkInOrders,
         identifiedOrders,
+        totalOrders,
         periodRevenue: Math.round(periodRevenue),
-        avgSpendPerActiveCustomer:
-          activeCustomers > 0 ? Math.round(identifiedRevenue / activeCustomers) : 0,
-        avgOrderValue:
-          inRange.length > 0 ? Math.round(periodRevenue / inRange.length) : 0,
+        identifiedRevenue: Math.round(identifiedRevenue),
+        avgSpendPerActiveCustomer: avgSpend,
+        avgOrderValue,
         portalRegistered,
         profileCompleted,
         creditOrders,
         returningActive,
         newActive,
+        namedOrderPct,
+        walkInPct,
+        returningPct,
+        repeatPct,
       },
       orderMix: [
-        { name: 'Named customer', value: identifiedOrders },
-        { name: 'Walk-in', value: walkInOrders },
+        { name: 'With name / phone', value: identifiedOrders },
+        { name: 'Walk-in (no name)', value: walkInOrders },
       ],
-      byArea,
+      byArea: areaWithShare,
       byCity,
       byTier,
       spendBands: spendBands.map(({ name, customers: n }) => ({ name, customers: n })),
       newVsReturning: [
-        { name: 'Returning', value: returningActive },
-        { name: 'New this period', value: newActive },
+        { name: 'Came back (bought before)', value: returningActive },
+        { name: 'First time this period', value: newActive },
       ],
       topCustomers,
     };
   }
+}
+
+function formatInrShort(n: number): string {
+  const v = Math.round(n || 0);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(v);
 }
 
 export const analyticsService = new AnalyticsService();

@@ -16,6 +16,7 @@ export const customerSchema = z.object({
   phone: z.string().min(10),
   area: z.string().optional(),
   email: z.string().email().optional(),
+  staffNotes: z.string().max(2000).optional().nullable(),
 });
 
 /** Empty/missing state & PIN from POS forms → placeholder so validation always passes */

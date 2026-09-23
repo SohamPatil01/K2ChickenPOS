@@ -7,8 +7,6 @@ import api from "@/lib/api";
 import { localDateRangeToApiBounds, todayLocalYmd } from "@/lib/dateRangeParams";
 import { format, subDays } from "date-fns";
 import {
-  SimpleLineChart,
-  SimpleBarChart,
   SimplePieChart,
 } from "@/components/charts";
 import {
@@ -175,6 +173,12 @@ interface ProfitMarginPayload {
 
 interface CustomerDemographicsPayload {
   period: { start: string; end: string };
+  headline: string;
+  takeaways: Array<{
+    title: string;
+    detail: string;
+    tone: "good" | "warn" | "info";
+  }>;
   summary: {
     totalCustomers: number;
     newCustomersInPeriod: number;
@@ -182,7 +186,9 @@ interface CustomerDemographicsPayload {
     repeatCustomers: number;
     walkInOrders: number;
     identifiedOrders: number;
+    totalOrders: number;
     periodRevenue: number;
+    identifiedRevenue: number;
     avgSpendPerActiveCustomer: number;
     avgOrderValue: number;
     portalRegistered: number;
@@ -190,8 +196,18 @@ interface CustomerDemographicsPayload {
     creditOrders: number;
     returningActive: number;
     newActive: number;
+    namedOrderPct: number;
+    walkInPct: number;
+    returningPct: number;
+    repeatPct: number;
   };
-  byArea: Array<{ name: string; customers: number; revenue: number; orders: number }>;
+  byArea: Array<{
+    name: string;
+    customers: number;
+    revenue: number;
+    orders: number;
+    revenueSharePct: number;
+  }>;
   byCity: Array<{ name: string; customers: number }>;
   byTier: Array<{ name: string; customers: number }>;
   spendBands: Array<{ name: string; customers: number }>;
@@ -617,15 +633,25 @@ export default function AdvancedAnalyticsPage() {
                   });
                 } else if (activeTab === "demographics" && demographics) {
                   exportToCSV({
-                    data: demographics.topCustomers.map((c) => ({
-                      name: c.name,
-                      phone: c.phone,
-                      area: c.area,
-                      orders: c.orders,
-                      revenue: c.revenue,
-                      loyaltyPoints: c.loyaltyPoints,
-                      creditOrders: c.creditOrders,
-                    })),
+                    data: [
+                      ...demographics.byArea.map((a) => ({
+                        section: "area",
+                        name: a.name,
+                        customers: a.customers,
+                        orders: a.orders,
+                        revenue: a.revenue,
+                        revenueSharePct: a.revenueSharePct,
+                      })),
+                      ...demographics.topCustomers.map((c) => ({
+                        section: "top_customer",
+                        name: c.name,
+                        phone: c.phone,
+                        area: c.area,
+                        orders: c.orders,
+                        revenue: c.revenue,
+                        creditOrders: c.creditOrders,
+                      })),
+                    ],
                     filename: `customer_demographics_${tag}.csv`,
                   });
                 }
@@ -786,7 +812,7 @@ export default function AdvancedAnalyticsPage() {
               : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           }`}
         >
-          👥 Customer Demographics
+          Who buys from us
         </button>
       </div>
 
@@ -1897,148 +1923,270 @@ export default function AdvancedAnalyticsPage() {
         <div className="space-y-6">
           {demographics ? (
             <>
-              <p className="text-sm text-ink-secondary">
-                Mix of saved customers for this store scope. Age and gender are not collected, so this view uses area, loyalty, spend, and new vs returning shoppers.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-                {[
-                  { label: "Customers", value: demographics.summary.totalCustomers.toLocaleString("en-IN"), tone: "from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800", text: "text-blue-900 dark:text-blue-100", sub: "text-blue-700 dark:text-blue-300" },
-                  { label: "Active in range", value: demographics.summary.activeCustomers.toLocaleString("en-IN"), tone: "from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800", text: "text-green-900 dark:text-green-100", sub: "text-green-700 dark:text-green-300" },
-                  { label: "New this range", value: demographics.summary.newCustomersInPeriod.toLocaleString("en-IN"), tone: "from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800", text: "text-purple-900 dark:text-purple-100", sub: "text-purple-700 dark:text-purple-300" },
-                  { label: "Repeat buyers", value: demographics.summary.repeatCustomers.toLocaleString("en-IN"), tone: "from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-amber-200 dark:border-amber-800", text: "text-amber-900 dark:text-amber-100", sub: "text-amber-700 dark:text-amber-300" },
-                  { label: "Avg spend (active)", value: formatINR(demographics.summary.avgSpendPerActiveCustomer), tone: "from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 border-cyan-200 dark:border-cyan-800", text: "text-cyan-900 dark:text-cyan-100", sub: "text-cyan-700 dark:text-cyan-300" },
-                  { label: "Portal registered", value: demographics.summary.portalRegistered.toLocaleString("en-IN"), tone: "from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-800", text: "text-indigo-900 dark:text-indigo-100", sub: "text-indigo-700 dark:text-indigo-300" },
-                  { label: "Profiles complete", value: demographics.summary.profileCompleted.toLocaleString("en-IN"), tone: "from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 border-teal-200 dark:border-teal-800", text: "text-teal-900 dark:text-teal-100", sub: "text-teal-700 dark:text-teal-300" },
-                  { label: "Credit orders", value: demographics.summary.creditOrders.toLocaleString("en-IN"), tone: "from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 border-rose-200 dark:border-rose-800", text: "text-rose-900 dark:text-rose-100", sub: "text-rose-700 dark:text-rose-300" },
-                ].map((card) => (
-                  <div key={card.label} className={`bg-gradient-to-br rounded-lg p-4 border ${card.tone}`}>
-                    <h3 className={`text-xs font-medium mb-1 ${card.sub}`}>{card.label}</h3>
-                    <p className={`text-xl font-bold ${card.text}`}>{card.value}</p>
-                  </div>
-                ))}
+              {/* Hero — plain English */}
+              <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Who buys from your store
+                </p>
+                <h2 className="mt-1 text-xl sm:text-2xl font-bold text-ink leading-snug">
+                  {demographics.headline}
+                </h2>
+                <p className="mt-2 text-sm text-ink-secondary max-w-3xl">
+                  This page answers simple questions: who bought in the selected dates, are they
+                  regulars or new, which area spends more, and which customers matter most.
+                  We do not store age or gender — only phone, name, area, and bills.
+                </p>
+                <p className="mt-2 text-xs text-ink-muted">
+                  Dates: {demographics.period.start} → {demographics.period.end}
+                </p>
               </div>
 
+              {/* Takeaways */}
+              {demographics.takeaways.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {demographics.takeaways.map((t, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-xl border px-4 py-3 ${
+                        t.tone === "good"
+                          ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900 dark:bg-emerald-950/30"
+                          : t.tone === "warn"
+                            ? "border-amber-200 bg-amber-50/80 dark:border-amber-900 dark:bg-amber-950/30"
+                            : "border-subtle bg-surface-2/60"
+                      }`}
+                    >
+                      <p className="font-semibold text-ink text-sm">{t.title}</p>
+                      <p className="text-sm text-ink-secondary mt-1 leading-relaxed">{t.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 4 big numbers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="rounded-2xl border border-subtle bg-surface p-5">
+                  <p className="text-sm text-ink-secondary">People who bought</p>
+                  <p className="text-3xl font-black text-ink mt-1">
+                    {demographics.summary.activeCustomers.toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-xs text-ink-muted mt-2">
+                    Known customers with at least one bill in this period.
+                    Directory has {demographics.summary.totalCustomers.toLocaleString("en-IN")} saved
+                    names in total.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-subtle bg-surface p-5">
+                  <p className="text-sm text-ink-secondary">Regulars vs new</p>
+                  <p className="text-3xl font-black text-ink mt-1">
+                    {demographics.summary.returningPct}%
+                    <span className="text-lg font-semibold text-ink-muted"> regulars</span>
+                  </p>
+                  <p className="text-xs text-ink-muted mt-2">
+                    {demographics.summary.returningActive} came back ·{" "}
+                    {demographics.summary.newActive} first time this period ·{" "}
+                    {demographics.summary.repeatCustomers} bought more than once.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-subtle bg-surface p-5">
+                  <p className="text-sm text-ink-secondary">Sales with a name saved</p>
+                  <p className="text-3xl font-black text-ink mt-1">
+                    {demographics.summary.namedOrderPct}%
+                  </p>
+                  <p className="text-xs text-ink-muted mt-2">
+                    {demographics.summary.identifiedOrders} named bills ·{" "}
+                    {demographics.summary.walkInOrders} walk-ins without phone/name.
+                    Higher % = better for loyalty and delivery.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-subtle bg-surface p-5">
+                  <p className="text-sm text-ink-secondary">Spend by known customers</p>
+                  <p className="text-3xl font-black text-ink mt-1">
+                    {formatINR(demographics.summary.identifiedRevenue)}
+                  </p>
+                  <p className="text-xs text-ink-muted mt-2">
+                    Avg {formatINR(demographics.summary.avgSpendPerActiveCustomer)} per known
+                    customer · avg bill {formatINR(demographics.summary.avgOrderValue)}.
+                    {demographics.summary.creditOrders > 0
+                      ? ` ${demographics.summary.creditOrders} credit bill(s).`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+
+              {/* Two simple charts */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="glass-panel rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold text-ink mb-4">Customers by area</h3>
-                  {demographics.byArea.length > 0 ? (
-                    <SimpleBarChart
-                      data={demographics.byArea}
-                      dataKey="customers"
-                      xAxisKey="name"
-                      height={280}
-                      barColor="#3b82f6"
+                <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink">Regulars vs first-timers</h3>
+                  <p className="text-xs text-ink-muted mt-1 mb-4">
+                    Among people who bought in this period — did they shop with you before?
+                  </p>
+                  {demographics.newVsReturning.some((x) => x.value > 0) ? (
+                    <SimplePieChart
+                      data={demographics.newVsReturning}
+                      height={240}
+                      dataKey="value"
                     />
                   ) : (
-                    <p className="text-ink-muted text-center py-8">No customer areas yet</p>
+                    <p className="text-ink-muted text-center py-10 text-sm">No known buyers yet</p>
                   )}
                 </div>
-                <div className="glass-panel rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold text-ink mb-4">Period revenue by area</h3>
-                  {demographics.byArea.some((a) => a.revenue > 0) ? (
-                    <SimpleBarChart
-                      data={demographics.byArea}
-                      dataKey="revenue"
-                      xAxisKey="name"
-                      height={280}
-                      barColor="#10b981"
+                <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink">Named bill vs walk-in</h3>
+                  <p className="text-xs text-ink-muted mt-1 mb-4">
+                    Every bill either has a saved customer or is a walk-in with no phone.
+                  </p>
+                  {demographics.orderMix.some((x) => x.value > 0) ? (
+                    <SimplePieChart
+                      data={demographics.orderMix}
+                      height={240}
+                      dataKey="value"
                     />
                   ) : (
-                    <p className="text-ink-muted text-center py-8">No named-customer revenue in this range</p>
+                    <p className="text-ink-muted text-center py-10 text-sm">No bills in this range</p>
                   )}
-                </div>
-                <div className="glass-panel rounded-2xl p-6">
-                  <SimplePieChart
-                    data={demographics.byTier.map((t) => ({ name: t.name, value: t.customers }))}
-                    title="Loyalty tier"
-                    height={280}
-                    dataKey="value"
-                  />
-                </div>
-                <div className="glass-panel rounded-2xl p-6">
-                  <SimplePieChart
-                    data={demographics.newVsReturning}
-                    title="Active shoppers: new vs returning"
-                    height={280}
-                    dataKey="value"
-                  />
-                </div>
-                <div className="glass-panel rounded-2xl p-6">
-                  <SimpleBarChart
-                    data={demographics.spendBands}
-                    dataKey="customers"
-                    xAxisKey="name"
-                    title="Lifetime spend bands"
-                    height={280}
-                    barColor="#8b5cf6"
-                  />
-                </div>
-                <div className="glass-panel rounded-2xl p-6">
-                  <SimplePieChart
-                    data={demographics.orderMix}
-                    title="Named customer vs walk-in orders"
-                    height={280}
-                    dataKey="value"
-                  />
                 </div>
               </div>
 
-              {demographics.byCity.length > 0 && (
-                <div className="glass-panel rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold text-ink mb-3">Cities from saved addresses</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {demographics.byCity.map((city) => (
-                      <span
-                        key={city.name}
-                        className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-2 px-3 py-1 text-sm text-ink"
+              {/* Areas — table with bars, not two charts */}
+              <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+                <h3 className="text-base font-semibold text-ink">Where customers come from</h3>
+                <p className="text-xs text-ink-muted mt-1 mb-4">
+                  Areas from saved customer profiles. Use this to plan delivery routes or local offers.
+                </p>
+                {demographics.byArea.length > 0 ? (
+                  <div className="space-y-3">
+                    {demographics.byArea.slice(0, 8).map((area) => {
+                      const maxRev = Math.max(
+                        ...demographics.byArea.map((a) => a.revenue),
+                        1
+                      );
+                      const width = Math.max(4, Math.round((area.revenue / maxRev) * 100));
+                      return (
+                        <div key={area.name}>
+                          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                            <span className="font-medium text-ink">{area.name}</span>
+                            <span className="text-ink-secondary">
+                              {formatINR(area.revenue)}
+                              <span className="text-ink-muted">
+                                {" "}
+                                · {area.customers} customers · {area.orders} bills
+                                {area.revenueSharePct > 0
+                                  ? ` · ${area.revenueSharePct}% of named sales`
+                                  : ""}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-2 rounded-full bg-surface-2 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-emerald-500/80"
+                              style={{ width: `${width}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-ink-muted py-6 text-center">
+                    No area data yet. Add area when saving a customer.
+                  </p>
+                )}
+              </div>
+
+              {/* Top customers — ranked list */}
+              <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+                <h3 className="text-base font-semibold text-ink">Best customers this period</h3>
+                <p className="text-xs text-ink-muted mt-1 mb-4">
+                  Highest spenders with a name on the bill. Treat these customers well — call them for offers.
+                </p>
+                {demographics.topCustomers.length > 0 ? (
+                  <ol className="space-y-2">
+                    {demographics.topCustomers.slice(0, 10).map((c, idx) => (
+                      <li
+                        key={c.id}
+                        className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 rounded-xl border border-subtle/80 px-3 py-3"
                       >
-                        {city.name}
-                        <span className="text-ink-muted">{city.customers}</span>
-                      </span>
+                        <span className="text-sm font-bold text-ink-muted w-7 shrink-0">
+                          #{idx + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-ink truncate">{c.name}</p>
+                          <p className="text-xs text-ink-muted truncate">
+                            {c.phone}
+                            {c.area && c.area !== "Unspecified" ? ` · ${c.area}` : ""}
+                          </p>
+                        </div>
+                        <div className="sm:text-right shrink-0">
+                          <p className="font-bold text-ink">{formatINR(c.revenue)}</p>
+                          <p className="text-xs text-ink-muted">
+                            {c.orders} bill{c.orders === 1 ? "" : "s"}
+                            {c.creditOrders > 0 ? ` · ${c.creditOrders} credit` : ""}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-sm text-ink-muted py-6 text-center">
+                    No named customers billed in this range.
+                  </p>
+                )}
+              </div>
+
+              {/* Optional secondary: spend bands — simple, one section */}
+              {demographics.spendBands.some((b) => b.customers > 0) && (
+                <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink">How much customers spend over time</h3>
+                  <p className="text-xs text-ink-muted mt-1 mb-4">
+                    Lifetime spend for everyone in your customer list (not only this date range).
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {demographics.spendBands.map((band) => (
+                      <div
+                        key={band.name}
+                        className="rounded-xl border border-subtle bg-surface-2/50 px-3 py-4 text-center"
+                      >
+                        <p className="text-2xl font-bold text-ink">{band.customers}</p>
+                        <p className="text-xs text-ink-secondary mt-1">{band.name}</p>
+                      </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="glass-panel rounded-2xl p-6 overflow-x-auto">
-                <h3 className="text-lg font-semibold text-ink mb-4">Top customers in this range</h3>
-                {demographics.topCustomers.length > 0 ? (
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-ink-secondary border-b border-subtle">
-                        <th className="py-2 pr-4 font-medium">Name</th>
-                        <th className="py-2 pr-4 font-medium">Phone</th>
-                        <th className="py-2 pr-4 font-medium">Area</th>
-                        <th className="py-2 pr-4 font-medium text-right">Orders</th>
-                        <th className="py-2 pr-4 font-medium text-right">Revenue</th>
-                        <th className="py-2 pr-4 font-medium text-right">Points</th>
-                        <th className="py-2 font-medium text-right">Credit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {demographics.topCustomers.map((c) => (
-                        <tr key={c.id} className="border-b border-subtle/70 last:border-0">
-                          <td className="py-2 pr-4 font-medium text-ink">{c.name}</td>
-                          <td className="py-2 pr-4 text-ink-secondary">{c.phone}</td>
-                          <td className="py-2 pr-4 text-ink-secondary">{c.area}</td>
-                          <td className="py-2 pr-4 text-right text-ink">{c.orders}</td>
-                          <td className="py-2 pr-4 text-right text-ink">{formatINR(c.revenue)}</td>
-                          <td className="py-2 pr-4 text-right text-ink-secondary">{c.loyaltyPoints}</td>
-                          <td className="py-2 text-right text-ink-secondary">{c.creditOrders}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <p className="text-ink-muted text-center py-8">No named customers billed in this range</p>
-                )}
-              </div>
+              {/* Tiny glossary */}
+              <details className="rounded-xl border border-subtle bg-surface-2/40 px-4 py-3 text-sm">
+                <summary className="cursor-pointer font-medium text-ink">
+                  What do these words mean?
+                </summary>
+                <ul className="mt-3 space-y-2 text-ink-secondary text-sm leading-relaxed">
+                  <li>
+                    <strong className="text-ink">Known customer</strong> — bill has a phone/name
+                    attached.
+                  </li>
+                  <li>
+                    <strong className="text-ink">Walk-in</strong> — bill with no customer saved.
+                  </li>
+                  <li>
+                    <strong className="text-ink">Regular / returning</strong> — bought from you
+                    before this date range too.
+                  </li>
+                  <li>
+                    <strong className="text-ink">First-timer</strong> — first bill with you in (or
+                    around) this period.
+                  </li>
+                  <li>
+                    <strong className="text-ink">Area</strong> — locality saved on the customer
+                    profile (used for delivery).
+                  </li>
+                </ul>
+              </details>
             </>
           ) : (
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
               {demographicsError
                 ? "Load failed. Use Refresh or check errors above."
-                : "Loading customer demographics…"}
+                : "Loading who buys from you…"}
             </div>
           )}
         </div>

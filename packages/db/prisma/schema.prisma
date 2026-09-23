@@ -279,6 +279,8 @@ model Customer {
   profileRewardPercent    Float?
   profileRewardStatus     String?
   profileRewardSource     String?
+  /// Staff-only notes (e.g. "likes less chili", "pays Fridays")
+  staffNotes    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

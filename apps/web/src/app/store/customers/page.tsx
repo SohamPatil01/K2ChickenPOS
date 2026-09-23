@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
 import { parseCustomerListResponse } from '@/lib/customers';
 import { useAuthStore } from '@/store/auth';
@@ -41,6 +42,182 @@ interface CustomerListRow {
   loyaltyTier?: string;
   totalSpent?: number;
   _count?: { sales: number; addresses?: number };
+}
+
+interface Customer360 {
+  customer: {
+    id: string;
+    name: string;
+    phone: string;
+    area?: string | null;
+    email?: string | null;
+    loyaltyPoints: number;
+    loyaltyTier: string;
+    totalSpent: number;
+    staffNotes?: string | null;
+    createdAt: string;
+  };
+  summary: {
+    lastVisitAt: string | null;
+    daysSinceLastVisit: number | null;
+    visitCount: number;
+    lifetimeSpent: number;
+    avgBill: number;
+    openCreditAmount: number;
+    openCreditOrders: number;
+    compareDays: number;
+  };
+  periodCompare: {
+    current: { start: string; end: string; visits: number; spent: number; avgBill: number };
+    prior: { start: string; end: string; visits: number; spent: number; avgBill: number };
+    visitsDelta: number;
+    spentDelta: number;
+    spentDeltaPct: number;
+  };
+  topProducts: Array<{
+    productId: string;
+    name: string;
+    unitType: string;
+    revenue: number;
+    qtyKg: number;
+    qtyPcs: number;
+    timesBought: number;
+  }>;
+  addresses: Array<{
+    id: string;
+    label: string;
+    line1: string;
+    line2?: string | null;
+    city: string;
+  }>;
+  lastDelivery: {
+    id: string;
+    status: string;
+    type: string;
+    createdAt: string;
+    deliveredAt?: string | null;
+    saleNo: string;
+    address?: { line1: string; city: string; label?: string } | null;
+  } | null;
+  recentSales: Array<{
+    id: string;
+    saleNo: string;
+    grandTotal: number;
+    status: string;
+    createdAt: string;
+    hasCredit: boolean;
+  }>;
+}
+
+function formatINR(n: number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(Math.round(n || 0));
+}
+
+function formatVisitLabel(iso: string | null, daysSince: number | null) {
+  if (!iso) return 'Never bought (with this phone)';
+  const d = new Date(iso);
+  const when = d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  if (daysSince == null) return when;
+  if (daysSince === 0) return `Today · ${when}`;
+  if (daysSince === 1) return `Yesterday · ${when}`;
+  return `${daysSince} days ago · ${when}`;
+}
+
+function deliveryStatusLabel(status: string) {
+  if (status === 'DELIVERED') return 'Delivered';
+  if (status === 'OUT_FOR_DELIVERY') return 'On the way';
+  if (status === 'FAILED' || status === 'RETURNED') return 'Failed';
+  return 'Open';
+}
+
+const STAFF_NOTE_PROMPTS: Array<{ q: string; answers: string[] }> = [
+  {
+    q: 'Preferred cut?',
+    answers: ['Prefers breast', 'Prefers curry cut', 'Prefers whole bird', 'Mixed cuts'],
+  },
+  {
+    q: 'Chili?',
+    answers: ['Less chili', 'Normal spice', 'Extra chili'],
+  },
+  {
+    q: 'Payment?',
+    answers: ['Usually UPI', 'Usually cash', 'Often credit — pays Fridays', 'Pays on delivery'],
+  },
+  {
+    q: 'Delivery?',
+    answers: ['Prefers home delivery', 'Usually pickup', 'Call before delivery'],
+  },
+];
+
+const easeOutSoft = [0.22, 1, 0.36, 1] as const;
+
+const panelFade = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.28, ease: easeOutSoft },
+};
+
+const cardUnfold = {
+  initial: {
+    opacity: 0,
+    rotateX: -18,
+    scaleY: 0.88,
+    y: -14,
+    filter: 'blur(4px)',
+  },
+  animate: {
+    opacity: 1,
+    rotateX: 0,
+    scaleY: 1,
+    y: 0,
+    filter: 'blur(0px)',
+  },
+  exit: {
+    opacity: 0,
+    rotateX: 10,
+    scaleY: 0.94,
+    y: 8,
+    filter: 'blur(2px)',
+  },
+  transition: { duration: 0.48, ease: easeOutSoft },
+};
+
+const bodyStagger = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.055, delayChildren: 0.06 },
+  },
+};
+
+const bodyItem = {
+  hidden: { opacity: 0, y: 12, scale: 0.985 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.38, ease: easeOutSoft },
+  },
+};
+
+function appendNoteLine(existing: string, line: string) {
+  const trimmed = existing.trim();
+  if (!trimmed) return line;
+  if (trimmed.toLowerCase().includes(line.toLowerCase())) return trimmed;
+  return `${trimmed}\n${line}`;
+}
+
+function nameLetter(name: string) {
+  const ch = (name || '').trim().charAt(0).toUpperCase();
+  return ch >= 'A' && ch <= 'Z' ? ch : '#';
 }
 
 interface PurchaseHistorySale {
@@ -121,7 +298,11 @@ export default function StoreCustomersPage() {
   const [highlightIndex, setHighlightIndex] = useState(-1);
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customer360, setCustomer360] = useState<Customer360 | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [staffNotesDraft, setStaffNotesDraft] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSavedFlash, setNotesSavedFlash] = useState(false);
 
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -149,8 +330,32 @@ export default function StoreCustomersPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingLoyalty, setLoadingLoyalty] = useState(false);
   const [recalcRunning, setRecalcRunning] = useState(false);
+  const directoryScrollRef = useRef<HTMLDivElement>(null);
 
   const showSearchDropdown = searchFocused && debouncedSearch.length > 0;
+
+  const directoryGroups = useMemo(() => {
+    const sorted = [...allCustomers].sort((a, b) =>
+      a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
+    );
+    const map = new Map<string, CustomerListRow[]>();
+    for (const row of sorted) {
+      const letter = nameLetter(row.name);
+      if (!map.has(letter)) map.set(letter, []);
+      map.get(letter)!.push(row);
+    }
+    return Array.from(map.entries());
+  }, [allCustomers]);
+
+  const letterKeys = useMemo(
+    () => directoryGroups.map(([letter]) => letter),
+    [directoryGroups]
+  );
+
+  const scrollToLetter = (letter: string) => {
+    const el = directoryScrollRef.current?.querySelector(`[data-letter="${letter}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     loadCustomers();
@@ -229,6 +434,41 @@ export default function StoreCustomersPage() {
     }
   }, []);
 
+  const loadCustomer360 = useCallback(async (id: string) => {
+    try {
+      const res = await api.get(`/api/v1/customers/${id}/360`, { params: { days: 30 } });
+      setCustomer360(res.data || null);
+      setStaffNotesDraft(res.data?.customer?.staffNotes || '');
+    } catch (e) {
+      console.error('Failed to load customer 360:', e);
+      setCustomer360(null);
+    }
+  }, []);
+
+  const saveStaffNotes = async () => {
+    if (!selectedCustomer) return;
+    setNotesSaving(true);
+    try {
+      await api.patch(`/api/v1/customers/${selectedCustomer.id}/staff-notes`, {
+        notes: staffNotesDraft,
+      });
+      setCustomer360((prev) =>
+        prev
+          ? {
+              ...prev,
+              customer: { ...prev.customer, staffNotes: staffNotesDraft.trim() || null },
+            }
+          : prev
+      );
+      setNotesSavedFlash(true);
+      setTimeout(() => setNotesSavedFlash(false), 1800);
+    } catch (e: any) {
+      alert(e?.response?.data?.error || 'Could not save notes');
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 180);
     return () => clearTimeout(t);
@@ -281,24 +521,24 @@ export default function StoreCustomersPage() {
     setDebouncedSearch('');
     setSearchResults([]);
     setHighlightIndex(-1);
+    // Show the card shell immediately so the unfold starts on click
+    setSelectedCustomer({
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      email: row.email,
+      area: row.area,
+      loyaltyPoints: row.loyaltyPoints,
+      loyaltyTier: row.loyaltyTier,
+      totalSpent: row.totalSpent,
+      addresses: [],
+      sales: [],
+    });
+    setCustomer360(null);
     setDetailLoading(true);
-    const full = await fetchCustomerDetail(row.id);
+    const [full] = await Promise.all([fetchCustomerDetail(row.id), loadCustomer360(row.id)]);
     setDetailLoading(false);
-    if (full) {
-      setSelectedCustomer(full);
-    } else {
-      setSelectedCustomer({
-        id: row.id,
-        name: row.name,
-        phone: row.phone,
-        email: row.email,
-        loyaltyPoints: row.loyaltyPoints,
-        loyaltyTier: row.loyaltyTier,
-        totalSpent: row.totalSpent,
-        addresses: [],
-        sales: [],
-      });
-    }
+    if (full) setSelectedCustomer(full);
   };
 
   const handleCreateCustomer = async () => {
@@ -344,6 +584,7 @@ export default function StoreCustomersPage() {
       setCustomerForm({ name: '', phone: '', email: '', area: '' });
       const full = await fetchCustomerDetail(editingCustomer.id);
       if (full) setSelectedCustomer(full);
+      await loadCustomer360(editingCustomer.id);
       alert('Customer updated successfully!');
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to update customer');
@@ -373,6 +614,7 @@ export default function StoreCustomersPage() {
       await loadCustomers();
       const full = await fetchCustomerDetail(selectedCustomer.id);
       if (full) setSelectedCustomer(full);
+      await loadCustomer360(selectedCustomer.id);
       setShowAddressModal(false);
       setAddressForm({ label: '', line1: '', line2: '', city: '', state: '', zip: '' });
       alert('Address added successfully!');
@@ -465,6 +707,7 @@ export default function StoreCustomersPage() {
       await api.delete(`/api/v1/customers/${selectedCustomer.id}`);
       setAllCustomers((prev) => prev.filter((c) => c.id !== selectedCustomer.id));
       setSelectedCustomer(null);
+      setCustomer360(null);
       alert('Customer deleted successfully');
     } catch (error: any) {
       console.error('Failed to delete customer:', error);
@@ -524,60 +767,56 @@ export default function StoreCustomersPage() {
     'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm';
 
   return (
-    <div className="w-full max-w-7xl mx-auto min-h-0 flex flex-col gap-4 pb-10">
-      {/* Hero */}
-      <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 text-white p-5 sm:p-6 shadow-lg">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Customers</h1>
-            <p className="text-white/85 text-sm mt-1 max-w-xl">
-              Search by name or phone — suggestions appear as you type. View loyalty, addresses, and purchase
-              history in one place.
-            </p>
-            <p className="text-white/70 text-xs mt-2 font-medium">
-              {customerTotal > 0
-                ? `${customerTotal.toLocaleString()} customers on file`
-                : `${allCustomers.length} customers on file`}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {user?.role === 'OWNER' && (
-              <button
-                type="button"
-                onClick={handleRecalcLoyalty}
-                disabled={recalcRunning}
-                title="Recompute every customer's loyalty points from their purchase history (1.25%, net of redemptions)"
-                className="px-4 py-2.5 rounded-xl bg-white/15 text-white font-semibold text-sm ring-1 ring-white/30 hover:bg-white/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {recalcRunning ? 'Recalculating…' : 'Recalculate points'}
-              </button>
-            )}
+    <div className="w-full max-w-7xl mx-auto min-h-0 flex flex-col gap-3 pb-8">
+      {/* Classic directory header */}
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-stone-300/80 dark:border-gray-700 pb-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">
+            Store book
+          </p>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-stone-900 dark:text-white tracking-tight">
+            Customer directory
+          </h1>
+          <p className="text-sm text-stone-500 dark:text-gray-400 mt-0.5">
+            {(customerTotal || allCustomers.length).toLocaleString('en-IN')} names · find, open, note
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {user?.role === 'OWNER' && (
             <button
               type="button"
-              onClick={openNewCustomer}
-              className="px-5 py-2.5 rounded-xl bg-white text-brand-700 font-semibold text-sm shadow-md hover:bg-white/95 transition-colors"
+              onClick={handleRecalcLoyalty}
+              disabled={recalcRunning}
+              className="min-h-10 px-3 rounded-md border border-stone-300 dark:border-gray-600 text-sm text-stone-700 dark:text-gray-200 hover:bg-stone-100 dark:hover:bg-gray-800 disabled:opacity-50"
             >
-              + Add customer
+              {recalcRunning ? 'Recalculating…' : 'Recalc points'}
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={openNewCustomer}
+            className="min-h-10 px-4 rounded-md bg-stone-900 dark:bg-white text-white dark:text-stone-900 text-sm font-semibold hover:opacity-90"
+          >
+            + New entry
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Search combobox */}
+      {/* Search strip */}
       <div ref={searchWrapRef} className="relative z-20">
         <label htmlFor="customer-search" className="sr-only">
-          Search customers
+          Search directory
         </label>
         <div className="relative">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
-            🔍
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">
+            Find
           </span>
           <input
             id="customer-search"
             ref={searchInputRef}
             type="search"
             autoComplete="off"
-            placeholder="Start typing a name or phone…"
+            placeholder="Name or phone…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => setSearchFocused(true)}
@@ -586,12 +825,12 @@ export default function StoreCustomersPage() {
             aria-expanded={showSearchDropdown}
             aria-controls="customer-search-listbox"
             aria-autocomplete="list"
-            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 dark:border-gray-600 glass-panel text-ink placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-base"
+            className="w-full pl-14 pr-20 py-2.5 rounded-md border border-stone-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-ink placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/50 text-[15px]"
           />
           {searchQuery && (
             <button
               type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-stone-500 hover:text-stone-800 dark:hover:text-gray-200 px-2 py-1"
               onClick={() => {
                 setSearchQuery('');
                 setDebouncedSearch('');
@@ -604,299 +843,626 @@ export default function StoreCustomersPage() {
           )}
         </div>
 
-        {showSearchDropdown && (
-          <div
-            id="customer-search-listbox"
-            role="listbox"
-            className="absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-gray-200 dark:border-gray-600 glass-panel-strong ring-1 ring-black/5 dark:ring-white/10"
-          >
-            {searchLoading ? (
-              <div className="px-4 py-8 text-center text-sm text-ink-muted">
-                <span className="inline-block animate-pulse">Searching…</span>
-              </div>
-            ) : searchResults.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-ink-muted">
-                No matches for &ldquo;{debouncedSearch}&rdquo;
-              </div>
-            ) : (
-              <ul className="py-2">
-                {searchResults.map((row, idx) => (
-                  <li key={row.id} role="option" aria-selected={highlightIndex === idx}>
-                    <button
-                      type="button"
-                      className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${ highlightIndex === idx ? 'bg-brand-50 dark:bg-brand-900/30' : 'hover:bg-brand-100/30 dark:hover:bg-brand-900/10/80' }`}
-                      onMouseEnter={() => setHighlightIndex(idx)}
-                      onClick={() => void pickCustomer(row)}
-                    >
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 text-sm font-bold">
-                        {initials(row.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-ink truncate">{row.name}</div>
-                        <div className="text-sm text-ink-muted">
-                          {row.phone}
-                          {row.area ? ` · ${row.area}` : ''}
-                        </div>
-                      </div>
-                      {row._count != null && (
-                        <div className="shrink-0 text-xs text-ink-muted text-right">
-                          {row._count.sales ?? 0} orders
-                        </div>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        <AnimatePresence>
+          {showSearchDropdown && (
+            <motion.div
+              id="customer-search-listbox"
+              role="listbox"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16 }}
+              className="absolute left-0 right-0 mt-1.5 max-h-72 overflow-y-auto rounded-md border border-stone-300 dark:border-gray-600 bg-white dark:bg-gray-900 shadow-lg"
+            >
+              {searchLoading ? (
+                <div className="px-4 py-6 text-center text-sm text-stone-500">Searching…</div>
+              ) : searchResults.length === 0 ? (
+                <div className="px-4 py-6 text-center text-sm text-stone-500">
+                  No matches for “{debouncedSearch}”
+                </div>
+              ) : (
+                <ul className="py-1">
+                  {searchResults.map((row, idx) => (
+                    <li key={row.id} role="option" aria-selected={highlightIndex === idx}>
+                      <button
+                        type="button"
+                        className={`w-full text-left px-4 py-2.5 flex items-baseline justify-between gap-3 ${
+                          highlightIndex === idx
+                            ? 'bg-stone-100 dark:bg-gray-800'
+                            : 'hover:bg-stone-50 dark:hover:bg-gray-800/80'
+                        }`}
+                        onMouseEnter={() => setHighlightIndex(idx)}
+                        onClick={() => void pickCustomer(row)}
+                      >
+                        <span>
+                          <span className="font-medium text-stone-900 dark:text-white">{row.name}</span>
+                          <span className="text-sm text-stone-500 ml-2">
+                            {row.phone}
+                            {row.area ? ` · ${row.area}` : ''}
+                          </span>
+                        </span>
+                        {row._count != null && (
+                          <span className="text-xs text-stone-400 tabular-nums">
+                            {row._count.sales ?? 0}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 min-h-0 flex-1">
-        {/* Directory */}
-        <div className="lg:col-span-2 flex flex-col min-h-0 rounded-2xl glass-panel-strong overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40">
-            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Directory</h2>
-            <p className="text-xs text-ink-muted mt-0.5">Tap a customer to open details</p>
-          </div>
-          <div className="flex-1 overflow-y-auto min-h-[280px] max-h-[calc(100vh-320px)]">
-            {listLoading ? (
-              <p className="text-center py-12 text-sm text-ink-muted px-4">
-                Loading customers…
-              </p>
-            ) : listError ? (
-              <div className="text-center py-10 px-4">
-                <p className="text-sm text-red-600 dark:text-red-400">{listError}</p>
-                <button
-                  type="button"
-                  onClick={() => void loadCustomers()}
-                  className="mt-3 text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : allCustomers.length === 0 ? (
-              <p className="text-center py-12 text-sm text-ink-muted px-4">
-                No customers yet. Add one to get started.
-              </p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0 flex-1">
+        {/* A–Z directory */}
+        <div className="lg:col-span-5 flex min-h-0 rounded-md border border-stone-300 dark:border-gray-700 bg-white dark:bg-gray-950 overflow-hidden">
+          <div className="hidden sm:flex flex-col items-center py-2 px-1 border-r border-stone-200 dark:border-gray-800 bg-stone-50 dark:bg-gray-900/80 shrink-0">
+            {letterKeys.length === 0 ? (
+              <span className="text-[10px] text-stone-400 px-1">—</span>
             ) : (
-              <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-                {allCustomers.map((row) => (
-                  <li key={row.id}>
-                    <button
-                      type="button"
-                      onClick={() => void pickCustomer(row)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${ selectedCustomer?.id === row.id ? 'bg-brand-50 dark:bg-brand-900/25 border-l-4 border-brand-500' : 'hover:bg-brand-100/30 dark:hover:bg-brand-900/10 border-l-4 border-transparent' }`}
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold">
-                        {initials(row.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-ink truncate">{row.name}</div>
-                        <div className="text-xs text-ink-muted">
-                          {row.phone}
-                          {row.area ? ` · ${row.area}` : ''}
-                        </div>
-                      </div>
-                      {row._count != null && (
-                        <span className="text-[10px] uppercase tracking-wide text-ink-muted shrink-0">
-                          {row._count.sales} ord
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              letterKeys.map((letter) => (
+                <button
+                  key={letter}
+                  type="button"
+                  onClick={() => scrollToLetter(letter)}
+                  className="w-6 h-6 text-[11px] font-semibold text-stone-500 hover:text-stone-900 dark:hover:text-white rounded"
+                  title={`Jump to ${letter}`}
+                >
+                  {letter}
+                </button>
+              ))
             )}
+          </div>
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="px-3 py-2 border-b border-stone-200 dark:border-gray-800 flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                Directory
+              </h2>
+              <span className="text-[11px] text-stone-400">A–Z</span>
+            </div>
+            <div
+              ref={directoryScrollRef}
+              className="flex-1 overflow-y-auto min-h-[300px] max-h-[calc(100vh-300px)]"
+            >
+              {listLoading ? (
+                <p className="text-center py-12 text-sm text-stone-500">Loading directory…</p>
+              ) : listError ? (
+                <div className="text-center py-10 px-4">
+                  <p className="text-sm text-red-600">{listError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void loadCustomers()}
+                    className="mt-3 text-sm font-medium text-stone-800 dark:text-gray-200 underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : directoryGroups.length === 0 ? (
+                <p className="text-center py-12 text-sm text-stone-500 px-4">
+                  No entries yet. Add a customer to start the book.
+                </p>
+              ) : (
+                directoryGroups.map(([letter, rows]) => (
+                  <div key={letter} data-letter={letter}>
+                    <div className="sticky top-0 z-[1] px-3 py-1 bg-stone-100/95 dark:bg-gray-900/95 border-y border-stone-200 dark:border-gray-800 text-[11px] font-bold tracking-widest text-stone-600 dark:text-gray-300">
+                      {letter}
+                    </div>
+                    <ul>
+                      {rows.map((row) => {
+                        const active = selectedCustomer?.id === row.id;
+                        return (
+                          <li key={row.id}>
+                            <button
+                              type="button"
+                              onClick={() => void pickCustomer(row)}
+                              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left border-b border-stone-100 dark:border-gray-800/80 transition-colors ${
+                                active
+                                  ? 'bg-stone-900 text-white dark:bg-white dark:text-stone-900'
+                                  : 'hover:bg-stone-50 dark:hover:bg-gray-900'
+                              }`}
+                            >
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                  active
+                                    ? 'bg-white/15 dark:bg-stone-900/10'
+                                    : 'bg-stone-100 dark:bg-gray-800 text-stone-600 dark:text-gray-300'
+                                }`}
+                              >
+                                {initials(row.name)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className={`font-medium truncate ${active ? '' : 'text-ink'}`}>
+                                  {row.name}
+                                </div>
+                                <div
+                                  className={`text-xs truncate ${
+                                    active ? 'text-white/70 dark:text-stone-600' : 'text-stone-500'
+                                  }`}
+                                >
+                                  {row.phone}
+                                  {row.area ? ` · ${row.area}` : ''}
+                                </div>
+                              </div>
+                              {row._count != null && (
+                                <span
+                                  className={`text-[10px] tabular-nums shrink-0 ${
+                                    active ? 'text-white/60 dark:text-stone-500' : 'text-stone-400'
+                                  }`}
+                                >
+                                  {row._count.sales}
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Detail panel */}
-        <div className="lg:col-span-3 min-h-[320px]">
-          {detailLoading ? (
-            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center text-ink-muted">
-              Loading customer…
-            </div>
-          ) : !selectedCustomer ? (
-            <div className="h-full min-h-[320px] rounded-2xl border border-dashed border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center text-center p-8 text-ink-muted">
-              <div className="text-4xl mb-3 opacity-40">👤</div>
-              <p className="font-medium text-ink-secondary">Select a customer</p>
-              <p className="text-sm mt-1 max-w-xs">
-                Use search above or pick from the directory to see profile, addresses, and loyalty.
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-2xl glass-panel-strong overflow-hidden">
-              <div className="p-5 sm:p-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-800">
-                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-white text-xl font-bold shadow-md">
-                    {initials(selectedCustomer.name)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h2 className="text-xl font-bold text-ink truncate">
-                          {selectedCustomer.name}
-                        </h2>
-                        <p className="text-brand-600 dark:text-brand-400 font-medium">{selectedCustomer.phone}</p>
-                        {selectedCustomer.area && (
-                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-0.5">
-                            <span className="text-ink-muted">Area:</span> {selectedCustomer.area}
+        {/* Card / profile */}
+        <div className="lg:col-span-7 min-h-[320px]" style={{ perspective: 1200 }}>
+          <AnimatePresence mode="wait">
+            {!selectedCustomer ? (
+              <motion.div
+                key="empty"
+                {...panelFade}
+                className="h-full min-h-[320px] rounded-md border border-dashed border-stone-300 dark:border-gray-700 flex flex-col items-center justify-center text-center p-8"
+              >
+                <p className="text-lg font-medium text-stone-700 dark:text-gray-200">
+                  Select a name
+                </p>
+                <p className="text-sm text-stone-500 mt-1 max-w-xs">
+                  Like an old phone book — pick from the list or search above.
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={selectedCustomer.id}
+                initial={cardUnfold.initial}
+                animate={cardUnfold.animate}
+                exit={cardUnfold.exit}
+                transition={cardUnfold.transition}
+                style={{ transformOrigin: 'top center', transformStyle: 'preserve-3d' }}
+                className="rounded-md border border-stone-300 dark:border-gray-700 bg-white dark:bg-gray-950 overflow-hidden shadow-sm will-change-transform"
+              >
+                <div className="px-5 py-4 border-b border-stone-200 dark:border-gray-800 bg-stone-50/80 dark:bg-gray-900/50">
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                    <motion.div
+                      initial={{ scale: 0.7, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.12, duration: 0.35, ease: easeOutSoft }}
+                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-stone-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-lg font-semibold text-stone-800 dark:text-gray-100"
+                    >
+                      {initials(selectedCustomer.name)}
+                    </motion.div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <h2 className="text-xl font-semibold text-stone-900 dark:text-white truncate">
+                            {selectedCustomer.name}
+                          </h2>
+                          <p className="text-sm mt-0.5">
+                            <a
+                              href={`tel:${selectedCustomer.phone}`}
+                              className="font-medium text-stone-800 dark:text-gray-200 hover:underline"
+                            >
+                              {selectedCustomer.phone}
+                            </a>
+                            {selectedCustomer.phone.replace(/\D/g, '').length >= 10 && (
+                              <>
+                                <span className="text-stone-400 mx-1.5">·</span>
+                                <a
+                                  href={`https://wa.me/91${selectedCustomer.phone.replace(/\D/g, '').slice(-10)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-stone-600 dark:text-gray-300 hover:underline"
+                                >
+                                  WhatsApp
+                                </a>
+                              </>
+                            )}
                           </p>
-                        )}
-                        {selectedCustomer.email && (
-                          <p className="text-sm text-ink-muted truncate">{selectedCustomer.email}</p>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditCustomer(selectedCustomer)}
-                          className="px-3 py-1.5 text-sm rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium"
-                        >
-                          Edit
-                        </button>
-                        {user?.role === 'OWNER' && (
+                          {(selectedCustomer.area || customer360?.customer.area) && (
+                            <p className="text-sm text-stone-500 mt-0.5">
+                              {selectedCustomer.area || customer360?.customer.area}
+                            </p>
+                          )}
+                          <AnimatePresence mode="wait">
+                            {customer360 ? (
+                              <motion.p
+                                key="visit"
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3, ease: easeOutSoft }}
+                                className="text-sm text-stone-600 dark:text-gray-300 mt-2"
+                              >
+                                Last visit:{' '}
+                                <span className="font-medium text-stone-900 dark:text-white">
+                                  {formatVisitLabel(
+                                    customer360.summary.lastVisitAt,
+                                    customer360.summary.daysSinceLastVisit
+                                  )}
+                                </span>
+                              </motion.p>
+                            ) : (
+                              <motion.div
+                                key="visit-skel"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="mt-2 h-4 w-40 rounded bg-stone-200/80 dark:bg-gray-800 animate-pulse"
+                              />
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={handleDeleteCustomer}
-                            className="px-3 py-1.5 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors font-medium"
+                            onClick={() => openEditCustomer(selectedCustomer)}
+                            className="px-3 py-1.5 text-sm rounded-md border border-stone-300 dark:border-gray-600 font-medium text-stone-800 dark:text-gray-100 hover:bg-stone-100 dark:hover:bg-gray-800"
                           >
-                            Delete
+                            Edit
                           </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
-                        ⭐ {Math.round(selectedCustomer.loyaltyPoints ?? 0)} pts
-                      </span>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 capitalize">
-                        {selectedCustomer.loyaltyTier || 'BRONZE'}
-                      </span>
-                      {selectedCustomer.totalSpent !== undefined && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
-                          ₹{selectedCustomer.totalSpent.toFixed(0)} spent
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 sm:p-6 space-y-6">
-                <section>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-ink uppercase tracking-wide">
-                      Addresses
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddressModal(true)}
-                      className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline"
-                    >
-                      + Add address
-                    </button>
-                  </div>
-                  {selectedCustomer.addresses &&
-                  selectedCustomer.addresses.filter((a) => a.label !== 'Area').length > 0 ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {selectedCustomer.addresses
-                        .filter((a) => a.label !== 'Area')
-                        .map((addr) => (
-                        <div
-                          key={addr.id}
-                          className="rounded-xl border border-gray-100 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-900/40 p-3"
-                        >
-                          <div className="text-xs font-semibold text-brand-600 dark:text-brand-400">{addr.label}</div>
-                          <p className="text-sm text-gray-700 dark:text-gray-200 mt-1">
-                            {addr.line1}
-                            {addr.city ? `, ${addr.city}` : ''}
-                          </p>
+                          {user?.role === 'OWNER' && (
+                            <button
+                              type="button"
+                              onClick={handleDeleteCustomer}
+                              className="px-3 py-1.5 text-sm rounded-md border border-red-200 text-red-700 dark:border-red-900 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-ink-muted">No saved addresses</p>
-                  )}
-                </section>
-
-                <section className="rounded-xl border border-orange-200/80 dark:border-orange-800/50 bg-gradient-to-br from-orange-50/90 to-amber-50/50 dark:from-orange-950/30 dark:to-amber-950/20 p-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-ink">Loyalty</h3>
-                    <button
-                      type="button"
-                      onClick={() => void loadLoyaltyInfo()}
-                      disabled={loadingLoyalty}
-                      className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-50"
-                    >
-                      {loadingLoyalty ? 'Loading…' : 'View details'}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-xs text-ink-secondary">Points</div>
-                      <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                        {Math.round(selectedCustomer.loyaltyPoints ?? 0)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-ink-secondary">Tier</div>
-                      <div className="text-lg font-semibold capitalize text-orange-700 dark:text-orange-300">
-                        {selectedCustomer.loyaltyTier || 'BRONZE'}
                       </div>
                     </div>
                   </div>
-                </section>
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    type="button"
-                    onClick={loadPurchaseHistory}
-                    disabled={loadingHistory}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
-                  >
-                    {loadingHistory ? 'Loading…' : 'Purchase history'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoyaltyAction('redeem');
-                      setLoyaltyForm({ points: 0, description: '' });
-                      void loadLoyaltyInfo();
-                    }}
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"
-                  >
-                    Redeem points
-                  </button>
                 </div>
 
-                {selectedCustomer.sales && selectedCustomer.sales.length > 0 && (
-                  <section>
-                    <h3 className="text-sm font-semibold text-ink mb-2">Recent purchases</h3>
-                    <ul className="space-y-2">
-                      {selectedCustomer.sales.slice(0, 5).map((sale) => (
-                        <li
-                          key={sale.id}
-                          className="flex items-center justify-between rounded-lg bg-surface-2/60 px-3 py-2"
+                <div className="p-5 max-h-[calc(100vh-280px)] overflow-y-auto">
+                  <AnimatePresence mode="wait">
+                    {detailLoading || !customer360 ? (
+                      <motion.div
+                        key="body-loading"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25, ease: easeOutSoft }}
+                        className="space-y-4"
+                      >
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[0, 1, 2, 3].map((i) => (
+                            <div
+                              key={i}
+                              className="h-16 rounded-md border border-stone-200 dark:border-gray-800 bg-stone-100/80 dark:bg-gray-900 animate-pulse"
+                              style={{ animationDelay: `${i * 80}ms` }}
+                            />
+                          ))}
+                        </div>
+                        <div className="h-24 rounded-md border border-stone-200 dark:border-gray-800 bg-stone-100/60 dark:bg-gray-900 animate-pulse" />
+                        <div className="h-32 rounded-md border border-stone-200 dark:border-gray-800 bg-stone-100/60 dark:bg-gray-900 animate-pulse" />
+                        <p className="text-center text-xs text-stone-400 pt-1">Unfolding card…</p>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="body-ready"
+                        variants={bodyStagger}
+                        initial="hidden"
+                        animate="show"
+                        exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                        className="space-y-5"
+                      >
+                        <motion.div
+                          variants={bodyItem}
+                          className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-stone-200 dark:bg-gray-800 rounded-md overflow-hidden border border-stone-200 dark:border-gray-800"
                         >
-                          <div>
-                            <div className="font-medium text-sm text-ink">{sale.saleNo}</div>
-                            <div className="text-xs text-ink-muted">
-                              {new Date(sale.createdAt).toLocaleDateString()}
+                          {[
+                            { label: 'Visits', value: String(customer360.summary.visitCount) },
+                            {
+                              label: 'Total spent',
+                              value: formatINR(customer360.summary.lifetimeSpent),
+                            },
+                            { label: 'Avg bill', value: formatINR(customer360.summary.avgBill) },
+                            {
+                              label: 'Open credit',
+                              value: formatINR(customer360.summary.openCreditAmount),
+                              warn: customer360.summary.openCreditAmount > 0,
+                            },
+                          ].map((cell) => (
+                            <div
+                              key={cell.label}
+                              className={`bg-white dark:bg-gray-950 p-3 ${
+                                cell.warn ? 'bg-amber-50 dark:bg-amber-950/20' : ''
+                              }`}
+                            >
+                              <p className="text-[10px] uppercase tracking-wide text-stone-500">
+                                {cell.label}
+                              </p>
+                              <p className="text-lg font-semibold text-stone-900 dark:text-white mt-0.5 tabular-nums">
+                                {cell.value}
+                              </p>
+                            </div>
+                          ))}
+                        </motion.div>
+
+                        <motion.div variants={bodyItem} className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="px-2.5 py-1 rounded border border-stone-200 dark:border-gray-700 text-stone-700 dark:text-gray-200">
+                            {customer360.customer.loyaltyPoints} pts · {customer360.customer.loyaltyTier}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void loadLoyaltyInfo()}
+                            className="text-stone-600 dark:text-gray-300 underline-offset-2 hover:underline"
+                          >
+                            Loyalty
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoyaltyAction('redeem');
+                              setLoyaltyForm({ points: 0, description: '' });
+                              void loadLoyaltyInfo();
+                            }}
+                            className="text-stone-600 dark:text-gray-300 underline-offset-2 hover:underline"
+                          >
+                            Redeem
+                          </button>
+                        </motion.div>
+
+                        <motion.section
+                          variants={bodyItem}
+                          className="rounded-md border border-stone-200 dark:border-gray-800 p-3"
+                        >
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2">
+                            Last {customer360.summary.compareDays} days vs before
+                          </h3>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <p className="text-stone-500 text-xs">This period</p>
+                              <p className="font-semibold text-stone-900 dark:text-white">
+                                {customer360.periodCompare.current.visits} visits ·{' '}
+                                {formatINR(customer360.periodCompare.current.spent)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-stone-500 text-xs">Previous</p>
+                              <p className="font-semibold text-stone-900 dark:text-white">
+                                {customer360.periodCompare.prior.visits} visits ·{' '}
+                                {formatINR(customer360.periodCompare.prior.spent)}
+                              </p>
                             </div>
                           </div>
-                          <div className="font-semibold text-sm text-ink">
-                            ₹{sale.grandTotal.toFixed(2)}
+                          <p className="text-xs text-stone-600 dark:text-gray-400 mt-2">
+                            Spend{' '}
+                            <span
+                              className={
+                                customer360.periodCompare.spentDelta >= 0
+                                  ? 'text-emerald-700 dark:text-emerald-400 font-semibold'
+                                  : 'text-red-600 dark:text-red-400 font-semibold'
+                              }
+                            >
+                              {customer360.periodCompare.spentDelta >= 0 ? '+' : ''}
+                              {formatINR(customer360.periodCompare.spentDelta)} (
+                              {customer360.periodCompare.spentDeltaPct >= 0 ? '+' : ''}
+                              {customer360.periodCompare.spentDeltaPct}%)
+                            </span>
+                            {' · '}Visits{' '}
+                            <span className="font-semibold">
+                              {customer360.periodCompare.visitsDelta >= 0 ? '+' : ''}
+                              {customer360.periodCompare.visitsDelta}
+                            </span>
+                          </p>
+                        </motion.section>
+
+                        <motion.section variants={bodyItem}>
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2">
+                            Buys most
+                          </h3>
+                          {customer360.topProducts.length > 0 ? (
+                            <ol className="divide-y divide-stone-100 dark:divide-gray-800 border border-stone-200 dark:border-gray-800 rounded-md">
+                              {customer360.topProducts.map((p, i) => (
+                                <li
+                                  key={p.productId}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
+                                >
+                                  <span className="text-stone-400 w-5">{i + 1}.</span>
+                                  <span className="flex-1 font-medium text-stone-900 dark:text-white truncate">
+                                    {p.name}
+                                  </span>
+                                  <span className="text-stone-500 shrink-0 tabular-nums">
+                                    {p.unitType === 'KG' && p.qtyKg > 0
+                                      ? `${p.qtyKg} kg`
+                                      : p.qtyPcs > 0
+                                        ? `${p.qtyPcs} pcs`
+                                        : `${p.timesBought}×`}
+                                    {' · '}
+                                    {formatINR(p.revenue)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <p className="text-sm text-stone-500">No purchases yet</p>
+                          )}
+                        </motion.section>
+
+                        <motion.section
+                          variants={bodyItem}
+                          className="rounded-md border border-stone-200 dark:border-gray-800 p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                              Staff notes
+                            </h3>
+                            {notesSavedFlash && (
+                              <motion.span
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-xs text-emerald-600"
+                              >
+                                Saved
+                              </motion.span>
+                            )}
                           </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
-              </div>
-            </div>
-          )}
+                          <p className="text-xs text-stone-500 mb-2">
+                            Tap an answer, then save — only staff see this.
+                          </p>
+                          <div className="space-y-2.5 mb-3">
+                            {STAFF_NOTE_PROMPTS.map((prompt) => (
+                              <div key={prompt.q}>
+                                <p className="text-xs font-medium text-stone-700 dark:text-gray-300 mb-1">
+                                  {prompt.q}
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {prompt.answers.map((answer) => (
+                                    <button
+                                      key={answer}
+                                      type="button"
+                                      onClick={() =>
+                                        setStaffNotesDraft((prev) => appendNoteLine(prev, answer))
+                                      }
+                                      className="text-xs px-2.5 py-1 rounded-full border border-stone-300 dark:border-gray-600 text-stone-700 dark:text-gray-200 hover:bg-stone-100 dark:hover:bg-gray-800"
+                                    >
+                                      {answer}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <textarea
+                            value={staffNotesDraft}
+                            onChange={(e) => setStaffNotesDraft(e.target.value)}
+                            rows={3}
+                            maxLength={2000}
+                            placeholder="Or type a free note…"
+                            className="w-full rounded-md border border-stone-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white px-3 py-2 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void saveStaffNotes()}
+                            disabled={
+                              notesSaving ||
+                              staffNotesDraft.trim() ===
+                                (customer360.customer.staffNotes || '').trim()
+                            }
+                            className="mt-2 min-h-9 px-4 rounded-md bg-stone-900 dark:bg-white text-white dark:text-stone-900 text-sm font-medium disabled:opacity-40"
+                          >
+                            {notesSaving ? 'Saving…' : 'Save notes'}
+                          </button>
+                        </motion.section>
+
+                        <motion.section variants={bodyItem}>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                              Addresses & delivery
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={() => setShowAddressModal(true)}
+                              className="text-sm text-stone-700 dark:text-gray-300 hover:underline"
+                            >
+                              + Address
+                            </button>
+                          </div>
+                          {customer360.lastDelivery && (
+                            <div className="mb-2 rounded-md border border-stone-200 dark:border-gray-800 px-3 py-2 text-sm bg-stone-50 dark:bg-gray-900/40">
+                              <p className="font-medium text-stone-900 dark:text-white">
+                                Last delivery ·{' '}
+                                {deliveryStatusLabel(customer360.lastDelivery.status)}
+                              </p>
+                              <p className="text-xs text-stone-500 mt-0.5">
+                                {customer360.lastDelivery.saleNo} ·{' '}
+                                {new Date(customer360.lastDelivery.createdAt).toLocaleDateString(
+                                  'en-IN'
+                                )}
+                                {customer360.lastDelivery.address
+                                  ? ` · ${customer360.lastDelivery.address.line1}${
+                                      customer360.lastDelivery.address.city
+                                        ? `, ${customer360.lastDelivery.address.city}`
+                                        : ''
+                                    }`
+                                  : ''}
+                              </p>
+                            </div>
+                          )}
+                          {customer360.addresses.length > 0 ? (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {customer360.addresses.map((addr) => (
+                                <div
+                                  key={addr.id}
+                                  className="rounded-md border border-stone-200 dark:border-gray-800 p-3"
+                                >
+                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-stone-500">
+                                    {addr.label}
+                                  </div>
+                                  <p className="text-sm text-stone-800 dark:text-gray-200 mt-1">
+                                    {addr.line1}
+                                    {addr.city ? `, ${addr.city}` : ''}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-stone-500">No saved addresses</p>
+                          )}
+                        </motion.section>
+
+                        <motion.section variants={bodyItem}>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                              Recent bills
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={loadPurchaseHistory}
+                              disabled={loadingHistory}
+                              className="text-sm text-stone-700 dark:text-gray-300 hover:underline disabled:opacity-50"
+                            >
+                              {loadingHistory ? 'Loading…' : 'Full history'}
+                            </button>
+                          </div>
+                          {customer360.recentSales.length > 0 ? (
+                            <ul className="divide-y divide-stone-100 dark:divide-gray-800 border border-stone-200 dark:border-gray-800 rounded-md">
+                              {customer360.recentSales.map((sale) => (
+                                <li
+                                  key={sale.id}
+                                  className="flex items-center justify-between px-3 py-2"
+                                >
+                                  <div>
+                                    <div className="font-medium text-sm text-stone-900 dark:text-white">
+                                      {sale.saleNo}
+                                    </div>
+                                    <div className="text-xs text-stone-500">
+                                      {new Date(sale.createdAt).toLocaleDateString('en-IN')}
+                                      {sale.hasCredit ? ' · Credit' : ''}
+                                    </div>
+                                  </div>
+                                  <div className="font-semibold text-sm tabular-nums text-stone-900 dark:text-white">
+                                    {formatINR(sale.grandTotal)}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-stone-500">No bills yet</p>
+                          )}
+                        </motion.section>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

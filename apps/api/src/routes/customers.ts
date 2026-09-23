@@ -173,7 +173,273 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+  /**
+   * Customer 360 — one payload for cashiers: visits, products, credit, delivery, notes, vs last period.
+   */
+  fastify.get('/:customerId/360', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { customerId } = request.params as { customerId: string };
+      const user = getUser(request) as any;
+      const days = Math.min(90, Math.max(7, parseInt(String((request.query as any)?.days || '30'), 10) || 30));
+
+      const customer = await prisma.customer.findUnique({
+        where: { id: customerId },
+        include: {
+          addresses: customerDeliveryAddressInclude,
+        },
+      });
+
+      if (
+        !customer ||
+        !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+      ) {
+        reply.code(404).send({ error: 'Customer not found' });
+        return;
+      }
+
+      const now = new Date();
+      const currentEnd = now;
+      const currentStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const priorEnd = currentStart;
+      const priorStart = new Date(currentStart.getTime() - days * 24 * 60 * 60 * 1000);
+
+      const sales = await prisma.sale.findMany({
+        where: {
+          customerId,
+          status: { in: ['PAID', 'OPEN'] },
+        },
+        select: {
+          id: true,
+          saleNo: true,
+          grandTotal: true,
+          status: true,
+          createdAt: true,
+          businessDate: true,
+          payments: { select: { method: true, amount: true } },
+          items: {
+            select: {
+              lineTotal: true,
+              qtyKg: true,
+              qtyPcs: true,
+              product: { select: { id: true, name: true, unitType: true } },
+            },
+          },
+          deliveryOrder: {
+            select: {
+              id: true,
+              status: true,
+              type: true,
+              createdAt: true,
+              deliveredAt: true,
+              address: {
+                select: { id: true, label: true, line1: true, line2: true, city: true },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 400,
+      });
+
+      const isCountable = (s: (typeof sales)[number]) => {
+        if (s.status === 'PAID') return true;
+        return (s.payments || []).some((p) => String(p.method).toUpperCase() === 'CREDIT');
+      };
+      const countable = sales.filter(isCountable);
+
+      let openCreditAmount = 0;
+      let openCreditOrders = 0;
+      for (const s of sales) {
+        if (s.status === 'VOID' || s.status === 'REFUNDED') continue;
+        const payments = s.payments || [];
+        const hasCredit = payments.some((p) => String(p.method).toUpperCase() === 'CREDIT');
+        if (s.status !== 'OPEN' && !hasCredit) continue;
+        const actualPaid = payments
+          .filter((p) => String(p.method).toUpperCase() !== 'CREDIT')
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        const remaining = (s.grandTotal || 0) - actualPaid;
+        if (remaining > 0.01) {
+          openCreditAmount += remaining;
+          openCreditOrders += 1;
+        }
+      }
+      openCreditAmount = Math.round(openCreditAmount * 100) / 100;
+
+      const lastSale = countable[0] || null;
+      const lastVisitAt = lastSale?.createdAt || null;
+      const daysSinceLastVisit =
+        lastVisitAt != null
+          ? Math.max(0, Math.floor((now.getTime() - new Date(lastVisitAt).getTime()) / (24 * 60 * 60 * 1000)))
+          : null;
+
+      const visitCount = countable.length;
+      const lifetimeSpent = Math.round(
+        countable.reduce((sum, s) => sum + (s.grandTotal || 0), 0)
+      );
+      const avgBill = visitCount > 0 ? Math.round(lifetimeSpent / visitCount) : 0;
+
+      const inWindow = (s: (typeof sales)[number], start: Date, end: Date) => {
+        const t = new Date(s.createdAt).getTime();
+        return t >= start.getTime() && t < end.getTime();
+      };
+      const summarizeWindow = (start: Date, end: Date) => {
+        const rows = countable.filter((s) => inWindow(s, start, end));
+        const spent = Math.round(rows.reduce((sum, s) => sum + (s.grandTotal || 0), 0));
+        const visits = rows.length;
+        return {
+          start: start.toISOString().slice(0, 10),
+          end: end.toISOString().slice(0, 10),
+          visits,
+          spent,
+          avgBill: visits > 0 ? Math.round(spent / visits) : 0,
+        };
+      };
+      const current = summarizeWindow(currentStart, currentEnd);
+      const prior = summarizeWindow(priorStart, priorEnd);
+      const spentDelta = current.spent - prior.spent;
+      const visitsDelta = current.visits - prior.visits;
+      const spentDeltaPct =
+        prior.spent > 0 ? Math.round((spentDelta / prior.spent) * 100) : current.spent > 0 ? 100 : 0;
+
+      const productMap: Record<
+        string,
+        { productId: string; name: string; unitType: string; revenue: number; qtyKg: number; qtyPcs: number; timesBought: number }
+      > = {};
+      for (const s of countable) {
+        for (const it of s.items || []) {
+          const pid = it.product?.id || 'unknown';
+          if (!productMap[pid]) {
+            productMap[pid] = {
+              productId: pid,
+              name: it.product?.name || 'Product',
+              unitType: it.product?.unitType || 'KG',
+              revenue: 0,
+              qtyKg: 0,
+              qtyPcs: 0,
+              timesBought: 0,
+            };
+          }
+          productMap[pid].revenue += it.lineTotal || 0;
+          productMap[pid].qtyKg += it.qtyKg || 0;
+          productMap[pid].qtyPcs += it.qtyPcs || 0;
+          productMap[pid].timesBought += 1;
+        }
+      }
+      const topProducts = Object.values(productMap)
+        .map((p) => ({
+          ...p,
+          revenue: Math.round(p.revenue),
+          qtyKg: Math.round(p.qtyKg * 100) / 100,
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
+
+      const lastDeliverySale = countable.find((s) => s.deliveryOrder);
+      const lastDelivery = lastDeliverySale?.deliveryOrder
+        ? {
+            id: lastDeliverySale.deliveryOrder.id,
+            status: lastDeliverySale.deliveryOrder.status,
+            type: lastDeliverySale.deliveryOrder.type,
+            createdAt: lastDeliverySale.deliveryOrder.createdAt,
+            deliveredAt: lastDeliverySale.deliveryOrder.deliveredAt,
+            saleNo: lastDeliverySale.saleNo,
+            address: lastDeliverySale.deliveryOrder.address,
+          }
+        : null;
+
+      const addresses = (customer.addresses || [])
+        .filter((a: any) => a.label !== 'Area')
+        .map((a: any) => ({
+          id: a.id,
+          label: a.label,
+          line1: a.line1,
+          line2: a.line2,
+          city: a.city,
+          state: a.state,
+          zip: a.zip,
+        }));
+
+      return {
+        customer: {
+          id: customer.id,
+          name: customer.name,
+          phone: customer.phone,
+          area: withCustomerArea(customer)?.area ?? null,
+          email: customer.email,
+          loyaltyPoints: Math.round(customer.loyaltyPoints || 0),
+          loyaltyTier: customer.loyaltyTier || 'BRONZE',
+          totalSpent: Math.round(customer.totalSpent || lifetimeSpent),
+          staffNotes: (customer as any).staffNotes ?? null,
+          createdAt: customer.createdAt,
+          portalRegisteredAt: customer.portalRegisteredAt,
+        },
+        summary: {
+          lastVisitAt,
+          daysSinceLastVisit,
+          visitCount,
+          lifetimeSpent,
+          avgBill,
+          openCreditAmount,
+          openCreditOrders,
+          compareDays: days,
+        },
+        periodCompare: {
+          current,
+          prior,
+          visitsDelta,
+          spentDelta,
+          spentDeltaPct,
+        },
+        topProducts,
+        addresses,
+        lastDelivery,
+        recentSales: countable.slice(0, 8).map((s) => ({
+          id: s.id,
+          saleNo: s.saleNo,
+          grandTotal: Math.round(s.grandTotal || 0),
+          status: s.status,
+          createdAt: s.createdAt,
+          hasCredit: (s.payments || []).some((p) => String(p.method).toUpperCase() === 'CREDIT'),
+        })),
+      };
+    } catch (error: any) {
+      console.error('Failed to load customer 360:', error);
+      reply.code(500).send({ error: 'Failed to load customer profile', message: error.message });
+    }
+  });
+
+  fastify.patch('/:customerId/staff-notes', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+    try {
+      const { customerId } = request.params as { customerId: string };
+      const user = getUser(request) as any;
+      const notesRaw = (request.body as any)?.notes ?? (request.body as any)?.staffNotes;
+      const notes =
+        notesRaw === undefined || notesRaw === null
+          ? null
+          : String(notesRaw).trim().slice(0, 2000) || null;
+
+      const existing = await prisma.customer.findUnique({ where: { id: customerId } });
+      if (
+        !existing ||
+        !(await canAccessCustomerStore(user.storeId, user.role, existing.storeId))
+      ) {
+        reply.code(404).send({ error: 'Customer not found' });
+        return;
+      }
+
+      const updated = await prisma.customer.update({
+        where: { id: customerId },
+        data: { staffNotes: notes },
+        select: { id: true, staffNotes: true },
+      });
+      return updated;
+    } catch (error: any) {
+      console.error('Failed to save staff notes:', error);
+      reply.code(500).send({ error: 'Failed to save notes', message: error.message });
+    }
+  });
+
+  fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const data = customerSchema.parse(request.body as any);
     const storeId = await resolveCustomerStoreId(request);
 
@@ -317,6 +583,12 @@ export async function customerRoutes(fastify: FastifyInstance) {
       }
       if (body.area !== undefined) {
         updateData.area = body.area ? String(body.area).trim() || null : null;
+      }
+      if (body.staffNotes !== undefined) {
+        updateData.staffNotes =
+          body.staffNotes === null || body.staffNotes === ''
+            ? null
+            : String(body.staffNotes).trim().slice(0, 2000);
       }
 
       const customer = await prisma.customer.update({
