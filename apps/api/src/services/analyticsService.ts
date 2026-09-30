@@ -4,6 +4,7 @@ import {
   saleBusinessDayKey,
   ymdInStoreTz,
   eachStoreYmdInclusive,
+  ymdDaysAgoInStoreTz,
 } from '@azela-pos/shared';
 import { getReceivedPurchaseValueInRange } from '../utils/poValue.js';
 
@@ -59,6 +60,29 @@ function utcDayOfWeekFromYmd(ymd: string): number {
   const mo = parts[1]!;
   const d = parts[2]!;
   return new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+}
+
+/** Hour of day in store timezone (Asia/Kolkata). */
+function hourInStoreTz(d: Date): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(d);
+  const raw = parts.find((p) => p.type === 'hour')?.value ?? '0';
+  let h = parseInt(raw, 10);
+  if (h === 24) h = 0;
+  return Number.isFinite(h) ? h : 0;
+}
+
+function round2(n: number) {
+  return Math.round((n || 0) * 100) / 100;
+}
+
+function daysBetweenYmd(laterYmd: string, earlierYmd: string): number {
+  const a = new Date(`${laterYmd}T12:00:00.000+05:30`).getTime();
+  const b = new Date(`${earlierYmd}T12:00:00.000+05:30`).getTime();
+  return Math.max(0, Math.round((a - b) / 86400000));
 }
 
 function envNum(key: string, defaultVal: number): number {
@@ -280,7 +304,7 @@ export class AnalyticsService {
       totalRevenue += g;
       const dateKey = saleBucketDateKey(sale);
       byDate[dateKey] = (byDate[dateKey] || 0) + g;
-      const hour = new Date(sale.createdAt).getUTCHours();
+      const hour = hourInStoreTz(new Date(sale.createdAt));
       byHour[hour] = (byHour[hour] || 0) + 1;
       const dow = utcDayOfWeekFromYmd(dateKey);
       const dayKey = dayNames[dow] ?? 'Sun';
@@ -319,13 +343,14 @@ export class AnalyticsService {
       franchiseStoreId: franchiseStoreId || null,
       startDate: startStr,
       endDate: endStr,
-      calendarNote: 'Days use businessDate when set, else createdAt; UTC yyyy-MM-dd. Peak hour uses UTC.',
+      calendarNote:
+        'Days use businessDate when set, else createdAt (Asia/Kolkata). Peak hour uses Asia/Kolkata.',
       totalRevenue,
       totalOrders,
       avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
       bestDay: bestDayEntry ? { date: bestDayEntry[0], revenue: bestDayEntry[1] } : null,
       peakHour: peakHourEntry
-        ? { hour: parseInt(peakHourEntry[0], 10), count: peakHourEntry[1], timezone: 'UTC' as const }
+        ? { hour: parseInt(peakHourEntry[0], 10), count: peakHourEntry[1], timezone: 'Asia/Kolkata' as const }
         : null,
       dailyRevenue,
       topProducts,
@@ -1255,7 +1280,7 @@ export class AnalyticsService {
       const hourlyStats: Record<number, { hour: number; count: number; revenue: number }> = {};
 
       inRange.forEach(sale => {
-        const hour = new Date(sale.createdAt).getUTCHours();
+        const hour = hourInStoreTz(new Date(sale.createdAt));
         if (!hourlyStats[hour]) {
           hourlyStats[hour] = { hour, count: 0, revenue: 0 };
         }
@@ -1268,7 +1293,9 @@ export class AnalyticsService {
         const stats = hourlyStats[hour] || { hour, count: 0, revenue: 0 };
         result.push({
           hour: `${hour}:00`,
-          hourUtc: hour,
+          hourLocal: hour,
+          hourUtc: hour, // legacy key; value is now Asia/Kolkata
+          timezone: 'Asia/Kolkata',
           count: stats.count,
           total: stats.revenue,
         });
@@ -1281,7 +1308,7 @@ export class AnalyticsService {
   }
 
   /**
-   * Rule-based insights for dashboards (no ML).
+   * Action-oriented insights for the shop briefing board.
    */
   async getInsights(
     userStoreId: string,
@@ -1289,47 +1316,49 @@ export class AnalyticsService {
     endDate: Date,
     franchiseStoreId?: string | null
   ): Promise<any> {
-    const start = startOfDay(startDate);
-    const end = endOfDay(endDate);
-    const daySpan = Math.max(
-      1,
-      Math.round((end.getTime() - start.getTime()) / 86400000) + 1
-    );
+    // Keep resolveStoreDateRange IST bounds — do NOT wrap with UTC startOfDay/endOfDay
+    const start = startDate;
+    const end = endDate;
+    const { startStr, endStr } = storeRangeYmd(start, end);
+    const daySpan = Math.max(1, eachStoreYmdInclusive(startStr, endStr).length);
+    const startNoon = new Date(`${startStr}T12:00:00.000+05:30`);
+    const priorEndYmd = ymdDaysAgoInStoreTz(1, startNoon);
+    const priorStartYmd = ymdDaysAgoInStoreTz(daySpan, startNoon);
+    const priorStart = new Date(`${priorStartYmd}T00:00:00.000+05:30`);
+    const priorEnd = new Date(`${priorEndYmd}T23:59:59.999+05:30`);
 
-    const current = await this.getSalesOverview(userStoreId, start, end, franchiseStoreId);
-    const priorEnd = subDays(start, 1);
-    const priorStart = subDays(priorEnd, daySpan - 1);
-    const prior = await this.getSalesOverview(userStoreId, priorStart, priorEnd, franchiseStoreId);
+    const [current, prior, inv, money, segments, delivery] = await Promise.all([
+      this.getSalesOverview(userStoreId, start, end, franchiseStoreId),
+      this.getSalesOverview(userStoreId, priorStart, priorEnd, franchiseStoreId),
+      this.getInventoryRecommendations(userStoreId, {
+        franchiseStoreId: franchiseStoreId ?? null,
+        historyDays: Math.min(30, daySpan + 14),
+      }),
+      this.getMoneyHealth(userStoreId, start, end, franchiseStoreId),
+      this.getCustomerSegments(userStoreId, franchiseStoreId),
+      this.getDeliveryOps(userStoreId, start, end, franchiseStoreId),
+    ]);
 
     const revDelta = current.totalRevenue - prior.totalRevenue;
     const revPct =
       prior.totalRevenue > 0 ? (revDelta / prior.totalRevenue) * 100 : null;
-
     const top3 = current.topProducts.slice(0, 3).reduce((s: number, p: any) => s + p.revenue, 0);
     const conc = current.totalRevenue > 0 ? top3 / current.totalRevenue : 0;
 
-    const payTotal = (mix: { name: string; value: number }[]) =>
-      mix.reduce((s, x) => s + x.value, 0);
-    const curPay = payTotal(current.paymentMix);
-    const priPay = payTotal(prior.paymentMix);
-    const cashCur =
-      current.paymentMix.find((x: any) => String(x.name).toUpperCase().includes('CASH'))?.value ?? 0;
-    const cashPri =
-      prior.paymentMix.find((x: any) => String(x.name).toUpperCase().includes('CASH'))?.value ?? 0;
-    const cashShareCur = curPay > 0 ? cashCur / curPay : 0;
-    const cashSharePri = priPay > 0 ? cashPri / priPay : 0;
-    const cashShiftPct =
-      cashSharePri > 0
-        ? ((cashShareCur - cashSharePri) / cashSharePri) * 100
-        : null;
-
-    const insights: Array<{ severity: 'low' | 'medium' | 'high'; title: string; detail: string }> = [];
+    const insights: Array<{
+      severity: 'low' | 'medium' | 'high';
+      title: string;
+      detail: string;
+      action?: string;
+      href?: string;
+    }> = [];
 
     if (current.insufficientHistory) {
       insights.push({
         severity: 'low',
         title: 'Limited sales history',
         detail: `${current.daysWithSales} day(s) with sales in range; ${current.minDaysRecommended}+ recommended for steadier analytics.`,
+        href: 'sales-overview',
       });
     }
 
@@ -1337,7 +1366,9 @@ export class AnalyticsService {
       insights.push({
         severity: revPct < -10 ? 'high' : revPct < 0 ? 'medium' : 'low',
         title: 'Revenue vs prior period',
-        detail: `Revenue is ${revPct >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(revPct))}% vs the previous ${daySpan}-day window.`,
+        detail: `Revenue is ${revPct >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(revPct))}% (₹${Math.round(Math.abs(revDelta)).toLocaleString('en-IN')}) vs the previous ${daySpan}-day window.`,
+        action: revPct < -5 ? 'Check peak hours and top SKUs for the dip.' : 'Keep the momentum — watch stock on top sellers.',
+        href: 'sales-overview',
       });
     }
 
@@ -1345,25 +1376,17 @@ export class AnalyticsService {
       severity: conc > 0.55 ? 'medium' : 'low',
       title: 'SKU concentration',
       detail: `Top 3 products = ${Math.round(conc * 100)}% of revenue in this range.`,
+      action: conc > 0.55 ? 'Promote secondary cuts so one stockout does not crush the day.' : undefined,
+      href: 'demand',
     });
 
-    if (cashShiftPct !== null && Math.abs(cashShiftPct) > 15 && priPay > 0) {
-      insights.push({
-        severity: 'low',
-        title: 'Payment mix shift',
-        detail: `Cash share moved ~${cashShiftPct > 0 ? '+' : ''}${Math.round(cashShiftPct)}% vs prior period.`,
-      });
-    }
-
-    const inv = await this.getInventoryRecommendations(userStoreId, {
-      franchiseStoreId: franchiseStoreId ?? null,
-      historyDays: Math.min(30, daySpan + 14),
-    });
     if (inv.outOfStock > 0) {
       insights.push({
         severity: 'high',
         title: 'Stockouts',
-        detail: `${inv.outOfStock} SKU(s) flagged out of stock in analyzed locations.`,
+        detail: `${inv.outOfStock} SKU(s) flagged out of stock.`,
+        action: 'Open Inventory tab and raise a PO for flagged items.',
+        href: 'inventory',
       });
     }
     if (inv.lowStock > 0) {
@@ -1371,16 +1394,92 @@ export class AnalyticsService {
         severity: 'medium',
         title: 'Reorder attention',
         detail: `${inv.lowStock} SKU(s) below reorder point (after open POs).`,
+        action: 'Review reorder suggestions before the weekend rush.',
+        href: 'inventory',
       });
     }
+
+    if (money.openCredit.amount > 0) {
+      const creditShare =
+        current.totalRevenue > 0 ? (money.openCredit.amount / current.totalRevenue) * 100 : 0;
+      insights.push({
+        severity: creditShare > 25 || money.openCredit.amount > 25000 ? 'high' : 'medium',
+        title: 'Open credit on books',
+        detail: `₹${Math.round(money.openCredit.amount).toLocaleString('en-IN')} across ${money.openCredit.orders} bill(s) / ${money.openCredit.customers} customer(s).`,
+        action: 'Collect from top debtors — open Money tab or Pending Payments.',
+        href: 'money',
+      });
+    }
+
+    if (money.discounts.total > 0 && current.totalRevenue > 0) {
+      const discPct = (money.discounts.total / current.totalRevenue) * 100;
+      if (discPct >= 3) {
+        insights.push({
+          severity: discPct >= 8 ? 'high' : 'medium',
+          title: 'Discount pressure',
+          detail: `Discounts = ${discPct.toFixed(1)}% of revenue (₹${Math.round(money.discounts.total).toLocaleString('en-IN')}).`,
+          action: 'Review override reasons on large discount days.',
+          href: 'money',
+        });
+      }
+    }
+
+    if (money.voids.count + money.refunds.count > 0) {
+      insights.push({
+        severity: money.voids.count + money.refunds.count >= 5 ? 'medium' : 'low',
+        title: 'Voids & refunds',
+        detail: `${money.voids.count} void(s), ${money.refunds.count} refund(s) in this period.`,
+        href: 'money',
+      });
+    }
+
+    const atRisk = segments.counts.at_risk || 0;
+    const lapsed = segments.counts.lapsed || 0;
+    if (atRisk + lapsed > 0) {
+      insights.push({
+        severity: atRisk + lapsed >= 10 ? 'high' : 'medium',
+        title: 'Customers going quiet',
+        detail: `${atRisk} at-risk and ${lapsed} lapsed regulars (used to buy often, now missing).`,
+        action: 'Export the list and WhatsApp / call this week.',
+        href: 'customers',
+      });
+    }
+
+    if (delivery.failed + delivery.returned > 0) {
+      insights.push({
+        severity: 'medium',
+        title: 'Delivery failures',
+        detail: `${delivery.failed + delivery.returned} failed/returned of ${delivery.total} delivery orders.`,
+        action: 'Check addresses and peak-hour staffing for delivery.',
+        href: 'delivery',
+      });
+    }
+
+    if (current.peakHour) {
+      insights.push({
+        severity: 'low',
+        title: 'Peak hour (local)',
+        detail: `Busiest around ${current.peakHour.hour}:00 Asia/Kolkata (${current.peakHour.count} orders).`,
+        action: 'Staff the counter for that window.',
+        href: 'sales-overview',
+      });
+    }
+
+    const severityRank = { high: 0, medium: 1, low: 2 };
+    insights.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
 
     return {
       insights,
       period: {
-        start: format(start, 'yyyy-MM-dd'),
-        end: format(end, 'yyyy-MM-dd'),
-        priorStart: format(priorStart, 'yyyy-MM-dd'),
-        priorEnd: format(priorEnd, 'yyyy-MM-dd'),
+        start: startStr,
+        end: endStr,
+        priorStart: priorStartYmd,
+        priorEnd: priorEndYmd,
+      },
+      compare: {
+        revenueDelta: round2(revDelta),
+        revenueDeltaPct: revPct != null ? round2(revPct) : null,
+        ordersDelta: current.totalOrders - prior.totalOrders,
       },
       franchiseStoreId: franchiseStoreId || null,
       storeIds: current.storeIds,
@@ -1897,6 +1996,813 @@ export class AnalyticsService {
         { name: 'First time this period', value: newActive },
       ],
       topCustomers,
+    };
+  }
+
+  /**
+   * Open credit + payment mix + discounts + voids for shop money health.
+   */
+  async getMoneyHealth(
+    userStoreId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+    franchiseStoreId?: string | null
+  ) {
+    const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
+    const { startStr, endStr } = storeRangeYmd(rangeStart, rangeEnd);
+    const queryStart = new Date(rangeStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(rangeEnd.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const storeWhere = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+
+    const [periodSales, creditCandidates, overrides] = await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          storeId: storeWhere,
+          status: { in: ['PAID', 'VOID', 'REFUNDED', 'OPEN'] },
+          OR: [
+            { createdAt: { gte: queryStart, lte: queryEnd } },
+            { businessDate: { gte: queryStart, lte: queryEnd } },
+          ],
+        },
+        select: {
+          id: true,
+          saleNo: true,
+          status: true,
+          grandTotal: true,
+          discountTotal: true,
+          customerId: true,
+          createdAt: true,
+          businessDate: true,
+          payments: { select: { method: true, amount: true } },
+          customer: { select: { id: true, name: true, phone: true } },
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          storeId: storeWhere,
+          OR: [{ status: 'OPEN' }, { payments: { some: { method: 'CREDIT' } } }],
+          status: { notIn: ['VOID', 'REFUNDED'] },
+        },
+        select: {
+          id: true,
+          saleNo: true,
+          status: true,
+          grandTotal: true,
+          customerId: true,
+          createdAt: true,
+          payments: { select: { method: true, amount: true } },
+          customer: { select: { id: true, name: true, phone: true } },
+        },
+      }),
+      prisma.discountOverride.findMany({
+        where: {
+          storeId: storeWhere,
+          createdAt: { gte: queryStart, lte: queryEnd },
+        },
+        select: {
+          originalDiscount: true,
+          overrideDiscount: true,
+          reason: true,
+          createdAt: true,
+          sale: { select: { businessDate: true, createdAt: true, grandTotal: true } },
+        },
+      }),
+    ]);
+
+    const inRange = periodSales.filter((s) => {
+      const key = saleBucketDateKey(s);
+      return key >= startStr && key <= endStr;
+    });
+
+    const paymentMap: Record<string, number> = {};
+    let discountTotal = 0;
+    let paidRevenue = 0;
+    let voids = 0;
+    let refunds = 0;
+    let voidAmount = 0;
+    let refundAmount = 0;
+
+    for (const s of inRange) {
+      if (s.status === 'VOID') {
+        voids += 1;
+        voidAmount += s.grandTotal || 0;
+        continue;
+      }
+      if (s.status === 'REFUNDED') {
+        refunds += 1;
+        refundAmount += s.grandTotal || 0;
+        continue;
+      }
+      if (s.status === 'PAID' || s.status === 'OPEN') {
+        discountTotal += s.discountTotal || 0;
+        if (s.status === 'PAID') paidRevenue += s.grandTotal || 0;
+        for (const p of s.payments || []) {
+          const m = String(p.method || 'Other').toUpperCase();
+          paymentMap[m] = (paymentMap[m] || 0) + (p.amount || 0);
+        }
+      }
+    }
+
+    const overridesInRange = overrides.filter((o) => {
+      const key = saleBucketDateKey(o.sale);
+      return key >= startStr && key <= endStr;
+    });
+
+    type Debtor = {
+      customerId: string;
+      name: string;
+      phone: string;
+      amount: number;
+      orders: number;
+    };
+    const debtorMap = new Map<string, Debtor>();
+    let openCreditAmount = 0;
+    let openCreditOrders = 0;
+
+    for (const sale of creditCandidates) {
+      const payments = sale.payments || [];
+      const hasCredit = payments.some((p) => String(p.method).toUpperCase() === 'CREDIT');
+      if (!hasCredit && sale.status !== 'OPEN') continue;
+      const paid = payments
+        .filter((p) => String(p.method).toUpperCase() !== 'CREDIT')
+        .reduce((s, p) => s + (p.amount || 0), 0);
+      const remaining = Math.max(0, round2((sale.grandTotal || 0) - paid));
+      if (remaining <= 0.01) continue;
+      openCreditAmount += remaining;
+      openCreditOrders += 1;
+      const cid = sale.customerId || 'WALK_IN';
+      const existing = debtorMap.get(cid);
+      if (existing) {
+        existing.amount += remaining;
+        existing.orders += 1;
+      } else {
+        debtorMap.set(cid, {
+          customerId: cid,
+          name: sale.customer?.name || 'Walk-in credit',
+          phone: sale.customer?.phone || '—',
+          amount: remaining,
+          orders: 1,
+        });
+      }
+    }
+
+    const topDebtors = [...debtorMap.values()]
+      .map((d) => ({ ...d, amount: round2(d.amount) }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 15);
+
+    const paymentMix = Object.entries(paymentMap)
+      .map(([name, value]) => ({ name, value: round2(value) }))
+      .sort((a, b) => b.value - a.value);
+
+    return {
+      period: { start: startStr, end: endStr },
+      storeIds,
+      franchiseStoreId: franchiseStoreId || null,
+      paymentMix,
+      paidRevenue: round2(paidRevenue),
+      discounts: {
+        total: round2(discountTotal),
+        pctOfRevenue: paidRevenue > 0 ? round2((discountTotal / paidRevenue) * 100) : 0,
+        overrideCount: overridesInRange.length,
+      },
+      voids: { count: voids, amount: round2(voidAmount) },
+      refunds: { count: refunds, amount: round2(refundAmount) },
+      openCredit: {
+        amount: round2(openCreditAmount),
+        orders: openCreditOrders,
+        customers: debtorMap.size,
+      },
+      topDebtors,
+    };
+  }
+
+  /**
+   * RFM-style segments for named customers (shop-level call lists).
+   */
+  async getCustomerSegments(userStoreId: string, franchiseStoreId?: string | null) {
+    const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
+    const storeWhere = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+    const todayYmd = ymdInStoreTz();
+
+    const [customers, sales, creditSales] = await Promise.all([
+      prisma.customer.findMany({
+        where: { storeId: storeWhere },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          area: true,
+          loyaltyTier: true,
+          loyaltyPoints: true,
+          totalSpent: true,
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          storeId: storeWhere,
+          status: 'PAID',
+          customerId: { not: null },
+        },
+        select: {
+          customerId: true,
+          grandTotal: true,
+          createdAt: true,
+          businessDate: true,
+        },
+      }),
+      prisma.sale.findMany({
+        where: {
+          storeId: storeWhere,
+          customerId: { not: null },
+          status: { notIn: ['VOID', 'REFUNDED'] },
+          OR: [{ status: 'OPEN' }, { payments: { some: { method: 'CREDIT' } } }],
+        },
+        select: {
+          customerId: true,
+          grandTotal: true,
+          payments: { select: { method: true, amount: true } },
+        },
+      }),
+    ]);
+
+    const byCust: Record<
+      string,
+      { visits: number; spent: number; lastYmd: string | null }
+    > = {};
+    for (const s of sales) {
+      const cid = s.customerId!;
+      if (!byCust[cid]) byCust[cid] = { visits: 0, spent: 0, lastYmd: null };
+      byCust[cid].visits += 1;
+      byCust[cid].spent += s.grandTotal || 0;
+      const ymd = saleBucketDateKey(s);
+      if (!byCust[cid].lastYmd || ymd > byCust[cid].lastYmd) byCust[cid].lastYmd = ymd;
+    }
+
+    const creditByCust: Record<string, number> = {};
+    for (const s of creditSales) {
+      const cid = s.customerId!;
+      const paid = (s.payments || [])
+        .filter((p) => String(p.method).toUpperCase() !== 'CREDIT')
+        .reduce((a, p) => a + (p.amount || 0), 0);
+      const rem = Math.max(0, (s.grandTotal || 0) - paid);
+      if (rem > 0.01) creditByCust[cid] = (creditByCust[cid] || 0) + rem;
+    }
+
+    type Seg =
+      | 'champion'
+      | 'loyal'
+      | 'at_risk'
+      | 'lapsed'
+      | 'new'
+      | 'dormant'
+      | 'credit_heavy';
+
+    const rows: Array<{
+      id: string;
+      name: string;
+      phone: string;
+      area: string | null;
+      loyaltyTier: string;
+      visits: number;
+      lifetimeSpent: number;
+      daysSinceLastVisit: number | null;
+      lastVisitAt: string | null;
+      openCredit: number;
+      segment: Seg;
+      rfm: { r: number; f: number; m: number };
+    }> = [];
+
+    for (const c of customers) {
+      const hist = byCust[c.id] || { visits: 0, spent: 0, lastYmd: null };
+      const daysSince = hist.lastYmd ? daysBetweenYmd(todayYmd, hist.lastYmd) : null;
+      const openCredit = round2(creditByCust[c.id] || 0);
+      const spent = Math.max(hist.spent, c.totalSpent || 0);
+
+      // Simple 1–5 RFM
+      let r = 1;
+      if (daysSince == null) r = 1;
+      else if (daysSince <= 7) r = 5;
+      else if (daysSince <= 14) r = 4;
+      else if (daysSince <= 30) r = 3;
+      else if (daysSince <= 60) r = 2;
+
+      let f = 1;
+      if (hist.visits >= 20) f = 5;
+      else if (hist.visits >= 10) f = 4;
+      else if (hist.visits >= 5) f = 3;
+      else if (hist.visits >= 2) f = 2;
+
+      let m = 1;
+      if (spent >= 50000) m = 5;
+      else if (spent >= 20000) m = 4;
+      else if (spent >= 5000) m = 3;
+      else if (spent >= 1000) m = 2;
+
+      let segment: Seg = 'dormant';
+      if (openCredit >= 2000 || (openCredit > 0 && hist.visits >= 3 && openCredit >= 500)) {
+        segment = 'credit_heavy';
+      } else if (hist.visits >= 8 && daysSince != null && daysSince <= 14 && spent >= 5000) {
+        segment = 'champion';
+      } else if (hist.visits >= 4 && daysSince != null && daysSince <= 21) {
+        segment = 'loyal';
+      } else if (hist.visits >= 4 && daysSince != null && daysSince > 21 && daysSince <= 45) {
+        segment = 'at_risk';
+      } else if (hist.visits >= 4 && daysSince != null && daysSince > 45) {
+        segment = 'lapsed';
+      } else if (hist.visits > 0 && hist.visits <= 2 && daysSince != null && daysSince <= 30) {
+        segment = 'new';
+      } else if (daysSince == null || daysSince > 60) {
+        segment = 'dormant';
+      } else if (hist.visits >= 3 && daysSince != null && daysSince <= 30) {
+        segment = 'loyal';
+      } else {
+        segment = 'dormant';
+      }
+
+      rows.push({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        area: c.area || null,
+        loyaltyTier: c.loyaltyTier,
+        visits: hist.visits,
+        lifetimeSpent: round2(spent),
+        daysSinceLastVisit: daysSince,
+        lastVisitAt: hist.lastYmd,
+        openCredit,
+        segment,
+        rfm: { r, f, m },
+      });
+    }
+
+    const counts: Record<string, number> = {
+      champion: 0,
+      loyal: 0,
+      at_risk: 0,
+      lapsed: 0,
+      new: 0,
+      dormant: 0,
+      credit_heavy: 0,
+    };
+    for (const row of rows) counts[row.segment] = (counts[row.segment] || 0) + 1;
+
+    const priority = (s: Seg) =>
+      ({ credit_heavy: 0, at_risk: 1, lapsed: 2, champion: 3, loyal: 4, new: 5, dormant: 6 }[s]);
+
+    rows.sort((a, b) => {
+      const pd = priority(a.segment) - priority(b.segment);
+      if (pd !== 0) return pd;
+      return b.lifetimeSpent - a.lifetimeSpent;
+    });
+
+    const callList = rows
+      .filter((r) => r.segment === 'at_risk' || r.segment === 'lapsed' || r.segment === 'credit_heavy')
+      .slice(0, 50);
+
+    const vips = rows.filter((r) => r.segment === 'champion').slice(0, 25);
+
+    return {
+      storeIds,
+      franchiseStoreId: franchiseStoreId || null,
+      asOf: todayYmd,
+      counts,
+      totalCustomers: customers.length,
+      customers: rows.slice(0, 500),
+      callList,
+      vips,
+      segmentLabels: {
+        champion: 'VIPs / champions',
+        loyal: 'Loyal regulars',
+        at_risk: 'At risk (going quiet)',
+        lapsed: 'Lapsed regulars',
+        new: 'New buyers',
+        dormant: 'Dormant',
+        credit_heavy: 'Credit heavy',
+      },
+    };
+  }
+
+  /**
+   * Delivery / pickup ops for the selected period.
+   */
+  async getDeliveryOps(
+    userStoreId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+    franchiseStoreId?: string | null
+  ) {
+    const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
+    const { startStr, endStr } = storeRangeYmd(rangeStart, rangeEnd);
+    const queryStart = new Date(rangeStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(rangeEnd.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const storeWhere = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+
+    const orders = await prisma.deliveryOrder.findMany({
+      where: {
+        storeId: storeWhere,
+        createdAt: { gte: queryStart, lte: queryEnd },
+      },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        deliveryFee: true,
+        createdAt: true,
+        deliveredAt: true,
+        failureReason: true,
+        address: { select: { city: true, line1: true, label: true } },
+        sale: {
+          select: {
+            grandTotal: true,
+            businessDate: true,
+            createdAt: true,
+            customer: { select: { area: true, name: true, phone: true } },
+          },
+        },
+      },
+    });
+
+    const inRange = orders.filter((o) => {
+      const key = saleBucketDateKey({
+        businessDate: o.sale?.businessDate ?? null,
+        createdAt: o.sale?.createdAt ?? o.createdAt,
+      });
+      return key >= startStr && key <= endStr;
+    });
+
+    let delivery = 0;
+    let pickup = 0;
+    let delivered = 0;
+    let pending = 0;
+    let failed = 0;
+    let returned = 0;
+    let feeTotal = 0;
+    let deliveryRevenue = 0;
+    let pickupRevenue = 0;
+    const byArea: Record<string, { orders: number; revenue: number; failed: number }> = {};
+    const byStatus: Record<string, number> = {};
+
+    for (const o of inRange) {
+      const rev = o.sale?.grandTotal || 0;
+      byStatus[o.status] = (byStatus[o.status] || 0) + 1;
+      feeTotal += o.deliveryFee || 0;
+      if (o.type === 'DELIVERY') {
+        delivery += 1;
+        deliveryRevenue += rev;
+      } else {
+        pickup += 1;
+        pickupRevenue += rev;
+      }
+      if (o.status === 'DELIVERED') delivered += 1;
+      else if (o.status === 'FAILED') failed += 1;
+      else if (o.status === 'RETURNED') returned += 1;
+      else pending += 1;
+
+      const area =
+        String(o.sale?.customer?.area || '').trim() ||
+        String(o.address?.city || '').trim() ||
+        'Unspecified';
+      if (!byArea[area]) byArea[area] = { orders: 0, revenue: 0, failed: 0 };
+      byArea[area].orders += 1;
+      byArea[area].revenue += rev;
+      if (o.status === 'FAILED' || o.status === 'RETURNED') byArea[area].failed += 1;
+    }
+
+    const areaRows = Object.entries(byArea)
+      .map(([area, v]) => ({
+        area,
+        orders: v.orders,
+        revenue: round2(v.revenue),
+        failed: v.failed,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 20);
+
+    return {
+      period: { start: startStr, end: endStr },
+      storeIds,
+      franchiseStoreId: franchiseStoreId || null,
+      total: inRange.length,
+      delivery,
+      pickup,
+      delivered,
+      pending,
+      failed,
+      returned,
+      deliveryFeeTotal: round2(feeTotal),
+      deliveryRevenue: round2(deliveryRevenue),
+      pickupRevenue: round2(pickupRevenue),
+      failRate:
+        inRange.length > 0
+          ? round2(((failed + returned) / inRange.length) * 100)
+          : 0,
+      byStatus: Object.entries(byStatus).map(([name, value]) => ({ name, value })),
+      byArea: areaRows,
+      typeMix: [
+        { name: 'Delivery', value: delivery },
+        { name: 'Pickup', value: pickup },
+      ],
+    };
+  }
+
+  /**
+   * Bills & revenue by cashier for the period.
+   */
+  async getStaffProductivity(
+    userStoreId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+    franchiseStoreId?: string | null
+  ) {
+    const { storeIds } = await this.resolveAnalyticsStoreIds(userStoreId, franchiseStoreId);
+    const { startStr, endStr } = storeRangeYmd(rangeStart, rangeEnd);
+    const queryStart = new Date(rangeStart.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(rangeEnd.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const storeWhere = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: storeWhere,
+        status: 'PAID',
+        OR: [
+          { createdAt: { gte: queryStart, lte: queryEnd } },
+          { businessDate: { gte: queryStart, lte: queryEnd } },
+        ],
+      },
+      select: {
+        grandTotal: true,
+        createdAt: true,
+        businessDate: true,
+        createdByUserId: true,
+        createdBy: { select: { id: true, name: true, role: true } },
+      },
+    });
+
+    const inRange = sales.filter((s) => {
+      const key = saleBucketDateKey(s);
+      return key >= startStr && key <= endStr;
+    });
+
+    const byUser: Record<
+      string,
+      { userId: string; name: string; role: string; orders: number; revenue: number }
+    > = {};
+
+    for (const s of inRange) {
+      const uid = s.createdByUserId;
+      if (!byUser[uid]) {
+        byUser[uid] = {
+          userId: uid,
+          name: s.createdBy?.name || 'Unknown',
+          role: s.createdBy?.role || '',
+          orders: 0,
+          revenue: 0,
+        };
+      }
+      byUser[uid].orders += 1;
+      byUser[uid].revenue += s.grandTotal || 0;
+    }
+
+    const staff = Object.values(byUser)
+      .map((u) => ({
+        ...u,
+        revenue: round2(u.revenue),
+        avgBill: u.orders > 0 ? round2(u.revenue / u.orders) : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      period: { start: startStr, end: endStr },
+      storeIds,
+      franchiseStoreId: franchiseStoreId || null,
+      staff,
+      totalOrders: inRange.length,
+      totalRevenue: round2(inRange.reduce((s, x) => s + (x.grandTotal || 0), 0)),
+    };
+  }
+
+  /**
+   * One-screen shop health: KPIs vs prior + lights + takeaways + quick lists.
+   */
+  async getShopPulse(
+    userStoreId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+    franchiseStoreId?: string | null
+  ) {
+    // Keep IST bounds from resolveStoreDateRange (no UTC startOfDay wrap)
+    const start = rangeStart;
+    const end = rangeEnd;
+    const { startStr, endStr } = storeRangeYmd(start, end);
+    const daySpan = Math.max(1, eachStoreYmdInclusive(startStr, endStr).length);
+    const startNoon = new Date(`${startStr}T12:00:00.000+05:30`);
+    const priorEndYmd = ymdDaysAgoInStoreTz(1, startNoon);
+    const priorStartYmd = ymdDaysAgoInStoreTz(daySpan, startNoon);
+    const priorStart = new Date(`${priorStartYmd}T00:00:00.000+05:30`);
+    const priorEnd = new Date(`${priorEndYmd}T23:59:59.999+05:30`);
+
+    const [current, prior, money, demographics, segments, delivery, inv, staff] =
+      await Promise.all([
+        this.getSalesOverview(userStoreId, start, end, franchiseStoreId),
+        this.getSalesOverview(userStoreId, priorStart, priorEnd, franchiseStoreId),
+        this.getMoneyHealth(userStoreId, start, end, franchiseStoreId),
+        this.getCustomerDemographics(userStoreId, start, end, franchiseStoreId),
+        this.getCustomerSegments(userStoreId, franchiseStoreId),
+        this.getDeliveryOps(userStoreId, start, end, franchiseStoreId),
+        this.getInventoryRecommendations(userStoreId, {
+          franchiseStoreId: franchiseStoreId ?? null,
+          historyDays: Math.min(30, daySpan + 14),
+        }),
+        this.getStaffProductivity(userStoreId, start, end, franchiseStoreId),
+      ]);
+
+    const pct = (cur: number, prev: number) =>
+      prev > 0 ? round2(((cur - prev) / prev) * 100) : null;
+
+    const revDelta = current.totalRevenue - prior.totalRevenue;
+    const revPct = pct(current.totalRevenue, prior.totalRevenue);
+
+    const kpis = {
+      revenue: {
+        value: round2(current.totalRevenue),
+        prior: round2(prior.totalRevenue),
+        deltaPct: revPct,
+      },
+      orders: {
+        value: current.totalOrders,
+        prior: prior.totalOrders,
+        deltaPct: pct(current.totalOrders, prior.totalOrders),
+      },
+      aov: {
+        value: round2(current.avgOrderValue),
+        prior: round2(prior.avgOrderValue),
+        deltaPct: pct(current.avgOrderValue, prior.avgOrderValue),
+      },
+      openCredit: {
+        value: money.openCredit.amount,
+        orders: money.openCredit.orders,
+        customers: money.openCredit.customers,
+      },
+      namedOrderPct: {
+        value: demographics.summary?.namedOrderPct ?? 0,
+        prior: null as number | null,
+      },
+      stockouts: inv.outOfStock || 0,
+      lowStock: inv.lowStock || 0,
+    };
+
+    type Light = { key: string; label: string; status: 'ok' | 'warn' | 'bad'; detail: string };
+    const lights: Light[] = [];
+
+    lights.push({
+      key: 'revenue',
+      label: 'Revenue',
+      status: revPct == null ? 'ok' : revPct < -10 ? 'bad' : revPct < 0 ? 'warn' : 'ok',
+      detail:
+        revPct == null
+          ? 'No prior period to compare'
+          : `${revPct >= 0 ? '+' : ''}${revPct}% vs prior`,
+    });
+
+    const creditShare =
+      current.totalRevenue > 0 ? (money.openCredit.amount / current.totalRevenue) * 100 : 0;
+    lights.push({
+      key: 'credit',
+      label: 'Credit',
+      status:
+        money.openCredit.amount <= 0
+          ? 'ok'
+          : creditShare > 25 || money.openCredit.amount > 25000
+            ? 'bad'
+            : 'warn',
+      detail:
+        money.openCredit.amount <= 0
+          ? 'No open credit'
+          : `₹${Math.round(money.openCredit.amount).toLocaleString('en-IN')} open`,
+    });
+
+    lights.push({
+      key: 'stock',
+      label: 'Stock',
+      status: inv.outOfStock > 0 ? 'bad' : inv.lowStock > 0 ? 'warn' : 'ok',
+      detail:
+        inv.outOfStock > 0
+          ? `${inv.outOfStock} out of stock`
+          : inv.lowStock > 0
+            ? `${inv.lowStock} low stock`
+            : 'Stock looks fine',
+    });
+
+    lights.push({
+      key: 'customers',
+      label: 'Customers',
+      status:
+        (segments.counts.at_risk || 0) + (segments.counts.lapsed || 0) >= 10
+          ? 'bad'
+          : (segments.counts.at_risk || 0) + (segments.counts.lapsed || 0) > 0
+            ? 'warn'
+            : 'ok',
+      detail: `${(segments.counts.at_risk || 0) + (segments.counts.lapsed || 0)} to win back`,
+    });
+
+    lights.push({
+      key: 'delivery',
+      label: 'Delivery',
+      status:
+        delivery.failed + delivery.returned >= 3
+          ? 'bad'
+          : delivery.failed + delivery.returned > 0
+            ? 'warn'
+            : 'ok',
+      detail:
+        delivery.total === 0
+          ? 'No delivery orders'
+          : `${delivery.failed + delivery.returned} failed/returned of ${delivery.total}`,
+    });
+
+    const takeaways: Array<{
+      severity: 'low' | 'medium' | 'high';
+      title: string;
+      detail: string;
+      action?: string;
+      href?: string;
+    }> = [];
+
+    if (revPct != null) {
+      takeaways.push({
+        severity: revPct < -10 ? 'high' : revPct < 0 ? 'medium' : 'low',
+        title: 'Revenue vs prior period',
+        detail: `${revPct >= 0 ? 'Up' : 'Down'} ${Math.abs(Math.round(revPct))}% (₹${Math.round(Math.abs(revDelta)).toLocaleString('en-IN')}).`,
+        href: 'sales-overview',
+      });
+    }
+    if (money.openCredit.amount > 0) {
+      takeaways.push({
+        severity: creditShare > 25 ? 'high' : 'medium',
+        title: 'Open credit on books',
+        detail: `₹${Math.round(money.openCredit.amount).toLocaleString('en-IN')} across ${money.openCredit.customers} customer(s).`,
+        action: 'Collect from top debtors.',
+        href: 'money',
+      });
+    }
+    const quiet =
+      (segments.counts.at_risk || 0) + (segments.counts.lapsed || 0);
+    if (quiet > 0) {
+      takeaways.push({
+        severity: quiet >= 10 ? 'high' : 'medium',
+        title: 'Customers going quiet',
+        detail: `${quiet} at-risk or lapsed regulars to call.`,
+        action: 'Export call list from Customers tab.',
+        href: 'customers',
+      });
+    }
+    if (inv.outOfStock > 0 || inv.lowStock > 0) {
+      takeaways.push({
+        severity: inv.outOfStock > 0 ? 'high' : 'medium',
+        title: 'Stock attention',
+        detail: `${inv.outOfStock} out of stock · ${inv.lowStock} low.`,
+        href: 'inventory',
+      });
+    }
+    if (delivery.failed + delivery.returned > 0) {
+      takeaways.push({
+        severity: 'medium',
+        title: 'Delivery failures',
+        detail: `${delivery.failed + delivery.returned} failed/returned of ${delivery.total}.`,
+        href: 'delivery',
+      });
+    }
+
+    return {
+      period: {
+        start: current.startDate,
+        end: current.endDate,
+        priorStart: priorStartYmd,
+        priorEnd: priorEndYmd,
+        daySpan,
+      },
+      storeIds: current.storeIds,
+      franchiseStoreId: franchiseStoreId || null,
+      kpis,
+      lights,
+      takeaways: takeaways.slice(0, 5),
+      peakHour: current.peakHour,
+      topProducts: (current.topProducts || []).slice(0, 5),
+      callListPreview: (segments.callList || []).slice(0, 8),
+      vipPreview: (segments.vips || []).slice(0, 5),
+      topDebtors: (money.topDebtors || []).slice(0, 5),
+      deliverySummary: {
+        total: delivery.total,
+        delivery: delivery.delivery,
+        pickup: delivery.pickup,
+        pending: delivery.pending,
+        failed: delivery.failed + delivery.returned,
+      },
+      staffTop: (staff.staff || []).slice(0, 5),
+      paymentMix: money.paymentMix,
+      segmentCounts: segments.counts,
+      demographicsSummary: demographics.summary || null,
     };
   }
 }

@@ -26,6 +26,18 @@ import {
 } from "recharts";
 import Skeleton from "@/components/ui/Skeleton";
 import { exportToCSV } from "@/lib/exportCSV";
+import {
+  ShopPulsePanel,
+  MoneyHealthPanel,
+  DeliveryOpsPanel,
+  CustomerSegmentsPanel,
+  StaffProductivityPanel,
+  type ShopPulse,
+  type MoneyHealth,
+  type DeliveryOps,
+  type CustomerSegments,
+  type StaffProductivity,
+} from "./ShopAnalyticsPanels";
 
 function formatForecastDate(dateStr: string): string {
   if (!dateStr || dateStr.length < 10) return dateStr;
@@ -133,6 +145,8 @@ interface InsightItem {
   severity: "low" | "medium" | "high";
   title: string;
   detail: string;
+  action?: string;
+  href?: string;
 }
 
 interface InsightsPayload {
@@ -263,15 +277,31 @@ export default function AdvancedAnalyticsPage() {
   const [profitMarginError, setProfitMarginError] = useState<string | null>(null);
   const [demographics, setDemographics] = useState<CustomerDemographicsPayload | null>(null);
   const [demographicsError, setDemographicsError] = useState<string | null>(null);
+  const [shopPulse, setShopPulse] = useState<ShopPulse | null>(null);
+  const [shopPulseError, setShopPulseError] = useState<string | null>(null);
+  const [moneyHealth, setMoneyHealth] = useState<MoneyHealth | null>(null);
+  const [moneyError, setMoneyError] = useState<string | null>(null);
+  const [deliveryOps, setDeliveryOps] = useState<DeliveryOps | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [customerSegments, setCustomerSegments] = useState<CustomerSegments | null>(null);
+  const [segmentsError, setSegmentsError] = useState<string | null>(null);
+  const [segmentFilter, setSegmentFilter] = useState("call");
+  const [staffProductivity, setStaffProductivity] = useState<StaffProductivity | null>(null);
+  const [staffError, setStaffError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
+    | "pulse"
     | "sales-overview"
+    | "money"
     | "profit-margin"
     | "forecast"
     | "demand"
     | "inventory"
     | "insights"
     | "demographics"
-  >("sales-overview");
+    | "customers"
+    | "delivery"
+    | "staff"
+  >("pulse");
 
   const isOwner = user?.store?.type === "OWNER";
 
@@ -308,6 +338,7 @@ export default function AdvancedAnalyticsPage() {
     loadInsights();
     loadProfitMargin();
     loadDemographics();
+    loadShopExtras();
   }, [user, startDateStr, endDateStr, franchiseStoreId, demandByStore]);
 
   const loadAnalytics = async () => {
@@ -463,6 +494,68 @@ export default function AdvancedAnalyticsPage() {
     }
   };
 
+  const loadShopExtras = async () => {
+    if (!user?.storeId) return;
+    const common = scopeParams();
+    setShopPulseError(null);
+    setMoneyError(null);
+    setDeliveryError(null);
+    setSegmentsError(null);
+    setStaffError(null);
+
+    const [pulseRes, moneyRes, deliveryRes, segmentsRes, staffRes] = await Promise.all([
+      api.get("/api/v1/analytics/shop-pulse", { params: common }).catch((e: any) => {
+        setShopPulseError(
+          e.response?.data?.message || e.response?.data?.error || e.message || "Pulse failed"
+        );
+        return { data: null };
+      }),
+      api.get("/api/v1/analytics/money-health", { params: common }).catch((e: any) => {
+        setMoneyError(
+          e.response?.data?.message || e.response?.data?.error || e.message || "Money failed"
+        );
+        return { data: null };
+      }),
+      api.get("/api/v1/analytics/delivery-ops", { params: common }).catch((e: any) => {
+        setDeliveryError(
+          e.response?.data?.message || e.response?.data?.error || e.message || "Delivery failed"
+        );
+        return { data: null };
+      }),
+      api
+        .get("/api/v1/analytics/customer-segments", {
+          params: franchiseStoreId ? { franchiseStoreId } : {},
+        })
+        .catch((e: any) => {
+          setSegmentsError(
+            e.response?.data?.message ||
+              e.response?.data?.error ||
+              e.message ||
+              "Segments failed"
+          );
+          return { data: null };
+        }),
+      api.get("/api/v1/analytics/staff-productivity", { params: common }).catch((e: any) => {
+        setStaffError(
+          e.response?.data?.message || e.response?.data?.error || e.message || "Staff failed"
+        );
+        return { data: null };
+      }),
+    ]);
+
+    setShopPulse(pulseRes.data || null);
+    setMoneyHealth(moneyRes.data || null);
+    setDeliveryOps(deliveryRes.data || null);
+    setCustomerSegments(segmentsRes.data || null);
+    setStaffProductivity(staffRes.data || null);
+  };
+
+  const applyPreset = (days: number) => {
+    const endDateStr = todayLocalYmd();
+    const startDateStr = format(subDays(new Date(), days - 1), "yyyy-MM-dd");
+    setDateRange({ startDateStr, endDateStr });
+  };
+
   const loadSalesFallback = async (tab: "forecast" | "demand") => {
     setLoading(true);
     try {
@@ -581,7 +674,7 @@ export default function AdvancedAnalyticsPage() {
               Advanced Analytics
             </h1>
             <p className="text-sm text-ink-secondary mt-1">
-              Predictive insights and recommendations (UTC day boundaries; peak hour UTC)
+              Full shop health — pulse, money, customers, delivery (Asia/Kolkata days & peak hour)
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -654,6 +747,46 @@ export default function AdvancedAnalyticsPage() {
                     ],
                     filename: `customer_demographics_${tag}.csv`,
                   });
+                } else if (activeTab === "customers" && customerSegments) {
+                  const rows =
+                    segmentFilter === "call"
+                      ? customerSegments.callList
+                      : segmentFilter === "all"
+                        ? customerSegments.customers
+                        : customerSegments.customers.filter((c) => c.segment === segmentFilter);
+                  exportToCSV({
+                    data: rows.map((c) => ({
+                      name: c.name,
+                      phone: c.phone,
+                      area: c.area || "",
+                      segment: c.segment,
+                      visits: c.visits,
+                      lifetimeSpent: c.lifetimeSpent,
+                      daysSinceLastVisit: c.daysSinceLastVisit ?? "",
+                      openCredit: c.openCredit,
+                    })),
+                    filename: `customer_segments_${segmentFilter}_${tag}.csv`,
+                  });
+                } else if (activeTab === "money" && moneyHealth) {
+                  exportToCSV({
+                    data: moneyHealth.topDebtors,
+                    filename: `open_credit_${tag}.csv`,
+                  });
+                } else if (activeTab === "delivery" && deliveryOps) {
+                  exportToCSV({
+                    data: deliveryOps.byArea,
+                    filename: `delivery_by_area_${tag}.csv`,
+                  });
+                } else if (activeTab === "staff" && staffProductivity) {
+                  exportToCSV({
+                    data: staffProductivity.staff,
+                    filename: `staff_productivity_${tag}.csv`,
+                  });
+                } else if (activeTab === "pulse" && shopPulse) {
+                  exportToCSV({
+                    data: shopPulse.callListPreview,
+                    filename: `pulse_call_list_${tag}.csv`,
+                  });
                 }
               }}
               className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
@@ -667,6 +800,7 @@ export default function AdvancedAnalyticsPage() {
                 loadInsights();
                 loadProfitMargin();
                 loadDemographics();
+                loadShopExtras();
               }}
               className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
             >
@@ -676,6 +810,23 @@ export default function AdvancedAnalyticsPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-3 p-4 bg-surface-2/60 rounded-xl border border-subtle">
+          <div className="flex flex-wrap gap-1.5 w-full sm:w-auto mb-1 sm:mb-0 sm:mr-2">
+            {[
+              { label: "Today", days: 1 },
+              { label: "7 days", days: 7 },
+              { label: "30 days", days: 30 },
+              { label: "90 days", days: 90 },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyPreset(p.days)}
+                className="px-2.5 py-1 text-xs font-medium rounded-md border border-subtle bg-surface hover:bg-surface-2 text-ink-secondary"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
           <div>
             <label className="block text-xs font-medium text-ink-secondary mb-1">
               Start date
@@ -736,12 +887,26 @@ export default function AdvancedAnalyticsPage() {
           )}
         </div>
 
-        {(analyticsErrors.length > 0 || overviewError || insightsError || profitMarginError || demographicsError) && (
+        {(analyticsErrors.length > 0 ||
+          overviewError ||
+          insightsError ||
+          profitMarginError ||
+          demographicsError ||
+          shopPulseError ||
+          moneyError ||
+          deliveryError ||
+          segmentsError ||
+          staffError) && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-1">
             {overviewError && <p>Overview: {overviewError}</p>}
             {insightsError && <p>Insights: {insightsError}</p>}
             {profitMarginError && <p>Profit margin: {profitMarginError}</p>}
             {demographicsError && <p>Demographics: {demographicsError}</p>}
+            {shopPulseError && <p>Pulse: {shopPulseError}</p>}
+            {moneyError && <p>Money: {moneyError}</p>}
+            {deliveryError && <p>Delivery: {deliveryError}</p>}
+            {segmentsError && <p>Segments: {segmentsError}</p>}
+            {staffError && <p>Staff: {staffError}</p>}
             {analyticsErrors.map((e, i) => (
               <p key={i}>{e}</p>
             ))}
@@ -750,71 +915,100 @@ export default function AdvancedAnalyticsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 flex-wrap">
-        <button
-          onClick={() => setActiveTab("sales-overview")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="sales-overview"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          📊 Sales Overview
-        </button>
-        <button
-          onClick={() => setActiveTab("profit-margin")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="profit-margin"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          💹 Profit Margin
-        </button>
-        <button
-          onClick={() => setActiveTab("forecast")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="forecast"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          📈 Sales Forecast
-        </button>
-        <button
-          onClick={() => setActiveTab("demand")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="demand"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          🎯 Demand Analysis
-        </button>
-        <button
-          onClick={() => setActiveTab("inventory")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="inventory"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          📦 Inventory Recommendations
-        </button>
-        <button
-          onClick={() => setActiveTab("insights")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="insights"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          💡 Insights
-        </button>
-        <button
-          onClick={() => setActiveTab("demographics")}
-          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${ activeTab ==="demographics"
-              ? "border-blue-600 text-blue-600 dark:text-blue-400"
-              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-          }`}
-        >
-          Who buys from us
-        </button>
+      <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-gray-700 flex-wrap">
+        {(
+          [
+            ["pulse", "Shop pulse"],
+            ["sales-overview", "Sales"],
+            ["money", "Money"],
+            ["customers", "Segments"],
+            ["delivery", "Delivery"],
+            ["demographics", "Who buys"],
+            ["profit-margin", "Margin"],
+            ["forecast", "Forecast"],
+            ["demand", "Demand"],
+            ["inventory", "Inventory"],
+            ["staff", "Staff"],
+            ["insights", "Insights"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`px-3 sm:px-4 py-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+              activeTab === id
+                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+
+      {activeTab === "pulse" && (
+        <div>
+          {shopPulse ? (
+            <ShopPulsePanel pulse={shopPulse} onNavigate={(tab) => setActiveTab(tab as any)} />
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {shopPulseError || "Loading shop pulse…"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "money" && (
+        <div>
+          {moneyHealth ? (
+            <MoneyHealthPanel money={moneyHealth} />
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {moneyError || "Loading money health…"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "customers" && (
+        <div>
+          {customerSegments ? (
+            <CustomerSegmentsPanel
+              segments={customerSegments}
+              filter={segmentFilter}
+              onFilterChange={setSegmentFilter}
+            />
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {segmentsError || "Loading customer segments…"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "delivery" && (
+        <div>
+          {deliveryOps ? (
+            <DeliveryOpsPanel delivery={deliveryOps} />
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {deliveryError || "Loading delivery ops…"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "staff" && (
+        <div>
+          {staffProductivity ? (
+            <StaffProductivityPanel staff={staffProductivity} />
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {staffError || "Loading staff productivity…"}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sales Overview Tab */}
       {activeTab === "sales-overview" && (
@@ -857,7 +1051,7 @@ export default function AdvancedAnalyticsPage() {
                   </p>
                 </div>
                 <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 rounded-lg p-6 border border-cyan-200 dark:border-cyan-800">
-                  <h3 className="text-sm font-medium text-cyan-700 dark:text-cyan-300 mb-2">Peak Hour (UTC)</h3>
+                  <h3 className="text-sm font-medium text-cyan-700 dark:text-cyan-300 mb-2">Peak Hour (IST)</h3>
                   <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
                     {salesOverview.peakHour ? `${salesOverview.peakHour.hour}:00` : "—"}
                   </p>
@@ -1330,7 +1524,7 @@ export default function AdvancedAnalyticsPage() {
             {demand.peakHour && (
               <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg p-6 border border-orange-200 dark:border-orange-800">
                 <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">
-                  Peak Hour (UTC)
+                  Peak Hour (IST)
                 </h3>
                 <p className="text-3xl font-bold text-orange-900 dark:text-orange-100">
                   {demand.peakHour.hour}:00
@@ -1889,18 +2083,27 @@ export default function AdvancedAnalyticsPage() {
           {insights && insights.insights.length > 0 ? (
             <div className="grid gap-3">
               {insights.insights.map((ins, i) => (
-                <div
+                <button
                   key={i}
-                  className={`rounded-lg border px-4 py-3 ${ ins.severity ==="high"
+                  type="button"
+                  onClick={() => ins.href && setActiveTab(ins.href as any)}
+                  className={`text-left rounded-lg border px-4 py-3 ${
+                    ins.severity === "high"
                       ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
                       : ins.severity === "medium"
-                      ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
-                      : "border-subtle bg-surface"
-                  }`}
+                        ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
+                        : "border-subtle bg-surface"
+                  } ${ins.href ? "hover:opacity-90 cursor-pointer" : "cursor-default"}`}
                 >
                   <p className="font-semibold text-ink">{ins.title}</p>
                   <p className="text-sm text-ink-secondary mt-1">{ins.detail}</p>
-                </div>
+                  {ins.action && (
+                    <p className="text-xs text-ink-muted mt-2">{ins.action}</p>
+                  )}
+                  {ins.href && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Open {ins.href} →</p>
+                  )}
+                </button>
               ))}
             </div>
           ) : (
@@ -2153,6 +2356,50 @@ export default function AdvancedAnalyticsPage() {
                   </div>
                 </div>
               )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {demographics.byTier.length > 0 && (
+                  <div className="rounded-2xl border border-subtle bg-surface p-5">
+                    <h3 className="text-base font-semibold text-ink mb-1">Loyalty tiers</h3>
+                    <p className="text-xs text-ink-muted mb-4">Directory-wide tier mix</p>
+                    <div className="space-y-2">
+                      {demographics.byTier.map((t) => (
+                        <div
+                          key={t.name}
+                          className="flex justify-between text-sm border-b border-subtle py-2"
+                        >
+                          <span className="font-medium text-ink">{t.name}</span>
+                          <span className="tabular-nums text-ink-secondary">{t.customers}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {(demographics.summary.portalRegistered > 0 ||
+                      demographics.summary.profileCompleted > 0) && (
+                      <p className="text-xs text-ink-muted mt-3">
+                        Portal registered: {demographics.summary.portalRegistered} · Profile
+                        complete: {demographics.summary.profileCompleted}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {demographics.byCity.length > 0 && (
+                  <div className="rounded-2xl border border-subtle bg-surface p-5">
+                    <h3 className="text-base font-semibold text-ink mb-1">By city (addresses)</h3>
+                    <p className="text-xs text-ink-muted mb-4">From saved customer addresses</p>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {demographics.byCity.map((c) => (
+                        <div
+                          key={c.name}
+                          className="flex justify-between text-sm border-b border-subtle py-2"
+                        >
+                          <span className="font-medium text-ink">{c.name}</span>
+                          <span className="tabular-nums text-ink-secondary">{c.customers}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Tiny glossary */}
               <details className="rounded-xl border border-subtle bg-surface-2/40 px-4 py-3 text-sm">

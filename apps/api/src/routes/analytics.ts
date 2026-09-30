@@ -467,24 +467,98 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     },
   });
 
-  // Delivery KPIs (placeholder - returns empty for now)
-  fastify.get('/delivery-kpis', {
+  const scopedGet = (
+    path: string,
+    label: string,
+    runner: (
+      storeId: string,
+      start: Date,
+      end: Date,
+      franchiseStoreId: string | null
+    ) => Promise<unknown>
+  ) => {
+    fastify.get(path, {
+      preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+      handler: async (request: any, reply) => {
+        try {
+          const storeId = (getUser(request) as any).storeId;
+          const q = request.query as Record<string, unknown>;
+          const franchiseStoreId = parseFranchiseStoreId(q);
+          if (!storeId) {
+            return reply.status(400).send({
+              error: 'Store ID is required',
+              message: 'User must be associated with a store',
+            });
+          }
+          const { start, end } = rangeFromQuery(
+            q.startDate as string | undefined,
+            q.endDate as string | undefined
+          );
+          const data = await runner(storeId, start, end, franchiseStoreId ?? null);
+          return reply.send(data);
+        } catch (error: any) {
+          if (isBadScopeError(error.message)) {
+            return reply.status(400).send({ error: 'Invalid scope', message: error.message });
+          }
+          request.log.error(error, `Failed to load ${label}`);
+          return reply.status(500).send({
+            error: `Failed to load ${label}`,
+            message: error.message,
+          });
+        }
+      },
+    });
+  };
+
+  scopedGet('/shop-pulse', 'shop pulse', (storeId, start, end, franchiseStoreId) =>
+    analyticsService.getShopPulse(storeId, start, end, franchiseStoreId)
+  );
+
+  scopedGet('/money-health', 'money health', (storeId, start, end, franchiseStoreId) =>
+    analyticsService.getMoneyHealth(storeId, start, end, franchiseStoreId)
+  );
+
+  scopedGet('/delivery-ops', 'delivery ops', (storeId, start, end, franchiseStoreId) =>
+    analyticsService.getDeliveryOps(storeId, start, end, franchiseStoreId)
+  );
+
+  scopedGet('/staff-productivity', 'staff productivity', (storeId, start, end, franchiseStoreId) =>
+    analyticsService.getStaffProductivity(storeId, start, end, franchiseStoreId)
+  );
+
+  fastify.get('/customer-segments', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
     handler: async (request: any, reply) => {
       try {
-        // Placeholder for delivery KPIs
-        return reply.send({
-          totalDeliveries: 0,
-          avgDeliveryTime: 0,
-          onTimeRate: 0,
-        });
+        const storeId = (getUser(request) as any).storeId;
+        const q = request.query as Record<string, unknown>;
+        const franchiseStoreId = parseFranchiseStoreId(q);
+        if (!storeId) {
+          return reply.status(400).send({
+            error: 'Store ID is required',
+            message: 'User must be associated with a store',
+          });
+        }
+        const data = await analyticsService.getCustomerSegments(
+          storeId,
+          franchiseStoreId ?? null
+        );
+        return reply.send(data);
       } catch (error: any) {
-        request.log.error(error, 'Failed to get delivery KPIs');
+        if (isBadScopeError(error.message)) {
+          return reply.status(400).send({ error: 'Invalid scope', message: error.message });
+        }
+        request.log.error(error, 'Failed to load customer segments');
         return reply.status(500).send({
-          error: 'Failed to get delivery KPIs',
-          message: error.message
+          error: 'Failed to load customer segments',
+          message: error.message,
         });
       }
     },
   });
+
+  // Alias: real delivery ops (replaces empty placeholder)
+  scopedGet('/delivery-kpis', 'delivery KPIs', (storeId, start, end, franchiseStoreId) =>
+    analyticsService.getDeliveryOps(storeId, start, end, franchiseStoreId)
+  );
 }
