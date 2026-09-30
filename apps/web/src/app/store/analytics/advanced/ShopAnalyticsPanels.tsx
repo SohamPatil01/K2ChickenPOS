@@ -3,8 +3,9 @@
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,32 +13,31 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+
 function inr(n: number) {
   return `₹${Math.round(n || 0).toLocaleString("en-IN")}`;
 }
 
 function deltaClass(pct: number | null | undefined) {
-  if (pct == null) return "text-stone-400";
-  if (pct > 0) return "text-emerald-600 dark:text-emerald-400";
+  if (pct == null) return "text-ink-muted";
+  if (pct > 0) return "text-emerald-700 dark:text-emerald-400";
   if (pct < 0) return "text-red-600 dark:text-red-400";
-  return "text-stone-400";
+  return "text-ink-muted";
 }
 
-function statusDot(status: "ok" | "warn" | "bad") {
-  if (status === "bad") return "bg-red-500";
-  if (status === "warn") return "bg-amber-400";
-  return "bg-emerald-500";
+function deltaLabel(pct: number | null | undefined) {
+  if (pct == null) return "—";
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct}% vs prior`;
 }
 
-function tip(text: string) {
-  return (
-    <span
-      className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-stone-300 text-[10px] text-stone-500 cursor-help"
-      title={text}
-    >
-      ?
-    </span>
-  );
+function lightStyles(status: "ok" | "warn" | "bad") {
+  if (status === "bad")
+    return "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40";
+  if (status === "warn")
+    return "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40";
+  return "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30";
 }
 
 export type ShopPulse = {
@@ -179,370 +179,460 @@ export type StaffProductivity = {
   totalRevenue: number;
 };
 
-const LIGHT_HELP: Record<string, string> = {
-  revenue: "Green = sales up vs last period. Red = sales down.",
-  credit: "Money customers still owe you.",
-  stock: "Items that are empty or almost empty.",
-  customers: "Regular buyers who stopped coming — call them.",
-  delivery: "Home delivery orders that failed.",
-};
-
-/** Main dashboard — numbers first, almost no prose. */
 export function ShopPulsePanel({
   pulse,
-  dailyRevenue,
   onNavigate,
 }: {
   pulse: ShopPulse;
-  dailyRevenue?: Array<{ date: string; total: number }>;
   onNavigate: (tab: string) => void;
 }) {
-  const actions = pulse.takeaways.filter((t) => t.severity !== "low").slice(0, 3);
-
   return (
-    <div className="space-y-5">
-      {/* Status row */}
-      <div className="flex flex-wrap gap-2">
-        {pulse.lights.map((l) => (
-          <button
-            key={l.key}
-            type="button"
-            title={LIGHT_HELP[l.key] || l.detail}
-            onClick={() => {
-              if (l.key === "credit") onNavigate("money");
-              else if (l.key === "customers") onNavigate("people");
-              else if (l.key === "stock") onNavigate("stock");
-              else if (l.key === "delivery") onNavigate("money");
-            }}
-            className="inline-flex items-center gap-2 rounded-full border border-stone-200 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-1.5 text-sm text-stone-800 dark:text-gray-100"
-          >
-            <span className={`h-2.5 w-2.5 rounded-full ${statusDot(l.status)}`} />
-            {l.label}
-          </button>
-        ))}
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Shop pulse
+        </p>
+        <h2 className="mt-1 text-xl sm:text-2xl font-bold text-ink">
+          How is the whole shop doing?
+        </h2>
+        <p className="mt-1 text-sm text-ink-secondary">
+          {pulse.period.start} → {pulse.period.end}
+          {pulse.period.priorStart
+            ? ` · vs ${pulse.period.priorStart} → ${pulse.period.priorEnd}`
+            : ""}
+        </p>
       </div>
 
-      {/* Big numbers */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
+          { label: "Revenue", value: inr(pulse.kpis.revenue.value), delta: pulse.kpis.revenue.deltaPct },
           {
-            label: "Sales",
-            help: "Total money from paid bills in this period.",
-            value: inr(pulse.kpis.revenue.value),
-            delta: pulse.kpis.revenue.deltaPct,
-          },
-          {
-            label: "Bills",
-            help: "How many bills were completed.",
+            label: "Orders",
             value: String(pulse.kpis.orders.value),
             delta: pulse.kpis.orders.deltaPct,
           },
+          { label: "Avg bill", value: inr(pulse.kpis.aov.value), delta: pulse.kpis.aov.deltaPct },
           {
-            label: "Avg bill",
-            help: "Average amount per bill.",
-            value: inr(pulse.kpis.aov.value),
-            delta: pulse.kpis.aov.deltaPct,
-          },
-          {
-            label: "Credit due",
-            help: "Still unpaid by customers.",
+            label: "Open credit",
             value: inr(pulse.kpis.openCredit.value),
-            sub: `${pulse.kpis.openCredit.customers} people`,
-            warn: pulse.kpis.openCredit.value > 0,
+            sub: `${pulse.kpis.openCredit.customers} customers`,
           },
-        ].map((c) => (
-          <div
-            key={c.label}
-            className={`rounded-2xl border p-4 ${
-              c.warn
-                ? "border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/20"
-                : "border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950"
-            }`}
-          >
-            <p className="text-xs text-stone-500 flex items-center">
-              {c.label}
-              {tip(c.help)}
-            </p>
-            <p className="text-2xl font-bold text-stone-900 dark:text-white mt-1 tabular-nums">
-              {c.value}
-            </p>
-            {"delta" in c ? (
-              <p className={`text-xs mt-1 font-medium ${deltaClass(c.delta)}`}>
-                {c.delta == null ? "—" : `${c.delta > 0 ? "▲" : c.delta < 0 ? "▼" : "●"} ${Math.abs(c.delta)}%`}
-              </p>
+          {
+            label: "Named bills",
+            value: `${pulse.kpis.namedOrderPct.value}%`,
+            sub: "Phone saved on bill",
+          },
+          {
+            label: "Stock alerts",
+            value: String(pulse.kpis.stockouts + pulse.kpis.lowStock),
+            sub: `${pulse.kpis.stockouts} out · ${pulse.kpis.lowStock} low`,
+          },
+        ].map((card) => (
+          <div key={card.label} className="rounded-xl border border-subtle bg-surface p-4">
+            <p className="text-xs text-ink-secondary">{card.label}</p>
+            <p className="text-xl font-bold text-ink mt-1 tabular-nums">{card.value}</p>
+            {"delta" in card ? (
+              <p className={`text-xs mt-1 ${deltaClass(card.delta)}`}>{deltaLabel(card.delta)}</p>
             ) : (
-              <p className="text-xs text-stone-500 mt-1">{c.sub}</p>
+              <p className="text-xs text-ink-muted mt-1">{card.sub}</p>
             )}
           </div>
         ))}
       </div>
 
-      {/* Do next */}
-      {actions.length > 0 && (
-        <div className="grid gap-2 sm:grid-cols-3">
-          {actions.map((a, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => a.href && onNavigate(a.href === "customers" ? "people" : a.href === "inventory" ? "stock" : a.href === "delivery" ? "money" : a.href === "sales-overview" ? "overview" : a.href)}
-              className={`text-left rounded-2xl border px-4 py-3 ${
-                a.severity === "high"
-                  ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
-                  : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
-              }`}
-            >
-              <p className="font-semibold text-sm text-stone-900 dark:text-white">{a.title}</p>
-              <p className="text-xs text-stone-600 dark:text-gray-400 mt-1 line-clamp-2">{a.detail}</p>
-            </button>
-          ))}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {pulse.lights.map((l) => (
+          <div key={l.key} className={`rounded-xl border px-3 py-3 ${lightStyles(l.status)}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide">{l.label}</p>
+            <p className="text-sm font-medium mt-1">{l.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      {pulse.takeaways.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-ink">What to do next</h3>
+          <div className="grid gap-2 md:grid-cols-2">
+            {pulse.takeaways.map((t, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => t.href && onNavigate(t.href)}
+                className={`text-left rounded-xl border px-4 py-3 transition-colors ${
+                  t.severity === "high"
+                    ? "border-red-200 bg-red-50/80 dark:border-red-900 dark:bg-red-950/30"
+                    : t.severity === "medium"
+                      ? "border-amber-200 bg-amber-50/80 dark:border-amber-900 dark:bg-amber-950/30"
+                      : "border-subtle bg-surface-2/50"
+                } ${t.href ? "hover:opacity-90 cursor-pointer" : "cursor-default"}`}
+              >
+                <p className="font-semibold text-sm text-ink">{t.title}</p>
+                <p className="text-sm text-ink-secondary mt-1">{t.detail}</p>
+                {t.action && (
+                  <p className="text-xs text-ink-muted mt-2">{t.action}</p>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Chart */}
-        <div className="lg:col-span-3 rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-          <p className="text-sm font-semibold text-stone-800 dark:text-gray-100 mb-3 flex items-center">
-            Daily sales
-            {tip("Each bar/point is one day’s total sales.")}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-ink">Call this week</h3>
+            <button
+              type="button"
+              onClick={() => onNavigate("customers")}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Full list
+            </button>
+          </div>
+          {pulse.callListPreview.length === 0 ? (
+            <p className="text-sm text-ink-muted">No at-risk / lapsed customers right now.</p>
+          ) : (
+            <ul className="space-y-2">
+              {pulse.callListPreview.map((c) => (
+                <li key={c.id} className="flex justify-between gap-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink truncate">{c.name}</p>
+                    <p className="text-xs text-ink-muted">
+                      {c.phone} · {c.segment.replace("_", " ")}
+                      {c.daysSinceLastVisit != null ? ` · ${c.daysSinceLastVisit}d ago` : ""}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-ink">Top products</h3>
+            <button
+              type="button"
+              onClick={() => onNavigate("demand")}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Demand
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {pulse.topProducts.map((p, i) => (
+              <li key={i} className="flex justify-between text-sm gap-2">
+                <span className="truncate text-ink">{p.name}</span>
+                <span className="tabular-nums text-ink-secondary shrink-0">{inr(p.revenue)}</span>
+              </li>
+            ))}
+          </ul>
+          {pulse.peakHour && (
+            <p className="text-xs text-ink-muted mt-3">
+              Peak hour {pulse.peakHour.hour}:00{" "}
+              {pulse.peakHour.timezone || "Asia/Kolkata"} ({pulse.peakHour.count} orders)
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-ink">Open credit</h3>
+            <button
+              type="button"
+              onClick={() => onNavigate("money")}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Money
+            </button>
+          </div>
+          {pulse.topDebtors.length === 0 ? (
+            <p className="text-sm text-ink-muted">No open credit.</p>
+          ) : (
+            <ul className="space-y-2">
+              {pulse.topDebtors.map((d, i) => (
+                <li key={i} className="flex justify-between text-sm gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink truncate">{d.name}</p>
+                    <p className="text-xs text-ink-muted">{d.phone}</p>
+                  </div>
+                  <span className="tabular-nums font-semibold text-amber-700 dark:text-amber-400 shrink-0">
+                    {inr(d.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-ink-muted mt-3">
+            Delivery: {pulse.deliverySummary.delivery} home · {pulse.deliverySummary.pickup}{" "}
+            pickup · {pulse.deliverySummary.failed} failed
           </p>
-          {dailyRevenue && dailyRevenue.some((d) => d.total > 0) ? (
-            <div className="h-[220px]">
+        </div>
+      </div>
+
+      {pulse.staffTop.length > 0 && (
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-ink">Staff this period</h3>
+            <button
+              type="button"
+              onClick={() => onNavigate("staff")}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Details
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-ink-muted">
+                  <th className="py-1">Cashier</th>
+                  <th className="py-1 text-right">Bills</th>
+                  <th className="py-1 text-right">Revenue</th>
+                  <th className="py-1 text-right">Avg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pulse.staffTop.map((s, i) => (
+                  <tr key={i} className="border-t border-subtle">
+                    <td className="py-2 text-ink">{s.name}</td>
+                    <td className="py-2 text-right tabular-nums">{s.orders}</td>
+                    <td className="py-2 text-right tabular-nums">{inr(s.revenue)}</td>
+                    <td className="py-2 text-right tabular-nums text-ink-secondary">
+                      {inr(s.avgBill)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MoneyHealthPanel({ money }: { money: MoneyHealth }) {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-subtle bg-surface p-5">
+        <h2 className="text-xl font-bold text-ink">Money health</h2>
+        <p className="text-sm text-ink-secondary mt-1">
+          Cash vs credit, discounts, voids — {money.period.start} → {money.period.end}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-subtle bg-surface p-4">
+          <p className="text-xs text-ink-secondary">Paid revenue</p>
+          <p className="text-2xl font-bold text-ink mt-1">{inr(money.paidRevenue)}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20 p-4">
+          <p className="text-xs text-ink-secondary">Open credit (all time)</p>
+          <p className="text-2xl font-bold text-ink mt-1">{inr(money.openCredit.amount)}</p>
+          <p className="text-xs text-ink-muted mt-1">
+            {money.openCredit.orders} bills · {money.openCredit.customers} customers
+          </p>
+        </div>
+        <div className="rounded-xl border border-subtle bg-surface p-4">
+          <p className="text-xs text-ink-secondary">Discounts</p>
+          <p className="text-2xl font-bold text-ink mt-1">{inr(money.discounts.total)}</p>
+          <p className="text-xs text-ink-muted mt-1">
+            {money.discounts.pctOfRevenue}% of revenue · {money.discounts.overrideCount} overrides
+          </p>
+        </div>
+        <div className="rounded-xl border border-subtle bg-surface p-4">
+          <p className="text-xs text-ink-secondary">Voids / refunds</p>
+          <p className="text-2xl font-bold text-ink mt-1">
+            {money.voids.count + money.refunds.count}
+          </p>
+          <p className="text-xs text-ink-muted mt-1">
+            {money.voids.count} void ({inr(money.voids.amount)}) · {money.refunds.count} refund (
+            {inr(money.refunds.amount)})
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <h3 className="text-sm font-semibold text-ink mb-3">Payment mix</h3>
+          {money.paymentMix.length > 0 ? (
+            <div className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dailyRevenue}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(v) => (v && v.length >= 10 ? v.slice(5) : v)}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10 }}
-                    tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v))}
-                  />
-                  <Tooltip formatter={(v: number) => [inr(v), "Sales"]} />
-                  <Line type="monotone" dataKey="total" stroke="#0f766e" strokeWidth={2} dot={false} />
-                </LineChart>
+                <PieChart>
+                  <Pie
+                    data={money.paymentMix}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    label={({ name, percent }) =>
+                      `${name} ${((percent || 0) * 100).toFixed(0)}%`
+                    }
+                  >
+                    {money.paymentMix.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => inr(v)} />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-sm text-stone-400 py-16 text-center">No sales in this period</p>
+            <p className="text-sm text-ink-muted py-8 text-center">No payments in range</p>
           )}
         </div>
 
-        {/* Top products */}
-        <div className="lg:col-span-2 rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-          <p className="text-sm font-semibold text-stone-800 dark:text-gray-100 mb-3 flex items-center">
-            Top sellers
-            {tip("Items that made the most money.")}
-          </p>
-          <ul className="space-y-2.5">
-            {pulse.topProducts.slice(0, 5).map((p, i) => (
-              <li key={i} className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-stone-400 w-4">{i + 1}</span>
-                <span className="flex-1 truncate text-stone-900 dark:text-white">{p.name}</span>
-                <span className="tabular-nums text-stone-600 dark:text-gray-300">{inr(p.revenue)}</span>
-              </li>
-            ))}
-            {pulse.topProducts.length === 0 && (
-              <li className="text-sm text-stone-400 py-8 text-center">No data</li>
-            )}
-          </ul>
-          {pulse.peakHour && (
-            <p className="text-xs text-stone-500 mt-4 pt-3 border-t border-stone-100 dark:border-gray-800">
-              Busiest around {pulse.peakHour.hour}:00
-            </p>
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <h3 className="text-sm font-semibold text-ink mb-3">Who owes most</h3>
+          {money.topDebtors.length === 0 ? (
+            <p className="text-sm text-ink-muted py-8 text-center">No open credit</p>
+          ) : (
+            <div className="overflow-x-auto max-h-[280px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="text-left text-xs text-ink-muted border-b border-subtle">
+                    <th className="py-2">Customer</th>
+                    <th className="py-2 text-right">Bills</th>
+                    <th className="py-2 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {money.topDebtors.map((d) => (
+                    <tr key={d.customerId} className="border-b border-subtle/60">
+                      <td className="py-2">
+                        <p className="font-medium text-ink">{d.name}</p>
+                        <p className="text-xs text-ink-muted">{d.phone}</p>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{d.orders}</td>
+                      <td className="py-2 text-right tabular-nums font-semibold text-amber-700 dark:text-amber-400">
+                        {inr(d.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      </div>
-
-      {/* Three lists */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ListCard
-          title="Call them"
-          help="Regular customers who haven’t come recently."
-          empty="Nobody to call"
-          onMore={() => onNavigate("people")}
-          rows={pulse.callListPreview.slice(0, 5).map((c) => ({
-            primary: c.name,
-            secondary: c.phone,
-            right: c.daysSinceLastVisit != null ? `${c.daysSinceLastVisit}d` : "",
-          }))}
-        />
-        <ListCard
-          title="Credit due"
-          help="People who still owe money."
-          empty="No open credit"
-          onMore={() => onNavigate("money")}
-          rows={pulse.topDebtors.slice(0, 5).map((d) => ({
-            primary: d.name,
-            secondary: d.phone,
-            right: inr(d.amount),
-            warn: true,
-          }))}
-        />
-        <ListCard
-          title="Staff"
-          help="Who billed the most in this period."
-          empty="No staff data"
-          onMore={() => onNavigate("more")}
-          rows={pulse.staffTop.slice(0, 5).map((s) => ({
-            primary: s.name,
-            secondary: `${s.orders} bills`,
-            right: inr(s.revenue),
-          }))}
-        />
       </div>
     </div>
   );
 }
 
-function ListCard({
-  title,
-  help,
-  empty,
-  rows,
-  onMore,
-}: {
-  title: string;
-  help: string;
-  empty: string;
-  rows: Array<{ primary: string; secondary: string; right: string; warn?: boolean }>;
-  onMore: () => void;
-}) {
+export function DeliveryOpsPanel({ delivery }: { delivery: DeliveryOps }) {
   return (
-    <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-stone-800 dark:text-gray-100 flex items-center">
-          {title}
-          {tip(help)}
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-subtle bg-surface p-5">
+        <h2 className="text-xl font-bold text-ink">Delivery & pickup</h2>
+        <p className="text-sm text-ink-secondary mt-1">
+          Where orders go and where they fail — {delivery.period.start} → {delivery.period.end}
         </p>
-        <button type="button" onClick={onMore} className="text-xs text-teal-700 dark:text-teal-400">
-          See all
-        </button>
       </div>
-      {rows.length === 0 ? (
-        <p className="text-sm text-stone-400 py-6 text-center">{empty}</p>
-      ) : (
-        <ul className="space-y-2">
-          {rows.map((r, i) => (
-            <li key={i} className="flex justify-between gap-2 text-sm">
-              <div className="min-w-0">
-                <p className="font-medium text-stone-900 dark:text-white truncate">{r.primary}</p>
-                <p className="text-xs text-stone-500 truncate">{r.secondary}</p>
-              </div>
-              <span
-                className={`tabular-nums shrink-0 ${
-                  r.warn ? "text-amber-700 dark:text-amber-400 font-semibold" : "text-stone-600"
-                }`}
-              >
-                {r.right}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
-/** Simple money view */
-export function MoneyHealthPanel({ money }: { money: MoneyHealth }) {
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { label: "Sales collected", value: inr(money.paidRevenue), help: "Paid bills in this period." },
+          { label: "Total orders", value: String(delivery.total) },
+          { label: "Home delivery", value: String(delivery.delivery) },
+          { label: "Pickup", value: String(delivery.pickup) },
+          { label: "Pending", value: String(delivery.pending) },
           {
-            label: "Still owed",
-            value: inr(money.openCredit.amount),
-            help: "Credit not yet collected.",
-            warn: money.openCredit.amount > 0,
-          },
-          {
-            label: "Discounts",
-            value: inr(money.discounts.total),
-            help: "Money given off on bills.",
-          },
-          {
-            label: "Voids",
-            value: String(money.voids.count + money.refunds.count),
-            help: "Cancelled or refunded bills.",
+            label: "Fail rate",
+            value: `${delivery.failRate}%`,
+            sub: `${delivery.failed + delivery.returned} failed/returned`,
           },
         ].map((c) => (
-          <div
-            key={c.label}
-            className={`rounded-2xl border p-4 ${
-              c.warn
-                ? "border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/20"
-                : "border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950"
-            }`}
-          >
-            <p className="text-xs text-stone-500 flex items-center">
-              {c.label}
-              {tip(c.help)}
-            </p>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-stone-900 dark:text-white">
-              {c.value}
-            </p>
+          <div key={c.label} className="rounded-xl border border-subtle bg-surface p-4">
+            <p className="text-xs text-ink-secondary">{c.label}</p>
+            <p className="text-xl font-bold text-ink mt-1">{c.value}</p>
+            {c.sub && <p className="text-xs text-ink-muted mt-1">{c.sub}</p>}
           </div>
         ))}
       </div>
 
-      <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
-        <div className="px-4 py-3 border-b border-stone-100 dark:border-gray-800 flex items-center gap-1">
-          <p className="text-sm font-semibold">Who owes money</p>
-          {tip("Call these people to collect payment.")}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <h3 className="text-sm font-semibold mb-3">Type mix</h3>
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={delivery.typeMix.filter((x) => x.value > 0)}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={75}
+                  label
+                >
+                  {delivery.typeMix.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-xs text-ink-muted text-center">
+            Delivery revenue {inr(delivery.deliveryRevenue)} · Pickup{" "}
+            {inr(delivery.pickupRevenue)} · Fees {inr(delivery.deliveryFeeTotal)}
+          </p>
         </div>
-        {money.topDebtors.length === 0 ? (
-          <p className="p-8 text-center text-sm text-stone-400">Nobody owes right now</p>
-        ) : (
+
+        <div className="rounded-2xl border border-subtle bg-surface p-4">
+          <h3 className="text-sm font-semibold mb-3">Revenue by area</h3>
+          {delivery.byArea.length > 0 ? (
+            <div className="h-[240px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={delivery.byArea.slice(0, 8)} layout="vertical" margin={{ left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} />
+                  <YAxis type="category" dataKey="area" width={90} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: number) => inr(v)} />
+                  <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-sm text-ink-muted py-12 text-center">No delivery area data</p>
+          )}
+        </div>
+      </div>
+
+      {delivery.byArea.some((a) => a.failed > 0) && (
+        <div className="rounded-2xl border border-subtle bg-surface overflow-hidden">
+          <div className="px-4 py-3 border-b border-subtle font-semibold text-sm">
+            Failures by area
+          </div>
           <table className="w-full text-sm">
-            <thead className="text-xs text-stone-500">
+            <thead className="bg-surface-2/50 text-xs text-ink-muted">
               <tr>
-                <th className="text-left px-4 py-2">Name</th>
-                <th className="text-left px-4 py-2">Phone</th>
-                <th className="text-right px-4 py-2">Amount</th>
+                <th className="px-4 py-2 text-left">Area</th>
+                <th className="px-4 py-2 text-right">Orders</th>
+                <th className="px-4 py-2 text-right">Failed</th>
+                <th className="px-4 py-2 text-right">Revenue</th>
               </tr>
             </thead>
             <tbody>
-              {money.topDebtors.map((d) => (
-                <tr key={d.customerId} className="border-t border-stone-100 dark:border-gray-800">
-                  <td className="px-4 py-2.5 font-medium">{d.name}</td>
-                  <td className="px-4 py-2.5 text-stone-500">{d.phone}</td>
-                  <td className="px-4 py-2.5 text-right font-semibold text-amber-700 tabular-nums">
-                    {inr(d.amount)}
-                  </td>
-                </tr>
-              ))}
+              {delivery.byArea
+                .filter((a) => a.failed > 0)
+                .map((a) => (
+                  <tr key={a.area} className="border-t border-subtle">
+                    <td className="px-4 py-2">{a.area}</td>
+                    <td className="px-4 py-2 text-right">{a.orders}</td>
+                    <td className="px-4 py-2 text-right text-red-600">{a.failed}</td>
+                    <td className="px-4 py-2 text-right">{inr(a.revenue)}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {money.paymentMix.length > 0 && (
-        <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
-          <p className="text-sm font-semibold mb-3 flex items-center">
-            How people paid
-            {tip("Cash, UPI, card, or credit.")}
-          </p>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={money.paymentMix}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} />
-                <Tooltip formatter={(v: number) => inr(v)} />
-                <Bar dataKey="value" fill="#0f766e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
         </div>
       )}
     </div>
   );
 }
 
-/** People to call / VIPs — short */
 export function CustomerSegmentsPanel({
   segments,
   filter,
@@ -552,117 +642,186 @@ export function CustomerSegmentsPanel({
   filter: string;
   onFilterChange: (f: string) => void;
 }) {
-  const chips = [
-    { id: "call", label: "Call list", n: segments.callList.length },
-    { id: "champion", label: "VIPs", n: segments.counts.champion || 0 },
-    { id: "loyal", label: "Regulars", n: segments.counts.loyal || 0 },
-    { id: "credit_heavy", label: "Credit", n: segments.counts.credit_heavy || 0 },
-  ];
-
+  const keys = Object.keys(segments.segmentLabels || {});
   const rows =
-    filter === "call"
-      ? segments.callList
-      : segments.customers.filter((c) => c.segment === filter);
+    filter === "all"
+      ? segments.customers
+      : filter === "call"
+        ? segments.callList
+        : segments.customers.filter((c) => c.segment === filter);
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-stone-500">
-        Tap a group · ? = what it means
-        {tip(
-          "Call list = used to buy often but quiet now. VIPs = your best customers. Regulars = come often. Credit = owe money."
-        )}
-      </p>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-subtle bg-surface p-5">
+        <h2 className="text-xl font-bold text-ink">Customer segments</h2>
+        <p className="text-sm text-ink-secondary mt-1">
+          RFM-style groups from purchase history · as of {segments.asOf} ·{" "}
+          {segments.totalCustomers} in directory
+        </p>
+      </div>
+
       <div className="flex flex-wrap gap-2">
-        {chips.map((c) => (
+        <button
+          type="button"
+          onClick={() => onFilterChange("all")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+            filter === "all"
+              ? "bg-stone-900 text-white border-stone-900 dark:bg-white dark:text-stone-900"
+              : "border-subtle text-ink-secondary"
+          }`}
+        >
+          All ({segments.totalCustomers})
+        </button>
+        <button
+          type="button"
+          onClick={() => onFilterChange("call")}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+            filter === "call"
+              ? "bg-amber-600 text-white border-amber-600"
+              : "border-amber-300 text-amber-800 dark:text-amber-200"
+          }`}
+        >
+          Call list ({segments.callList.length})
+        </button>
+        {keys.map((k) => (
           <button
-            key={c.id}
+            key={k}
             type="button"
-            onClick={() => onFilterChange(c.id)}
-            className={`px-3 py-1.5 rounded-full text-sm border ${
-              filter === c.id
-                ? "bg-stone-900 text-white border-stone-900 dark:bg-white dark:text-stone-900"
-                : "border-stone-200 text-stone-700 dark:border-gray-700 dark:text-gray-200"
+            onClick={() => onFilterChange(k)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+              filter === k
+                ? "bg-blue-600 text-white border-blue-600"
+                : "border-subtle text-ink-secondary"
             }`}
           >
-            {c.label} · {c.n}
+            {segments.segmentLabels[k]} ({segments.counts[k] || 0})
           </button>
         ))}
       </div>
 
-      <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="text-xs text-stone-500 bg-stone-50 dark:bg-gray-900">
-            <tr>
-              <th className="text-left px-3 py-2">Name</th>
-              <th className="text-left px-3 py-2">Phone</th>
-              <th className="text-right px-3 py-2">Last visit</th>
-              <th className="text-right px-3 py-2">Spent</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.slice(0, 40).map((c) => (
-              <tr key={c.id} className="border-t border-stone-100 dark:border-gray-800">
-                <td className="px-3 py-2 font-medium">{c.name}</td>
-                <td className="px-3 py-2 text-stone-500">{c.phone}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-stone-500">
-                  {c.daysSinceLastVisit != null ? `${c.daysSinceLastVisit}d ago` : "—"}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{inr(c.lifetimeSpent)}</td>
+      <div className="rounded-2xl border border-subtle bg-surface overflow-hidden">
+        <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-surface-2/95 text-xs text-ink-muted">
+              <tr>
+                <th className="px-3 py-2 text-left">Name</th>
+                <th className="px-3 py-2 text-left">Phone</th>
+                <th className="px-3 py-2 text-left">Segment</th>
+                <th className="px-3 py-2 text-right">Visits</th>
+                <th className="px-3 py-2 text-right">Spent</th>
+                <th className="px-3 py-2 text-right">Last</th>
+                <th className="px-3 py-2 text-right">Credit</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.slice(0, 200).map((c) => (
+                <tr key={c.id} className="border-t border-subtle hover:bg-surface-2/40">
+                  <td className="px-3 py-2 font-medium text-ink">{c.name}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{c.phone}</td>
+                  <td className="px-3 py-2">
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-subtle">
+                      {(segments.segmentLabels[c.segment] || c.segment).replace(/_/g, " ")}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{c.visits}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{inr(c.lifetimeSpent)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink-muted">
+                    {c.daysSinceLastVisit != null ? `${c.daysSinceLastVisit}d` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {c.openCredit > 0 ? inr(c.openCredit) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {rows.length === 0 && (
-          <p className="p-8 text-center text-sm text-stone-400">No one in this group</p>
+          <p className="p-8 text-center text-sm text-ink-muted">No customers in this segment.</p>
         )}
       </div>
-    </div>
-  );
-}
 
-/** Keep type exports for delivery/staff if page still references them */
-export function DeliveryOpsPanel({ delivery }: { delivery: DeliveryOps }) {
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {[
-        { label: "Orders", value: delivery.total },
-        { label: "Home delivery", value: delivery.delivery },
-        { label: "Pickup", value: delivery.pickup },
-        { label: "Failed", value: delivery.failed + delivery.returned },
-      ].map((c) => (
-        <div
-          key={c.label}
-          className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4"
-        >
-          <p className="text-xs text-stone-500">{c.label}</p>
-          <p className="text-2xl font-bold mt-1">{c.value}</p>
+      {segments.vips.length > 0 && filter !== "champion" && (
+        <div className="rounded-xl border border-subtle bg-surface-2/40 p-4">
+          <p className="text-sm font-semibold text-ink mb-2">VIP champions</p>
+          <div className="flex flex-wrap gap-2">
+            {segments.vips.slice(0, 10).map((v) => (
+              <span
+                key={v.id}
+                className="text-xs px-2.5 py-1 rounded-full border border-subtle bg-surface"
+              >
+                {v.name} · {inr(v.lifetimeSpent)}
+              </span>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }
 
 export function StaffProductivityPanel({ staff }: { staff: StaffProductivity }) {
   return (
-    <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="text-xs text-stone-500 bg-stone-50 dark:bg-gray-900">
-          <tr>
-            <th className="text-left px-4 py-2">Name</th>
-            <th className="text-right px-4 py-2">Bills</th>
-            <th className="text-right px-4 py-2">Sales</th>
-          </tr>
-        </thead>
-        <tbody>
-          {staff.staff.map((s) => (
-            <tr key={s.userId} className="border-t border-stone-100 dark:border-gray-800">
-              <td className="px-4 py-2.5 font-medium">{s.name}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums">{s.orders}</td>
-              <td className="px-4 py-2.5 text-right tabular-nums">{inr(s.revenue)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-subtle bg-surface p-5">
+        <h2 className="text-xl font-bold text-ink">Staff productivity</h2>
+        <p className="text-sm text-ink-secondary mt-1">
+          Bills by cashier — {staff.period.start} → {staff.period.end}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="rounded-xl border border-subtle bg-surface p-4">
+          <p className="text-xs text-ink-secondary">Total bills</p>
+          <p className="text-2xl font-bold">{staff.totalOrders}</p>
+        </div>
+        <div className="rounded-xl border border-subtle bg-surface p-4">
+          <p className="text-xs text-ink-secondary">Total revenue</p>
+          <p className="text-2xl font-bold">{inr(staff.totalRevenue)}</p>
+        </div>
+      </div>
+
+      {staff.staff.length > 0 ? (
+        <>
+          <div className="h-[260px] rounded-2xl border border-subtle bg-surface p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={staff.staff.slice(0, 10)}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} />
+                <Tooltip formatter={(v: number) => inr(v)} />
+                <Bar dataKey="revenue" fill="#10b981" name="Revenue" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="rounded-2xl border border-subtle overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-2/60 text-xs text-ink-muted">
+                <tr>
+                  <th className="px-4 py-2 text-left">Cashier</th>
+                  <th className="px-4 py-2 text-left">Role</th>
+                  <th className="px-4 py-2 text-right">Bills</th>
+                  <th className="px-4 py-2 text-right">Revenue</th>
+                  <th className="px-4 py-2 text-right">Avg bill</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staff.staff.map((s) => (
+                  <tr key={s.userId} className="border-t border-subtle">
+                    <td className="px-4 py-2 font-medium">{s.name}</td>
+                    <td className="px-4 py-2 text-ink-muted">{s.role}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{s.orders}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{inr(s.revenue)}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{inr(s.avgBill)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <p className="text-center text-ink-muted py-12">No staff sales in this range.</p>
+      )}
     </div>
   );
 }
