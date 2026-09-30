@@ -40,7 +40,8 @@ const globalForPrisma = globalThis as unknown as {
   prisma: typeof prisma | undefined;
 };
 
-if (process.env.NODE_ENV !== 'production' && !globalForPrisma.prisma) {
+// Reuse Prisma across warm Vercel isolates (production too).
+if (!globalForPrisma.prisma) {
   globalForPrisma.prisma = prisma;
 }
 
@@ -56,23 +57,28 @@ if (process.env.DATABASE_URL) {
   console.log('✅ DATABASE_URL is set');
   console.log(`📊 Database: ${dbInfo}`);
   
-  // Test connection on startup (non-blocking)
-  prisma.$connect()
-    .then(() => {
-      console.log('✅ Database connection successful');
-      // Get database name to verify which database we're connected to
-      return prisma.$queryRaw`SELECT current_database() as db_name, version() as db_version`;
-    })
-    .then((result: any) => {
-      if (result && result[0]) {
-        console.log(`📊 Connected to database: ${result[0].db_name}`);
-        console.log(`📊 PostgreSQL version: ${result[0].db_version?.split(' ')[0]} ${result[0].db_version?.split(' ')[1]}`);
+  // Test connection on startup with a short retry (Railway TCP proxy blips)
+  (async () => {
+    let lastErr: any;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await prisma.$connect();
+        console.log('✅ Database connection successful');
+        const result: any = await prisma.$queryRaw`SELECT current_database() as db_name, version() as db_version`;
+        if (result && result[0]) {
+          console.log(`📊 Connected to database: ${result[0].db_name}`);
+          console.log(`📊 PostgreSQL version: ${result[0].db_version?.split(' ')[0]} ${result[0].db_version?.split(' ')[1]}`);
+        }
+        return;
+      } catch (error: any) {
+        lastErr = error;
+        console.error(`❌ DB connect attempt ${attempt}/3 failed:`, error.message);
+        await new Promise((r) => setTimeout(r, 200 * attempt));
       }
-    })
-    .catch((error: any) => {
-      console.error('❌ Failed to connect to database:', error.message);
-      console.error('   Please check your DATABASE_URL in Vercel environment variables');
-    });
+    }
+    console.error('❌ Failed to connect to database after retries:', lastErr?.message);
+    console.error('   Please check your DATABASE_URL in Vercel environment variables');
+  })();
 } else {
   console.error('❌ DATABASE_URL environment variable is not set!');
   console.error('   Please set DATABASE_URL in Vercel project settings → Environment Variables');
