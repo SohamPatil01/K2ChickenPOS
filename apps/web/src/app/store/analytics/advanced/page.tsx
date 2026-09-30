@@ -289,19 +289,15 @@ export default function AdvancedAnalyticsPage() {
   const [staffProductivity, setStaffProductivity] = useState<StaffProductivity | null>(null);
   const [staffError, setStaffError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    | "pulse"
-    | "sales-overview"
+    | "overview"
     | "money"
-    | "profit-margin"
-    | "forecast"
-    | "demand"
-    | "inventory"
-    | "insights"
-    | "demographics"
-    | "customers"
-    | "delivery"
-    | "staff"
-  >("pulse");
+    | "people"
+    | "stock"
+    | "more"
+  >("overview");
+  const [moreSection, setMoreSection] = useState<
+    "sales" | "forecast" | "demand" | "margin" | "who" | "staff" | "delivery"
+  >("sales");
 
   const isOwner = user?.store?.type === "OWNER";
 
@@ -611,7 +607,8 @@ export default function AdvancedAnalyticsPage() {
           naiveMapePct: null,
           avgDailySales: values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0,
         });
-        setActiveTab("forecast");
+        setActiveTab("more");
+        setMoreSection("forecast");
       } else {
         const productDemand: Record<string, { productName: string; totalRevenue: number; frequency: number }> = {};
         const hourly: Record<number, number> = {};
@@ -641,7 +638,8 @@ export default function AdvancedAnalyticsPage() {
           peakHour: peakHourEntry ? { hour: parseInt(peakHourEntry[0]), count: peakHourEntry[1] } : null,
           peakDay: peakDayEntry ? { day: dayNames[parseInt(peakDayEntry[0])], count: peakDayEntry[1] } : null,
         });
-        setActiveTab("demand");
+        setActiveTab("more");
+        setMoreSection("demand");
       }
     } catch (e) {
       console.error("Sales fallback failed:", e);
@@ -670,128 +668,65 @@ export default function AdvancedAnalyticsPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-ink">
-              Advanced Analytics
-            </h1>
+            <h1 className="text-2xl font-bold text-ink">Shop dashboard</h1>
             <p className="text-sm text-ink-secondary mt-1">
-              Full shop health — pulse, money, customers, delivery (Asia/Kolkata days & peak hour)
+              Quick view of sales, money owed, and who to call
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => {
                 const tag = `${startDateStr}_${endDateStr}`;
-                if (activeTab === "sales-overview" && salesOverview) {
+                if (activeTab === "overview" && shopPulse) {
+                  exportToCSV({
+                    data: shopPulse.callListPreview,
+                    filename: `call_list_${tag}.csv`,
+                  });
+                } else if (activeTab === "money" && moneyHealth) {
+                  exportToCSV({
+                    data: moneyHealth.topDebtors,
+                    filename: `credit_due_${tag}.csv`,
+                  });
+                } else if (activeTab === "people" && customerSegments) {
+                  exportToCSV({
+                    data: (segmentFilter === "call"
+                      ? customerSegments.callList
+                      : customerSegments.customers.filter((c) => c.segment === segmentFilter)
+                    ).map((c) => ({
+                      name: c.name,
+                      phone: c.phone,
+                      lastVisitDays: c.daysSinceLastVisit ?? "",
+                      spent: c.lifetimeSpent,
+                    })),
+                    filename: `people_${segmentFilter}_${tag}.csv`,
+                  });
+                } else if (activeTab === "stock" && inventory) {
+                  exportToCSV({
+                    data: inventory.recommendations,
+                    filename: `stock_${tag}.csv`,
+                  });
+                } else if (activeTab === "more" && moreSection === "margin" && profitMargin) {
+                  exportToCSV({
+                    data: profitMargin.products.map((p) => ({
+                      product: p.productName,
+                      revenue: p.revenue,
+                      marginPct: p.grossMarginPct ?? "",
+                    })),
+                    filename: `margin_${tag}.csv`,
+                  });
+                } else if (salesOverview) {
                   exportToCSV({
                     data: salesOverview.dailyRevenue.map((r) => ({
                       date: r.date,
                       revenue: r.total,
                     })),
-                    filename: `sales_overview_${tag}.csv`,
-                  });
-                } else if (activeTab === "forecast" && forecast) {
-                  exportToCSV({
-                    data: forecast.forecast,
-                    filename: `sales_forecast_${tag}.csv`,
-                  });
-                } else if (activeTab === "demand" && demand) {
-                  exportToCSV({
-                    data: [...demand.fastMoving, ...demand.slowMoving],
-                    filename: `demand_analysis_${tag}.csv`,
-                  });
-                } else if (activeTab === "inventory" && inventory) {
-                  exportToCSV({
-                    data: inventory.recommendations,
-                    filename: `inventory_recommendations_${tag}.csv`,
-                  });
-                } else if (activeTab === "insights" && insights) {
-                  exportToCSV({
-                    data: insights.insights,
-                    filename: `analytics_insights_${tag}.csv`,
-                  });
-                } else if (activeTab === "profit-margin" && profitMargin) {
-                  exportToCSV({
-                    data: profitMargin.products.map((p) => ({
-                      product: p.productName,
-                      sku: p.sku,
-                      revenue: p.revenue,
-                      qtySold: p.qtySold,
-                      avgCost: p.avgCost ?? "",
-                      estimatedCogs: p.estimatedCogs ?? "",
-                      grossProfit: p.grossProfit ?? "",
-                      grossMarginPct: p.grossMarginPct ?? "",
-                      costStatus: p.costStatus,
-                    })),
-                    filename: `profit_margin_${tag}.csv`,
-                  });
-                } else if (activeTab === "demographics" && demographics) {
-                  exportToCSV({
-                    data: [
-                      ...demographics.byArea.map((a) => ({
-                        section: "area",
-                        name: a.name,
-                        customers: a.customers,
-                        orders: a.orders,
-                        revenue: a.revenue,
-                        revenueSharePct: a.revenueSharePct,
-                      })),
-                      ...demographics.topCustomers.map((c) => ({
-                        section: "top_customer",
-                        name: c.name,
-                        phone: c.phone,
-                        area: c.area,
-                        orders: c.orders,
-                        revenue: c.revenue,
-                        creditOrders: c.creditOrders,
-                      })),
-                    ],
-                    filename: `customer_demographics_${tag}.csv`,
-                  });
-                } else if (activeTab === "customers" && customerSegments) {
-                  const rows =
-                    segmentFilter === "call"
-                      ? customerSegments.callList
-                      : segmentFilter === "all"
-                        ? customerSegments.customers
-                        : customerSegments.customers.filter((c) => c.segment === segmentFilter);
-                  exportToCSV({
-                    data: rows.map((c) => ({
-                      name: c.name,
-                      phone: c.phone,
-                      area: c.area || "",
-                      segment: c.segment,
-                      visits: c.visits,
-                      lifetimeSpent: c.lifetimeSpent,
-                      daysSinceLastVisit: c.daysSinceLastVisit ?? "",
-                      openCredit: c.openCredit,
-                    })),
-                    filename: `customer_segments_${segmentFilter}_${tag}.csv`,
-                  });
-                } else if (activeTab === "money" && moneyHealth) {
-                  exportToCSV({
-                    data: moneyHealth.topDebtors,
-                    filename: `open_credit_${tag}.csv`,
-                  });
-                } else if (activeTab === "delivery" && deliveryOps) {
-                  exportToCSV({
-                    data: deliveryOps.byArea,
-                    filename: `delivery_by_area_${tag}.csv`,
-                  });
-                } else if (activeTab === "staff" && staffProductivity) {
-                  exportToCSV({
-                    data: staffProductivity.staff,
-                    filename: `staff_productivity_${tag}.csv`,
-                  });
-                } else if (activeTab === "pulse" && shopPulse) {
-                  exportToCSV({
-                    data: shopPulse.callListPreview,
-                    filename: `pulse_call_list_${tag}.csv`,
+                    filename: `sales_${tag}.csv`,
                   });
                 }
               }}
               className="px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors font-medium text-sm border border-green-200 dark:border-green-800"
             >
-              📥 Export CSV
+              Export
             </button>
             <button
               onClick={() => {
@@ -804,7 +739,7 @@ export default function AdvancedAnalyticsPage() {
               }}
               className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm border border-blue-200 dark:border-blue-800"
             >
-              🔄 Refresh
+              Refresh
             </button>
           </div>
         </div>
@@ -914,31 +849,24 @@ export default function AdvancedAnalyticsPage() {
         )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-gray-700 flex-wrap">
+      {/* Tabs — keep it simple */}
+      <div className="flex gap-1 border-b border-stone-200 dark:border-gray-700 flex-wrap">
         {(
           [
-            ["pulse", "Shop pulse"],
-            ["sales-overview", "Sales"],
+            ["overview", "Overview"],
             ["money", "Money"],
-            ["customers", "Segments"],
-            ["delivery", "Delivery"],
-            ["demographics", "Who buys"],
-            ["profit-margin", "Margin"],
-            ["forecast", "Forecast"],
-            ["demand", "Demand"],
-            ["inventory", "Inventory"],
-            ["staff", "Staff"],
-            ["insights", "Insights"],
+            ["people", "People"],
+            ["stock", "Stock"],
+            ["more", "More"],
           ] as const
         ).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`px-3 sm:px-4 py-2 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2.5 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
               activeTab === id
-                ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                ? "border-teal-700 text-teal-800 dark:border-teal-400 dark:text-teal-300"
+                : "border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-gray-200"
             }`}
           >
             {label}
@@ -946,13 +874,27 @@ export default function AdvancedAnalyticsPage() {
         ))}
       </div>
 
-      {activeTab === "pulse" && (
+      {activeTab === "overview" && (
         <div>
           {shopPulse ? (
-            <ShopPulsePanel pulse={shopPulse} onNavigate={(tab) => setActiveTab(tab as any)} />
+            <ShopPulsePanel
+              pulse={shopPulse}
+              dailyRevenue={salesOverview?.dailyRevenue}
+              onNavigate={(tab) => {
+                if (tab === "overview" || tab === "sales-overview") setActiveTab("overview");
+                else if (tab === "money" || tab === "delivery") setActiveTab("money");
+                else if (tab === "people" || tab === "customers") setActiveTab("people");
+                else if (tab === "stock" || tab === "inventory") setActiveTab("stock");
+                else if (tab === "more" || tab === "demand" || tab === "forecast") {
+                  setActiveTab("more");
+                  if (tab === "demand") setMoreSection("demand");
+                  if (tab === "forecast") setMoreSection("forecast");
+                } else setActiveTab("overview");
+              }}
+            />
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {shopPulseError || "Loading shop pulse…"}
+            <div className="rounded-2xl border border-stone-200 dark:border-gray-800 p-10 text-center text-stone-500">
+              {shopPulseError || "Loading dashboard…"}
             </div>
           )}
         </div>
@@ -963,1481 +905,258 @@ export default function AdvancedAnalyticsPage() {
           {moneyHealth ? (
             <MoneyHealthPanel money={moneyHealth} />
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {moneyError || "Loading money health…"}
+            <div className="rounded-2xl border border-stone-200 p-10 text-center text-stone-500">
+              {moneyError || "Loading…"}
             </div>
           )}
         </div>
       )}
 
-      {activeTab === "customers" && (
+      {activeTab === "people" && (
         <div>
           {customerSegments ? (
             <CustomerSegmentsPanel
               segments={customerSegments}
-              filter={segmentFilter}
+              filter={segmentFilter === "all" ? "call" : segmentFilter}
               onFilterChange={setSegmentFilter}
             />
           ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {segmentsError || "Loading customer segments…"}
+            <div className="rounded-2xl border border-stone-200 p-10 text-center text-stone-500">
+              {segmentsError || "Loading…"}
             </div>
           )}
         </div>
       )}
 
-      {activeTab === "delivery" && (
-        <div>
-          {deliveryOps ? (
-            <DeliveryOpsPanel delivery={deliveryOps} />
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {deliveryError || "Loading delivery ops…"}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "staff" && (
-        <div>
-          {staffProductivity ? (
-            <StaffProductivityPanel staff={staffProductivity} />
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {staffError || "Loading staff productivity…"}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sales Overview Tab */}
-      {activeTab === "sales-overview" && (
-        <div className="space-y-6">
-          {salesOverview ? (
-            <>
-              {salesOverview.insufficientHistory && (
-                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-900 dark:text-blue-100">
-                  Limited history: {salesOverview.daysWithSales ?? 0} day(s) with sales in this range.
-                  {salesOverview.minDaysRecommended != null &&
-                    ` We recommend at least ${salesOverview.minDaysRecommended} days for steadier charts.`}
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
-                  <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
-                    Total Revenue ({salesOverview.startDate && salesOverview.endDate ? `${salesOverview.startDate} → ${salesOverview.endDate}` : "range"})
-                  </h3>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    ₹{salesOverview.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                  </p>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-6 border border-green-200 dark:border-green-800">
-                  <h3 className="text-sm font-medium text-green-700 dark:text-green-300 mb-2">Total Orders</h3>
-                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">{salesOverview.totalOrders}</p>
-                </div>
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
-                  <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">Avg Order Value</h3>
-                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                    ₹{salesOverview.avgOrderValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                  </p>
-                </div>
-                <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-lg p-6 border border-amber-200 dark:border-amber-800">
-                  <h3 className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">Best Day</h3>
-                  <p className="text-lg font-bold text-amber-900 dark:text-amber-100">
-                    {salesOverview.bestDay ? salesOverview.bestDay.date : "—"}
-                  </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    {salesOverview.bestDay ? `₹${salesOverview.bestDay.revenue.toLocaleString("en-IN")}` : ""}
-                  </p>
-                </div>
-                <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 rounded-lg p-6 border border-cyan-200 dark:border-cyan-800">
-                  <h3 className="text-sm font-medium text-cyan-700 dark:text-cyan-300 mb-2">Peak Hour (IST)</h3>
-                  <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
-                    {salesOverview.peakHour ? `${salesOverview.peakHour.hour}:00` : "—"}
-                  </p>
-                  <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
-                    {salesOverview.peakHour ? `${salesOverview.peakHour.count} orders` : ""}
-                  </p>
-                </div>
+      {activeTab === "stock" && (
+        inventory ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Out of stock", value: inventory.outOfStock, bad: true },
+              { label: "Low stock", value: inventory.lowStock, warn: true },
+              { label: "Overstock", value: inventory.overstock },
+            ].map((c) => (
+              <div
+                key={c.label}
+                className={`rounded-2xl border p-4 ${
+                  c.bad && c.value > 0
+                    ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30"
+                    : c.warn && c.value > 0
+                      ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
+                      : "border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950"
+                }`}
+              >
+                <p className="text-xs text-stone-500">{c.label}</p>
+                <p className="text-2xl font-bold mt-1">{c.value}</p>
               </div>
-
-              <div className="glass-panel rounded-2xl p-6">
-                <h3 className="text-lg font-semibold text-ink mb-4">Daily Revenue</h3>
-                {salesOverview.dailyRevenue.some((r) => r.total > 0) ? (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={salesOverview.dailyRevenue.map((r) => ({ ...r, total: r.total }))}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 11 }} tickFormatter={(v) => (v && v.length >= 10 ? v.slice(5) : v)} />
-                        <YAxis stroke="#6b7280" tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))} />
-                        <Tooltip formatter={(value: number) => [`₹${value?.toLocaleString("en-IN") ?? 0}`, "Revenue"]} />
-                        <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} name="Revenue" dot={{ r: 3 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-ink-muted text-center py-8">No daily sales in this period</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="glass-panel rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold text-ink mb-4">Revenue by Day of Week</h3>
-                  {salesOverview.revenueByDayOfWeek.some((d) => d.value > 0) ? (
-                    <div className="h-[240px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={salesOverview.revenueByDayOfWeek} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="day" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                          <YAxis stroke="#6b7280" tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))} />
-                          <Tooltip formatter={(value: number) => [`₹${value?.toLocaleString("en-IN") ?? 0}`, "Revenue"]} />
-                          <Bar dataKey="value" fill="#10b981" name="Revenue" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <p className="text-ink-muted text-center py-8">No data</p>
-                  )}
-                </div>
-                <div className="glass-panel rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold text-ink mb-4">Payment Mix</h3>
-                  {salesOverview.paymentMix.length > 0 ? (
-                    <div className="h-[240px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={salesOverview.paymentMix}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                          >
-                            {salesOverview.paymentMix.map((_, i) => (
-                              <Cell key={i} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"][i % 5]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value: number) => `₹${value?.toLocaleString("en-IN") ?? 0}`} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <p className="text-ink-muted text-center py-8">No payment data</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="glass-panel-strong rounded-2xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold text-ink">Top 10 Products by Revenue</h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-900">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">Product</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {salesOverview.topProducts.length > 0 ? (
-                        salesOverview.topProducts.map((p, i) => (
-                          <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                            <td className="px-4 py-3 text-sm text-ink">{p.name}</td>
-                            <td className="px-4 py-3 text-sm text-right font-medium text-ink-secondary">
-                              ₹{p.revenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={2} className="px-4 py-3 text-sm text-center text-gray-500">No product sales in this period</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="glass-panel rounded-2xl p-12 text-center">
-              <p className="text-ink-secondary mb-4">Could not load sales overview. Please try again.</p>
-              <button onClick={loadSalesOverview} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Retry
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sales Forecast Tab */}
-      {activeTab === "forecast" && (
-        <div className="space-y-6">
-          {!forecast ? (
-            <div className="glass-panel rounded-2xl p-12 text-center">
-              <p className="text-ink-secondary mb-4">
-                Could not load sales forecast. Please try again.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button
-                  onClick={loadAnalytics}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Retry
-                </button>
-                <button
-                  onClick={() => loadSalesFallback("forecast")}
-                  className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Show from sales data
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-          {forecast.insufficientHistory && (
-            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-              Low history for forecasting: {forecast.daysWithPositiveSales ?? 0} day(s) with sales.
-              {forecast.minDaysRecommended != null &&
-                ` ${forecast.minDaysRecommended}+ days recommended; projections may be noisy.`}
-            </div>
-          )}
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
-              <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
-                Trend
-              </h3>
-              <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 capitalize">
-                {forecast.trend}
-              </p>
-            </div>
-            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-6 border border-green-200 dark:border-green-800">
-              <h3 className="text-sm font-medium text-green-700 dark:text-green-300 mb-2">
-                Naive MAPE (7d)
-              </h3>
-              <p className="text-3xl font-bold text-green-900 dark:text-green-100">
-                {forecast.naiveMapePct != null
-                  ? `${forecast.naiveMapePct}%`
-                  : "—"}
-              </p>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                Same-day-as-yesterday baseline; lower is better.
-              </p>
-            </div>
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
-              <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
-                Avg Daily Sales
-              </h3>
-              <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
-                {typeof forecast.avgDailySales === "number" && !Number.isNaN(forecast.avgDailySales)
-                  ? `₹${forecast.avgDailySales.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-                  : "₹0"}
-              </p>
-            </div>
+            ))}
           </div>
-
-          {/* Historical Chart with Moving Averages */}
-          <div className="glass-panel rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-ink mb-4">
-              Historical sales (recent window)
-            </h3>
-            {forecast.historical && forecast.historical.length > 0 ? (
-              <div className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={forecast.historical.slice(-30).map((h) => ({
-                      date: h?.date ? h.date.substring(5) : "",
-                      actual: h?.actual ?? 0,
-                      ma7: h?.ma7 ?? 0,
-                      ma30: h?.ma30 ?? 0,
-                    }))}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="date"
-                      stroke="#6b7280"
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis stroke="#6b7280" />
-                    <Tooltip
-                      formatter={(value: any) =>
-                        `₹${value ? value.toLocaleString("en-IN") : "0"}`
-                      }
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="actual"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      name="Actual Sales"
-                      dot={{ r: 3 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="ma7"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      name="7-Day Average"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="ma30"
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      strokeDasharray="3 3"
-                      name="30-Day Average"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-[350px] flex items-center justify-center text-gray-500">
-                No historical data available
-              </div>
+          <div className="rounded-2xl border border-stone-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-stone-500 bg-stone-50 dark:bg-gray-900">
+                <tr>
+                  <th className="text-left px-4 py-2">Item</th>
+                  <th className="text-right px-4 py-2">Now</th>
+                  <th className="text-right px-4 py-2">Order</th>
+                  <th className="text-left px-4 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventory.recommendations.slice(0, 25).map((r, i) => (
+                  <tr key={i} className="border-t border-stone-100 dark:border-gray-800">
+                    <td className="px-4 py-2 font-medium">{r.productName}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{r.currentStock}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{r.suggestedOrderQty}</td>
+                    <td className="px-4 py-2 text-stone-500">{r.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {inventory.recommendations.length === 0 && (
+              <p className="p-8 text-center text-stone-400 text-sm">Stock looks fine</p>
             )}
           </div>
+        </div>
+        ) : (
+          <div className="rounded-2xl border border-stone-200 p-10 text-center text-stone-500">
+            Loading stock…
+          </div>
+        )
+      )}
 
-          {/* Growth Metrics */}
-          {forecast.historical && forecast.historical.length > 14 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg p-6 border border-emerald-200 dark:border-emerald-800">
-                <h3 className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-2">
-                  Last 7 Days
-                </h3>
-                <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                  ₹
-                  {forecast.historical
-                    .slice(-7)
-                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0)
-                    .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                </p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                  Average: ₹
-                  {Math.round(
-                    forecast.historical
-                      .slice(-7)
-                      .reduce(
-                        (sum: number, h: any) => sum + (h.actual || 0),
-                        0
-                      ) / 7
-                  ).toLocaleString("en-IN")}{" "}
-                  per day
-                </p>
-              </div>
-              <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/20 dark:to-cyan-800/20 rounded-lg p-6 border border-cyan-200 dark:border-cyan-800">
-                <h3 className="text-sm font-medium text-cyan-700 dark:text-cyan-300 mb-2">
-                  Previous 7 Days
-                </h3>
-                <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-100">
-                  ₹
-                  {forecast.historical
-                    .slice(-14, -7)
-                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0)
-                    .toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                </p>
-                <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">
-                  Average: ₹
-                  {Math.round(
-                    forecast.historical
-                      .slice(-14, -7)
-                      .reduce(
-                        (sum: number, h: any) => sum + (h.actual || 0),
-                        0
-                      ) / 7
-                  ).toLocaleString("en-IN")}{" "}
-                  per day
-                </p>
-              </div>
-              <div className="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-900/20 dark:to-violet-800/20 rounded-lg p-6 border border-violet-200 dark:border-violet-800">
-                <h3 className="text-sm font-medium text-violet-700 dark:text-violet-300 mb-2">
-                  Week-over-Week Change
-                </h3>
-                {(() => {
-                  const lastWeek = forecast.historical
-                    .slice(-7)
-                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0);
-                  const prevWeek = forecast.historical
-                    .slice(-14, -7)
-                    .reduce((sum: number, h: any) => sum + (h.actual || 0), 0);
-                  const change =
-                    prevWeek > 0 ? ((lastWeek - prevWeek) / prevWeek) * 100 : 0;
-                  return (
-                    <>
-                      <p
-                        className={`text-2xl font-bold ${ change >= 0 ?"text-violet-900 dark:text-violet-100"
-                            : "text-red-600 dark:text-red-400"
-                        }`}
-                      >
-                        {change >= 0 ? "+" : ""}
-                        {change.toFixed(1)}%
-                      </p>
-                      <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-                        {change >= 0 ? "Growth" : "Decline"} vs previous week
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-
-          {/* Forecast Table */}
-          <div className="glass-panel-strong rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-ink">
-                Forecast (next days)
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Predicted Sales
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Low / High
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-ink-secondary uppercase">
-                      Confidence
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {forecast.forecast && forecast.forecast.length > 0 ? (
-                    forecast.forecast.map((f, index) => (
-                      <tr
-                        key={index}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                      >
-                        <td className="px-4 py-3 text-sm text-ink">
-                          {formatForecastDate(f?.date ?? "")}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
-                          {typeof f.predicted === "number" && !Number.isNaN(f.predicted)
-                            ? `₹${f.predicted.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-                            : "₹0"}
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs text-ink-secondary">
-                          {f.predictedLow != null && f.predictedHigh != null
-                            ? `₹${Math.round(f.predictedLow).toLocaleString("en-IN")} – ₹${Math.round(f.predictedHigh).toLocaleString("en-IN")}`
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${ f?.confidence ==="high"
-                                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
-                                : f?.confidence === "medium"
-                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200"
-                                : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
-                            }`}
-                          >
-                            {f?.confidence || "low"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-4 py-3 text-sm text-center text-gray-500"
-                      >
-                        No forecast data available
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+      {activeTab === "more" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["sales", "Sales chart"],
+                ["forecast", "Next week"],
+                ["demand", "Fast / slow"],
+                ["margin", "Profit"],
+                ["who", "Who buys"],
+                ["staff", "Staff"],
+                ["delivery", "Delivery"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setMoreSection(id)}
+                className={`px-3 py-1.5 rounded-full text-sm border ${
+                  moreSection === id
+                    ? "bg-stone-900 text-white border-stone-900 dark:bg-white dark:text-stone-900"
+                    : "border-stone-200 text-stone-600 dark:border-gray-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          {/* Forecast preview: last 7 days actual + next 7 days predicted */}
-          {forecast.forecast?.length > 0 && forecast.historical?.length > 0 && (
-            <div className="glass-panel rounded-2xl p-6">
-              <h3 className="text-lg font-semibold text-ink mb-4">
-                Forecast (next 7 days)
-              </h3>
+          {moreSection === "sales" && salesOverview && (
+            <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={[
-                      ...forecast.historical.slice(-7).map((h) => ({
-                        date: formatForecastDate(h.date),
-                        actual: h.actual,
-                        predicted: undefined as number | undefined,
-                      })),
-                      ...forecast.forecast.map((f) => ({
-                        date: formatForecastDate(f.date),
-                        actual: undefined as number | undefined,
-                        predicted: f.predicted,
-                      })),
-                    ]}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="#6b7280" tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))} />
-                    <Tooltip
-                      formatter={(value: number, name: string) => [
-                        value != null && !Number.isNaN(value) ? `₹${Number(value).toLocaleString("en-IN")}` : "",
-                        name || "",
-                      ]}
-                      contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px" }}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} name="Actual" dot={{ r: 3 }} connectNulls />
-                    <Line type="monotone" dataKey="predicted" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" name="Forecast" dot={{ r: 3 }} connectNulls />
+                  <LineChart data={salesOverview.dailyRevenue}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => (v?.length >= 10 ? v.slice(5) : v)} />
+                    <YAxis tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} />
+                    <Tooltip formatter={(v: number) => [`₹${v?.toLocaleString("en-IN")}`, "Sales"]} />
+                    <Line type="monotone" dataKey="total" stroke="#0f766e" strokeWidth={2} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
-            </>
+
+          {moreSection === "staff" && staffProductivity && (
+            <StaffProductivityPanel staff={staffProductivity} />
           )}
-        </div>
-      )}
 
-      {/* Demand Analysis Tab */}
-      {activeTab === "demand" && (
-        demand ? (
-        <div className="space-y-6">
-          {demand.abcSummary && (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-3 text-sm text-ink-secondary">
-              <strong>ABC mix:</strong> A={demand.abcSummary.A}, B={demand.abcSummary.B}, C=
-              {demand.abcSummary.C}. {demand.abcSummary.note}
-            </div>
+          {moreSection === "delivery" && deliveryOps && (
+            <DeliveryOpsPanel delivery={deliveryOps} />
           )}
-          {/* Peak Times */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {demand.peakHour && (
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg p-6 border border-orange-200 dark:border-orange-800">
-                <h3 className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-2">
-                  Peak Hour (IST)
-                </h3>
-                <p className="text-3xl font-bold text-orange-900 dark:text-orange-100">
-                  {demand.peakHour.hour}:00
-                </p>
-                <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">
-                  {demand.peakHour.count} orders
-                </p>
-              </div>
-            )}
-            {demand.peakDay && (
-              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 rounded-lg p-6 border border-indigo-200 dark:border-indigo-800">
-                <h3 className="text-sm font-medium text-indigo-700 dark:text-indigo-300 mb-2">
-                  Peak Day
-                </h3>
-                <p className="text-3xl font-bold text-indigo-900 dark:text-indigo-100">
-                  {demand.peakDay.day}
-                </p>
-                <p className="text-sm text-indigo-600 dark:text-indigo-400 mt-1">
-                  {demand.peakDay.count} orders
-                </p>
-              </div>
-            )}
-          </div>
 
-          {/* Fast Moving Products */}
-          <div className="glass-panel-strong rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-ink">
-                Fast movers (ABC class A — top revenue share)
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
-                      Product
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Revenue
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Orders
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {demand.fastMoving && demand.fastMoving.length > 0 ? (
-                    demand.fastMoving.map((product, index) => (
-                      <tr
-                        key={index}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                      >
-                        <td className="px-4 py-3 text-sm text-ink">
-                          {product.productName}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
-                          {typeof product.totalRevenue === "number" && !Number.isNaN(product.totalRevenue)
-                            ? `₹${product.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-                            : "₹0"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
-                          {product.frequency || 0}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="px-4 py-3 text-sm text-center text-gray-500"
-                      >
-                        No fast-moving products found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Slow Moving Products */}
-          <div className="glass-panel-strong rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-ink">
-                Slow movers (ABC class C — tail revenue)
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
-                      Product
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Revenue
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Orders
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {demand.slowMoving && demand.slowMoving.length > 0 ? (
-                    demand.slowMoving.map((product, index) => (
-                      <tr
-                        key={index}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                      >
-                        <td className="px-4 py-3 text-sm text-ink">
-                          {product.productName}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
-                          {typeof product.totalRevenue === "number" && !Number.isNaN(product.totalRevenue)
-                            ? `₹${product.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-                            : "₹0"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
-                          {product.frequency || 0}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="px-4 py-3 text-sm text-center text-gray-500"
-                      >
-                        No slow-moving products found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {demand.categories && demand.categories.length > 0 && (
-            <div className="glass-panel-strong rounded-2xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-ink">
-                  Category revenue
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
-                        Category
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                        Revenue
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                        Lines
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {demand.categories.map((c, i) => (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
-                        <td className="px-4 py-3 text-sm text-ink">
-                          {c.categoryName}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right">
-                          ₹{c.totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
-                          {c.lineCount}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {moreSection === "forecast" && forecast && (
+            <div className="rounded-2xl border border-stone-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
+              <p className="text-sm text-stone-500 mb-3">Expected sales for the next few days</p>
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={forecast.forecast}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => formatForecastDate(v)} />
+                    <YAxis tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : String(v))} />
+                    <Tooltip formatter={(v: number) => [`₹${Math.round(v).toLocaleString("en-IN")}`, "Expected"]} />
+                    <Bar dataKey="predicted" fill="#0f766e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           )}
 
-          {demand.byStore && demand.byStore.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-ink">
-                Per-store products (owner)
-              </h3>
-              {demand.byStore.map((s) => (
-                <div
-                  key={s.storeId}
-                  className="glass-panel-strong rounded-2xl overflow-hidden"
-                >
-                  <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 font-medium">
-                    {s.storeName}
-                  </div>
-                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Product</th>
-                          <th className="px-4 py-2 text-right">Revenue</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(s.products as any[]).slice(0, 15).map((p: any, i: number) => (
-                          <tr key={i} className="border-t border-gray-100 dark:border-gray-700">
-                            <td className="px-4 py-2">{p.productName}</td>
-                            <td className="px-4 py-2 text-right">
-                              ₹{(p.totalRevenue || 0).toLocaleString("en-IN")}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        ) : (
-          <div className="glass-panel rounded-2xl p-12 text-center">
-            <p className="text-ink-secondary mb-4">
-              Could not load demand analysis. Please try again.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={loadAnalytics}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Retry
-              </button>
-              <button
-                onClick={() => loadSalesFallback("demand")}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-ink-secondary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                Show from sales data
-              </button>
-            </div>
-          </div>
-        )
-      )}
-
-      {/* Inventory Recommendations Tab */}
-      {activeTab === "inventory" && (
-        inventory ? (
-        <div className="space-y-6">
-          {inventory.mode === "multi" && inventory.note && (
-            <p className="text-sm text-ink-secondary border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2 bg-gray-50 dark:bg-gray-900/40">
-              {inventory.note}
-            </p>
-          )}
-          {(inventory.leadTimeDays != null || inventory.historyDays != null) && (
-            <p className="text-xs text-ink-muted">
-              Lead time {inventory.leadTimeDays ?? "—"}d · History window {inventory.historyDays ?? "—"}d · EOQ uses
-              ordering cost ₹{inventory.orderingCost ?? "—"} / holding ₹
-              {inventory.holdingCostPerUnit ?? "—"} per unit (env overrides).
-            </p>
-          )}
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 rounded-lg p-6 border border-red-200 dark:border-red-800">
-              <h3 className="text-sm font-medium text-red-700 dark:text-red-300 mb-2">
-                Out of Stock
-              </h3>
-              <p className="text-3xl font-bold text-red-900 dark:text-red-100">
-                {inventory.outOfStock}
-              </p>
-            </div>
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-lg p-6 border border-yellow-200 dark:border-yellow-800">
-              <h3 className="text-sm font-medium text-yellow-700 dark:text-yellow-300 mb-2">
-                Low Stock
-              </h3>
-              <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">
-                {inventory.lowStock}
-              </p>
-            </div>
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6 border border-blue-200 dark:border-blue-800">
-              <h3 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
-                Overstock
-              </h3>
-              <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-                {inventory.overstock}
-              </p>
-            </div>
-          </div>
-
-          {/* Recommendations Table */}
-          <div className="glass-panel-strong rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-ink">
-                Inventory Actions Required
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    {inventory.mode === "multi" && (
-                      <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
-                        Store
-                      </th>
-                    )}
-                    <th className="px-4 py-3 text-left text-xs font-medium text-ink-secondary uppercase">
-                      Product
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Current
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      On order
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Reorder Point
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-ink-secondary uppercase">
-                      Suggested Qty
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-ink-secondary uppercase">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-ink-secondary uppercase">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {inventory.recommendations &&
-                  inventory.recommendations.length > 0 ? (
-                    inventory.recommendations.map((rec, index) => (
-                      <tr
-                        key={index}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                      >
-                        {inventory.mode === "multi" && (
-                          <td className="px-4 py-3 text-sm text-ink-secondary">
-                            {rec.storeName || rec.storeId || "—"}
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-sm text-ink">
-                          {rec.productName}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
-                          {typeof rec.currentStock === "number" && !Number.isNaN(rec.currentStock)
-                            ? rec.currentStock.toFixed(2)
-                            : "0.00"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
-                          {rec.inboundOpenQty != null && !Number.isNaN(rec.inboundOpenQty)
-                            ? rec.inboundOpenQty.toFixed(2)
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary">
-                          {typeof rec.reorderPoint === "number" && !Number.isNaN(rec.reorderPoint)
-                            ? rec.reorderPoint.toFixed(2)
-                            : "0.00"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-ink-secondary font-medium">
-                          {typeof rec.suggestedOrderQty === "number" && !Number.isNaN(rec.suggestedOrderQty)
-                            ? rec.suggestedOrderQty.toFixed(2)
-                            : "0.00"}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${ rec.status ==="out-of-stock"
-                                ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200"
-                                : rec.status === "low-stock"
-                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200"
-                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
-                            }`}
-                          >
-                            {rec.status
-                              ? rec.status.replace("-", " ")
-                              : "adequate"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-sm text-ink-secondary capitalize">
-                          {rec.action ? rec.action.replace("-", " ") : "none"}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={inventory.mode === "multi" ? 8 : 7}
-                        className="px-4 py-3 text-sm text-center text-gray-500"
-                      >
-                        No inventory recommendations — stock levels look adequate for this window.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        ) : (
-          <div className="glass-panel rounded-2xl p-12 text-center">
-            <p className="text-ink-secondary mb-4">
-              Could not load inventory recommendations. Please try again.
-            </p>
-            <button
-              onClick={loadAnalytics}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        )
-      )}
-
-      {activeTab === "profit-margin" && (
-        <div className="space-y-6">
-          {profitMargin ? (
-            <>
-              <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-                <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Sales</p>
-                  <p className="text-xl font-bold text-ink mt-1">
-                    {formatINR(profitMargin.summary.totalSales)}
-                  </p>
-                </div>
-                <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Inventory received</p>
-                  <p className="text-xl font-bold text-ink mt-1">
-                    {formatINR(profitMargin.summary.totalPurchases)}
-                  </p>
-                </div>
-                <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Expenses</p>
-                  <p className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                    {profitMargin.summary.expensesLabel}
-                  </p>
-                </div>
-                <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Net profit</p>
-                  <p
-                    className={`text-xl font-bold mt-1 ${ profitMargin.summary.netProfit >= 0 ?"text-emerald-600 dark:text-emerald-400"
-                        : "text-red-600 dark:text-red-400"
-                    }`}
-                  >
-                    {formatINR(profitMargin.summary.netProfit)}
-                  </p>
-                </div>
-                <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Margin %</p>
-                  <p className="text-xl font-bold text-ink mt-1">
-                    {profitMargin.summary.profitMarginPct.toFixed(1)}%
-                  </p>
-                </div>
-                <div className="rounded-2xl glass-panel p-4">
-                  <p className="text-xs uppercase text-gray-500">Est. COGS (sold)</p>
-                  <p className="text-xl font-bold text-ink mt-1">
-                    {formatINR(profitMargin.summary.estimatedCogsFromSales)}
-                  </p>
-                </div>
-              </div>
-
-              <p className="text-sm text-ink-secondary">
-                Net profit uses paid sales minus estimated cost of goods sold in the period, minus
-                approved expenses when tracked. Inventory received counts POs by GRN receive date
-                in the selected range (not PO order date). Product costs use the average of the last
-                10 closed franchise POs.
-              </p>
-
-              {profitMargin.summary.productsMissingCost > 0 && (
-                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
-                  {profitMargin.summary.productsMissingCost} product line(s) have no PO cost —
-                  revenue is included; gross margin columns show a warning.
-                </div>
-              )}
-
-              <div className="glass-panel-strong rounded-2xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold text-ink">
-                    Product gross margin
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-surface-2/80 backdrop-blur-sm">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-medium text-ink-secondary">
-                          Product
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
-                          Revenue
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
-                          Qty sold
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
-                          Avg cost
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
-                          Est. COGS
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
-                          Gross profit
-                        </th>
-                        <th className="text-right px-4 py-3 font-medium text-ink-secondary">
-                          Margin %
-                        </th>
-                        <th className="text-center px-4 py-3 font-medium text-ink-secondary">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {profitMargin.products.map((p) => (
-                        <tr key={p.productId} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                          <td className="px-4 py-3 text-ink">
-                            <div className="font-medium">{p.productName}</div>
-                            <div className="text-xs text-gray-500">{p.sku}</div>
-                          </td>
-                          <td className="px-4 py-3 text-right">{formatINR(p.revenue)}</td>
-                          <td className="px-4 py-3 text-right">
-                            {p.qtySold} {p.unitType === "PCS" ? "pcs" : "kg"}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {p.avgCost != null ? formatINR(p.avgCost) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {p.estimatedCogs != null ? formatINR(p.estimatedCogs) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {p.grossProfit != null ? formatINR(p.grossProfit) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {p.grossMarginPct != null ? `${p.grossMarginPct.toFixed(1)}%` : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {p.costStatus === "ok" ? (
-                              <span className="text-emerald-600 dark:text-emerald-400">OK</span>
-                            ) : (
-                              <span className="text-amber-600 dark:text-amber-400" title="No PO cost">
-                                ⚠ Unknown
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {profitMarginError || "No profit data for this range."}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "insights" && (
-        <div className="space-y-4">
-          {insights && insights.insights.length > 0 ? (
-            <div className="grid gap-3">
-              {insights.insights.map((ins, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => ins.href && setActiveTab(ins.href as any)}
-                  className={`text-left rounded-lg border px-4 py-3 ${
-                    ins.severity === "high"
-                      ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
-                      : ins.severity === "medium"
-                        ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
-                        : "border-subtle bg-surface"
-                  } ${ins.href ? "hover:opacity-90 cursor-pointer" : "cursor-default"}`}
-                >
-                  <p className="font-semibold text-ink">{ins.title}</p>
-                  <p className="text-sm text-ink-secondary mt-1">{ins.detail}</p>
-                  {ins.action && (
-                    <p className="text-xs text-ink-muted mt-2">{ins.action}</p>
-                  )}
-                  {ins.href && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Open {ins.href} →</p>
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {insights
-                ? "No insights for this range — try widening dates or adding more sales."
-                : "Load failed or no data. Use Refresh or check errors above."}
-            </div>
-          )}
-          {insights?.period && (
-            <p className="text-xs text-ink-muted">
-              Compared current {insights.period.start}–{insights.period.end} vs prior{" "}
-              {insights.period.priorStart}–{insights.period.priorEnd}.
-            </p>
-          )}
-        </div>
-      )}
-
-      {activeTab === "demographics" && (
-        <div className="space-y-6">
-          {demographics ? (
-            <>
-              {/* Hero — plain English */}
-              <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  Who buys from your store
-                </p>
-                <h2 className="mt-1 text-xl sm:text-2xl font-bold text-ink leading-snug">
-                  {demographics.headline}
-                </h2>
-                <p className="mt-2 text-sm text-ink-secondary max-w-3xl">
-                  This page answers simple questions: who bought in the selected dates, are they
-                  regulars or new, which area spends more, and which customers matter most.
-                  We do not store age or gender — only phone, name, area, and bills.
-                </p>
-                <p className="mt-2 text-xs text-ink-muted">
-                  Dates: {demographics.period.start} → {demographics.period.end}
-                </p>
-              </div>
-
-              {/* Takeaways */}
-              {demographics.takeaways.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {demographics.takeaways.map((t, i) => (
-                    <div
-                      key={i}
-                      className={`rounded-xl border px-4 py-3 ${
-                        t.tone === "good"
-                          ? "border-emerald-200 bg-emerald-50/80 dark:border-emerald-900 dark:bg-emerald-950/30"
-                          : t.tone === "warn"
-                            ? "border-amber-200 bg-amber-50/80 dark:border-amber-900 dark:bg-amber-950/30"
-                            : "border-subtle bg-surface-2/60"
-                      }`}
-                    >
-                      <p className="font-semibold text-ink text-sm">{t.title}</p>
-                      <p className="text-sm text-ink-secondary mt-1 leading-relaxed">{t.detail}</p>
-                    </div>
+          {moreSection === "demand" && demand && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-stone-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-950">
+                <p className="text-sm font-semibold mb-2">Selling fast</p>
+                <ul className="space-y-2 text-sm">
+                  {demand.fastMoving.slice(0, 8).map((p, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span className="truncate">{p.productName}</span>
+                      <span className="tabular-nums text-stone-500">₹{Math.round(p.totalRevenue).toLocaleString("en-IN")}</span>
+                    </li>
                   ))}
-                </div>
-              )}
-
-              {/* 4 big numbers */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="rounded-2xl border border-subtle bg-surface p-5">
-                  <p className="text-sm text-ink-secondary">People who bought</p>
-                  <p className="text-3xl font-black text-ink mt-1">
-                    {demographics.summary.activeCustomers.toLocaleString("en-IN")}
-                  </p>
-                  <p className="text-xs text-ink-muted mt-2">
-                    Known customers with at least one bill in this period.
-                    Directory has {demographics.summary.totalCustomers.toLocaleString("en-IN")} saved
-                    names in total.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-subtle bg-surface p-5">
-                  <p className="text-sm text-ink-secondary">Regulars vs new</p>
-                  <p className="text-3xl font-black text-ink mt-1">
-                    {demographics.summary.returningPct}%
-                    <span className="text-lg font-semibold text-ink-muted"> regulars</span>
-                  </p>
-                  <p className="text-xs text-ink-muted mt-2">
-                    {demographics.summary.returningActive} came back ·{" "}
-                    {demographics.summary.newActive} first time this period ·{" "}
-                    {demographics.summary.repeatCustomers} bought more than once.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-subtle bg-surface p-5">
-                  <p className="text-sm text-ink-secondary">Sales with a name saved</p>
-                  <p className="text-3xl font-black text-ink mt-1">
-                    {demographics.summary.namedOrderPct}%
-                  </p>
-                  <p className="text-xs text-ink-muted mt-2">
-                    {demographics.summary.identifiedOrders} named bills ·{" "}
-                    {demographics.summary.walkInOrders} walk-ins without phone/name.
-                    Higher % = better for loyalty and delivery.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-subtle bg-surface p-5">
-                  <p className="text-sm text-ink-secondary">Spend by known customers</p>
-                  <p className="text-3xl font-black text-ink mt-1">
-                    {formatINR(demographics.summary.identifiedRevenue)}
-                  </p>
-                  <p className="text-xs text-ink-muted mt-2">
-                    Avg {formatINR(demographics.summary.avgSpendPerActiveCustomer)} per known
-                    customer · avg bill {formatINR(demographics.summary.avgOrderValue)}.
-                    {demographics.summary.creditOrders > 0
-                      ? ` ${demographics.summary.creditOrders} credit bill(s).`
-                      : ""}
-                  </p>
-                </div>
-              </div>
-
-              {/* Two simple charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
-                  <h3 className="text-base font-semibold text-ink">Regulars vs first-timers</h3>
-                  <p className="text-xs text-ink-muted mt-1 mb-4">
-                    Among people who bought in this period — did they shop with you before?
-                  </p>
-                  {demographics.newVsReturning.some((x) => x.value > 0) ? (
-                    <SimplePieChart
-                      data={demographics.newVsReturning}
-                      height={240}
-                      dataKey="value"
-                    />
-                  ) : (
-                    <p className="text-ink-muted text-center py-10 text-sm">No known buyers yet</p>
-                  )}
-                </div>
-                <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
-                  <h3 className="text-base font-semibold text-ink">Named bill vs walk-in</h3>
-                  <p className="text-xs text-ink-muted mt-1 mb-4">
-                    Every bill either has a saved customer or is a walk-in with no phone.
-                  </p>
-                  {demographics.orderMix.some((x) => x.value > 0) ? (
-                    <SimplePieChart
-                      data={demographics.orderMix}
-                      height={240}
-                      dataKey="value"
-                    />
-                  ) : (
-                    <p className="text-ink-muted text-center py-10 text-sm">No bills in this range</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Areas — table with bars, not two charts */}
-              <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
-                <h3 className="text-base font-semibold text-ink">Where customers come from</h3>
-                <p className="text-xs text-ink-muted mt-1 mb-4">
-                  Areas from saved customer profiles. Use this to plan delivery routes or local offers.
-                </p>
-                {demographics.byArea.length > 0 ? (
-                  <div className="space-y-3">
-                    {demographics.byArea.slice(0, 8).map((area) => {
-                      const maxRev = Math.max(
-                        ...demographics.byArea.map((a) => a.revenue),
-                        1
-                      );
-                      const width = Math.max(4, Math.round((area.revenue / maxRev) * 100));
-                      return (
-                        <div key={area.name}>
-                          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                            <span className="font-medium text-ink">{area.name}</span>
-                            <span className="text-ink-secondary">
-                              {formatINR(area.revenue)}
-                              <span className="text-ink-muted">
-                                {" "}
-                                · {area.customers} customers · {area.orders} bills
-                                {area.revenueSharePct > 0
-                                  ? ` · ${area.revenueSharePct}% of named sales`
-                                  : ""}
-                              </span>
-                            </span>
-                          </div>
-                          <div className="mt-1.5 h-2 rounded-full bg-surface-2 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-emerald-500/80"
-                              style={{ width: `${width}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-ink-muted py-6 text-center">
-                    No area data yet. Add area when saving a customer.
-                  </p>
-                )}
-              </div>
-
-              {/* Top customers — ranked list */}
-              <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
-                <h3 className="text-base font-semibold text-ink">Best customers this period</h3>
-                <p className="text-xs text-ink-muted mt-1 mb-4">
-                  Highest spenders with a name on the bill. Treat these customers well — call them for offers.
-                </p>
-                {demographics.topCustomers.length > 0 ? (
-                  <ol className="space-y-2">
-                    {demographics.topCustomers.slice(0, 10).map((c, idx) => (
-                      <li
-                        key={c.id}
-                        className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 rounded-xl border border-subtle/80 px-3 py-3"
-                      >
-                        <span className="text-sm font-bold text-ink-muted w-7 shrink-0">
-                          #{idx + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-ink truncate">{c.name}</p>
-                          <p className="text-xs text-ink-muted truncate">
-                            {c.phone}
-                            {c.area && c.area !== "Unspecified" ? ` · ${c.area}` : ""}
-                          </p>
-                        </div>
-                        <div className="sm:text-right shrink-0">
-                          <p className="font-bold text-ink">{formatINR(c.revenue)}</p>
-                          <p className="text-xs text-ink-muted">
-                            {c.orders} bill{c.orders === 1 ? "" : "s"}
-                            {c.creditOrders > 0 ? ` · ${c.creditOrders} credit` : ""}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="text-sm text-ink-muted py-6 text-center">
-                    No named customers billed in this range.
-                  </p>
-                )}
-              </div>
-
-              {/* Optional secondary: spend bands — simple, one section */}
-              {demographics.spendBands.some((b) => b.customers > 0) && (
-                <div className="rounded-2xl border border-subtle bg-surface p-5 sm:p-6">
-                  <h3 className="text-base font-semibold text-ink">How much customers spend over time</h3>
-                  <p className="text-xs text-ink-muted mt-1 mb-4">
-                    Lifetime spend for everyone in your customer list (not only this date range).
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {demographics.spendBands.map((band) => (
-                      <div
-                        key={band.name}
-                        className="rounded-xl border border-subtle bg-surface-2/50 px-3 py-4 text-center"
-                      >
-                        <p className="text-2xl font-bold text-ink">{band.customers}</p>
-                        <p className="text-xs text-ink-secondary mt-1">{band.name}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {demographics.byTier.length > 0 && (
-                  <div className="rounded-2xl border border-subtle bg-surface p-5">
-                    <h3 className="text-base font-semibold text-ink mb-1">Loyalty tiers</h3>
-                    <p className="text-xs text-ink-muted mb-4">Directory-wide tier mix</p>
-                    <div className="space-y-2">
-                      {demographics.byTier.map((t) => (
-                        <div
-                          key={t.name}
-                          className="flex justify-between text-sm border-b border-subtle py-2"
-                        >
-                          <span className="font-medium text-ink">{t.name}</span>
-                          <span className="tabular-nums text-ink-secondary">{t.customers}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {(demographics.summary.portalRegistered > 0 ||
-                      demographics.summary.profileCompleted > 0) && (
-                      <p className="text-xs text-ink-muted mt-3">
-                        Portal registered: {demographics.summary.portalRegistered} · Profile
-                        complete: {demographics.summary.profileCompleted}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {demographics.byCity.length > 0 && (
-                  <div className="rounded-2xl border border-subtle bg-surface p-5">
-                    <h3 className="text-base font-semibold text-ink mb-1">By city (addresses)</h3>
-                    <p className="text-xs text-ink-muted mb-4">From saved customer addresses</p>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {demographics.byCity.map((c) => (
-                        <div
-                          key={c.name}
-                          className="flex justify-between text-sm border-b border-subtle py-2"
-                        >
-                          <span className="font-medium text-ink">{c.name}</span>
-                          <span className="tabular-nums text-ink-secondary">{c.customers}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Tiny glossary */}
-              <details className="rounded-xl border border-subtle bg-surface-2/40 px-4 py-3 text-sm">
-                <summary className="cursor-pointer font-medium text-ink">
-                  What do these words mean?
-                </summary>
-                <ul className="mt-3 space-y-2 text-ink-secondary text-sm leading-relaxed">
-                  <li>
-                    <strong className="text-ink">Known customer</strong> — bill has a phone/name
-                    attached.
-                  </li>
-                  <li>
-                    <strong className="text-ink">Walk-in</strong> — bill with no customer saved.
-                  </li>
-                  <li>
-                    <strong className="text-ink">Regular / returning</strong> — bought from you
-                    before this date range too.
-                  </li>
-                  <li>
-                    <strong className="text-ink">First-timer</strong> — first bill with you in (or
-                    around) this period.
-                  </li>
-                  <li>
-                    <strong className="text-ink">Area</strong> — locality saved on the customer
-                    profile (used for delivery).
-                  </li>
                 </ul>
-              </details>
-            </>
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
-              {demographicsError
-                ? "Load failed. Use Refresh or check errors above."
-                : "Loading who buys from you…"}
+              </div>
+              <div className="rounded-2xl border border-stone-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-950">
+                <p className="text-sm font-semibold mb-2">Selling slow</p>
+                <ul className="space-y-2 text-sm">
+                  {demand.slowMoving.slice(0, 8).map((p, i) => (
+                    <li key={i} className="flex justify-between gap-2">
+                      <span className="truncate">{p.productName}</span>
+                      <span className="tabular-nums text-stone-500">₹{Math.round(p.totalRevenue).toLocaleString("en-IN")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
+          )}
+
+          {moreSection === "margin" && profitMargin && (
+            <div className="rounded-2xl border border-stone-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950">
+              <div className="grid grid-cols-2 gap-3 p-4 border-b border-stone-100 dark:border-gray-800">
+                <div>
+                  <p className="text-xs text-stone-500">Sales</p>
+                  <p className="text-xl font-bold">₹{Math.round(profitMargin.summary.totalSales).toLocaleString("en-IN")}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-stone-500">Est. profit %</p>
+                  <p className="text-xl font-bold">{profitMargin.summary.profitMarginPct}%</p>
+                </div>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="text-xs text-stone-500">
+                  <tr>
+                    <th className="text-left px-4 py-2">Item</th>
+                    <th className="text-right px-4 py-2">Sales</th>
+                    <th className="text-right px-4 py-2">Margin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profitMargin.products.slice(0, 15).map((p) => (
+                    <tr key={p.productId} className="border-t border-stone-100 dark:border-gray-800">
+                      <td className="px-4 py-2">{p.productName}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">₹{Math.round(p.revenue).toLocaleString("en-IN")}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {p.grossMarginPct != null ? `${p.grossMarginPct}%` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {moreSection === "who" && demographics && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: "Buyers", value: demographics.summary.activeCustomers },
+                { label: "Regulars", value: `${demographics.summary.returningPct}%` },
+                { label: "Named bills", value: `${demographics.summary.namedOrderPct}%` },
+                { label: "Walk-ins", value: `${demographics.summary.walkInPct}%` },
+              ].map((c) => (
+                <div key={c.label} className="rounded-2xl border border-stone-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-950">
+                  <p className="text-xs text-stone-500">{c.label}</p>
+                  <p className="text-2xl font-bold mt-1">{c.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {moreSection === "sales" && !salesOverview && (
+            <p className="text-center text-stone-400 py-8">Loading…</p>
+          )}
+          {moreSection === "forecast" && !forecast && (
+            <p className="text-center text-stone-400 py-8">Loading…</p>
+          )}
+          {moreSection === "demand" && !demand && (
+            <p className="text-center text-stone-400 py-8">Loading…</p>
+          )}
+          {moreSection === "margin" && !profitMargin && (
+            <p className="text-center text-stone-400 py-8">{profitMarginError || "Loading…"}</p>
+          )}
+          {moreSection === "who" && !demographics && (
+            <p className="text-center text-stone-400 py-8">Loading…</p>
+          )}
+          {moreSection === "staff" && !staffProductivity && (
+            <p className="text-center text-stone-400 py-8">Loading…</p>
+          )}
+          {moreSection === "delivery" && !deliveryOps && (
+            <p className="text-center text-stone-400 py-8">Loading…</p>
           )}
         </div>
       )}
+
     </div>
   );
 }
