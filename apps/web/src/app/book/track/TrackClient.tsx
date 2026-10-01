@@ -136,21 +136,43 @@ export default function BookTrackPage() {
             load(phone, code);
           }}
         >
-          <input
-            type="tel"
-            placeholder="Phone used for booking"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-            className="w-full px-3 py-2.5 border rounded-xl"
-          />
-          <input
-            placeholder="Tracking code"
-            value={code}
-            onChange={(e) =>
-              setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))
-            }
-            className="w-full px-3 py-2.5 border rounded-xl tracking-widest font-semibold"
-          />
+          <div>
+            <label htmlFor="track-phone" className="block text-sm font-medium text-gray-700 mb-1">
+              Mobile number (10 digits)
+            </label>
+            <input
+              id="track-phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
+              maxLength={13}
+              placeholder="e.g. 9022938302"
+              value={phone}
+              onChange={(e) => {
+                // Keep last 10 digits so +91 / 0-prefix pastes still work
+                const digits = e.target.value.replace(/\D/g, '');
+                setPhone(digits.length > 10 ? digits.slice(-10) : digits.slice(0, 10));
+              }}
+              className="w-full px-3 py-2.5 border rounded-xl"
+            />
+          </div>
+          <div>
+            <label htmlFor="track-code" className="block text-sm font-medium text-gray-700 mb-1">
+              Tracking code (from booking)
+            </label>
+            <input
+              id="track-code"
+              autoComplete="off"
+              maxLength={8}
+              placeholder="e.g. UETSMW"
+              value={code}
+              onChange={(e) =>
+                setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))
+              }
+              className="w-full px-3 py-2.5 border rounded-xl tracking-widest font-semibold uppercase"
+            />
+            <p className="text-xs text-gray-500 mt-1">6-character code shown after you book</p>
+          </div>
           <button
             type="submit"
             disabled={loading}
