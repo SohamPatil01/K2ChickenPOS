@@ -12,6 +12,7 @@ interface StaffMember {
   email: string | null;
   role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'DRIVER';
   isActive: boolean;
+  hasDayPin?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +28,7 @@ export default function StaffManagement() {
     email: '',
     role: 'CASHIER' as 'OWNER' | 'MANAGER' | 'CASHIER' | 'DRIVER',
     password: '',
+    dayPin: '',
     isActive: true,
   });
   const [formLoading, setFormLoading] = useState(false);
@@ -57,6 +59,7 @@ export default function StaffManagement() {
         email: staffMember.email || '',
         role: staffMember.role,
         password: '',
+        dayPin: '',
         isActive: staffMember.isActive,
       });
     } else {
@@ -67,6 +70,7 @@ export default function StaffManagement() {
         email: '',
         role: 'CASHIER',
         password: '',
+        dayPin: '',
         isActive: true,
       });
     }
@@ -89,6 +93,9 @@ export default function StaffManagement() {
         if (formData.password) {
           updateData.password = formData.password;
         }
+        if (formData.dayPin) {
+          updateData.dayPin = formData.dayPin;
+        }
         await api.put(`/api/v1/users/${editingStaff.id}`, updateData);
         alert('Staff member updated successfully!');
       } else {
@@ -103,6 +110,7 @@ export default function StaffManagement() {
           email: formData.email || null,
           role: formData.role,
           password: formData.password,
+          dayPin: formData.dayPin || undefined,
           isActive: formData.isActive,
         });
         alert('Staff member created successfully!');
@@ -178,6 +186,7 @@ export default function StaffManagement() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Day PIN</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -185,7 +194,7 @@ export default function StaffManagement() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {staff.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     No staff members found. Click &quot;+ Add Staff&quot; to create one.
                   </td>
                 </tr>
@@ -205,6 +214,19 @@ export default function StaffManagement() {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeColor(member.role)}`}>
                         {member.role}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {member.role === 'DRIVER' ? (
+                        <span className="text-xs text-gray-400">—</span>
+                      ) : member.hasDayPin ? (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800">
+                          PIN set
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800">
+                          Not set
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
@@ -295,6 +317,31 @@ export default function StaffManagement() {
                   minLength={6}
                 />
               </div>
+              {formData.role !== 'DRIVER' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Day In/Out PIN {editingStaff?.hasDayPin ? '(leave blank to keep)' : ''}
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    value={formData.dayPin}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        dayPin: e.target.value.replace(/\D/g, '').slice(0, 8),
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    minLength={4}
+                    maxLength={8}
+                    placeholder="4–8 digits"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Separate from login password. Used for Day In, Day Out, and cash movements.
+                  </p>
+                </div>
+              )}
               <div className="flex items-center">
                 <input
                   type="checkbox"

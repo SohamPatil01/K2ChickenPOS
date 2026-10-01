@@ -193,6 +193,7 @@ model Store {
   inventoryLedgers InventoryLedger[]
   sales            Sale[]
   shifts           Shift[]
+  cashMovements    CashMovement[]
   scaleBarcodeConfigs ScaleBarcodeConfig[]
   purchaseOrders   PurchaseOrder[] @relation("FranchiseStore")
   ownerPurchaseOrders PurchaseOrder[] @relation("OwnerStore")
@@ -229,6 +230,8 @@ model User {
   email         String?
   role          UserRole
   passwordHash  String
+  /// Separate Day In / Day Out PIN (not login password)
+  dayPinHash    String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -236,6 +239,7 @@ model User {
   createdSales  Sale[]   @relation("SaleCreator")
   openedShifts  Shift[]  @relation("ShiftOpener")
   closedShifts  Shift[]  @relation("ShiftCloser")
+  cashMovements CashMovement[]
   assignedDeliveries DeliveryOrder[] @relation("Driver")
   deliveryEvents DeliveryEvent[]
   auditLogs     AuditLog[]
@@ -255,6 +259,11 @@ model User {
 
   @@index([storeId])
   @@index([phone])
+}
+
+enum CashMovementType {
+  IN
+  OUT
 }
 
 model Customer {
@@ -415,6 +424,8 @@ model Sale {
   grandTotal    Float      @default(0)
   createdByUserId String
   createdBy     User       @relation("SaleCreator", fields: [createdByUserId], references: [id])
+  shiftId       String?
+  shift         Shift?     @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   businessDate  DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -430,6 +441,7 @@ model Sale {
   @@index([storeId, businessDate])
   @@index([customerId])
   @@index([status])
+  @@index([shiftId])
 }
 
 model SaleItem {
@@ -475,14 +487,38 @@ model Shift {
   closedAt    DateTime?
   openingCash   Float    @default(0)
   closingCash   Float?
+  cashTakenHome Float?
+  pettyCashCarryForward Float?
+  /// Set when OWNER used override-open to start this day
+  overrideReason String?
   notes         String?
   businessDate  DateTime?
   dailyClosings DailyClosing[]
+  cashMovements CashMovement[]
+  sales         Sale[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([storeId, openedAt])
+  @@index([storeId, businessDate])
   @@index([openedByUserId])
+}
+
+model CashMovement {
+  id              String           @id @default(cuid())
+  storeId         String
+  store           Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shiftId         String
+  shift           Shift            @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  type            CashMovementType
+  amount          Float
+  reason          String
+  createdByUserId String
+  createdBy       User             @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime         @default(now())
+
+  @@index([shiftId])
+  @@index([storeId, createdAt])
 }
 
 model ScaleBarcodeConfig {
@@ -1238,6 +1274,10 @@ model DailyClosing {
   cashExpected    Float    @default(0)
   cashDifference  Float    @default(0)
   closingCash     Float    @default(0)
+  cashTakenHome   Float    @default(0)
+  pettyCashCarryForward Float @default(0)
+  cashInTotal     Float    @default(0)
+  cashOutTotal    Float    @default(0)
   
   // Weight & Wastage
   totalWeightSoldKg Float  @default(0)

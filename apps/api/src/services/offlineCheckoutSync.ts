@@ -5,6 +5,7 @@ import {
   paymentSchema,
   normalizePaymentsForSale,
   ymdInStoreTz,
+  businessDateForNow,
 } from '@azela-pos/shared';
 import { z } from 'zod';
 import {
@@ -14,6 +15,7 @@ import {
 import { upsertCustomerArea } from '../utils/customerArea.js';
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
+import { DAY_IN_REQUIRED, requireOpenShiftId } from './shiftService.js';
 
 const offlinePayloadSchema = z.object({
   idempotencyKey: z.string().min(8),
@@ -31,6 +33,14 @@ export async function applyOfflineCheckoutFromSync(
   userId: string
 ): Promise<void> {
   const data = offlinePayloadSchema.parse(payload);
+
+  const openShiftId = await requireOpenShiftId(storeId);
+  if (!openShiftId) {
+    throw Object.assign(new Error('Day In required before billing'), {
+      code: DAY_IN_REQUIRED,
+      statusCode: 403,
+    });
+  }
 
   // Idempotency without Sale.offlineIdempotencyKey (supports DBs that never added that column).
   const existingAudit = await prisma.auditLog.findFirst({
@@ -232,6 +242,8 @@ export async function applyOfflineCheckoutFromSync(
         taxTotal,
         grandTotal: roundedGrandTotal,
         createdByUserId: userId,
+        shiftId: openShiftId,
+        businessDate: businessDateForNow(),
         items: {
           create: saleItems.map((item: any) => {
             const qty = item.qtyKg || item.qtyPcs || 0;

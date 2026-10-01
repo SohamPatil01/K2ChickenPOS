@@ -22,6 +22,7 @@ import {
   Microscope,
   Building2,
   Settings,
+  History,
 } from "lucide-react";
 
 export const navIcons: Record<string, LucideIcon> = {
@@ -37,6 +38,7 @@ export const navIcons: Record<string, LucideIcon> = {
   yield: TrendingUp,
   delivery: Truck,
   "daily-closing": Wallet,
+  "day-history": History,
   "discount-approvals": BadgeCheck,
   orders: FileText,
   "pending-payments": CreditCard,

@@ -7,6 +7,8 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { localDateRangeToApiBounds, todayLocalYmd } from '@/lib/dateRangeParams';
 import { Button, Card } from '@/components/ui';
+import { DayOutPanel, fetchDayCurrent, type DayCurrentResponse } from '@/components/day-session/PosDaySession';
+import Link from 'next/link';
 
 export default function StoreDailyClosingPage() {
   const router = useRouter();
@@ -31,6 +33,7 @@ export default function StoreDailyClosingPage() {
     cardSales: 0,
     upiSales: 0,
   });
+  const [daySession, setDaySession] = useState<DayCurrentResponse | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -38,6 +41,9 @@ export default function StoreDailyClosingPage() {
       return;
     }
     loadClosing();
+    fetchDayCurrent()
+      .then(setDaySession)
+      .catch(() => setDaySession(null));
   }, [user, router, closingDate]);
 
   // Auto-set cashReceived from cashSales (cash revenue)
@@ -272,10 +278,31 @@ export default function StoreDailyClosingPage() {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Daily Closing</h1>
-        <p className="text-xs sm:text-sm text-ink-muted mt-1">Reconcile cash, weight, wastage, and closing stock</p>
+      <div className="mb-4 sm:mb-6 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-ink">Daily Closing</h1>
+          <p className="text-xs sm:text-sm text-ink-muted mt-1">
+            Prefer Day Out from POS for end of day. This page keeps history and Day Out when the day is open.
+          </p>
+        </div>
+        <Link href="/store/day-history" className="text-sm text-brand-600 underline">
+          Day history
+        </Link>
       </div>
+
+      {daySession?.open && daySession.shift && (
+        <Card className="mb-6 p-4">
+          <DayOutPanel
+            shift={daySession.shift}
+            daySummary={daySession.daySummary}
+            onDone={async () => {
+              const next = await fetchDayCurrent();
+              setDaySession(next);
+              await loadClosing();
+            }}
+          />
+        </Card>
+      )}
 
       <Card className="mb-6">
         <div className="p-4">

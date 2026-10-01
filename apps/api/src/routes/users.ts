@@ -13,6 +13,7 @@ const createUserSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DRIVER']),
   password: z.string().min(6),
+  dayPin: z.union([z.literal(''), z.string().regex(/^\d{4,8}$/)]).optional(),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -22,8 +23,28 @@ const updateUserSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DRIVER']).optional(),
   password: z.string().min(6).optional(),
+  dayPin: z.union([z.literal(''), z.string().regex(/^\d{4,8}$/)]).optional(),
   isActive: z.boolean().optional(),
 });
+
+function staffSelect() {
+  return {
+    id: true,
+    name: true,
+    phone: true,
+    email: true,
+    role: true,
+    isActive: true,
+    createdAt: true,
+    updatedAt: true,
+    dayPinHash: true,
+  };
+}
+
+function mapStaff(user: any) {
+  const { dayPinHash, ...rest } = user;
+  return { ...rest, hasDayPin: Boolean(dayPinHash) };
+}
 
 export async function userRoutes(fastify: FastifyInstance) {
   // Get all users (staff) - Only OWNER can access
@@ -33,20 +54,11 @@ export async function userRoutes(fastify: FastifyInstance) {
 
     const users = await prisma.user.findMany({
       where: { storeId: storeFilter },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: staffSelect(),
       orderBy: { createdAt: 'desc' },
     });
 
-    return users;
+    return users.map(mapStaff);
   });
 
   // Create new user (staff) - Only OWNER can create
@@ -68,6 +80,10 @@ export async function userRoutes(fastify: FastifyInstance) {
 
     // Hash password
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const dayPinHash =
+      data.dayPin && String(data.dayPin).length >= 4
+        ? await bcrypt.hash(String(data.dayPin), 10)
+        : null;
 
     const user = await prisma.user.create({
       data: {
@@ -77,21 +93,13 @@ export async function userRoutes(fastify: FastifyInstance) {
         email: data.email || null,
         role: data.role,
         passwordHash,
+        dayPinHash,
         isActive: data.isActive ?? true,
       },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: staffSelect(),
     });
 
-    return user;
+    return mapStaff(user);
   });
 
   // Update user (staff) - Only OWNER can update
@@ -137,23 +145,20 @@ export async function userRoutes(fastify: FastifyInstance) {
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
     }
+    if (data.dayPin !== undefined) {
+      updateData.dayPinHash =
+        data.dayPin && String(data.dayPin).length >= 4
+          ? await bcrypt.hash(String(data.dayPin), 10)
+          : null;
+    }
 
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: staffSelect(),
     });
 
-    return user;
+    return mapStaff(user);
   });
 
   // Delete user (staff) - Only OWNER can delete
@@ -197,15 +202,8 @@ export async function userRoutes(fastify: FastifyInstance) {
     const staff = await prisma.user.findUnique({
       where: { id },
       select: {
-        id: true,
-        name: true,
-        phone: true,
-        email: true,
-        role: true,
-        isActive: true,
+        ...staffSelect(),
         storeId: true,
-        createdAt: true,
-        updatedAt: true,
       },
     });
 
@@ -219,8 +217,8 @@ export async function userRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    const { storeId: _, ...userResponse } = staff;
-    return userResponse;
+    const { storeId: _, dayPinHash, ...userResponse } = staff;
+    return { ...userResponse, hasDayPin: Boolean(dayPinHash) };
   });
 }
 

@@ -20,6 +20,7 @@ import {
   PROFILE_REWARD_PERCENT,
   redeemProfileReward,
 } from '../lib/profileReward.js';
+import { DAY_IN_REQUIRED, requireOpenShiftId } from '../services/shiftService.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -622,6 +623,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
+      const openShiftId = await requireOpenShiftId(storeId);
+      if (!openShiftId) {
+        reply.code(403).send({
+          error: 'Day In required before billing',
+          code: DAY_IN_REQUIRED,
+        });
+        return;
+      }
+
       // Get store
       const store = await prisma.store.findUnique({
         where: { id: storeId },
@@ -811,6 +821,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             taxTotal,
             grandTotal: Math.round(subTotal + taxTotal + deliveryFee),
             createdByUserId: userId,
+            shiftId: openShiftId,
             items: {
               create: saleItems.map((item: any) => {
                 const qty = item.qtyKg || item.qtyPcs || 0;
@@ -983,6 +994,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             taxTotal,
             grandTotal: roundedGrandTotal,
             createdByUserId: userId,
+            shiftId: openShiftId,
             items: {
               create: saleItems.map((item: any) => {
                 const qty = item.qtyKg || item.qtyPcs || 0;
