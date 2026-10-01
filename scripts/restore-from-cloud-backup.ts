@@ -35,6 +35,7 @@ const TABLE_TO_PRISMA_MODEL: Record<string, string> = {
   Shift: 'shift',
   PreOrder: 'preOrder',
   PreOrderItem: 'preOrderItem',
+  PreOrderEvent: 'preOrderEvent',
   CashMovement: 'cashMovement',
   Sale: 'sale',
   SaleItem: 'saleItem',

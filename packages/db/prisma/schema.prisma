@@ -242,6 +242,7 @@ model User {
   closedShifts  Shift[]  @relation("ShiftCloser")
   cashMovements CashMovement[]
   preOrdersCreated PreOrder[] @relation("PreOrderCreator")
+  preOrderEvents   PreOrderEvent[] @relation("PreOrderEventCreator")
   assignedDeliveries DeliveryOrder[] @relation("Driver")
   deliveryEvents DeliveryEvent[]
   auditLogs     AuditLog[]
@@ -550,22 +551,28 @@ model PreOrder {
   customer        Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   customerName    String
   customerPhone   String
+  /// Short public tracking code (e.g. K2-A3F9)
+  trackingCode    String
   fulfillment     DeliveryType    @default(PICKUP)
   readyAt         DateTime
   status          PreOrderStatus  @default(PENDING)
   source          PreOrderSource  @default(WEB_FORM)
   notes           String?
+  cancelReason    String?
   createdByUserId String?
   createdBy       User?           @relation("PreOrderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   saleId          String?
   sale            Sale?           @relation(fields: [saleId], references: [id], onDelete: SetNull)
   items           PreOrderItem[]
+  events          PreOrderEvent[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  @@unique([storeId, trackingCode])
   @@index([storeId, status, readyAt])
   @@index([storeId, readyAt])
   @@index([customerPhone])
+  @@index([trackingCode])
   @@index([saleId])
 }
 
@@ -584,6 +591,27 @@ model PreOrderItem {
 
   @@index([preOrderId])
   @@index([productId])
+}
+
+enum PreOrderEventKind {
+  STATUS
+  MESSAGE
+  NOTE
+}
+
+model PreOrderEvent {
+  id              String            @id @default(cuid())
+  preOrderId      String
+  preOrder        PreOrder          @relation(fields: [preOrderId], references: [id], onDelete: Cascade)
+  kind            PreOrderEventKind @default(MESSAGE)
+  message         String
+  status          PreOrderStatus?
+  visibleToCustomer Boolean         @default(true)
+  createdByUserId String?
+  createdBy       User?             @relation("PreOrderEventCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+
+  @@index([preOrderId, createdAt])
 }
 
 model ScaleBarcodeConfig {

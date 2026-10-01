@@ -5,7 +5,7 @@ import { buildFullDatabaseBackup } from '../services/fullDatabaseBackup.js';
 
 const RLS_PUBLIC_TABLES = [
   'Store', 'User', 'Customer', 'CustomerAddress', 'Product', 'Category',
-  'StoreProductPrice', 'InventoryLedger', 'Sale', 'SaleItem', 'Payment', 'Shift', 'CashMovement', 'PreOrder', 'PreOrderItem',
+  'StoreProductPrice', 'InventoryLedger', 'Sale', 'SaleItem', 'Payment', 'Shift', 'CashMovement', 'PreOrder', 'PreOrderItem', 'PreOrderEvent',
   'ScaleBarcodeConfig', 'PurchaseOrder', 'PurchaseOrderItem', 'Dispatch', 'DispatchItem',
   'GRN', 'DeliveryOrder', 'DeliveryEvent', 'AuditLog', 'SyncEvent', 'FranchiseConfig',
   'PricingPlan', 'PricingRule', 'PricingOverride', 'ProductMaster', 'Supplier',

@@ -8,6 +8,7 @@ import { useNotificationStore } from '@/store/notification';
 
 export type PreOrderRow = {
   id: string;
+  trackingCode?: string;
   customerName: string;
   customerPhone: string;
   customerId: string | null;
@@ -16,6 +17,8 @@ export type PreOrderRow = {
   status: string;
   source: string;
   notes: string | null;
+  cancelReason?: string | null;
+  events?: Array<{ id: string; message: string; createdAt: string; kind: string }>;
   items: Array<{
     id: string;
     productId: string | null;
@@ -89,6 +92,10 @@ export default function PosPreOrders({
     Array<{ productId: string; productName: string; unitType: 'KG' | 'PCS'; qty: number }>
   >([]);
   const [saving, setSaving] = useState(false);
+  const [actionPo, setActionPo] = useState<PreOrderRow | null>(null);
+  const [actionMode, setActionMode] = useState<'message' | 'cancel' | null>(null);
+  const [actionText, setActionText] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -174,15 +181,59 @@ export default function PosPreOrders({
     }
   };
 
-  const setStatus = async (id: string, status: string) => {
+  const setStatus = async (
+    id: string,
+    status: string,
+    extra?: { cancelReason?: string; customerMessage?: string }
+  ) => {
     setBusyId(id);
     try {
-      await api.patch(`/api/v1/pre-orders/${id}`, { status });
+      await api.patch(`/api/v1/pre-orders/${id}`, { status, ...extra });
       await refresh();
     } catch (e: any) {
       showNotification(e.response?.data?.error || 'Update failed', 'error');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const submitAction = async () => {
+    if (!actionPo || !actionMode) return;
+    const text = actionText.trim();
+    if (!text) {
+      showNotification(
+        actionMode === 'cancel' ? 'Enter why you are cancelling (customer will see it)' : 'Enter a message',
+        'warning'
+      );
+      return;
+    }
+    setActionBusy(true);
+    try {
+      if (actionMode === 'cancel') {
+        await api.patch(`/api/v1/pre-orders/${actionPo.id}`, {
+          status: 'CANCELLED',
+          cancelReason: text,
+          customerMessage: text,
+        });
+        showNotification('Pre-order cancelled — customer can see it on tracker', 'success');
+      } else {
+        const res = await api.post(`/api/v1/pre-orders/${actionPo.id}/messages`, {
+          message: text,
+          visibleToCustomer: true,
+        });
+        showNotification('Message posted to live tracker', 'success');
+        if (res.data?.whatsappUrl) {
+          window.open(res.data.whatsappUrl, '_blank', 'noopener,noreferrer');
+        }
+      }
+      setActionPo(null);
+      setActionMode(null);
+      setActionText('');
+      await refresh();
+    } catch (e: any) {
+      showNotification(e.response?.data?.error || 'Failed', 'error');
+    } finally {
+      setActionBusy(false);
     }
   };
 
@@ -316,6 +367,11 @@ export default function PosPreOrders({
                       <div>
                         <div className="font-semibold">{po.customerName}</div>
                         <div className="text-sm text-gray-600">{po.customerPhone}</div>
+                        {po.trackingCode && (
+                          <div className="text-xs font-mono text-orange-800 mt-0.5">
+                            Track: {po.trackingCode}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right text-sm">
                         <div className="font-medium">{fmtReady(po.readyAt)}</div>
@@ -351,17 +407,41 @@ export default function PosPreOrders({
                         variant="secondary"
                         className="!py-1 !px-3 text-sm"
                         disabled={busyId === po.id}
+                        onClick={() => setStatus(po.id, 'CONFIRMED')}
+                      >
+                        Confirm
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="!py-1 !px-3 text-sm"
+                        disabled={busyId === po.id}
                         onClick={() => setStatus(po.id, 'READY')}
                       >
                         Mark ready
                       </Button>
                       <Button
                         variant="ghost"
+                        className="!py-1 !px-3 text-sm"
+                        disabled={busyId === po.id}
+                        onClick={() => {
+                          setActionPo(po);
+                          setActionMode('message');
+                          setActionText('');
+                        }}
+                      >
+                        Message
+                      </Button>
+                      <Button
+                        variant="ghost"
                         className="!py-1 !px-3 text-sm text-red-700"
                         disabled={busyId === po.id}
-                        onClick={() => setStatus(po.id, 'CANCELLED')}
+                        onClick={() => {
+                          setActionPo(po);
+                          setActionMode('cancel');
+                          setActionText('Stock not available today — sorry for the inconvenience.');
+                        }}
                       >
-                        Cancel
+                        Cancel (no stock)
                       </Button>
                       <Button
                         variant="ghost"
@@ -375,6 +455,57 @@ export default function PosPreOrders({
                   </div>
                 ))
               )}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {actionPo && actionMode && (
+        <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <Card className="w-full max-w-md space-y-3 p-4">
+            <h3 className="text-lg font-bold">
+              {actionMode === 'cancel' ? 'Cancel pre-order' : 'Message customer'}
+            </h3>
+            <p className="text-sm text-gray-600">
+              {actionPo.customerName} · {actionPo.trackingCode || actionPo.id.slice(0, 8)}
+            </p>
+            <p className="text-xs text-gray-500">
+              {actionMode === 'cancel'
+                ? 'Customer will see this reason on the live tracker. Use when stock is not available.'
+                : 'Posted on the live tracker. WhatsApp will open with the same text if possible.'}
+            </p>
+            <textarea
+              value={actionText}
+              onChange={(e) => setActionText(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border rounded-lg"
+              placeholder={
+                actionMode === 'cancel'
+                  ? 'e.g. Curry cut finished for today — please try tomorrow'
+                  : 'e.g. Running 20 min late due to rush — thank you for waiting'
+              }
+            />
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setActionPo(null);
+                  setActionMode(null);
+                }}
+              >
+                Back
+              </Button>
+              <Button
+                variant={actionMode === 'cancel' ? 'danger' : 'primary'}
+                onClick={submitAction}
+                disabled={actionBusy}
+              >
+                {actionBusy
+                  ? 'Saving…'
+                  : actionMode === 'cancel'
+                    ? 'Cancel order'
+                    : 'Send update'}
+              </Button>
             </div>
           </Card>
         </div>

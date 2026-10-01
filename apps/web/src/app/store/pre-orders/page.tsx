@@ -49,7 +49,8 @@ export default function StorePreOrdersPage() {
       <Card className="p-4 space-y-2">
         <h2 className="font-semibold">Customer booking link</h2>
         <p className="text-sm text-gray-600">
-          Share this with customers (WhatsApp / Instagram). Staff book call orders from POS with your login.
+          Share the booking link with customers. Staff control status, messages, and cancellations
+          from POS. Customers track live at /book/track with phone + code.
         </p>
         {bookUrl && (
           <div className="flex flex-wrap gap-2 items-center">
@@ -85,6 +86,11 @@ export default function StorePreOrdersPage() {
                 <div>
                   <div className="font-medium">
                     {po.customerName} · {po.customerPhone}
+                    {po.trackingCode ? (
+                      <span className="ml-2 font-mono text-orange-800 text-xs">
+                        {po.trackingCode}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="text-gray-600">
                     {(po.items || [])

@@ -29,6 +29,13 @@ const statusSchema = z.object({
   status: z.enum(['PENDING', 'CONFIRMED', 'READY', 'FULFILLED', 'CANCELLED', 'NO_SHOW']),
   notes: z.string().max(500).optional().nullable(),
   saleId: z.string().optional().nullable(),
+  cancelReason: z.string().max(500).optional().nullable(),
+  customerMessage: z.string().max(500).optional().nullable(),
+});
+
+const messageSchema = z.object({
+  message: z.string().min(1).max(500),
+  visibleToCustomer: z.boolean().optional().default(true),
 });
 
 function normalizePhone(phone: string): string {
@@ -48,10 +55,23 @@ function parseReadyAt(raw: string): Date {
   return d;
 }
 
-function serializePreOrder(po: any) {
+function serializePreOrder(po: any, opts?: { includePrivate?: boolean }) {
+  const events = (po.events || [])
+    .filter((e: any) => opts?.includePrivate || e.visibleToCustomer)
+    .map((e: any) => ({
+      id: e.id,
+      kind: e.kind,
+      message: e.message,
+      status: e.status,
+      createdAt: e.createdAt,
+      createdBy: e.createdBy ? { id: e.createdBy.id, name: e.createdBy.name } : null,
+    }));
+
   return {
     id: po.id,
     storeId: po.storeId,
+    storeName: po.store?.name || null,
+    trackingCode: po.trackingCode,
     customerId: po.customerId,
     customerName: po.customerName,
     customerPhone: po.customerPhone,
@@ -60,6 +80,7 @@ function serializePreOrder(po: any) {
     status: po.status,
     source: po.source,
     notes: po.notes,
+    cancelReason: po.cancelReason,
     saleId: po.saleId,
     createdByUserId: po.createdByUserId,
     createdBy: po.createdBy
@@ -87,9 +108,45 @@ function serializePreOrder(po: any) {
         : null,
       pricePerUnit: it.pricePerUnit ?? null,
     })),
+    events,
     createdAt: po.createdAt,
     updatedAt: po.updatedAt,
   };
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'PENDING':
+      return 'Received — waiting for the shop to confirm';
+    case 'CONFIRMED':
+      return 'Confirmed — we will prepare as soon as we can';
+    case 'READY':
+      return 'Ready for pickup';
+    case 'FULFILLED':
+      return 'Completed';
+    case 'CANCELLED':
+      return 'Cancelled';
+    case 'NO_SHOW':
+      return 'Marked as no-show';
+    default:
+      return status;
+  }
+}
+
+async function generateTrackingCode(storeId: string): Promise<string> {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for (let attempt = 0; attempt < 12; attempt++) {
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    const exists = await prisma.preOrder.findFirst({
+      where: { storeId, trackingCode: code },
+      select: { id: true },
+    });
+    if (!exists) return code;
+  }
+  return `K${Date.now().toString(36).slice(-5).toUpperCase()}`;
 }
 
 async function resolveOwnerStoreId(storeId: string): Promise<string | null> {
@@ -173,12 +230,15 @@ async function createPreOrderRecord(opts: {
     phone
   );
 
+  const trackingCode = await generateTrackingCode(opts.storeId);
+
   const preOrder = await prisma.preOrder.create({
     data: {
       storeId: opts.storeId,
       customerId: customer?.id || null,
       customerName: opts.customerName.trim(),
       customerPhone: phone,
+      trackingCode,
       fulfillment: opts.fulfillment,
       readyAt: opts.readyAt,
       notes: opts.notes?.trim() || null,
@@ -195,22 +255,52 @@ async function createPreOrderRecord(opts: {
           notes: it.notes?.trim() || null,
         })),
       },
+      events: {
+        create: [
+          {
+            kind: 'STATUS',
+            status: 'PENDING',
+            message:
+              'Order received. We will try our best to prepare it near your requested time, depending on shop rush. This is not an instant guarantee.',
+            visibleToCustomer: true,
+            createdByUserId: opts.createdByUserId || null,
+          },
+        ],
+      },
     },
     include: {
       items: { include: { product: true } },
       createdBy: { select: { id: true, name: true } },
       customer: { select: { id: true, name: true, phone: true } },
+      store: { select: { name: true } },
+      events: {
+        orderBy: { createdAt: 'asc' },
+        include: { createdBy: { select: { id: true, name: true } } },
+      },
     },
   });
 
   return preOrder;
 }
 
-async function attachPrices(storeId: string, preOrder: any) {
+const includeFull = {
+  items: { include: { product: true } },
+  createdBy: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true, phone: true } },
+  store: { select: { name: true } },
+  events: {
+    orderBy: { createdAt: 'asc' as const },
+    include: { createdBy: { select: { id: true, name: true } } },
+  },
+};
+
+async function attachPrices(storeId: string, preOrder: any, includePrivate = true) {
   const productIds = (preOrder.items || [])
     .map((i: any) => i.productId)
     .filter(Boolean);
-  if (!productIds.length) return serializePreOrder(preOrder);
+  if (!productIds.length) {
+    return serializePreOrder(preOrder, { includePrivate });
+  }
 
   const prices = await prisma.storeProductPrice.findMany({
     where: {
@@ -232,14 +322,8 @@ async function attachPrices(storeId: string, preOrder: any) {
       pricePerUnit: it.productId ? priceMap.get(it.productId) ?? null : null,
     })),
   };
-  return serializePreOrder(withPrices);
+  return serializePreOrder(withPrices, { includePrivate });
 }
-
-const includeFull = {
-  items: { include: { product: true } },
-  createdBy: { select: { id: true, name: true } },
-  customer: { select: { id: true, name: true, phone: true } },
-};
 
 /** Public (no auth) booking endpoints */
 export async function publicPreOrderRoutes(fastify: FastifyInstance) {
@@ -313,6 +397,38 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // Live tracker — phone + tracking code
+  fastify.get('/pre-orders/track', async (request: any, reply: FastifyReply) => {
+    const phone = normalizePhone(String(request.query?.phone || ''));
+    const code = String(request.query?.code || request.query?.trackingCode || '')
+      .trim()
+      .toUpperCase();
+    if (phone.length < 10 || code.length < 4) {
+      reply.code(400).send({ error: 'Phone and tracking code required' });
+      return;
+    }
+
+    const po = await prisma.preOrder.findFirst({
+      where: {
+        trackingCode: code,
+        customerPhone: { endsWith: phone.slice(-10) },
+      },
+      include: includeFull,
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!po) {
+      reply.code(404).send({ error: 'Order not found. Check phone and code.' });
+      return;
+    }
+
+    return {
+      preOrder: await attachPrices(po.storeId, po, false),
+      statusLabel: statusLabel(po.status),
+      disclaimer:
+        'Pre-order means we will try our best to prepare your cut near the time you asked. During shop rush it may take longer — thank you for understanding.',
+    };
+  });
+
   // Create booking from mini form
   fastify.post('/pre-orders', async (request: any, reply: FastifyReply) => {
     try {
@@ -356,7 +472,9 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
       reply.code(201).send({
         ok: true,
         preOrder: serializePreOrder(preOrder),
-        message: 'Pre-order received. We will prepare it for your ready time.',
+        trackingCode: preOrder.trackingCode,
+        message:
+          'Booking received. We will try our best near your requested time, depending on shop rush — not an instant guarantee. Save your tracking code to follow live status.',
       });
     } catch (err: any) {
       if (err?.name === 'ZodError') {
@@ -453,12 +571,13 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Update status
+  // Update status (confirm / ready / cancel when no stock / etc.)
   fastify.patch(
     '/:id',
     { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
     async (request: any, reply: FastifyReply) => {
-      const { storeId } = getUser(request) as any;
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
       const { id } = request.params as any;
       const data = statusSchema.parse(request.body);
 
@@ -470,17 +589,103 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const updated = await prisma.preOrder.update({
-        where: { id },
-        data: {
-          status: data.status,
-          notes: data.notes !== undefined ? data.notes : undefined,
-          saleId: data.saleId !== undefined ? data.saleId : undefined,
-        },
-        include: includeFull,
+      if (data.status === 'CANCELLED' && !String(data.cancelReason || data.customerMessage || '').trim()) {
+        reply.code(400).send({
+          error: 'Please add a cancel reason (e.g. stock not available) — the customer will see it on the tracker',
+          code: 'CANCEL_REASON_REQUIRED',
+        });
+        return;
+      }
+
+      const statusChanged = existing.status !== data.status;
+      const customerFacing =
+        data.customerMessage?.trim() ||
+        (data.status === 'CANCELLED'
+          ? data.cancelReason?.trim() || 'Cancelled by the shop'
+          : null) ||
+        (statusChanged ? statusLabel(data.status) : null);
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const po = await tx.preOrder.update({
+          where: { id },
+          data: {
+            status: data.status,
+            notes: data.notes !== undefined ? data.notes : undefined,
+            saleId: data.saleId !== undefined ? data.saleId : undefined,
+            cancelReason:
+              data.status === 'CANCELLED'
+                ? data.cancelReason?.trim() || data.customerMessage?.trim() || existing.cancelReason
+                : undefined,
+          },
+        });
+
+        if (statusChanged || customerFacing) {
+          await tx.preOrderEvent.create({
+            data: {
+              preOrderId: id,
+              kind: statusChanged ? 'STATUS' : 'MESSAGE',
+              status: data.status,
+              message: customerFacing || statusLabel(data.status),
+              visibleToCustomer: true,
+              createdByUserId: user.userId,
+            },
+          });
+        }
+
+        return tx.preOrder.findUnique({
+          where: { id: po.id },
+          include: includeFull,
+        });
       });
 
       return { ok: true, preOrder: await attachPrices(storeId, updated) };
+    }
+  );
+
+  // Staff message to customer (shows on live tracker + WhatsApp deep link)
+  fastify.post(
+    '/:id/messages',
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    async (request: any, reply: FastifyReply) => {
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const { id } = request.params as any;
+      const data = messageSchema.parse(request.body);
+
+      const existing = await prisma.preOrder.findFirst({
+        where: { id, storeId },
+      });
+      if (!existing) {
+        reply.code(404).send({ error: 'Pre-order not found' });
+        return;
+      }
+
+      await prisma.preOrderEvent.create({
+        data: {
+          preOrderId: id,
+          kind: 'MESSAGE',
+          message: data.message.trim(),
+          visibleToCustomer: data.visibleToCustomer !== false,
+          createdByUserId: user.userId,
+        },
+      });
+
+      const po = await prisma.preOrder.findUnique({
+        where: { id },
+        include: includeFull,
+      });
+
+      const phone = normalizePhone(existing.customerPhone);
+      const waText = encodeURIComponent(
+        `K2 Chicken — update on your pre-order ${existing.trackingCode}:\n${data.message.trim()}\n\nTrack: (open /book/track with your phone + code ${existing.trackingCode})`
+      );
+      const whatsappUrl = phone ? `https://wa.me/91${phone}?text=${waText}` : null;
+
+      return {
+        ok: true,
+        preOrder: await attachPrices(storeId, po),
+        whatsappUrl,
+      };
     }
   );
 

@@ -40,7 +40,12 @@ export default function BookPreOrderPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ id: string; readyAt: string } | null>(null);
+  const [done, setDone] = useState<{
+    id: string;
+    readyAt: string;
+    trackingCode: string;
+    phone: string;
+  } | null>(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -165,6 +170,8 @@ export default function BookPreOrderPage() {
       setDone({
         id: data.preOrder?.id,
         readyAt: data.preOrder?.readyAt || readyAt,
+        trackingCode: data.trackingCode || data.preOrder?.trackingCode || '',
+        phone: phone.replace(/\D/g, '').slice(-10),
       });
     } catch (err: any) {
       setError(err.message || 'Booking failed');
@@ -175,12 +182,13 @@ export default function BookPreOrderPage() {
 
   if (done) {
     const when = new Date(done.readyAt);
+    const trackHref = `/book/track?phone=${encodeURIComponent(done.phone)}&code=${encodeURIComponent(done.trackingCode)}`;
     return (
       <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 space-y-3 text-center">
           <h1 className="text-2xl font-bold text-emerald-800">Booked</h1>
           <p className="text-gray-600">
-            We got your order. Please pick up around{' '}
+            We got your request for around{' '}
             <strong>
               {when.toLocaleString('en-IN', {
                 timeZone: 'Asia/Kolkata',
@@ -193,12 +201,29 @@ export default function BookPreOrderPage() {
             </strong>
             .
           </p>
-          <p className="text-sm text-gray-500">
-            Final weight/price is confirmed at the counter when we bill.
-          </p>
+          <div className="rounded-xl bg-orange-50 border border-orange-200 p-3 text-sm text-left text-orange-950">
+            <p className="font-semibold mb-1">Please note</p>
+            <p>
+              A pre-order does <strong>not</strong> mean instant chicken. We will try our best to
+              have it ready near your time, but during shop rush it may take longer.
+            </p>
+          </div>
+          {done.trackingCode && (
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-xs text-gray-500">Your tracking code</p>
+              <p className="text-2xl font-bold tracking-widest">{done.trackingCode}</p>
+              <p className="text-xs text-gray-500 mt-1">Save this + your phone to follow live status</p>
+            </div>
+          )}
+          <a
+            href={trackHref}
+            className="block w-full py-3 rounded-xl bg-orange-600 text-white font-semibold"
+          >
+            Track order live
+          </a>
           <button
             type="button"
-            className="mt-4 w-full py-3 rounded-xl bg-brand-600 text-white font-semibold"
+            className="w-full py-3 rounded-xl border font-semibold"
             onClick={() => {
               setDone(null);
               setLines([]);
@@ -221,9 +246,17 @@ export default function BookPreOrderPage() {
           </p>
           <h1 className="text-3xl font-bold text-gray-900 mt-1">Book your cut</h1>
           <p className="text-gray-600 mt-1 text-sm">
-            Tell us what you need and when — we&apos;ll prepare it for pickup.
+            Tell us what you need and when. We&apos;ll try our best — during rush it may take longer.
           </p>
+          <a href="/book/track" className="inline-block mt-2 text-sm text-orange-800 underline">
+            Already booked? Track your order
+          </a>
         </header>
+
+        <div className="mb-4 rounded-xl bg-white/90 border border-orange-200 p-3 text-sm text-orange-950">
+          Pre-order is a <strong>request</strong>, not an instant guarantee. Final weight and price
+          are confirmed at the counter.
+        </div>
 
         {loading ? (
           <div className="bg-white/80 rounded-2xl p-8 text-center text-gray-500">
