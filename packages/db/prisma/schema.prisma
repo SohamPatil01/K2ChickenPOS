@@ -194,6 +194,7 @@ model Store {
   sales            Sale[]
   shifts           Shift[]
   cashMovements    CashMovement[]
+  preOrders        PreOrder[]
   scaleBarcodeConfigs ScaleBarcodeConfig[]
   purchaseOrders   PurchaseOrder[] @relation("FranchiseStore")
   ownerPurchaseOrders PurchaseOrder[] @relation("OwnerStore")
@@ -240,6 +241,7 @@ model User {
   openedShifts  Shift[]  @relation("ShiftOpener")
   closedShifts  Shift[]  @relation("ShiftCloser")
   cashMovements CashMovement[]
+  preOrdersCreated PreOrder[] @relation("PreOrderCreator")
   assignedDeliveries DeliveryOrder[] @relation("Driver")
   deliveryEvents DeliveryEvent[]
   auditLogs     AuditLog[]
@@ -295,6 +297,7 @@ model Customer {
 
   addresses         CustomerAddress[]
   sales             Sale[]
+  preOrders         PreOrder[]
   loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([storeId, phone])
@@ -340,6 +343,7 @@ model Product {
   storeProductPrices StoreProductPrice[]
   inventoryLedgers   InventoryLedger[]
   saleItems          SaleItem[]
+  preOrderItems      PreOrderItem[]
   purchaseOrderItems PurchaseOrderItem[]
   dispatchItems      DispatchItem[]
   
@@ -435,6 +439,7 @@ model Sale {
   deliveryOrder DeliveryOrder?
   discountOverride DiscountOverride?
   loyaltyTransactions LoyaltyTransaction[]
+  preOrders     PreOrder[]
 
   @@unique([storeId, saleNo])
   @@index([storeId, createdAt])
@@ -519,6 +524,66 @@ model CashMovement {
 
   @@index([shiftId])
   @@index([storeId, createdAt])
+}
+
+enum PreOrderStatus {
+  PENDING
+  CONFIRMED
+  READY
+  FULFILLED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PreOrderSource {
+  WEB_FORM
+  PHONE_CALL
+  WHATSAPP
+  WALK_IN
+}
+
+model PreOrder {
+  id              String          @id @default(cuid())
+  storeId         String
+  store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId      String?
+  customer        Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerPhone   String
+  fulfillment     DeliveryType    @default(PICKUP)
+  readyAt         DateTime
+  status          PreOrderStatus  @default(PENDING)
+  source          PreOrderSource  @default(WEB_FORM)
+  notes           String?
+  createdByUserId String?
+  createdBy       User?           @relation("PreOrderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  saleId          String?
+  sale            Sale?           @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  items           PreOrderItem[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([storeId, status, readyAt])
+  @@index([storeId, readyAt])
+  @@index([customerPhone])
+  @@index([saleId])
+}
+
+model PreOrderItem {
+  id          String   @id @default(cuid())
+  preOrderId  String
+  preOrder    PreOrder @relation(fields: [preOrderId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productName String
+  unitType    UnitType @default(KG)
+  qtyKg       Float?
+  qtyPcs      Int?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([preOrderId])
+  @@index([productId])
 }
 
 model ScaleBarcodeConfig {

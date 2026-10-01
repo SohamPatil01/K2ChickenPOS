@@ -36,6 +36,7 @@ import {
 import { runPostCheckoutSideEffects } from "@/lib/checkoutPostSuccess";
 import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
 import PosDaySession from "@/components/day-session/PosDaySession";
+import PosPreOrders from "@/components/pre-orders/PosPreOrders";
 import {
   publishPaymentMode,
   publishSuccessMode,
@@ -1431,6 +1432,7 @@ export default function StorePOSPage() {
             </p>
           </div>
           <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:gap-2 flex-shrink-0 w-full sm:w-auto gap-2">
+            <PosPreOrders products={products} />
             <button
               onClick={() => {
                 setAddItemModalFocusWeightFirst(false);

@@ -23,6 +23,7 @@ import {
   Building2,
   Settings,
   History,
+  CalendarClock,
 } from "lucide-react";
 
 export const navIcons: Record<string, LucideIcon> = {
@@ -39,6 +40,7 @@ export const navIcons: Record<string, LucideIcon> = {
   delivery: Truck,
   "daily-closing": Wallet,
   "day-history": History,
+  "pre-orders": CalendarClock,
   "discount-approvals": BadgeCheck,
   orders: FileText,
   "pending-payments": CreditCard,

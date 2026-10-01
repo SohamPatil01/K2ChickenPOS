@@ -40,6 +40,7 @@ export const getMenuSections = (): NavSection[] => [
       { label: "Delivery", href: "/store/delivery", icon: "delivery", roles: ["CASHIER", "MANAGER", "DRIVER", "OWNER"] },
       { label: "Daily Closing", href: "/store/daily-closing", icon: "daily-closing", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Day History", href: "/store/day-history", icon: "day-history", roles: ["CASHIER", "MANAGER", "OWNER"] },
+      { label: "Pre-orders", href: "/store/pre-orders", icon: "pre-orders", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Discount Approvals", href: "/store/discount-approvals", icon: "discount-approvals", roles: ["MANAGER", "OWNER"] },
       { label: "Orders", href: "/store/orders", icon: "orders", roles: ["MANAGER", "OWNER"] },
       { label: "Pending Payments", href: "/store/pending-payments", icon: "pending-payments", roles: ["MANAGER", "OWNER"] },
