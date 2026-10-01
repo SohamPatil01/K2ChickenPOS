@@ -378,6 +378,9 @@ export default function PosDaySession({
             <Button className="w-full" onClick={submitDayIn} disabled={busy}>
               {busy ? 'Opening…' : 'Start Day In'}
             </Button>
+            <p className="text-xs text-gray-500 text-center">
+              Use the Day In/Out PIN from Settings → Staff (not the login password).
+            </p>
             {user?.role === 'OWNER' && (
               <button
                 type="button"

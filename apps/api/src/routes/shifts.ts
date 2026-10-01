@@ -46,6 +46,22 @@ const overrideSchema = z.object({
   pettyCash: z.number().min(0).optional(),
 });
 
+function dayPinFailure(reply: FastifyReply, reason: string | null) {
+  if (reason === 'NO_DAY_PIN_CONFIGURED') {
+    reply.code(400).send({
+      error:
+        'No Day PIN is set for any staff. Go to Settings → Staff and set a Day In/Out PIN first.',
+      code: 'NO_DAY_PIN_CONFIGURED',
+    });
+    return;
+  }
+  if (reason === 'INVALID_FORMAT') {
+    reply.code(400).send({ error: 'Day PIN must be 4–8 digits', code: 'INVALID_DAY_PIN' });
+    return;
+  }
+  reply.code(401).send({ error: 'Invalid Day PIN', code: 'INVALID_DAY_PIN' });
+}
+
 export async function shiftRoutes(fastify: FastifyInstance) {
   // Current day session status
   fastify.get(
@@ -120,9 +136,9 @@ export async function shiftRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const pinUser = await resolveUserByDayPin(storeId, data.dayPin);
+      const { user: pinUser, reason } = await resolveUserByDayPin(storeId, data.dayPin);
       if (!pinUser) {
-        reply.code(401).send({ error: 'Invalid Day PIN', code: 'INVALID_DAY_PIN' });
+        dayPinFailure(reply, reason);
         return;
       }
 
@@ -163,9 +179,9 @@ export async function shiftRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const pinUser = await resolveUserByDayPin(storeId, data.dayPin);
+      const { user: pinUser, reason } = await resolveUserByDayPin(storeId, data.dayPin);
       if (!pinUser) {
-        reply.code(401).send({ error: 'Invalid Day PIN', code: 'INVALID_DAY_PIN' });
+        dayPinFailure(reply, reason);
         return;
       }
 
@@ -209,9 +225,9 @@ export async function shiftRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      const pinUser = await resolveUserByDayPin(storeId, data.dayPin);
+      const { user: pinUser, reason } = await resolveUserByDayPin(storeId, data.dayPin);
       if (!pinUser) {
-        reply.code(401).send({ error: 'Invalid Day PIN', code: 'INVALID_DAY_PIN' });
+        dayPinFailure(reply, reason);
         return;
       }
 

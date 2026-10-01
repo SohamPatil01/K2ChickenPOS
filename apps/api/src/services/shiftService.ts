@@ -85,12 +85,28 @@ export async function requireOpenShiftId(storeId: string): Promise<string | null
 export async function resolveUserByDayPin(storeId: string, dayPin: string) {
   const pin = String(dayPin || '').trim();
   if (!/^\d{4,8}$/.test(pin)) {
-    return null;
+    return { user: null as null | { id: string; name: string; role: string }, reason: 'INVALID_FORMAT' as const };
+  }
+
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { type: true, parentOwnerStoreId: true },
+  });
+
+  const storeIds = new Set<string>([storeId]);
+  if (store?.type === 'FRANCHISE' && store.parentOwnerStoreId) {
+    storeIds.add(store.parentOwnerStoreId);
+  } else if (store?.type === 'OWNER') {
+    const franchises = await prisma.store.findMany({
+      where: { parentOwnerStoreId: storeId, type: 'FRANCHISE' },
+      select: { id: true },
+    });
+    for (const f of franchises) storeIds.add(f.id);
   }
 
   const candidates = await prisma.user.findMany({
     where: {
-      storeId,
+      storeId: { in: [...storeIds] },
       isActive: true,
       dayPinHash: { not: null },
       role: { in: ['OWNER', 'MANAGER', 'CASHIER'] },
@@ -103,12 +119,16 @@ export async function resolveUserByDayPin(storeId: string, dayPin: string) {
     },
   });
 
+  if (candidates.length === 0) {
+    return { user: null, reason: 'NO_DAY_PIN_CONFIGURED' as const };
+  }
+
   for (const u of candidates) {
     if (u.dayPinHash && (await bcrypt.compare(pin, u.dayPinHash))) {
-      return { id: u.id, name: u.name, role: u.role };
+      return { user: { id: u.id, name: u.name, role: u.role }, reason: null };
     }
   }
-  return null;
+  return { user: null, reason: 'INVALID_DAY_PIN' as const };
 }
 
 export async function lastClosedShiftCarry(storeId: string): Promise<number> {
