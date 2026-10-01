@@ -109,6 +109,7 @@ import { hqComplianceRoutes } from '../src/routes/hq-compliance.js';
 import { hqAnalyticsRoutes } from '../src/routes/hq-analytics.js';
 import { discountRoutes } from '../src/routes/discounts.js';
 import { dailyClosingRoutes } from '../src/routes/daily-closing.js';
+import { shiftRoutes } from '../src/routes/shifts.js';
 import { hqHealthScoreRoutes } from '../src/routes/hq-health-score.js';
 import { hqFraudAlertsRoutes } from '../src/routes/hq-fraud-alerts.js';
 import { hqYieldIntelligenceRoutes } from '../src/routes/hq-yield-intelligence.js';
@@ -305,6 +306,7 @@ async function build() {
   await fastify.register(hqReplenishmentRoutes, { prefix: '/api/v1/hq' });
   await fastify.register(discountRoutes, { prefix: '/api/v1' });
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
+  await fastify.register(shiftRoutes, { prefix: '/api/v1/shifts' });
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(publicBillRoutes, { prefix: '/api/v1/public' });
