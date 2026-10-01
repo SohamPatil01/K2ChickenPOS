@@ -7,23 +7,33 @@ import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { canAccessStoreResource, resolveStoreIdFilter } from '../utils/storeScope.js';
 
+const optionalEmail = z
+  .union([z.string().email(), z.literal(''), z.null()])
+  .optional()
+  .transform((v) => (v === '' || v == null ? undefined : v));
+
+const optionalDayPin = z
+  .union([z.literal(''), z.string().regex(/^\d{4,8}$/), z.null()])
+  .optional()
+  .transform((v) => (v === '' || v == null ? undefined : v));
+
 const createUserSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(10),
-  email: z.string().email().optional().or(z.literal('')),
+  email: optionalEmail,
   role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DRIVER']),
   password: z.string().min(6),
-  dayPin: z.union([z.literal(''), z.string().regex(/^\d{4,8}$/)]).optional(),
+  dayPin: optionalDayPin,
   isActive: z.boolean().optional().default(true),
 });
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   phone: z.string().min(10).optional(),
-  email: z.string().email().optional().or(z.literal('')),
+  email: optionalEmail,
   role: z.enum(['OWNER', 'MANAGER', 'CASHIER', 'DRIVER']).optional(),
   password: z.string().min(6).optional(),
-  dayPin: z.union([z.literal(''), z.string().regex(/^\d{4,8}$/)]).optional(),
+  dayPin: optionalDayPin,
   isActive: z.boolean().optional(),
 });
 
@@ -66,7 +76,13 @@ export async function userRoutes(fastify: FastifyInstance) {
     // Get default store (owner store)
     const store = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
     const storeId = store?.id || (getUser(request) as any).storeId;
-    const data = createUserSchema.parse(request.body as any);
+    let data: z.infer<typeof createUserSchema>;
+    try {
+      data = createUserSchema.parse(request.body as any);
+    } catch (err: any) {
+      reply.code(400).send({ error: 'Invalid staff data', details: err?.errors || String(err) });
+      return;
+    }
 
     // Check if phone already exists
     const existingUser = await prisma.user.findUnique({
@@ -107,7 +123,13 @@ export async function userRoutes(fastify: FastifyInstance) {
     const authUser = getUser(request) as any;
     const storeId = authUser.storeId;
     const { id } = (request.params as any);
-    const data = updateUserSchema.parse(request.body as any);
+    let data: z.infer<typeof updateUserSchema>;
+    try {
+      data = updateUserSchema.parse(request.body as any);
+    } catch (err: any) {
+      reply.code(400).send({ error: 'Invalid staff data', details: err?.errors || String(err) });
+      return;
+    }
 
     const existingUser = await prisma.user.findUnique({
       where: { id },

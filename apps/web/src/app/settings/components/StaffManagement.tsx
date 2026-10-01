@@ -86,7 +86,7 @@ export default function StaffManagement() {
         const updateData: any = {
           name: formData.name,
           phone: formData.phone,
-          email: formData.email || null,
+          email: formData.email.trim() || '',
           role: formData.role,
           isActive: formData.isActive,
         };
@@ -104,15 +104,18 @@ export default function StaffManagement() {
           setFormLoading(false);
           return;
         }
-        await api.post('/api/v1/users', {
+        const payload: any = {
           name: formData.name,
           phone: formData.phone,
-          email: formData.email || null,
+          email: formData.email.trim() || '',
           role: formData.role,
           password: formData.password,
-          dayPin: formData.dayPin || undefined,
           isActive: formData.isActive,
-        });
+        };
+        if (formData.dayPin) {
+          payload.dayPin = formData.dayPin;
+        }
+        await api.post('/api/v1/users', payload);
         alert('Staff member created successfully!');
       }
 
