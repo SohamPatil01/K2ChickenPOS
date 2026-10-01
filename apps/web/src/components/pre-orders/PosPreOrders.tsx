@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '@/lib/api';
 import { Button, Card } from '@/components/ui';
 import { useCartStore } from '@/store/cart';
@@ -299,6 +300,307 @@ export default function PosPreOrders({
   };
 
   const pendingCount = items.length;
+  const canPortal = typeof document !== 'undefined';
+
+  const overlays =
+    canPortal &&
+    createPortal(
+      <>
+        {open && (
+          <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <Card className="w-full sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col rounded-t-2xl sm:rounded-2xl shadow-2xl">
+              <div className="p-4 border-b flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-bold">Today&apos;s pre-orders</h2>
+                  <p className="text-xs text-gray-500">Load to cart, then bill as usual</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="!py-1 !px-2 text-sm" onClick={refresh}>
+                    Refresh
+                  </Button>
+                  <Button variant="ghost" className="!py-1 !px-2 text-sm" onClick={() => setOpen(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+              <div className="overflow-y-auto p-3 space-y-2 flex-1">
+                {loading && items.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">Loading…</p>
+                ) : items.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">
+                    No pending bookings for today.
+                    <br />
+                    <button
+                      type="button"
+                      className="text-orange-700 underline mt-2"
+                      onClick={() => {
+                        setOpen(false);
+                        setShowCreate(true);
+                      }}
+                    >
+                      Book one from a phone call
+                    </button>
+                  </p>
+                ) : (
+                  items.map((po) => (
+                    <div key={po.id} className="rounded-xl border p-3 space-y-2 bg-white/90">
+                      <div className="flex justify-between gap-2">
+                        <div>
+                          <div className="font-semibold">{po.customerName}</div>
+                          <div className="text-sm text-gray-600">{po.customerPhone}</div>
+                          {po.trackingCode && (
+                            <div className="text-xs font-mono text-orange-800 mt-0.5">
+                              Track: {po.trackingCode}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right text-sm">
+                          <div className="font-medium">{fmtReady(po.readyAt)}</div>
+                          <div className="text-xs text-gray-500">
+                            {po.source.replace('_', ' ')} · {po.status}
+                          </div>
+                        </div>
+                      </div>
+                      <ul className="text-sm text-gray-700 space-y-0.5">
+                        {po.items.map((it) => (
+                          <li key={it.id}>
+                            {it.productName} —{' '}
+                            {it.unitType === 'KG'
+                              ? `${it.qtyKg} kg`
+                              : `${it.qtyPcs} pcs`}
+                          </li>
+                        ))}
+                      </ul>
+                      {po.notes && (
+                        <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1">
+                          {po.notes}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          className="!py-1 !px-3 text-sm"
+                          disabled={busyId === po.id}
+                          onClick={() => loadToCart(po)}
+                        >
+                          Load to cart
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="!py-1 !px-3 text-sm"
+                          disabled={busyId === po.id}
+                          onClick={() => setStatus(po.id, 'CONFIRMED')}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="!py-1 !px-3 text-sm"
+                          disabled={busyId === po.id}
+                          onClick={() => setStatus(po.id, 'READY')}
+                        >
+                          Mark ready
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="!py-1 !px-3 text-sm"
+                          disabled={busyId === po.id}
+                          onClick={() => {
+                            setActionPo(po);
+                            setActionMode('message');
+                            setActionText('');
+                          }}
+                        >
+                          Message
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="!py-1 !px-3 text-sm text-red-700"
+                          disabled={busyId === po.id}
+                          onClick={() => {
+                            setActionPo(po);
+                            setActionMode('cancel');
+                            setActionText(
+                              'Stock not available today — sorry for the inconvenience.'
+                            );
+                          }}
+                        >
+                          Cancel (no stock)
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="!py-1 !px-3 text-sm"
+                          disabled={busyId === po.id}
+                          onClick={() => setStatus(po.id, 'NO_SHOW')}
+                        >
+                          No-show
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {actionPo && actionMode && (
+          <div className="fixed inset-0 z-[10001] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <Card className="w-full max-w-md space-y-3 p-4 shadow-2xl">
+              <h3 className="text-lg font-bold">
+                {actionMode === 'cancel' ? 'Cancel pre-order' : 'Message customer'}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {actionPo.customerName} · {actionPo.trackingCode || actionPo.id.slice(0, 8)}
+              </p>
+              <p className="text-xs text-gray-500">
+                {actionMode === 'cancel'
+                  ? 'Customer will see this reason on the live tracker. Use when stock is not available.'
+                  : 'Posted on the live tracker. WhatsApp will open with the same text if possible.'}
+              </p>
+              <textarea
+                value={actionText}
+                onChange={(e) => setActionText(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder={
+                  actionMode === 'cancel'
+                    ? 'e.g. Curry cut finished for today — please try tomorrow'
+                    : 'e.g. Running 20 min late due to rush — thank you for waiting'
+                }
+              />
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setActionPo(null);
+                    setActionMode(null);
+                  }}
+                >
+                  Back
+                </Button>
+                <Button
+                  variant={actionMode === 'cancel' ? 'danger' : 'primary'}
+                  onClick={submitAction}
+                  disabled={actionBusy}
+                >
+                  {actionBusy
+                    ? 'Saving…'
+                    : actionMode === 'cancel'
+                      ? 'Cancel order'
+                      : 'Send update'}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {showCreate && (
+          <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto space-y-3 p-4 shadow-2xl">
+              <h2 className="text-lg font-bold">Book from call / WhatsApp</h2>
+              <p className="text-xs text-gray-500">
+                Use your staff login. Customer does not need an account.
+              </p>
+              <div className="flex gap-2 text-sm">
+                {(['PHONE_CALL', 'WHATSAPP', 'WALK_IN'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setCSource(s)}
+                    className={`flex-1 py-1.5 rounded-lg border ${
+                      cSource === s ? 'bg-orange-100 border-orange-400' : ''
+                    }`}
+                  >
+                    {s === 'PHONE_CALL' ? 'Phone' : s === 'WHATSAPP' ? 'WhatsApp' : 'Walk-in'}
+                  </button>
+                ))}
+              </div>
+              <input
+                placeholder="Customer name"
+                value={cName}
+                onChange={(e) => setCName(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+              <input
+                placeholder="Phone"
+                inputMode="numeric"
+                value={cPhone}
+                onChange={(e) => setCPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+              <div>
+                <label className="text-sm font-medium">Ready by</label>
+                <input
+                  type="datetime-local"
+                  value={cReady}
+                  onChange={(e) => setCReady(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg mt-1"
+                />
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={cProductId}
+                  onChange={(e) => setCProductId(e.target.value)}
+                  className="flex-1 px-2 py-2 border rounded-lg text-sm"
+                >
+                  <option value="">Product</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={cQty}
+                  onChange={(e) => setCQty(e.target.value)}
+                  className="w-20 px-2 py-2 border rounded-lg"
+                />
+                <Button type="button" variant="secondary" onClick={addCreateLine}>
+                  Add
+                </Button>
+              </div>
+              {cLines.length > 0 && (
+                <ul className="text-sm space-y-1">
+                  {cLines.map((l, i) => (
+                    <li key={`${l.productId}-${i}`} className="flex justify-between">
+                      <span>
+                        {l.productName} · {l.qty} {l.unitType === 'KG' ? 'kg' : 'pcs'}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-red-600"
+                        onClick={() => setCLines((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <textarea
+                placeholder="Notes"
+                value={cNotes}
+                onChange={(e) => setCNotes(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg"
+                rows={2}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="secondary" onClick={() => setShowCreate(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={submitCreate} disabled={saving}>
+                  {saving ? 'Saving…' : 'Save pre-order'}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+      </>,
+      document.body
+    );
 
   return (
     <>
@@ -324,297 +626,7 @@ export default function PosPreOrders({
       >
         Book from call
       </button>
-
-      {open && (
-        <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <Card className="w-full sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col rounded-t-2xl sm:rounded-2xl">
-            <div className="p-4 border-b flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-lg font-bold">Today&apos;s pre-orders</h2>
-                <p className="text-xs text-gray-500">Load to cart, then bill as usual</p>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="secondary" className="!py-1 !px-2 text-sm" onClick={refresh}>
-                  Refresh
-                </Button>
-                <Button variant="ghost" className="!py-1 !px-2 text-sm" onClick={() => setOpen(false)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-            <div className="overflow-y-auto p-3 space-y-2 flex-1">
-              {loading && items.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Loading…</p>
-              ) : items.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">
-                  No pending bookings for today.
-                  <br />
-                  <button
-                    type="button"
-                    className="text-orange-700 underline mt-2"
-                    onClick={() => {
-                      setOpen(false);
-                      setShowCreate(true);
-                    }}
-                  >
-                    Book one from a phone call
-                  </button>
-                </p>
-              ) : (
-                items.map((po) => (
-                  <div key={po.id} className="rounded-xl border p-3 space-y-2 bg-white/90">
-                    <div className="flex justify-between gap-2">
-                      <div>
-                        <div className="font-semibold">{po.customerName}</div>
-                        <div className="text-sm text-gray-600">{po.customerPhone}</div>
-                        {po.trackingCode && (
-                          <div className="text-xs font-mono text-orange-800 mt-0.5">
-                            Track: {po.trackingCode}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right text-sm">
-                        <div className="font-medium">{fmtReady(po.readyAt)}</div>
-                        <div className="text-xs text-gray-500">
-                          {po.source.replace('_', ' ')} · {po.status}
-                        </div>
-                      </div>
-                    </div>
-                    <ul className="text-sm text-gray-700 space-y-0.5">
-                      {po.items.map((it) => (
-                        <li key={it.id}>
-                          {it.productName} —{' '}
-                          {it.unitType === 'KG'
-                            ? `${it.qtyKg} kg`
-                            : `${it.qtyPcs} pcs`}
-                        </li>
-                      ))}
-                    </ul>
-                    {po.notes && (
-                      <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1">
-                        {po.notes}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button
-                        className="!py-1 !px-3 text-sm"
-                        disabled={busyId === po.id}
-                        onClick={() => loadToCart(po)}
-                      >
-                        Load to cart
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="!py-1 !px-3 text-sm"
-                        disabled={busyId === po.id}
-                        onClick={() => setStatus(po.id, 'CONFIRMED')}
-                      >
-                        Confirm
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="!py-1 !px-3 text-sm"
-                        disabled={busyId === po.id}
-                        onClick={() => setStatus(po.id, 'READY')}
-                      >
-                        Mark ready
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="!py-1 !px-3 text-sm"
-                        disabled={busyId === po.id}
-                        onClick={() => {
-                          setActionPo(po);
-                          setActionMode('message');
-                          setActionText('');
-                        }}
-                      >
-                        Message
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="!py-1 !px-3 text-sm text-red-700"
-                        disabled={busyId === po.id}
-                        onClick={() => {
-                          setActionPo(po);
-                          setActionMode('cancel');
-                          setActionText('Stock not available today — sorry for the inconvenience.');
-                        }}
-                      >
-                        Cancel (no stock)
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="!py-1 !px-3 text-sm"
-                        disabled={busyId === po.id}
-                        onClick={() => setStatus(po.id, 'NO_SHOW')}
-                      >
-                        No-show
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {actionPo && actionMode && (
-        <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-md space-y-3 p-4">
-            <h3 className="text-lg font-bold">
-              {actionMode === 'cancel' ? 'Cancel pre-order' : 'Message customer'}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {actionPo.customerName} · {actionPo.trackingCode || actionPo.id.slice(0, 8)}
-            </p>
-            <p className="text-xs text-gray-500">
-              {actionMode === 'cancel'
-                ? 'Customer will see this reason on the live tracker. Use when stock is not available.'
-                : 'Posted on the live tracker. WhatsApp will open with the same text if possible.'}
-            </p>
-            <textarea
-              value={actionText}
-              onChange={(e) => setActionText(e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2 border rounded-lg"
-              placeholder={
-                actionMode === 'cancel'
-                  ? 'e.g. Curry cut finished for today — please try tomorrow'
-                  : 'e.g. Running 20 min late due to rush — thank you for waiting'
-              }
-            />
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setActionPo(null);
-                  setActionMode(null);
-                }}
-              >
-                Back
-              </Button>
-              <Button
-                variant={actionMode === 'cancel' ? 'danger' : 'primary'}
-                onClick={submitAction}
-                disabled={actionBusy}
-              >
-                {actionBusy
-                  ? 'Saving…'
-                  : actionMode === 'cancel'
-                    ? 'Cancel order'
-                    : 'Send update'}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {showCreate && (
-        <div className="fixed inset-0 z-[75] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto space-y-3 p-4">
-            <h2 className="text-lg font-bold">Book from call / WhatsApp</h2>
-            <p className="text-xs text-gray-500">
-              Use your staff login. Customer does not need an account.
-            </p>
-            <div className="flex gap-2 text-sm">
-              {(['PHONE_CALL', 'WHATSAPP', 'WALK_IN'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setCSource(s)}
-                  className={`flex-1 py-1.5 rounded-lg border ${
-                    cSource === s ? 'bg-orange-100 border-orange-400' : ''
-                  }`}
-                >
-                  {s === 'PHONE_CALL' ? 'Phone' : s === 'WHATSAPP' ? 'WhatsApp' : 'Walk-in'}
-                </button>
-              ))}
-            </div>
-            <input
-              placeholder="Customer name"
-              value={cName}
-              onChange={(e) => setCName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-            <input
-              placeholder="Phone"
-              inputMode="numeric"
-              value={cPhone}
-              onChange={(e) => setCPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              className="w-full px-3 py-2 border rounded-lg"
-            />
-            <div>
-              <label className="text-sm font-medium">Ready by</label>
-              <input
-                type="datetime-local"
-                value={cReady}
-                onChange={(e) => setCReady(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg mt-1"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={cProductId}
-                onChange={(e) => setCProductId(e.target.value)}
-                className="flex-1 px-2 py-2 border rounded-lg text-sm"
-              >
-                <option value="">Product</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={0.1}
-                step={0.1}
-                value={cQty}
-                onChange={(e) => setCQty(e.target.value)}
-                className="w-20 px-2 py-2 border rounded-lg"
-              />
-              <Button type="button" variant="secondary" onClick={addCreateLine}>
-                Add
-              </Button>
-            </div>
-            {cLines.length > 0 && (
-              <ul className="text-sm space-y-1">
-                {cLines.map((l, i) => (
-                  <li key={`${l.productId}-${i}`} className="flex justify-between">
-                    <span>
-                      {l.productName} · {l.qty} {l.unitType === 'KG' ? 'kg' : 'pcs'}
-                    </span>
-                    <button
-                      type="button"
-                      className="text-red-600"
-                      onClick={() => setCLines((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <textarea
-              placeholder="Notes"
-              value={cNotes}
-              onChange={(e) => setCNotes(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              rows={2}
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="secondary" onClick={() => setShowCreate(false)}>
-                Cancel
-              </Button>
-              <Button onClick={submitCreate} disabled={saving}>
-                {saving ? 'Saving…' : 'Save pre-order'}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+      {overlays}
     </>
   );
 }
