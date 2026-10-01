@@ -287,14 +287,21 @@ export async function shiftRoutes(fastify: FastifyInstance) {
 
         let dailyClosing;
         if (existing) {
-          if (existing.isFinalized && existing.shiftId && existing.shiftId !== open.id) {
-            throw Object.assign(new Error('Daily closing already finalized for this date'), {
-              statusCode: 400,
-            });
-          }
+          // Day Out is the source of truth: replace any prior closing for this store day
+          // (manual Daily Closing, cron draft, or another shift) while this shift is open.
+          const replaceNote =
+            existing.isFinalized && existing.shiftId && existing.shiftId !== open.id
+              ? '[Day Out updated closing for this date]'
+              : null;
+          const mergedNotes = [replaceNote, data.notes || existing.notes || null]
+            .filter(Boolean)
+            .join('\n');
           dailyClosing = await tx.dailyClosing.update({
             where: { id: existing.id },
-            data: closingPayload,
+            data: {
+              ...closingPayload,
+              notes: mergedNotes || null,
+            },
           });
         } else {
           dailyClosing = await tx.dailyClosing.create({
