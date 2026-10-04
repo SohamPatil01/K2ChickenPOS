@@ -109,7 +109,7 @@ export async function resolveUserByDayPin(storeId: string, dayPin: string) {
       storeId: { in: [...storeIds] },
       isActive: true,
       dayPinHash: { not: null },
-      role: { in: ['OWNER', 'MANAGER', 'CASHIER'] },
+      role: { in: ['OWNER', 'MANAGER', 'CASHIER', 'DRIVER'] },
     },
     select: {
       id: true,

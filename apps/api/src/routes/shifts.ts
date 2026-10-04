@@ -66,7 +66,7 @@ export async function shiftRoutes(fastify: FastifyInstance) {
   // Current day session status
   fastify.get(
     '/current',
-    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER', 'DRIVER')] },
     async (request: any, reply: FastifyReply) => {
       const { storeId, role } = getUser(request) as any;
       const open = await findOpenShift(storeId);
@@ -125,7 +125,7 @@ export async function shiftRoutes(fastify: FastifyInstance) {
   // Day In
   fastify.post(
     '/day-in',
-    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER', 'DRIVER')] },
     async (request: any, reply: FastifyReply) => {
       const { storeId } = getUser(request) as any;
       const data = dayInSchema.parse(request.body);
@@ -168,7 +168,7 @@ export async function shiftRoutes(fastify: FastifyInstance) {
   // Mid-day cash movement
   fastify.post(
     '/movements',
-    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER', 'DRIVER')] },
     async (request: any, reply: FastifyReply) => {
       const { storeId } = getUser(request) as any;
       const data = movementSchema.parse(request.body);
@@ -214,7 +214,7 @@ export async function shiftRoutes(fastify: FastifyInstance) {
   // Day Out — closes shift + finalizes DailyClosing
   fastify.post(
     '/day-out',
-    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER', 'DRIVER')] },
     async (request: any, reply: FastifyReply) => {
       const { storeId } = getUser(request) as any;
       const data = dayOutSchema.parse(request.body);
@@ -349,7 +349,7 @@ export async function shiftRoutes(fastify: FastifyInstance) {
   // History
   fastify.get(
     '/history',
-    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER', 'DRIVER')] },
     async (request: any) => {
       const { storeId } = getUser(request) as any;
       const q = request.query as any;

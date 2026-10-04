@@ -219,9 +219,7 @@ export default function StaffManagement() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {member.role === 'DRIVER' ? (
-                        <span className="text-xs text-gray-400">—</span>
-                      ) : member.hasDayPin ? (
+                      {member.hasDayPin ? (
                         <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800">
                           PIN set
                         </span>
@@ -320,31 +318,30 @@ export default function StaffManagement() {
                   minLength={6}
                 />
               </div>
-              {formData.role !== 'DRIVER' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Day In/Out PIN {editingStaff?.hasDayPin ? '(leave blank to keep)' : ''}
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    value={formData.dayPin}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        dayPin: e.target.value.replace(/\D/g, '').slice(0, 8),
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    minLength={4}
-                    maxLength={8}
-                    placeholder="4–8 digits"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Separate from login password. Used for Day In, Day Out, and cash movements.
-                  </p>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Day In/Out PIN {editingStaff?.hasDayPin ? '(leave blank to keep)' : ''}
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  value={formData.dayPin}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      dayPin: e.target.value.replace(/\D/g, '').slice(0, 8),
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  minLength={4}
+                  maxLength={8}
+                  placeholder="4–8 digits"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Separate from login password. Used for Day In, Day Out, and cash movements on every
+                  console (POS, cashier, driver/delivery).
+                </p>
+              </div>
               <div className="flex items-center">
                 <input
                   type="checkbox"

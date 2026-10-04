@@ -35,7 +35,6 @@ import {
 } from "@/lib/pendingCreditCheckout";
 import { runPostCheckoutSideEffects } from "@/lib/checkoutPostSuccess";
 import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
-import PosDaySession from "@/components/day-session/PosDaySession";
 import PosPreOrders from "@/components/pre-orders/PosPreOrders";
 import {
   publishPaymentMode,
@@ -1402,11 +1401,7 @@ export default function StorePOSPage() {
 
   return (
     <div className="flex flex-col h-full min-h-0 w-full max-w-full overflow-hidden">
-      <PosDaySession
-        onDayRequiredChange={() => {
-          /* gate handled by overlay */
-        }}
-      />
+      {/* Day In/Out lives in StoreShell so it syncs across all consoles */}
       {/* Cart Animation */}
       {cartAnimation && (
         <CartAnimation

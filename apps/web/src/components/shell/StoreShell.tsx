@@ -15,6 +15,9 @@ import { useCustomerDisplayPublisher } from "@/lib/customerDisplay/useCustomerDi
 import Sidebar from "./Sidebar";
 import StatusPills from "./StatusPills";
 import { getMenuSections, getActiveItem } from "./navConfig";
+import PosDaySession from "../day-session/PosDaySession";
+
+const DAY_SESSION_ROLES = new Set(["OWNER", "MANAGER", "CASHIER", "DRIVER"]);
 
 interface StoreShellProps {
   children: React.ReactNode;
@@ -233,6 +236,8 @@ export default function StoreShell({ children }: StoreShellProps) {
         {/* Main Content — flex/overflow chain unchanged (POS depends on it) */}
         <main className="flex-1 overflow-x-hidden min-h-0 w-full lg:w-auto">
           <div className="h-full w-full p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 overflow-y-auto min-h-0">
+            {/* Day In/Out on every console (POS, cart, cashier, delivery) + cross-device sync */}
+            {user && DAY_SESSION_ROLES.has(user.role) && <PosDaySession />}
             {children}
           </div>
         </main>

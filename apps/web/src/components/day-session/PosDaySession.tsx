@@ -1,24 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '@/lib/api';
 import { Button, Card } from '@/components/ui';
 import { useAuthStore } from '@/store/auth';
+import {
+  fetchDayCurrent,
+  useDaySessionStore,
+  type DayCurrentResponse,
+} from '@/store/daySession';
 
-export type DayCurrentResponse = {
-  open: boolean;
-  shift: any | null;
-  suggestedCarry: number;
-  daySummary: any | null;
-  needsDayOutReminder: boolean;
-  canOverride: boolean;
-  stuckOpen: boolean;
-};
-
-async function fetchDayCurrent(): Promise<DayCurrentResponse> {
-  const res = await api.get('/api/v1/shifts/current');
-  return res.data;
-}
+export type { DayCurrentResponse };
+export { fetchDayCurrent };
 
 function PinPad({
   value,
@@ -76,6 +70,7 @@ export function DayOutPanel({
   onDone: () => void;
   onCancel?: () => void;
 }) {
+  const notifyChanged = useDaySessionStore((s) => s.notifyChanged);
   const [dayPin, setDayPin] = useState('');
   const [cashTakenHome, setCashTakenHome] = useState(0);
   const [pettyCarry, setPettyCarry] = useState(0);
@@ -102,8 +97,16 @@ export function DayOutPanel({
         closingCash,
         notes: notes || undefined,
       });
+      notifyChanged();
       onDone();
     } catch (e: any) {
+      const code = e.response?.data?.code;
+      // Another console already closed — sync and continue
+      if (code === 'NO_OPEN_DAY') {
+        notifyChanged();
+        onDone();
+        return;
+      }
       setError(e.response?.data?.error || 'Day Out failed');
     } finally {
       setLoading(false);
@@ -134,7 +137,7 @@ export function DayOutPanel({
           <div className="font-bold">₹{expected.toFixed(0)}</div>
         </div>
       </div>
-      {(shift?.movements?.length > 0) && (
+      {shift?.movements?.length > 0 && (
         <div className="text-sm">
           <div className="font-medium mb-1">Cash movements</div>
           <ul className="max-h-28 overflow-y-auto space-y-1">
@@ -177,7 +180,9 @@ export function DayOutPanel({
         <span>Counted (take-home + petty)</span>
         <span className="font-semibold">₹{closingCash.toFixed(0)}</span>
       </div>
-      <div className={`text-sm flex justify-between ${Math.abs(diff) > 1 ? 'text-amber-700' : 'text-gray-600'}`}>
+      <div
+        className={`text-sm flex justify-between ${Math.abs(diff) > 1 ? 'text-amber-700' : 'text-gray-600'}`}
+      >
         <span>Difference vs expected</span>
         <span className="font-semibold">
           {diff >= 0 ? '+' : ''}₹{diff.toFixed(0)}
@@ -208,15 +213,39 @@ export function DayOutPanel({
   );
 }
 
-/** POS day session: Day In gate, movements, Day Out, reminder, owner override. */
+function Overlay({
+  children,
+  z = 10000,
+}: {
+  children: React.ReactNode;
+  z?: number;
+}) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      style={{ zIndex: z }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+}
+
+/** Store-wide day session: Day In gate, movements, Day Out — syncs across consoles. */
 export default function PosDaySession({
   onDayRequiredChange,
 }: {
   onDayRequiredChange?: (required: boolean) => void;
 }) {
   const user = useAuthStore((s) => s.user);
-  const [status, setStatus] = useState<DayCurrentResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const status = useDaySessionStore((s) => s.status);
+  const loading = useDaySessionStore((s) => s.loading);
+  const loadError = useDaySessionStore((s) => s.error);
+  const refresh = useDaySessionStore((s) => s.refresh);
+  const notifyChanged = useDaySessionStore((s) => s.notifyChanged);
+  const subscribeLifecycle = useDaySessionStore((s) => s.subscribeLifecycle);
+
   const [dayPin, setDayPin] = useState('');
   const [pettyCash, setPettyCash] = useState(0);
   const [useCarry, setUseCarry] = useState(true);
@@ -233,32 +262,19 @@ export default function PosDaySession({
   const [overrideReason, setOverrideReason] = useState('');
   const [overridePetty, setOverridePetty] = useState(0);
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await fetchDayCurrent();
-      setStatus(data);
-      setPettyCash(data.suggestedCarry || 0);
-      setUseCarry(true);
-      onDayRequiredChange?.(!data.open);
-      if (!data.needsDayOutReminder) setReminderAck(false);
-    } catch (e) {
-      console.error('Failed to load day session', e);
-    } finally {
-      setLoading(false);
+  useEffect(() => subscribeLifecycle(), [subscribeLifecycle]);
+
+  useEffect(() => {
+    if (!status) return;
+    setPettyCash(status.suggestedCarry || 0);
+    setUseCarry(true);
+    onDayRequiredChange?.(!status.open);
+    if (!status.needsDayOutReminder) setReminderAck(false);
+    if (status.open) {
+      setShowDayOut(false);
+      setError('');
     }
-  }, [onDayRequiredChange]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    const onDayRequired = () => {
-      refresh();
-    };
-    window.addEventListener('pos-day-in-required', onDayRequired);
-    return () => window.removeEventListener('pos-day-in-required', onDayRequired);
-  }, [refresh]);
+  }, [status, onDayRequiredChange]);
 
   const submitDayIn = async () => {
     setError('');
@@ -273,8 +289,15 @@ export default function PosDaySession({
         pettyCash: useCarry ? status?.suggestedCarry || 0 : pettyCash,
       });
       setDayPin('');
-      await refresh();
+      notifyChanged();
     } catch (e: any) {
+      const code = e.response?.data?.code;
+      // Another console already opened the day — sync instead of stuck gate
+      if (code === 'DAY_ALREADY_OPEN') {
+        setDayPin('');
+        notifyChanged();
+        return;
+      }
       setError(e.response?.data?.error || 'Day In failed');
     } finally {
       setBusy(false);
@@ -295,7 +318,7 @@ export default function PosDaySession({
       setMovPin('');
       setMovAmount(0);
       setMovReason('');
-      await refresh();
+      notifyChanged();
     } catch (e: any) {
       setError(e.response?.data?.error || 'Movement failed');
     } finally {
@@ -317,7 +340,7 @@ export default function PosDaySession({
       });
       setShowOverride(false);
       setOverrideReason('');
-      await refresh();
+      notifyChanged();
     } catch (e: any) {
       setError(e.response?.data?.error || 'Override failed');
     } finally {
@@ -325,22 +348,25 @@ export default function PosDaySession({
     }
   };
 
-  if (loading) {
+  if (loading && !status) {
     return (
       <div className="mb-2 px-2 text-sm text-gray-500">Checking day session…</div>
     );
   }
 
+  // Only gate when API confirmed the day is closed — never on a failed poll
+  const dayConfirmedClosed = !!status && !status.open;
   const dayOpen = !!status?.open;
 
   return (
     <>
-      {!dayOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-md space-y-4">
+      {dayConfirmedClosed && (
+        <Overlay z={10000}>
+          <Card className="w-full max-w-md space-y-4 shadow-2xl">
             <h2 className="text-2xl font-bold">Day In required</h2>
             <p className="text-sm text-gray-600">
-              Enter your Day PIN and petty cash to start billing for today.
+              Enter your Day PIN and petty cash to start billing for today. This opens the day
+              for every console in this store.
             </p>
             <div className="flex gap-2 text-sm">
               <button
@@ -378,6 +404,15 @@ export default function PosDaySession({
             <Button className="w-full" onClick={submitDayIn} disabled={busy}>
               {busy ? 'Opening…' : 'Start Day In'}
             </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => void refresh()}
+              disabled={busy}
+            >
+              Refresh status
+            </Button>
             <p className="text-xs text-gray-500 text-center">
               Use the Day In/Out PIN from Settings → Staff (not the login password).
             </p>
@@ -395,6 +430,19 @@ export default function PosDaySession({
               </button>
             )}
           </Card>
+        </Overlay>
+      )}
+
+      {!status && loadError && (
+        <div className="mb-2 mx-2 rounded-xl bg-red-50 border border-red-200 px-3 py-2 flex items-center justify-between gap-2 text-sm">
+          <span className="text-red-800">{loadError}</span>
+          <button
+            type="button"
+            className="shrink-0 px-2 py-1 rounded bg-red-100 hover:bg-red-200"
+            onClick={() => void refresh()}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -419,34 +467,43 @@ export default function PosDaySession({
             Day open · {status?.shift?.openedBy?.name || '—'} · ₹
             {Number(status?.shift?.openingCash || 0).toFixed(0)}
           </span>
-          <Button type="button" variant="secondary" className="!py-1 !px-3 text-sm" onClick={() => setShowMovement(true)}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="!py-1 !px-3 text-sm"
+            onClick={() => setShowMovement(true)}
+          >
             Cash in/out
           </Button>
-          <Button type="button" className="!py-1 !px-3 text-sm" onClick={() => setShowDayOut(true)}>
+          <Button
+            type="button"
+            className="!py-1 !px-3 text-sm"
+            onClick={() => setShowDayOut(true)}
+          >
             Day Out
           </Button>
         </div>
       )}
 
       {showDayOut && status?.shift && (
-        <div className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <Overlay z={10001}>
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
             <DayOutPanel
               shift={status.shift}
               daySummary={status.daySummary}
               onCancel={() => setShowDayOut(false)}
               onDone={async () => {
                 setShowDayOut(false);
-                await refresh();
+                notifyChanged();
               }}
             />
           </Card>
-        </div>
+        </Overlay>
       )}
 
       {showMovement && (
-        <div className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm space-y-3">
+        <Overlay z={10001}>
+          <Card className="w-full max-w-sm space-y-3 shadow-2xl">
             <h3 className="text-lg font-bold">Cash movement</h3>
             <div className="flex gap-2">
               <button
@@ -484,17 +541,20 @@ export default function PosDaySession({
               <Button variant="secondary" onClick={() => setShowMovement(false)}>
                 Cancel
               </Button>
-              <Button onClick={submitMovement} disabled={busy || !movAmount || !movReason.trim()}>
+              <Button
+                onClick={submitMovement}
+                disabled={busy || !movAmount || !movReason.trim()}
+              >
                 Save
               </Button>
             </div>
           </Card>
-        </div>
+        </Overlay>
       )}
 
       {showOverride && (
-        <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <Card className="w-full max-w-sm space-y-3">
+        <Overlay z={10002}>
+          <Card className="w-full max-w-sm space-y-3 shadow-2xl">
             <h3 className="text-lg font-bold">Owner override</h3>
             <p className="text-sm text-gray-600">
               Force-close any stuck open day and open a new session. This is logged.
@@ -526,10 +586,8 @@ export default function PosDaySession({
               </Button>
             </div>
           </Card>
-        </div>
+        </Overlay>
       )}
     </>
   );
 }
-
-export { fetchDayCurrent };
