@@ -92,15 +92,14 @@ export default function StoreShell({ children }: StoreShellProps) {
   }, [user, isOffline]);
 
   // Refresh JWT before it expires so barcode/payment calls don't hit 401 mid-shift.
+  // Do not call on every mount while offline/online flips — that was causing auth churn flicker.
   useEffect(() => {
     if (!user || isOffline) return;
-    const tick = () => {
+    const id = window.setInterval(() => {
       void ensureAccessToken();
-    };
-    tick();
-    const id = window.setInterval(tick, 5 * 60 * 1000);
+    }, 5 * 60 * 1000);
     return () => window.clearInterval(id);
-  }, [user, isOffline]);
+  }, [user?.id, isOffline]);
 
   // Enter key: ensure form submit works across entire POS/store (keyboard-friendly)
   useEffect(() => {

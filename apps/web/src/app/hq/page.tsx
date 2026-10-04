@@ -32,7 +32,8 @@ interface HQDashboard {
 
 export default function HQPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const [dashboard, setDashboard] = useState<HQDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,29 +44,23 @@ export default function HQPage() {
 
   const loadDashboard = useCallback(async () => {
     if (!user?.storeId) {
-      console.log('[HQ Dashboard] Store ID missing:', user);
       setError('Store ID is missing');
       setLoading(false);
       return;
     }
 
     if (user.role !== 'OWNER') {
-      console.log('[HQ Dashboard] User is not OWNER:', user.role);
-      return; // Don't load if not OWNER
+      return;
     }
 
-    console.log('[HQ Dashboard] Loading dashboard data...', { storeId: user.storeId, dateRange });
     setLoading(true);
     setError(null);
     try {
       const response = await api.get('/api/v1/hq/dashboard', {
         params: dateRange,
       });
-      console.log('[HQ Dashboard] Data loaded successfully:', response.data);
       setDashboard(response.data);
     } catch (error: any) {
-      console.error('[HQ Dashboard] Failed to load:', error);
-      console.error('[HQ Dashboard] Error response:', error.response?.data);
       setError(error.response?.data?.error || 'Failed to load HQ dashboard');
     } finally {
       setLoading(false);
@@ -73,31 +68,22 @@ export default function HQPage() {
   }, [user, dateRange]);
 
   useEffect(() => {
-    if (user === undefined) {
-      console.log('[HQ Dashboard] User still loading...');
-      return; // Still loading
-    }
+    if (!hasHydrated) return;
 
     if (!user) {
-      console.log('[HQ Dashboard] No user, redirecting to login');
-      router.push('/login');
-      return;
-    }
-    
-    if (user.role !== 'OWNER') {
-      console.log('[HQ Dashboard] User is not OWNER, redirecting to store:', user.role);
-      router.push('/store');
+      router.replace('/login');
       return;
     }
 
-    // Load dashboard when user is authenticated and OWNER
-    if (user.role === 'OWNER' && user.storeId) {
-      console.log('[HQ Dashboard] User is OWNER, loading dashboard...', { storeId: user.storeId });
-      loadDashboard();
-    } else {
-      console.log('[HQ Dashboard] Missing storeId:', { role: user.role, storeId: user.storeId });
+    if (user.role !== 'OWNER') {
+      router.replace('/store');
+      return;
     }
-  }, [user, router, loadDashboard]);
+
+    if (user.storeId) {
+      loadDashboard();
+    }
+  }, [user, router, loadDashboard, hasHydrated]);
 
   // Separate effect for reloading dashboard when dateRange changes (but not on initial mount)
   useEffect(() => {

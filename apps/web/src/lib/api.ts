@@ -22,7 +22,12 @@ export const api = axios.create({
 });
 
 function isAuthRoute(url?: string): boolean {
-  return !!url && (url.includes('/auth/refresh') || url.includes('/auth/login'));
+  return (
+    !!url &&
+    (url.includes('/auth/refresh') ||
+      url.includes('/auth/login') ||
+      url.includes('/auth/profiles'))
+  );
 }
 
 // Add auth token to requests

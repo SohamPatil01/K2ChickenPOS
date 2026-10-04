@@ -12,15 +12,14 @@ export default function StoreLayoutWrapper({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
 
   useEffect(() => {
-    if (user === undefined) {
-      return; // Still loading
-    }
+    if (!hasHydrated) return;
 
     if (!user) {
-      router.push('/login');
+      router.replace('/login');
       return;
     }
 
@@ -30,27 +29,28 @@ export default function StoreLayoutWrapper({
       return;
     }
 
-    // Allow OWNER to access store features (for testing/managing)
     // Only redirect if user has no store or invalid store type
     if (user.store && user.store.type !== 'FRANCHISE' && user.store.type !== 'OWNER') {
-      router.push('/store');
-      return;
+      router.replace('/store');
     }
-  }, [user, router, pathname]);
+  }, [user, router, pathname, hasHydrated]);
 
-  // Show loading state while checking user
-  if (user === undefined) {
+  // Wait for persist rehydrate — redirecting on null user before this causes full-app flicker
+  if (!hasHydrated) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading...</p>
+      <div className="h-screen flex items-center justify-center bg-surface">
+        <p className="text-sm text-ink-muted">Loading…</p>
       </div>
     );
   }
 
   if (!user) {
-    return null; // Will redirect to login
+    return (
+      <div className="h-screen flex items-center justify-center bg-surface">
+        <p className="text-sm text-ink-muted">Redirecting…</p>
+      </div>
+    );
   }
 
   return <StoreLayout>{children}</StoreLayout>;
 }
-

@@ -19,8 +19,11 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  /** False until zustand persist has rehydrated from localStorage — prevents login↔store bounce. */
+  hasHydrated: boolean;
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   logout: () => void;
+  setHasHydrated: (value: boolean) => void;
   isAuthenticated: () => boolean;
 }
 
@@ -30,12 +33,12 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       accessToken: null,
       refreshToken: null,
+      hasHydrated: false,
+      setHasHydrated: (value) => set({ hasHydrated: value }),
       setAuth: (user, accessToken, refreshToken) => {
-        console.log('Setting auth in store:', { user: user?.name, hasToken: !!accessToken });
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
         set({ user, accessToken, refreshToken });
-        console.log('Auth state updated in store');
       },
       logout: () => {
         localStorage.removeItem('accessToken');
@@ -44,7 +47,6 @@ export const useAuthStore = create<AuthState>()(
       },
       isAuthenticated: () => {
         const state = get();
-        // Also check localStorage directly for immediate results
         const token = localStorage.getItem('accessToken');
         const stored = localStorage.getItem('auth-storage');
         let storedUser = null;
@@ -53,14 +55,13 @@ export const useAuthStore = create<AuthState>()(
             const parsed = JSON.parse(stored);
             storedUser = parsed.state?.user;
           }
-        } catch (e) {
-          // Ignore
+        } catch {
+          /* ignore */
         }
-        
+
         const hasToken = !!(state.accessToken || token);
         const hasUser = !!(state.user || storedUser);
-        const result = hasToken && hasUser;
-        return result;
+        return hasToken && hasUser;
       },
     }),
     {
@@ -71,7 +72,9 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
-

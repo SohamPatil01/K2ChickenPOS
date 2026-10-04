@@ -78,11 +78,13 @@ function addressLine(a: CompletionItem['address']) {
  */
 export default function DeliveryCompletionAlerts() {
   const user = useAuthStore((s) => s.user);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const [items, setItems] = useState<CompletionItem[]>([]);
   const [acks, setAcks] = useState<Set<string>>(() => new Set());
   const [selected, setSelected] = useState<CompletionItem | null>(null);
 
-  const enabled = user?.role === 'MANAGER' || user?.role === 'OWNER';
+  const enabled =
+    hasHydrated && (user?.role === 'MANAGER' || user?.role === 'OWNER');
 
   useEffect(() => {
     if (!user?.id || !enabled) return;

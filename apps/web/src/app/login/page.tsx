@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, APP_NAME } from '@azela-pos/shared';
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { homePathForRole } from '@/lib/homePath';
+import { ensureAccessToken } from '@/lib/authSession';
 import api from '@/lib/api';
 import NumPad from '@/components/NumPad';
 import { BrandLoader } from '@/components/ui';
@@ -68,7 +70,11 @@ const fallbackMeta = {
 };
 
 export default function LoginPage() {
-  const { setAuth } = useAuthStore();
+  const router = useRouter();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
   const motionSafe = useMotionSafe();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,48 +83,49 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPasswordPad, setShowPasswordPad] = useState(false);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const redirectedRef = useRef(false);
 
-  // Fetch user profiles
+  // Fetch user profiles once (public) — never bounce the page
   useEffect(() => {
+    let cancelled = false;
     const fetchProfiles = async () => {
       try {
         const response = await api.get('/api/v1/auth/profiles');
-        setProfiles(response.data || []);
+        if (!cancelled) setProfiles(response.data || []);
       } catch (err: any) {
         console.error('Failed to fetch profiles:', err);
-        setError('Failed to load user profiles');
+        if (!cancelled) setError('Failed to load user profiles');
       } finally {
-        setLoadingProfiles(false);
+        if (!cancelled) setLoadingProfiles(false);
       }
     };
 
     fetchProfiles();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Redirect if already authenticated
+  // Already signed in: soft navigate once after hydrate + token check (no full reload loop)
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    const stored = localStorage.getItem('auth-storage');
-    let hasUser = false;
-    try {
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        hasUser = !!parsed.state?.user;
-      }
-    } catch (e) {
-      // Ignore
-    }
+    if (!hasHydrated || loading || redirectedRef.current) return;
 
-    if (token && hasUser && !loading) {
-      let role: string | null = null;
-      try {
-        if (stored) role = JSON.parse(stored)?.state?.user?.role ?? null;
-      } catch {
-        /* ignore */
+    const run = async () => {
+      if (!user && !useAuthStore.getState().isAuthenticated()) return;
+
+      const ok = await ensureAccessToken();
+      if (!ok) {
+        logout();
+        return;
       }
-      window.location.href = homePathForRole(role);
-    }
-  }, [loading]);
+
+      const role = useAuthStore.getState().user?.role;
+      redirectedRef.current = true;
+      router.replace(homePathForRole(role));
+    };
+
+    void run();
+  }, [hasHydrated, user, loading, logout, router]);
 
   const {
     register,
@@ -193,9 +200,8 @@ export default function LoginPage() {
         // Non-fatal — splash is purely cosmetic
       }
 
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      window.location.href = homePathForRole(user.role);
+      redirectedRef.current = true;
+      router.replace(homePathForRole(user.role));
 
     } catch (err: any) {
       let errorMessage = 'Login failed. Please check your credentials.';
