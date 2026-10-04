@@ -20,6 +20,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
+import { homePathForRole } from '@/lib/homePath';
 import api from '@/lib/api';
 import NumPad from '@/components/NumPad';
 import { BrandLoader } from '@/components/ui';
@@ -109,7 +110,13 @@ export default function LoginPage() {
     }
 
     if (token && hasUser && !loading) {
-      window.location.href = '/pos';
+      let role: string | null = null;
+      try {
+        if (stored) role = JSON.parse(stored)?.state?.user?.role ?? null;
+      } catch {
+        /* ignore */
+      }
+      window.location.href = homePathForRole(role);
     }
   }, [loading]);
 
@@ -188,7 +195,7 @@ export default function LoginPage() {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      window.location.href = '/pos';
+      window.location.href = homePathForRole(user.role);
 
     } catch (err: any) {
       let errorMessage = 'Login failed. Please check your credentials.';

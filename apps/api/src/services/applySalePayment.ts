@@ -35,6 +35,15 @@ export type ApplyPaymentsInput = {
   actorStoreId: string;
   /** Inventory was already synced during sale create — skip the pay-time ledger pass. */
   skipInventorySync?: boolean;
+  /** Skip re-fetch when caller just created the sale in the same request. */
+  existingSale?: {
+    id: string;
+    status: string;
+    grandTotal: number;
+    storeId: string;
+    items: any[];
+    payments?: any[];
+  };
 };
 
 /**
@@ -42,15 +51,21 @@ export type ApplyPaymentsInput = {
  * Shared by POST /sales/:id/pay and inline checkout on POST /sales.
  */
 export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
-  const { saleId, payments, actorUserId, actorStoreId, skipInventorySync } = input;
+  const { saleId, payments, actorUserId, actorStoreId, skipInventorySync, existingSale } = input;
 
-  const sale = await prisma.sale.findUnique({
-    where: { id: saleId },
-    include: {
-      items: true,
-      payments: true,
-    },
-  });
+  const sale =
+    existingSale && existingSale.id === saleId
+      ? {
+          ...existingSale,
+          payments: existingSale.payments || [],
+        }
+      : await prisma.sale.findUnique({
+          where: { id: saleId },
+          include: {
+            items: true,
+            payments: true,
+          },
+        });
 
   if (!sale) {
     const err: any = new Error('Sale not found');

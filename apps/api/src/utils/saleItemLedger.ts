@@ -53,6 +53,7 @@ type LedgerDb = {
       }>
     >;
     create: (args: any) => Promise<unknown>;
+    createMany: (args: any) => Promise<unknown>;
   };
 };
 
@@ -112,6 +113,16 @@ export async function ensureInventoryDeductedForSale(
   }
 
   const allProductIds = new Set([...deductedByProduct.keys(), ...expectedByProduct.keys()]);
+  const ledgerRows: Array<{
+    storeId: string;
+    productId: string;
+    type: 'OUT' | 'IN';
+    qtyKg: number | null;
+    qtyPcs: number | null;
+    reason: 'SALE' | 'ADJUSTMENT';
+    refId: string;
+  }> = [];
+
   for (const productId of allProductIds) {
     const expected = expectedByProduct.get(productId) || { kg: 0, pcs: 0 };
     const deducted = deductedByProduct.get(productId) || { kg: 0, pcs: 0 };
@@ -123,16 +134,14 @@ export async function ensureInventoryDeductedForSale(
     if (Math.abs(deltaKg) < 0.001 && deltaPcs === 0) continue;
 
     if (deltaKg > 0.001 || deltaPcs > 0) {
-      await db.inventoryLedger.create({
-        data: {
-          storeId,
-          productId,
-          type: 'OUT',
-          qtyKg: deltaKg > 0.001 ? deltaKg : null,
-          qtyPcs: deltaPcs > 0 ? deltaPcs : null,
-          reason: 'SALE',
-          refId: saleId,
-        },
+      ledgerRows.push({
+        storeId,
+        productId,
+        type: 'OUT',
+        qtyKg: deltaKg > 0.001 ? deltaKg : null,
+        qtyPcs: deltaPcs > 0 ? deltaPcs : null,
+        reason: 'SALE',
+        refId: saleId,
       });
       continue;
     }
@@ -140,17 +149,19 @@ export async function ensureInventoryDeductedForSale(
     const restoreKg = deltaKg < -0.001 ? Math.abs(deltaKg) : null;
     const restorePcs = deltaPcs < 0 ? Math.abs(deltaPcs) : null;
     if (restoreKg != null || (restorePcs != null && restorePcs > 0)) {
-      await db.inventoryLedger.create({
-        data: {
-          storeId,
-          productId,
-          type: 'IN',
-          qtyKg: restoreKg,
-          qtyPcs: restorePcs,
-          reason: 'ADJUSTMENT',
-          refId: saleId,
-        },
+      ledgerRows.push({
+        storeId,
+        productId,
+        type: 'IN',
+        qtyKg: restoreKg,
+        qtyPcs: restorePcs,
+        reason: 'ADJUSTMENT',
+        refId: saleId,
       });
     }
+  }
+
+  if (ledgerRows.length > 0) {
+    await db.inventoryLedger.createMany({ data: ledgerRows });
   }
 }

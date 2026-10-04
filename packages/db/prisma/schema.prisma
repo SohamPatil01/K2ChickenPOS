@@ -432,6 +432,8 @@ model Sale {
   shiftId       String?
   shift         Shift?     @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   businessDate  DateTime?
+  // Client/offline checkout key — unique per store; blocks double bills on Pay retries
+  offlineIdempotencyKey String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -443,6 +445,7 @@ model Sale {
   preOrders     PreOrder[]
 
   @@unique([storeId, saleNo])
+  @@unique([storeId, offlineIdempotencyKey])
   @@index([storeId, createdAt])
   @@index([storeId, businessDate])
   @@index([customerId])

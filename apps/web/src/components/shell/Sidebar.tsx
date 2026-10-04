@@ -44,7 +44,10 @@ export default function Sidebar({
       {/* Header / wordmark */}
       <div className="p-2 sm:p-3 md:p-4 border-b border-subtle flex-shrink-0 flex items-center justify-between">
         {!isCollapsed ? (
-          <Link href="/store" className="flex items-center gap-2 min-w-0">
+          <Link
+            href={userRole === "DRIVER" ? "/store/delivery" : "/store"}
+            className="flex items-center gap-2 min-w-0"
+          >
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white text-base font-bold shadow-glow-brand">
               A
             </span>
@@ -53,7 +56,10 @@ export default function Sidebar({
             </span>
           </Link>
         ) : (
-          <Link href="/store" className="flex items-center justify-center w-full">
+          <Link
+            href={userRole === "DRIVER" ? "/store/delivery" : "/store"}
+            className="flex items-center justify-center w-full"
+          >
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-brand text-white text-base font-bold shadow-glow-brand">
               A
             </span>

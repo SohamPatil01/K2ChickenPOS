@@ -9,6 +9,7 @@ import {
   closingDateStorageKey,
   expectedCashAtDayOut,
   findOpenShift,
+  findOpenShiftLite,
   lastClosedShiftCarry,
   needsDayOutReminder,
   resolveUserByDayPin,
@@ -69,16 +70,23 @@ export async function shiftRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER', 'DRIVER')] },
     async (request: any, reply: FastifyReply) => {
       const { storeId, role } = getUser(request) as any;
-      const open = await findOpenShift(storeId);
-      const suggestedCarry = await lastClosedShiftCarry(storeId);
+      // lite=1 (POS poll): skip full-day sales tally so billing stays snappy under load
+      const lite =
+        String(request.query?.lite || '') === '1' ||
+        String(request.query?.lite || '').toLowerCase() === 'true';
+
+      const [open, suggestedCarry] = await Promise.all([
+        lite ? findOpenShiftLite(storeId) : findOpenShift(storeId),
+        lastClosedShiftCarry(storeId),
+      ]);
 
       let daySummary = null;
-      if (open) {
+      if (open && !lite) {
         const ymd = open.businessDate
           ? ymdInStoreTz(new Date(open.businessDate))
           : ymdInStoreTz(new Date(open.openedAt));
         const tally = await tallyShiftDaySales(storeId, ymd);
-        const { cashIn, cashOut } = sumMovementTotals(open.cashMovements || []);
+        const { cashIn, cashOut } = sumMovementTotals((open as any).cashMovements || []);
         const expectedCash = expectedCashAtDayOut(
           open.openingCash || 0,
           tally.cashSales || 0,
@@ -111,12 +119,23 @@ export async function shiftRoutes(fastify: FastifyInstance) {
 
       return {
         open: !!open,
-        shift: open ? serializeShift(open) : null,
+        shift: open
+          ? lite
+            ? {
+                ...open,
+                movements: [],
+                cashInTotal: 0,
+                cashOutTotal: 0,
+                closedBy: null,
+              }
+            : serializeShift(open)
+          : null,
         suggestedCarry,
         daySummary,
         needsDayOutReminder: needsDayOutReminder(!!open),
         canOverride: role === 'OWNER' && (!open || stuckOpen),
         stuckOpen,
+        lite,
         code: open ? undefined : DAY_IN_REQUIRED,
       };
     }

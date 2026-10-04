@@ -17,7 +17,8 @@ import StatusPills from "./StatusPills";
 import { getMenuSections, getActiveItem } from "./navConfig";
 import PosDaySession from "../day-session/PosDaySession";
 
-const DAY_SESSION_ROLES = new Set(["OWNER", "MANAGER", "CASHIER", "DRIVER"]);
+// Drivers stay on delivery-only console — no Day In/Out cash drawer UI
+const DAY_SESSION_ROLES = new Set(["OWNER", "MANAGER", "CASHIER"]);
 
 interface StoreShellProps {
   children: React.ReactNode;

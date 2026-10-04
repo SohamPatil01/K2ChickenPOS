@@ -17,11 +17,13 @@ export const getMenuSections = (): NavSection[] => [
   {
     title: "Main",
     items: [
-      { label: "Dashboard", href: "/store", icon: "dashboard", roles: ["MANAGER", "DRIVER", "OWNER"] },
+      { label: "Dashboard", href: "/store", icon: "dashboard", roles: ["MANAGER", "OWNER"] },
       { label: "POS", href: "/store/pos", icon: "pos", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Cashier Console", href: "/store/cashier-console", icon: "cashier-console", roles: ["CASHIER"] },
       { label: "Cart", href: "/store/cart", icon: "cart", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Customers", href: "/store/customers", icon: "customers", roles: ["CASHIER", "MANAGER", "OWNER"] },
+      // Drivers: Delivery only (dedicated console)
+      { label: "My deliveries", href: "/store/delivery", icon: "delivery", roles: ["DRIVER"] },
     ],
   },
   {
@@ -37,7 +39,7 @@ export const getMenuSections = (): NavSection[] => [
   {
     title: "Operations",
     items: [
-      { label: "Delivery", href: "/store/delivery", icon: "delivery", roles: ["CASHIER", "MANAGER", "DRIVER", "OWNER"] },
+      { label: "Delivery", href: "/store/delivery", icon: "delivery", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Daily Closing", href: "/store/daily-closing", icon: "daily-closing", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Day History", href: "/store/day-history", icon: "day-history", roles: ["CASHIER", "MANAGER", "OWNER"] },
       { label: "Pre-orders", href: "/store/pre-orders", icon: "pre-orders", roles: ["CASHIER", "MANAGER", "OWNER"] },

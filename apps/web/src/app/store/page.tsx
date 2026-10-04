@@ -67,6 +67,10 @@ export default function StoreDashboardPage() {
       router.push('/store/pos');
       return;
     }
+    if (user.role === 'DRIVER') {
+      router.push('/store/delivery');
+      return;
+    }
     handleRefetch();
   }, [user, router]);
 

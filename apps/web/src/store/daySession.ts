@@ -14,7 +14,7 @@ export type DayCurrentResponse = {
 };
 
 const CHANNEL = 'k2-day-session';
-const POLL_MS = 12_000;
+const POLL_MS = 20_000;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let bc: BroadcastChannel | null = null;
@@ -46,7 +46,8 @@ type DaySessionState = {
   status: DayCurrentResponse | null;
   loading: boolean;
   error: string | null;
-  refresh: () => Promise<DayCurrentResponse | null>;
+  /** lite poll by default; pass { full: true } for Day Out totals. */
+  refresh: (opts?: { full?: boolean }) => Promise<DayCurrentResponse | null>;
   /** Call after local Day In / Day Out / movement so every console refreshes. */
   notifyChanged: () => void;
   /** Start poll + cross-tab sync; returns cleanup. */
@@ -58,12 +59,25 @@ export const useDaySessionStore = create<DaySessionState>((set, get) => ({
   loading: true,
   error: null,
 
-  refresh: async () => {
+  refresh: async (opts) => {
     try {
-      const res = await api.get('/api/v1/shifts/current');
+      const res = await api.get('/api/v1/shifts/current', {
+        // Lite skips loading every PAID sale for the day — keeps Pay fast on busy counters
+        params: opts?.full ? undefined : { lite: '1' },
+      });
       const data = res.data as DayCurrentResponse;
-      set({ status: data, loading: false, error: null });
-      return data;
+      set((state) => {
+        // Preserve last full daySummary when a lite poll returns null summary
+        if (!opts?.full && data.open && data.daySummary == null && state.status?.daySummary) {
+          return {
+            status: { ...data, daySummary: state.status.daySummary },
+            loading: false,
+            error: null,
+          };
+        }
+        return { status: data, loading: false, error: null };
+      });
+      return get().status;
     } catch (e: any) {
       // Keep last known status — never flip an open day back to "Day In required"
       // just because one poll failed.
@@ -77,7 +91,7 @@ export const useDaySessionStore = create<DaySessionState>((set, get) => ({
 
   notifyChanged: () => {
     emitPeers();
-    void get().refresh();
+    void get().refresh({ full: true });
   },
 
   subscribeLifecycle: () => {
@@ -123,6 +137,7 @@ export const useDaySessionStore = create<DaySessionState>((set, get) => ({
 }));
 
 export async function fetchDayCurrent(): Promise<DayCurrentResponse> {
+  // Full summary for Day Out / daily closing
   const res = await api.get('/api/v1/shifts/current');
   return res.data;
 }

@@ -25,11 +25,19 @@ interface Delivery {
   sale: {
     saleNo: string;
     grandTotal: number;
+    status?: string;
     customerId?: string | null;
     customer: { id?: string; name: string; phone: string } | null;
     payments?: Array<{ method: string; amount: number }>;
   };
-  address: { id?: string; line1: string; line2?: string | null; city: string } | null;
+  address: {
+    id?: string;
+    line1: string;
+    line2?: string | null;
+    city: string;
+    state?: string | null;
+    zip?: string | null;
+  } | null;
   assignedDriver: { name: string; phone?: string | null } | null;
 }
 
@@ -95,25 +103,127 @@ function formatStatusLabel(status: string) {
   return 'Open';
 }
 
-function isCreditSale(delivery: Delivery) {
-  return (delivery.sale.payments || []).some((p) => String(p.method).toUpperCase() === 'CREDIT');
-}
-
 function phoneDigits(phone?: string | null) {
   return String(phone || '').replace(/\D/g, '');
 }
 
-function mapsUrl(address: Delivery['address']) {
-  if (!address?.line1) return null;
-  const q = [address.line1, address.line2, address.city].filter(Boolean).join(', ');
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+/** Full address string for Maps destination autofill */
+function addressDestination(address: Delivery['address']) {
+  if (!address?.line1) return '';
+  return [address.line1, address.line2, address.city, address.state, address.zip]
+    .map((p) => String(p || '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
+/** Google Maps directions with destination pre-filled (opens navigate-ready) */
+function mapsDirectionsUrl(address: Delivery['address']) {
+  const destination = addressDestination(address);
+  if (!destination) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
+type PaymentSummary = {
+  label: string;
+  detail: string;
+  tone: 'emerald' | 'amber' | 'orange' | 'blue' | 'slate';
+};
+
+function paymentSummary(sale: Delivery['sale']): PaymentSummary {
+  const payments = sale.payments || [];
+  const total = Number(sale.grandTotal) || 0;
+  const byMethod: Record<string, number> = {};
+  let paidSum = 0;
+  for (const p of payments) {
+    const m = String(p.method || 'OTHER').toUpperCase();
+    const amt = Number(p.amount) || 0;
+    byMethod[m] = (byMethod[m] || 0) + amt;
+    paidSum += amt;
+  }
+  const methods = Object.keys(byMethod).filter((m) => byMethod[m] > 0);
+  const creditAmt = byMethod.CREDIT || 0;
+  const collected = paidSum - creditAmt;
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+  const methodLabel = (m: string) => {
+    if (m === 'CASH') return 'Cash';
+    if (m === 'UPI') return 'UPI';
+    if (m === 'CARD') return 'Card';
+    if (m === 'CREDIT') return 'Credit';
+    return m;
+  };
+
+  // Pure credit (nothing collected at counter)
+  if (creditAmt > 0 && collected < 1 && methods.every((m) => m === 'CREDIT' || byMethod[m] < 1)) {
+    return {
+      label: 'Credit',
+      detail: `${fmt(creditAmt)} due on delivery / later`,
+      tone: 'amber',
+    };
+  }
+
+  // Mix of collected + credit → partial / balance due
+  if (creditAmt > 0 && collected >= 1) {
+    const parts = methods
+      .filter((m) => m !== 'CREDIT')
+      .map((m) => `${methodLabel(m)} ${fmt(byMethod[m])}`);
+    return {
+      label: 'Partial + credit',
+      detail: `${parts.join(' · ') || 'Paid'} · Credit ${fmt(creditAmt)}`,
+      tone: 'orange',
+    };
+  }
+
+  // Partial if paid sum clearly under bill (and not pure credit)
+  if (paidSum > 0 && paidSum + 0.5 < total) {
+    const parts = methods.map((m) => `${methodLabel(m)} ${fmt(byMethod[m])}`);
+    return {
+      label: 'Partial payment',
+      detail: `${parts.join(' · ')} · of ${fmt(total)}`,
+      tone: 'orange',
+    };
+  }
+
+  if (methods.length === 0) {
+    return { label: 'Payment unknown', detail: '', tone: 'slate' };
+  }
+
+  if (methods.length === 1) {
+    const m = methods[0];
+    return {
+      label: methodLabel(m),
+      detail: `Collected ${fmt(byMethod[m])}`,
+      tone: m === 'CASH' ? 'emerald' : 'blue',
+    };
+  }
+
+  return {
+    label: 'Split payment',
+    detail: methods.map((m) => `${methodLabel(m)} ${fmt(byMethod[m])}`).join(' · '),
+    tone: 'blue',
+  };
+}
+
+function paymentBadgeClass(tone: PaymentSummary['tone']) {
+  switch (tone) {
+    case 'emerald':
+      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+    case 'amber':
+      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+    case 'orange':
+      return 'bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-200';
+    case 'blue':
+      return 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-200';
+    default:
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+  }
 }
 
 export default function StoreDeliveryPage() {
   const { user } = useAuthStore();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
-  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const isDriverUser = user?.role === 'DRIVER';
+  const [datePreset, setDatePreset] = useState<DatePreset>(isDriverUser ? 'today' : 'all');
   const [customStart, setCustomStart] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [search, setSearch] = useState('');
@@ -218,6 +328,14 @@ export default function StoreDeliveryPage() {
   useEffect(() => {
     loadDeliveries();
   }, [loadDeliveries]);
+
+  useEffect(() => {
+    if (user?.role === 'DRIVER') {
+      setDatePreset('today');
+      setViewMode('list');
+      setQueueTab('active');
+    }
+  }, [user?.role]);
 
   const searchedDeliveries = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -492,10 +610,11 @@ export default function StoreDeliveryPage() {
   const presets: DatePreset[] = ['today', 'yesterday', 'last7', 'thisWeek', 'thisMonth', 'all', 'custom'];
 
   const renderDeliveryCard = (delivery: Delivery, compact = false) => {
-    const credit = isCreditSale(delivery);
+    const pay = paymentSummary(delivery.sale);
     const phone = phoneDigits(delivery.sale.customer?.phone);
     const open = isOpenStatus(delivery.status);
-    const mapLink = mapsUrl(delivery.address);
+    const mapLink = mapsDirectionsUrl(delivery.address);
+    const dest = addressDestination(delivery.address);
     const missingAddress = delivery.type === 'DELIVERY' && !delivery.address;
     const busy = busyId === delivery.id;
 
@@ -520,25 +639,38 @@ export default function StoreDeliveryPage() {
               <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                 {delivery.type === 'DELIVERY' ? 'Home delivery' : 'Pickup'}
               </span>
-              {credit && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                  Credit
-                </span>
-              )}
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${paymentBadgeClass(pay.tone)}`}
+                title={pay.detail}
+              >
+                {pay.label}
+              </span>
             </div>
+            {pay.detail && (
+              <p className="text-xs font-medium text-ink-secondary">{pay.detail}</p>
+            )}
             <p className={`font-semibold text-ink ${compact ? 'text-sm' : 'text-base'}`}>
               {delivery.sale.customer?.name || 'Customer'}
             </p>
             <p className="text-xs text-ink-muted">{formatOrderTime(delivery.createdAt)}</p>
             {delivery.address ? (
-              <p className="text-sm text-ink-secondary line-clamp-2">
-                {delivery.address.line1}
-                {delivery.address.city ? `, ${delivery.address.city}` : ''}
-              </p>
+              mapLink ? (
+                <a
+                  href={mapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-sm text-brand-700 dark:text-brand-400 font-medium underline-offset-2 hover:underline line-clamp-2"
+                  title="Open in Google Maps with destination filled"
+                >
+                  📍 {dest}
+                </a>
+              ) : (
+                <p className="text-sm text-ink-secondary line-clamp-2">{dest}</p>
+              )
             ) : delivery.type === 'DELIVERY' ? (
               <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Address needed</p>
             ) : null}
-            {delivery.assignedDriver && (
+            {!isDriver && delivery.assignedDriver && (
               <p className="text-xs text-slate-500">Driver: {delivery.assignedDriver.name}</p>
             )}
           </div>
@@ -553,6 +685,20 @@ export default function StoreDeliveryPage() {
         </div>
 
         <div className={`flex flex-wrap gap-2 ${compact ? 'mt-3' : 'mt-4 pt-4 border-t border-gray-100 dark:border-gray-700'}`}>
+          {mapLink && (
+            <a
+              href={mapLink}
+              target="_blank"
+              rel="noreferrer"
+              className={`min-h-12 inline-flex items-center justify-center px-5 rounded-xl text-base font-bold active:scale-[0.98] ${
+                isDriver
+                  ? 'bg-sky-600 text-white hover:bg-sky-700'
+                  : 'border border-gray-200 dark:border-gray-600 text-ink hover:bg-slate-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              Open Maps
+            </a>
+          )}
           {(canManage || isDriver) && open && (
             <button
               type="button"
@@ -561,6 +707,16 @@ export default function StoreDeliveryPage() {
               className="min-h-12 px-6 rounded-xl bg-emerald-600 text-white text-base font-bold hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50"
             >
               {busy ? 'Saving…' : 'Delivered'}
+            </button>
+          )}
+          {isDriver && open && delivery.status !== 'OUT_FOR_DELIVERY' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => updateStatus(delivery.id, 'OUT_FOR_DELIVERY')}
+              className="min-h-12 px-4 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 disabled:opacity-50"
+            >
+              Start run
             </button>
           )}
           {phone.length >= 10 && (
@@ -581,24 +737,16 @@ export default function StoreDeliveryPage() {
               WhatsApp
             </a>
           )}
-          {mapLink && (
-            <a
-              href={mapLink}
-              target="_blank"
-              rel="noreferrer"
-              className="min-h-11 inline-flex items-center px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
+          {!isDriver && (
+            <button
+              type="button"
+              onClick={() => openDetailsModal(delivery)}
+              className="min-h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
             >
-              Map
-            </a>
+              {delivery.address ? 'Details' : 'Add address'}
+            </button>
           )}
-          <button
-            type="button"
-            onClick={() => openDetailsModal(delivery)}
-            className="min-h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
-          >
-            {delivery.address ? 'Details' : 'Add address'}
-          </button>
-          {canManage && open && (
+          {(canManage || isDriver) && open && (
             <button
               type="button"
               disabled={busy}
@@ -617,8 +765,14 @@ export default function StoreDeliveryPage() {
     <div className="w-full max-w-6xl mx-auto min-h-0 flex flex-col gap-4 pb-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink">Deliveries</h1>
-          <p className="text-sm text-ink-muted mt-0.5">{rangeLabel} · tap Delivered when the order is done</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink">
+            {isDriver ? 'My deliveries' : 'Deliveries'}
+          </h1>
+          <p className="text-sm text-ink-muted mt-0.5">
+            {isDriver
+              ? 'Payment type on each card · tap address or Open Maps · mark Delivered when done'
+              : `${rangeLabel} · tap Delivered when the order is done`}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -629,13 +783,15 @@ export default function StoreDeliveryPage() {
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="min-h-11 px-5 rounded-xl bg-brand-600 text-white text-sm font-semibold shadow-sm hover:bg-brand-700"
-          >
-            + New
-          </button>
+          {!isDriver && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="min-h-11 px-5 rounded-xl bg-brand-600 text-white text-sm font-semibold shadow-sm hover:bg-brand-700"
+            >
+              + New
+            </button>
+          )}
         </div>
       </div>
 
@@ -671,67 +827,76 @@ export default function StoreDeliveryPage() {
           placeholder="Search name, phone, sale #, area…"
           className="w-full min-h-12 px-4 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-base placeholder:text-gray-400"
         />
-        <div className="flex flex-wrap gap-2">
-          {presets.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setDatePreset(p)}
-              className={`min-h-10 px-3 rounded-xl text-sm font-medium ${
-                datePreset === p
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-              }`}
-            >
-              {PRESET_LABELS[p]}
-            </button>
-          ))}
-        </div>
-        {datePreset === 'custom' && (
-          <div className="flex flex-wrap items-end gap-3 pt-1">
-            <div>
-              <label className="block text-xs font-medium text-ink-muted mb-1">From</label>
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-              />
+        {!isDriver && (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {presets.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setDatePreset(p)}
+                  className={`min-h-10 px-3 rounded-xl text-sm font-medium ${
+                    datePreset === p
+                      ? 'bg-brand-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+                  }`}
+                >
+                  {PRESET_LABELS[p]}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="block text-xs font-medium text-ink-muted mb-1">To</label>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-              />
+            {datePreset === 'custom' && (
+              <div className="flex flex-wrap items-end gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-medium text-ink-muted mb-1">From</label>
+                  <input
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-ink-muted mb-1">To</label>
+                  <input
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-ink-muted">
+                {statusCounts.OPEN} open · {statusCounts.DELIVERED} delivered · {statusCounts.FAILED} failed
+              </p>
+              <div className="flex rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-2 text-xs font-semibold ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'text-ink'}`}
+                >
+                  List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('board')}
+                  className={`px-3 py-2 text-xs font-semibold border-l border-gray-200 dark:border-gray-600 ${
+                    viewMode === 'board' ? 'bg-brand-600 text-white' : 'text-ink'
+                  }`}
+                >
+                  Board
+                </button>
+              </div>
             </div>
-          </div>
+          </>
         )}
-        <div className="flex items-center justify-between gap-2">
+        {isDriver && (
           <p className="text-xs text-ink-muted">
-            {statusCounts.OPEN} open · {statusCounts.DELIVERED} delivered · {statusCounts.FAILED} failed
+            Today · {statusCounts.OPEN} open · {statusCounts.DELIVERED} delivered
           </p>
-          <div className="flex rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-2 text-xs font-semibold ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'text-ink'}`}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('board')}
-              className={`px-3 py-2 text-xs font-semibold border-l border-gray-200 dark:border-gray-600 ${
-                viewMode === 'board' ? 'bg-brand-600 text-white' : 'text-ink'
-              }`}
-            >
-              Board
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       {listError && (

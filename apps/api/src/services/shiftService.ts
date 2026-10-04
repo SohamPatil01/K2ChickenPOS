@@ -73,6 +73,28 @@ export async function findOpenShift(storeId: string) {
   });
 }
 
+/** Lightweight open-shift check for POS polling (no cash movements). */
+export async function findOpenShiftLite(storeId: string) {
+  return prisma.shift.findFirst({
+    where: { storeId, closedAt: null },
+    select: {
+      id: true,
+      storeId: true,
+      openedAt: true,
+      closedAt: true,
+      openingCash: true,
+      businessDate: true,
+      notes: true,
+      overrideReason: true,
+      cashTakenHome: true,
+      pettyCashCarryForward: true,
+      closingCash: true,
+      openedBy: { select: { id: true, name: true, role: true } },
+    },
+    orderBy: { openedAt: 'desc' },
+  });
+}
+
 export async function requireOpenShiftId(storeId: string): Promise<string | null> {
   const open = await prisma.shift.findFirst({
     where: { storeId, closedAt: null },

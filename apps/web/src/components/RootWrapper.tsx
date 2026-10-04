@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import ErrorBoundary from './ErrorBoundary';
 import WelcomeSplash from './WelcomeSplash';
 import { useCustomerProfileInbox } from '@/lib/customerDisplay/useCustomerProfileInbox';
+import DeliveryCompletionAlerts from './delivery/DeliveryCompletionAlerts';
 
 export default function RootWrapper({ children }: { children: ReactNode }) {
   // Receive phone/name/address the customer typed on the customer display.
@@ -17,6 +18,8 @@ export default function RootWrapper({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <WelcomeSplash />
+      {/* Manager/Owner: toast when a driver marks Delivered (any console / HQ) */}
+      <DeliveryCompletionAlerts />
       {children}
     </ErrorBoundary>
   );

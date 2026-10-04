@@ -603,27 +603,30 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
   fastify.post('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
-      console.log('[Sales API] Creating sale, request body:', request.body);
       const data = createSaleSchema.parse(request.body as any);
       const user = getUser(request);
       const storeId = (user as any).storeId;
       const userId = (user as any).userId;
 
-      console.log('[Sales API] Store ID:', storeId, 'User ID:', userId);
-
       if (!storeId) {
-        console.error('[Sales API] Store ID missing');
         reply.code(400).send({ error: 'Store ID is required' });
         return;
       }
 
       if (!userId) {
-        console.error('[Sales API] User ID missing');
         reply.code(400).send({ error: 'User ID is required' });
         return;
       }
 
-      const openShiftId = await requireOpenShiftId(storeId);
+      // Parallel: Day In gate + store lookup (was sequential and added a full RTT)
+      const [openShiftId, store] = await Promise.all([
+        requireOpenShiftId(storeId),
+        prisma.store.findUnique({
+          where: { id: storeId },
+          select: { id: true, name: true, type: true, parentOwnerStoreId: true },
+        }),
+      ]);
+
       if (!openShiftId) {
         reply.code(403).send({
           error: 'Day In required before billing',
@@ -631,12 +634,6 @@ export async function saleRoutes(fastify: FastifyInstance) {
         });
         return;
       }
-
-      // Get store
-      const store = await prisma.store.findUnique({
-        where: { id: storeId },
-        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-      });
 
       if (!store) {
         reply.code(404).send({ error: 'Store not found' });
@@ -650,45 +647,36 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Idempotency: if the client sent a stable key and we already created a sale
-      // for it, return the existing one instead of creating a duplicate (and double
-      // deducting inventory). Guards against network retries. Uses AuditLog (no schema
-      // change) — the same pattern used by the offline checkout sync.
+      // Fast indexed idempotency (Sale.offlineIdempotencyKey) — not a JSON AuditLog scan.
       const clientSaleId = (data as any).clientSaleId
-        ? String((data as any).clientSaleId).trim()
+        ? String((data as any).clientSaleId).trim().slice(0, 64)
         : null;
+
       if (clientSaleId) {
-        const priorAudit = await prisma.auditLog.findFirst({
+        const existingByKey = await prisma.sale.findUnique({
           where: {
-            storeId,
-            entityType: 'Sale',
-            metaJson: { path: ['clientSaleId'], equals: clientSaleId },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-        if (priorAudit?.entityId) {
-          const existingByClientId = await prisma.sale.findUnique({
-            where: { id: priorAudit.entityId },
-            include: {
-              items: { include: { product: true } },
-              payments: true,
-              customer: customerWithAreaInclude,
+            storeId_offlineIdempotencyKey: {
+              storeId,
+              offlineIdempotencyKey: clientSaleId,
             },
-          });
-          if (existingByClientId) {
-            console.log(
-              `[Sales API] Idempotent hit for clientSaleId=${clientSaleId}; returning existing sale ${existingByClientId.id}`
-            );
-            return enrichSaleResponse(existingByClientId);
-          }
+          },
+          include: {
+            items: { include: { product: true } },
+            payments: true,
+            customer: customerWithAreaInclude,
+          },
+        });
+        if (existingByKey) {
+          return enrichSaleResponse(existingByKey);
         }
       }
 
-      const saleItems = await resolveSaleItemsForCreate(
-        prisma,
-        data.items,
-        ownerStoreId
-      );
+      const checkoutPaymentsEarly = Array.isArray((data as any).payments)
+        ? (data as any).payments
+        : null;
+
+      const { items: saleItems, unitTypeByProductId: unitMapCreate } =
+        await resolveSaleItemsForCreate(prisma, data.items, ownerStoreId);
 
       // Get franchise config separately if store is a franchise
       let config = null;
@@ -822,6 +810,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             grandTotal: Math.round(subTotal + taxTotal + deliveryFee),
             createdByUserId: userId,
             shiftId: openShiftId,
+            ...(clientSaleId ? { offlineIdempotencyKey: clientSaleId } : {}),
             items: {
               create: saleItems.map((item: any) => {
                 const qty = item.qtyKg || item.qtyPcs || 0;
@@ -846,13 +835,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
         });
 
         // Deduct inventory for OPEN orders (even when discount override is required)
-        const unitMapOverride = await loadProductUnitTypes(sale.items.map((i) => i.productId));
         await ensureInventoryDeductedForSale(
           prisma,
           sale.id,
           storeId,
           sale.items,
-          unitMapOverride
+          unitMapCreate
         );
 
         // Create discount override request
@@ -945,43 +933,45 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Check for recent duplicate sale (within last 5 seconds with same items and total)
-      const fiveSecondsAgo = new Date(Date.now() - 5000);
-      const recentDuplicate = await prisma.sale.findFirst({
-        where: {
-          storeId,
-          createdByUserId: userId,
-          grandTotal: roundedGrandTotal,
-          status: 'OPEN',
-          createdAt: {
-            gte: fiveSecondsAgo,
+      // Light duplicate guard when no clientSaleId (indexed key covers normal Quick Pay retries)
+      if (!clientSaleId) {
+        const fiveSecondsAgo = new Date(Date.now() - 5000);
+        const recentDuplicate = await prisma.sale.findFirst({
+          where: {
+            storeId,
+            createdByUserId: userId,
+            grandTotal: roundedGrandTotal,
+            status: 'OPEN',
+            createdAt: { gte: fiveSecondsAgo },
           },
-        },
-        include: {
-          items: true,
-        },
-      });
-
-      // If duplicate found, return existing sale instead of creating new one
-      if (recentDuplicate) {
-        console.log(`[Sale Create] Duplicate sale detected, returning existing sale: ${recentDuplicate.id}`);
-        const unitMapDup = await loadProductUnitTypes(
-          recentDuplicate.items.map((i) => i.productId)
-        );
-        await ensureInventoryDeductedForSale(
-          prisma,
-          recentDuplicate.id,
-          storeId,
-          recentDuplicate.items,
-          unitMapDup
-        );
-        return recentDuplicate;
+          select: { id: true },
+        });
+        if (recentDuplicate) {
+          const existing = await prisma.sale.findUnique({
+            where: { id: recentDuplicate.id },
+            include: {
+              items: true,
+              payments: true,
+              customer: customerWithAreaInclude,
+            },
+          });
+          if (existing) {
+            await ensureInventoryDeductedForSale(
+              prisma,
+              existing.id,
+              storeId,
+              existing.items,
+              unitMapCreate
+            );
+            return enrichSaleResponse(existing);
+          }
+        }
       }
 
-      const unitMapCreate = await loadProductUnitTypes(saleItems.map((i) => i.productId));
-
       // Create sale and sync inventory atomically
-      const sale = await prisma.$transaction(async (tx) => {
+      let sale;
+      try {
+        sale = await prisma.$transaction(async (tx) => {
         const created = await tx.sale.create({
           data: {
             storeId,
@@ -995,6 +985,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             grandTotal: roundedGrandTotal,
             createdByUserId: userId,
             shiftId: openShiftId,
+            ...(clientSaleId ? { offlineIdempotencyKey: clientSaleId } : {}),
             items: {
               create: saleItems.map((item: any) => {
                 const qty = item.qtyKg || item.qtyPcs || 0;
@@ -1064,8 +1055,28 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
         return created;
       });
+      } catch (txErr: any) {
+        // Concurrent Pay retry: unique (storeId, offlineIdempotencyKey) — return the winner
+        if (clientSaleId && txErr?.code === 'P2002') {
+          const raced = await prisma.sale.findUnique({
+            where: {
+              storeId_offlineIdempotencyKey: {
+                storeId,
+                offlineIdempotencyKey: clientSaleId,
+              },
+            },
+            include: {
+              items: { include: { product: true } },
+              payments: true,
+              customer: customerWithAreaInclude,
+            },
+          });
+          if (raced) return enrichSaleResponse(raced);
+        }
+        throw txErr;
+      }
 
-      // Create audit log (also records clientSaleId for idempotent retries)
+      // Create audit log (also records clientSaleId for support)
       void prisma.auditLog
         .create({
           data: {
@@ -1079,9 +1090,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
         })
         .catch((err) => console.warn('[Sales] Audit log failed (non-critical):', err));
 
-      const checkoutPayments = Array.isArray((data as any).payments)
-        ? (data as any).payments
-        : null;
+      const checkoutPayments = checkoutPaymentsEarly;
       if (checkoutPayments?.length) {
         const paidSale = await applyPaymentsToSale({
           saleId: sale.id,
@@ -1089,6 +1098,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
           actorUserId: userId,
           actorStoreId: storeId,
           skipInventorySync: true,
+          existingSale: {
+            id: sale.id,
+            status: sale.status,
+            grandTotal: sale.grandTotal,
+            storeId: sale.storeId,
+            items: sale.items,
+            payments: [],
+          },
         });
         return enrichSaleResponse(paidSale);
       }
@@ -1096,12 +1113,32 @@ export async function saleRoutes(fastify: FastifyInstance) {
       return enrichSaleResponse(sale);
     } catch (error: any) {
       console.error('Failed to create sale:', error);
-      console.error('Error stack:', error.stack);
-      console.error('Request body:', request.body);
-      console.error('User:', getUser(request));
 
       // Check for specific error types
       if (error.code === 'P2002') {
+        const target = String(error?.meta?.target || '');
+        const retryKey = String((request.body as any)?.clientSaleId || '').trim();
+        const retryStoreId = (getUser(request) as any)?.storeId;
+        if (retryKey && retryStoreId && target.includes('offlineIdempotencyKey')) {
+          try {
+            const raced = await prisma.sale.findUnique({
+              where: {
+                storeId_offlineIdempotencyKey: {
+                  storeId: retryStoreId,
+                  offlineIdempotencyKey: retryKey,
+                },
+              },
+              include: {
+                items: { include: { product: true } },
+                payments: true,
+                customer: customerWithAreaInclude,
+              },
+            });
+            if (raced) return enrichSaleResponse(raced);
+          } catch {
+            /* fall through */
+          }
+        }
         reply.code(400).send({
           error: 'Duplicate sale number. Please try again.',
           details: error.message

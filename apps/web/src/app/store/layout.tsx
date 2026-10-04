@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import StoreLayout from '@/components/StoreLayout';
 
@@ -11,6 +11,7 @@ export default function StoreLayoutWrapper({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -23,13 +24,19 @@ export default function StoreLayoutWrapper({
       return;
     }
 
+    // Drivers: delivery console only — no POS, dashboard, inventory, etc.
+    if (user.role === 'DRIVER' && pathname && !pathname.startsWith('/store/delivery')) {
+      router.replace('/store/delivery');
+      return;
+    }
+
     // Allow OWNER to access store features (for testing/managing)
     // Only redirect if user has no store or invalid store type
     if (user.store && user.store.type !== 'FRANCHISE' && user.store.type !== 'OWNER') {
       router.push('/store');
       return;
     }
-  }, [user, router]);
+  }, [user, router, pathname]);
 
   // Show loading state while checking user
   if (user === undefined) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { APP_NAME } from '@azela-pos/shared';
+import { homePathForRole } from '@/lib/homePath';
 
 export default function Home() {
   const router = useRouter();
@@ -41,12 +42,7 @@ export default function Home() {
       setRedirecting(true);
 
       if (token && hasUser) {
-        // Redirect OWNER users to HQ dashboard
-        if (currentUser?.role === 'OWNER') {
-          router.push('/hq');
-        } else {
-          router.push('/store/pos');
-        }
+        router.push(homePathForRole(currentUser?.role));
       } else {
         router.push('/login');
       }

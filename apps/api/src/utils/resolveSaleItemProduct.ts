@@ -67,12 +67,19 @@ async function getOrCreateManualProduct(
  * Map client product ids (including "manual" / unknown SKU strings) to real Product rows.
  * Batched lookups — one query per resolution pass instead of per line item.
  */
+export type ResolvedSaleItems = {
+  items: SaleLineInput[];
+  unitTypeByProductId: Map<string, 'KG' | 'PCS'>;
+};
+
 export async function resolveSaleItemsForCreate(
   db: Pick<PrismaClient, 'product' | 'category'>,
   items: SaleLineInput[],
   ownerStoreId: string
-): Promise<SaleLineInput[]> {
-  if (!items.length) return [];
+): Promise<ResolvedSaleItems> {
+  if (!items.length) {
+    return { items: [], unitTypeByProductId: new Map() };
+  }
 
   const candidateIds = [
     ...new Set(
@@ -83,13 +90,15 @@ export async function resolveSaleItemsForCreate(
   ];
 
   const byId = new Map<string, string>();
+  const unitTypeByProductId = new Map<string, 'KG' | 'PCS'>();
   if (candidateIds.length > 0) {
     const rows = await db.product.findMany({
       where: { id: { in: candidateIds } },
-      select: { id: true },
+      select: { id: true, unitType: true },
     });
     for (const row of rows) {
       byId.set(row.id, row.id);
+      unitTypeByProductId.set(row.id, row.unitType as 'KG' | 'PCS');
     }
   }
 
@@ -112,11 +121,12 @@ export async function resolveSaleItemsForCreate(
         ownerStoreId,
         OR: [{ sku: { in: hints } }, { plu: { in: hints } }],
       },
-      select: { id: true, sku: true, plu: true },
+      select: { id: true, sku: true, plu: true, unitType: true },
     });
     for (const row of rows) {
       if (row.sku) bySkuOrPlu.set(row.sku, row.id);
       if (row.plu) bySkuOrPlu.set(row.plu, row.id);
+      unitTypeByProductId.set(row.id, row.unitType as 'KG' | 'PCS');
     }
   }
 
@@ -163,5 +173,5 @@ export async function resolveSaleItemsForCreate(
     });
   }
 
-  return resolved;
+  return { items: resolved, unitTypeByProductId };
 }

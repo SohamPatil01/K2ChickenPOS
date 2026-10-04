@@ -92,7 +92,7 @@ export async function applyOfflineCheckoutFromSync(
     throw new Error('Owner store is not configured for this location');
   }
 
-  const saleItems = await resolveSaleItemsForCreate(
+  const { items: saleItems } = await resolveSaleItemsForCreate(
     prisma,
     cs.items,
     ownerStoreId

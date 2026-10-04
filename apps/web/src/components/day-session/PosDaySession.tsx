@@ -478,7 +478,10 @@ export default function PosDaySession({
           <Button
             type="button"
             className="!py-1 !px-3 text-sm"
-            onClick={() => setShowDayOut(true)}
+            onClick={() => {
+              setShowDayOut(true);
+              void refresh({ full: true });
+            }}
           >
             Day Out
           </Button>

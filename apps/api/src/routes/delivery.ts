@@ -186,8 +186,10 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
 
     const where: any = {};
 
+    // Drivers see their store's delivery queue (same store as login). Assignment is optional;
+    // starting a run / marking delivered will claim unassigned orders for them.
     if (userRole === 'DRIVER') {
-      where.assignedDriverId = (getUser(request) as any).userId;
+      where.storeId = storeId;
     } else {
       // OWNER at HQ: deliveries are stored under franchise sale.storeId — include all franchise stores
       const userStore = await prisma.store.findUnique({
@@ -266,6 +268,65 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     return deliveries;
   });
 
+  /**
+   * Recent deliveries marked DELIVERED — for manager/owner console toast + detail.
+   * Poll-friendly: last 24h, newest first.
+   */
+  fastify.get(
+    '/recent-completions',
+    { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] },
+    async (request: any, reply: FastifyReply) => {
+      const { storeId, role } = getUser(request) as any;
+      const sinceHours = Math.min(Math.max(Number(request.query?.hours) || 24, 1), 72);
+      const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
+
+      const where: any = {
+        status: 'DELIVERED',
+        deliveredAt: { gte: since },
+      };
+
+      const userStore = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { type: true },
+      });
+      if (role === 'OWNER' && userStore?.type === 'OWNER') {
+        const franchises = await prisma.store.findMany({
+          where: { parentOwnerStoreId: storeId, type: 'FRANCHISE' },
+          select: { id: true },
+        });
+        where.storeId = { in: [storeId, ...franchises.map((f) => f.id)] };
+      } else {
+        where.storeId = storeId;
+      }
+
+      const items = await prisma.deliveryOrder.findMany({
+        where,
+        orderBy: { deliveredAt: 'desc' },
+        take: 40,
+        include: {
+          sale: {
+            include: {
+              customer: { select: { id: true, name: true, phone: true } },
+              payments: { select: { method: true, amount: true } },
+              items: {
+                select: {
+                  qtyKg: true,
+                  qtyPcs: true,
+                  lineTotal: true,
+                  product: { select: { name: true, unitType: true } },
+                },
+              },
+            },
+          },
+          address: true,
+          assignedDriver: { select: { id: true, name: true, phone: true } },
+        },
+      });
+
+      return { items, since: since.toISOString() };
+    }
+  );
+
   fastify.post('/:id/assign-driver', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
     const { driverId } = assignDriverSchema.parse(request.body as any);
@@ -334,14 +395,18 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    // Drivers can only update their own deliveries
-    if (userRole === 'DRIVER' && delivery.assignedDriverId !== userId) {
-      reply.code(403).send({ error: 'Forbidden' });
-      return;
-    }
+    const driverStoreId = (getUser(request) as any).storeId;
 
-    // Drivers cannot move orders to admin-only workflow steps
+    // Drivers: same store only; claim unassigned or own deliveries
     if (userRole === 'DRIVER') {
+      if (delivery.storeId !== driverStoreId) {
+        reply.code(403).send({ error: 'Forbidden' });
+        return;
+      }
+      if (delivery.assignedDriverId && delivery.assignedDriverId !== userId) {
+        reply.code(403).send({ error: 'This delivery is assigned to another driver' });
+        return;
+      }
       const driverAllowed = ['OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'RETURNED'];
       if (!driverAllowed.includes(data.status)) {
         reply.code(403).send({
@@ -354,6 +419,11 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
     const updateData: any = {
       status: data.status,
     };
+
+    // Auto-claim when a driver starts or completes an unassigned delivery
+    if (userRole === 'DRIVER' && !delivery.assignedDriverId) {
+      updateData.assignedDriverId = userId;
+    }
 
     if (data.status === 'OUT_FOR_DELIVERY') {
       updateData.outForDeliveryAt = new Date();
