@@ -266,14 +266,16 @@ export default function PosDaySession({
 
   useEffect(() => {
     if (!status) return;
-    setPettyCash(status.suggestedCarry || 0);
-    setUseCarry(true);
-    onDayRequiredChange?.(!status.open);
-    if (!status.needsDayOutReminder) setReminderAck(false);
-    if (status.open) {
+    // Only seed Day In defaults while the day is closed — never reset open-day UI on polls.
+    if (!status.open) {
+      setPettyCash(status.suggestedCarry || 0);
+      setUseCarry(true);
       setShowDayOut(false);
+      setShowMovement(false);
       setError('');
     }
+    onDayRequiredChange?.(!status.open);
+    if (!status.needsDayOutReminder) setReminderAck(false);
   }, [status, onDayRequiredChange]);
 
   const submitDayIn = async () => {
