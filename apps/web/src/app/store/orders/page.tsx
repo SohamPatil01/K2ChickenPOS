@@ -9,7 +9,11 @@ import { useNotificationStore } from "@/store/notification";
 import { useReactToPrint } from "react-to-print";
 import CustomerBill from "@/components/CustomerBill";
 import { downloadCustomerBill } from "@/lib/customerBill";
-import { shareBillOnWhatsApp, normalizeIndiaMobile } from "@/lib/whatsappBill";
+import {
+  openCustomerWhatsAppChat,
+  downloadBillFilesForWhatsApp,
+  normalizeIndiaMobile,
+} from "@/lib/whatsappBill";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import { exportSalesCSV } from "@/lib/exportCSV";
 import { FilterSystem, FilterCriteria } from "@/components/FilterSystem";
@@ -201,34 +205,46 @@ export default function OrdersPage() {
       return;
     }
     if (whatsappSaleId) return;
+
+    // Open that customer's WhatsApp chat immediately (same as send-message flow).
+    if (!openCustomerWhatsAppChat(sale)) {
+      showNotification(
+        "This order has no customer mobile number — add a customer to send on WhatsApp",
+        "warning",
+        5000
+      );
+      return;
+    }
+
     setWhatsappSaleId(sale.id);
+    showNotification(
+      `WhatsApp opened for ${sale.customer?.phone} — preparing bill download…`,
+      "info",
+      3500
+    );
+
     try {
       const full = await fetchSaleDetails(sale);
-      const result = await shareBillOnWhatsApp(full, storeBillInfo);
-      if (!result.ok) {
-        if (result.reason === "cancelled") return;
-        if (result.reason === "no_phone") {
-          showNotification(
-            "This order has no customer mobile number — add a customer to send on WhatsApp",
-            "warning",
-            5000
-          );
-          return;
-        }
-        showNotification("Could not prepare bill photo for WhatsApp", "error");
-        return;
-      }
-      if (result.mode === "share_sheet") {
-        showNotification("Pick WhatsApp and send the bill photo", "success", 4500);
+      const downloaded = await downloadBillFilesForWhatsApp(full, storeBillInfo);
+      if (downloaded) {
+        showNotification(
+          "Bill photo + PDF downloaded — attach in WhatsApp and tap Send",
+          "success",
+          6500
+        );
       } else {
         showNotification(
-          "Bill photo + PDF downloaded — attach them in WhatsApp and tap Send",
-          "success",
+          "WhatsApp is open — use Download on this order if the bill file did not save",
+          "warning",
           6500
         );
       }
     } catch {
-      showNotification("Could not send bill on WhatsApp", "error");
+      showNotification(
+        "WhatsApp is open — use Download on this order to attach the bill",
+        "warning",
+        6500
+      );
     } finally {
       setWhatsappSaleId(null);
     }
