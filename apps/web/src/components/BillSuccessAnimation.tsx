@@ -8,11 +8,22 @@ interface BillSuccessAnimationProps {
   onComplete: () => void;
   /** Optional subtitle (e.g. "Order completed." on Orders page). Default: "Redirecting to POS..." */
   subtitle?: string;
+  /** When set, shows Print / digital bill actions and pauses auto-dismiss. */
+  onPrint?: () => void;
+  billUrl?: string | null;
 }
 
-export default function BillSuccessAnimation({ saleNo, grandTotal, onComplete, subtitle = 'Redirecting to POS...' }: BillSuccessAnimationProps) {
+export default function BillSuccessAnimation({
+  saleNo,
+  grandTotal,
+  onComplete,
+  subtitle = 'Redirecting to POS...',
+  onPrint,
+  billUrl,
+}: BillSuccessAnimationProps) {
   const [isAnimating, setIsAnimating] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
+  const hasActions = Boolean(onPrint || billUrl);
 
   useEffect(() => {
     // Show checkmark first
@@ -20,17 +31,17 @@ export default function BillSuccessAnimation({ saleNo, grandTotal, onComplete, s
       setShowDetails(true);
     }, 500);
 
-    // Auto-dismiss after 3 seconds
+    // Auto-dismiss — longer when print/bill actions are available
     const timer2 = setTimeout(() => {
       setIsAnimating(false);
       setTimeout(onComplete, 300);
-    }, 3000);
+    }, hasActions ? 8000 : 3000);
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
     };
-  }, [onComplete]);
+  }, [onComplete, hasActions]);
 
   if (!isAnimating) return null;
 
@@ -78,6 +89,29 @@ export default function BillSuccessAnimation({ saleNo, grandTotal, onComplete, s
                   ₹{grandTotal}
                 </p>
               </div>
+              {hasActions && (
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+                  {onPrint && (
+                    <button
+                      type="button"
+                      onClick={onPrint}
+                      className="px-4 py-2.5 rounded-xl bg-white text-ink text-sm font-bold shadow-sm hover:bg-white/90"
+                    >
+                      Print bill
+                    </button>
+                  )}
+                  {billUrl && (
+                    <a
+                      href={billUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2.5 rounded-xl border border-white/40 text-white text-sm font-bold hover:bg-white/10"
+                    >
+                      Open digital bill
+                    </a>
+                  )}
+                </div>
+              )}
               <p className="text-xl text-gray-200 animate-pulse">
                 {subtitle}
               </p>

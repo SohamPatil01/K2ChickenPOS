@@ -86,9 +86,17 @@ function simpleColumn(status: string): (typeof SIMPLE_COLUMNS)[number] {
 }
 
 function statusBadgeClass(status: string): string {
-  if (status === 'DELIVERED') return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
-  if (status === 'FAILED' || status === 'RETURNED') return 'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200';
-  return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+  if (status === 'DELIVERED') return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200';
+  if (status === 'FAILED' || status === 'RETURNED') return 'bg-red-500/15 text-red-800 dark:text-red-200';
+  if (status === 'OUT_FOR_DELIVERY') return 'bg-sky-500/15 text-sky-800 dark:text-sky-200';
+  return 'bg-brand-500/15 text-brand-800 dark:text-brand-200';
+}
+
+function statusAccentClass(status: string): string {
+  if (status === 'DELIVERED') return 'bg-emerald-500';
+  if (status === 'FAILED' || status === 'RETURNED') return 'bg-red-500';
+  if (status === 'OUT_FOR_DELIVERY') return 'bg-sky-500';
+  return 'bg-brand-500';
 }
 
 const ACTIVE_STATUSES = ['CREATED', 'READY', 'ASSIGNED', 'OUT_FOR_DELIVERY'] as const;
@@ -97,10 +105,25 @@ const DONE_STATUSES = ['DELIVERED', 'FAILED', 'RETURNED'] as const;
 type QueueTab = 'active' | 'done' | 'all';
 
 function formatStatusLabel(status: string) {
-  if (status === 'DELIVERED') return 'Delivered';
-  if (status === 'FAILED' || status === 'RETURNED') return 'Failed';
-  if (status === 'OPEN') return 'Open';
-  return 'Open';
+  switch (status) {
+    case 'DELIVERED':
+      return 'Delivered';
+    case 'FAILED':
+    case 'RETURNED':
+      return 'Failed';
+    case 'OUT_FOR_DELIVERY':
+      return 'On the way';
+    case 'ASSIGNED':
+      return 'Assigned';
+    case 'READY':
+      return 'Ready';
+    case 'CREATED':
+      return 'Queued';
+    case 'OPEN':
+      return 'Open';
+    default:
+      return 'Open';
+  }
 }
 
 function phoneDigits(phone?: string | null) {
@@ -206,15 +229,15 @@ function paymentSummary(sale: Delivery['sale']): PaymentSummary {
 function paymentBadgeClass(tone: PaymentSummary['tone']) {
   switch (tone) {
     case 'emerald':
-      return 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200';
+      return 'bg-emerald-500/12 text-emerald-800 dark:text-emerald-200';
     case 'amber':
-      return 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200';
+      return 'bg-amber-500/15 text-amber-900 dark:text-amber-200';
     case 'orange':
-      return 'bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-200';
+      return 'bg-orange-500/15 text-orange-900 dark:text-orange-200';
     case 'blue':
-      return 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-200';
+      return 'bg-sky-500/12 text-sky-800 dark:text-sky-200';
     default:
-      return 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200';
+      return 'bg-surface-2 text-ink-secondary';
   }
 }
 
@@ -617,228 +640,290 @@ export default function StoreDeliveryPage() {
     const dest = addressDestination(delivery.address);
     const missingAddress = delivery.type === 'DELIVERY' && !delivery.address;
     const busy = busyId === delivery.id;
+    const onTheWay = delivery.status === 'OUT_FOR_DELIVERY';
 
     return (
       <article
         key={delivery.id}
-        className={`rounded-2xl border bg-white dark:bg-gray-800/80 shadow-sm ${
+        className={`group relative overflow-hidden rounded-2xl border bg-surface shadow-card transition-shadow hover:shadow-md ${
           missingAddress
-            ? 'border-amber-300 dark:border-amber-700'
-            : 'border-gray-200/80 dark:border-gray-700'
-        } ${compact ? 'p-3' : 'p-4 sm:p-5'}`}
+            ? 'border-amber-400/60'
+            : onTheWay
+              ? 'border-sky-400/40'
+              : 'border-[color:var(--border-subtle)]'
+        }`}
       >
-        <div className={`flex ${compact ? 'flex-col gap-2' : 'flex-col lg:flex-row lg:items-start gap-4'}`}>
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className={`font-bold text-ink ${compact ? 'text-sm' : 'text-lg'}`}>
-                {delivery.sale.saleNo}
-              </h3>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusBadgeClass(delivery.status)}`}>
-                {formatStatusLabel(delivery.status)}
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {delivery.type === 'DELIVERY' ? 'Home delivery' : 'Pickup'}
-              </span>
-              <span
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${paymentBadgeClass(pay.tone)}`}
-                title={pay.detail}
-              >
-                {pay.label}
-              </span>
-            </div>
-            {pay.detail && (
-              <p className="text-xs font-medium text-ink-secondary">{pay.detail}</p>
-            )}
-            <p className={`font-semibold text-ink ${compact ? 'text-sm' : 'text-base'}`}>
-              {delivery.sale.customer?.name || 'Customer'}
-            </p>
-            <p className="text-xs text-ink-muted">{formatOrderTime(delivery.createdAt)}</p>
-            {delivery.address ? (
-              mapLink ? (
-                <a
-                  href={mapLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-sm text-brand-700 dark:text-brand-400 font-medium underline-offset-2 hover:underline line-clamp-2"
-                  title="Open in Google Maps with destination filled"
+        <div className={`absolute inset-y-0 left-0 w-1 ${statusAccentClass(delivery.status)}`} aria-hidden />
+        <div className={`${compact ? 'p-3.5 pl-4' : 'p-4 sm:p-5 pl-5'}`}>
+          <div className={`flex ${compact ? 'flex-col gap-2.5' : 'flex-col sm:flex-row sm:items-start gap-3 sm:gap-4'}`}>
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className={`font-bold tracking-tight text-ink ${compact ? 'text-base' : 'text-lg'}`}>
+                  {delivery.sale.saleNo}
+                </h3>
+                <span className={`text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-md ${statusBadgeClass(delivery.status)}`}>
+                  {formatStatusLabel(delivery.status)}
+                </span>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-surface-2 text-ink-secondary">
+                  {delivery.type === 'DELIVERY' ? 'Home' : 'Pickup'}
+                </span>
+                <span
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${paymentBadgeClass(pay.tone)}`}
+                  title={pay.detail}
                 >
-                  📍 {dest}
-                </a>
-              ) : (
-                <p className="text-sm text-ink-secondary line-clamp-2">{dest}</p>
-              )
-            ) : delivery.type === 'DELIVERY' ? (
-              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Address needed</p>
-            ) : null}
-            {!isDriver && delivery.assignedDriver && (
-              <p className="text-xs text-slate-500">Driver: {delivery.assignedDriver.name}</p>
-            )}
-          </div>
-          <div className={`shrink-0 ${compact ? '' : 'lg:text-right'}`}>
-            <p className={`font-black text-brand-700 dark:text-brand-400 ${compact ? 'text-lg' : 'text-2xl'}`}>
-              ₹{Math.round(delivery.sale.grandTotal).toLocaleString('en-IN')}
-            </p>
-            {delivery.deliveryFee > 0 && (
-              <p className="text-xs text-ink-muted">Fee ₹{Math.round(delivery.deliveryFee)}</p>
-            )}
-          </div>
-        </div>
+                  {pay.label}
+                </span>
+              </div>
 
-        <div className={`flex flex-wrap gap-2 ${compact ? 'mt-3' : 'mt-4 pt-4 border-t border-gray-100 dark:border-gray-700'}`}>
-          {mapLink && (
-            <a
-              href={mapLink}
-              target="_blank"
-              rel="noreferrer"
-              className={`min-h-12 inline-flex items-center justify-center px-5 rounded-xl text-base font-bold active:scale-[0.98] ${
-                isDriver
-                  ? 'bg-sky-600 text-white hover:bg-sky-700'
-                  : 'border border-gray-200 dark:border-gray-600 text-ink hover:bg-slate-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              Open Maps
-            </a>
-          )}
-          {(canManage || isDriver) && open && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => updateStatus(delivery.id, 'DELIVERED')}
-              className="min-h-12 px-6 rounded-xl bg-emerald-600 text-white text-base font-bold hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50"
-            >
-              {busy ? 'Saving…' : 'Delivered'}
-            </button>
-          )}
-          {isDriver && open && delivery.status !== 'OUT_FOR_DELIVERY' && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => updateStatus(delivery.id, 'OUT_FOR_DELIVERY')}
-              className="min-h-12 px-4 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 disabled:opacity-50"
-            >
-              Start run
-            </button>
-          )}
-          {phone.length >= 10 && (
-            <a
-              href={`tel:${phone}`}
-              className="min-h-11 inline-flex items-center px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
-            >
-              Call
-            </a>
-          )}
-          {phone.length >= 10 && (
-            <a
-              href={`https://wa.me/91${phone.slice(-10)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="min-h-11 inline-flex items-center px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
-            >
-              WhatsApp
-            </a>
-          )}
-          {!isDriver && (
-            <button
-              type="button"
-              onClick={() => openDetailsModal(delivery)}
-              className="min-h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-medium text-ink hover:bg-slate-50 dark:hover:bg-gray-700"
-            >
-              {delivery.address ? 'Details' : 'Add address'}
-            </button>
-          )}
-          {(canManage || isDriver) && open && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => updateStatus(delivery.id, 'FAILED')}
-              className="min-h-11 px-4 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-            >
-              Failed
-            </button>
-          )}
+              <div>
+                <p className={`font-semibold text-ink leading-snug ${compact ? 'text-sm' : 'text-base'}`}>
+                  {delivery.sale.customer?.name || 'Walk-in customer'}
+                </p>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  {formatOrderTime(delivery.createdAt)}
+                  {phone.length >= 10 ? ` · ${phone.slice(-10)}` : ''}
+                </p>
+              </div>
+
+              {pay.detail && (
+                <p className="text-xs text-ink-secondary leading-relaxed">{pay.detail}</p>
+              )}
+
+              {delivery.address ? (
+                mapLink ? (
+                  <a
+                    href={mapLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-start gap-1.5 text-sm font-medium text-brand-700 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 transition-colors line-clamp-2"
+                    title="Open Google Maps with this destination"
+                  >
+                    <span className="mt-0.5 shrink-0 inline-block h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
+                    <span>{dest}</span>
+                  </a>
+                ) : (
+                  <p className="text-sm text-ink-secondary line-clamp-2">{dest}</p>
+                )
+              ) : delivery.type === 'DELIVERY' ? (
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  Address missing — add before dispatch
+                </p>
+              ) : (
+                <p className="text-sm text-ink-muted">Counter pickup</p>
+              )}
+
+              {!isDriver && delivery.assignedDriver && (
+                <p className="text-xs text-ink-muted">
+                  Driver <span className="font-medium text-ink-secondary">{delivery.assignedDriver.name}</span>
+                </p>
+              )}
+            </div>
+
+            <div className={`shrink-0 ${compact ? '' : 'sm:text-right sm:pt-0.5'}`}>
+              <p className={`font-black tabular-nums text-gradient-brand ${compact ? 'text-xl' : 'text-2xl sm:text-3xl'}`}>
+                ₹{Math.round(delivery.sale.grandTotal).toLocaleString('en-IN')}
+              </p>
+              {delivery.deliveryFee > 0 && (
+                <p className="text-xs text-ink-muted mt-0.5">
+                  + ₹{Math.round(delivery.deliveryFee)} fee
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div
+            className={`flex flex-wrap gap-2 ${
+              compact
+                ? 'mt-3'
+                : 'mt-4 pt-3.5 border-t border-[color:var(--border-subtle)]'
+            }`}
+          >
+            {(canManage || isDriver) && open && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => updateStatus(delivery.id, 'DELIVERED')}
+                className="min-h-12 flex-1 sm:flex-none px-5 rounded-xl bg-emerald-600 text-white text-sm font-bold shadow-sm hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 transition"
+              >
+                {busy ? 'Saving…' : 'Mark delivered'}
+              </button>
+            )}
+            {mapLink && (
+              <a
+                href={mapLink}
+                target="_blank"
+                rel="noreferrer"
+                className={`min-h-12 inline-flex items-center justify-center px-4 rounded-xl text-sm font-bold active:scale-[0.98] transition ${
+                  isDriver
+                    ? 'bg-gradient-brand text-white shadow-glow-brand'
+                    : 'border border-[color:var(--border-strong)] text-ink hover:bg-surface-2'
+                }`}
+              >
+                Maps
+              </a>
+            )}
+            {isDriver && open && !onTheWay && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => updateStatus(delivery.id, 'OUT_FOR_DELIVERY')}
+                className="min-h-12 px-4 rounded-xl border border-brand-500/40 bg-brand-500/10 text-brand-800 dark:text-brand-200 text-sm font-bold hover:bg-brand-500/20 disabled:opacity-50 transition"
+              >
+                Start run
+              </button>
+            )}
+            {phone.length >= 10 && (
+              <a
+                href={`tel:${phone}`}
+                className="min-h-11 inline-flex items-center px-3.5 rounded-xl border border-[color:var(--border-subtle)] text-sm font-semibold text-ink hover:bg-surface-2 transition"
+              >
+                Call
+              </a>
+            )}
+            {phone.length >= 10 && (
+              <a
+                href={`https://wa.me/91${phone.slice(-10)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="min-h-11 inline-flex items-center px-3.5 rounded-xl border border-[color:var(--border-subtle)] text-sm font-semibold text-ink hover:bg-surface-2 transition"
+              >
+                WhatsApp
+              </a>
+            )}
+            {!isDriver && (
+              <button
+                type="button"
+                onClick={() => openDetailsModal(delivery)}
+                className="min-h-11 px-3.5 rounded-xl border border-[color:var(--border-subtle)] text-sm font-medium text-ink-secondary hover:text-ink hover:bg-surface-2 transition"
+              >
+                {delivery.address ? 'Edit' : 'Add address'}
+              </button>
+            )}
+            {(canManage || isDriver) && open && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => updateStatus(delivery.id, 'FAILED')}
+                className="min-h-11 px-3.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition"
+              >
+                Failed
+              </button>
+            )}
+          </div>
         </div>
       </article>
     );
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto min-h-0 flex flex-col gap-4 pb-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink">
-            {isDriver ? 'My deliveries' : 'Deliveries'}
-          </h1>
-          <p className="text-sm text-ink-muted mt-0.5">
-            {isDriver
-              ? 'Payment type on each card · tap address or Open Maps · mark Delivered when done'
-              : `${rangeLabel} · tap Delivered when the order is done`}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => loadDeliveries()}
-            disabled={loading}
-            className="min-h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold text-ink disabled:opacity-50"
-          >
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-          {!isDriver && (
+    <div className="relative w-full max-w-6xl mx-auto min-h-0 flex flex-col gap-4 sm:gap-5 pb-10">
+      <div
+        className="pointer-events-none absolute -top-6 right-0 h-40 w-72 rounded-full opacity-70 blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(255,106,0,0.18), transparent 70%)' }}
+        aria-hidden
+      />
+
+      <header className="relative glass-panel-strong rounded-2xl p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-700 dark:text-brand-300">
+              {isDriver ? 'Driver console' : 'Store ops'}
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-ink mt-1">
+              {isDriver ? 'My deliveries' : 'Delivery desk'}
+            </h1>
+            <p className="text-sm text-ink-muted mt-1 max-w-xl">
+              {isDriver
+                ? 'Check payment, open Maps, then mark delivered when the drop is done.'
+                : `${rangeLabel} · manage queue, addresses, and handoffs.`}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
             <button
               type="button"
-              onClick={openCreateModal}
-              className="min-h-11 px-5 rounded-xl bg-brand-600 text-white text-sm font-semibold shadow-sm hover:bg-brand-700"
+              onClick={() => loadDeliveries()}
+              disabled={loading}
+              className="min-h-11 px-4 rounded-xl border border-[color:var(--border-strong)] bg-surface text-sm font-semibold text-ink hover:bg-surface-2 disabled:opacity-50 transition"
             >
-              + New
+              {loading ? 'Refreshing…' : 'Refresh'}
             </button>
-          )}
+            {!isDriver && (
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="min-h-11 px-5 rounded-xl bg-gradient-brand text-white text-sm font-semibold shadow-glow-brand hover:brightness-105 active:scale-[0.98] transition"
+              >
+                New delivery
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {(
           [
-            { id: 'active' as const, label: 'To do', count: queueCounts.active },
-            { id: 'done' as const, label: 'Done', count: queueCounts.done },
-            { id: 'all' as const, label: 'All', count: queueCounts.all },
+            { id: 'active' as const, label: 'To do', count: queueCounts.active, hint: 'Still open' },
+            { id: 'done' as const, label: 'Done', count: queueCounts.done, hint: 'Finished today' },
+            { id: 'all' as const, label: 'All', count: queueCounts.all, hint: 'Full queue' },
           ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setQueueTab(tab.id)}
-            className={`min-h-14 rounded-2xl border px-3 py-2 text-center transition ${
-              queueTab === tab.id
-                ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30 text-brand-800 dark:text-brand-200 shadow-sm'
-                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-ink'
-            }`}
-          >
-            <span className="block text-xl font-black leading-none">{tab.count}</span>
-            <span className="block text-xs font-semibold mt-1">{tab.label}</span>
-          </button>
-        ))}
+        ).map((tab) => {
+          const active = queueTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setQueueTab(tab.id)}
+              className={`min-h-[4.5rem] rounded-2xl border px-3 py-2.5 text-left transition active:scale-[0.99] ${
+                active
+                  ? 'border-brand-500/40 bg-brand-500/10 shadow-sm'
+                  : 'border-[color:var(--border-subtle)] bg-surface hover:bg-surface-2'
+              }`}
+            >
+              <span className={`block text-2xl font-black tabular-nums leading-none ${active ? 'text-brand-700 dark:text-brand-300' : 'text-ink'}`}>
+                {tab.count}
+              </span>
+              <span className={`block text-xs font-bold mt-1.5 ${active ? 'text-brand-800 dark:text-brand-200' : 'text-ink'}`}>
+                {tab.label}
+              </span>
+              <span className="block text-[11px] text-ink-muted mt-0.5">{tab.hint}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="glass-panel rounded-2xl p-3 sm:p-4 space-y-3">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, phone, sale #, area…"
-          className="w-full min-h-12 px-4 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-base placeholder:text-gray-400"
-        />
+        <div className="relative">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, phone, sale #, area…"
+            className="w-full min-h-12 pl-4 pr-10 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-base placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-brand-500/35"
+          />
+          {search.trim() && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg text-ink-muted hover:bg-surface-2 hover:text-ink text-sm"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
         {!isDriver && (
           <>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {presets.map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setDatePreset(p)}
-                  className={`min-h-10 px-3 rounded-xl text-sm font-medium ${
+                  className={`min-h-9 px-3 rounded-lg text-xs sm:text-sm font-semibold transition ${
                     datePreset === p
-                      ? 'bg-brand-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+                      ? 'bg-gradient-brand text-white shadow-sm'
+                      : 'bg-surface-2 text-ink-secondary hover:text-ink'
                   }`}
                 >
                   {PRESET_LABELS[p]}
@@ -846,14 +931,14 @@ export default function StoreDeliveryPage() {
               ))}
             </div>
             {datePreset === 'custom' && (
-              <div className="flex flex-wrap items-end gap-3 pt-1">
+              <div className="flex flex-wrap items-end gap-3 pt-0.5">
                 <div>
                   <label className="block text-xs font-medium text-ink-muted mb-1">From</label>
                   <input
                     type="date"
                     value={customStart}
                     onChange={(e) => setCustomStart(e.target.value)}
-                    className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                    className="min-h-11 px-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                   />
                 </div>
                 <div>
@@ -862,28 +947,34 @@ export default function StoreDeliveryPage() {
                     type="date"
                     value={customEnd}
                     onChange={(e) => setCustomEnd(e.target.value)}
-                    className="min-h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                    className="min-h-11 px-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                   />
                 </div>
               </div>
             )}
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-ink-muted">
-                {statusCounts.OPEN} open · {statusCounts.DELIVERED} delivered · {statusCounts.FAILED} failed
+                <span className="font-semibold text-ink-secondary">{statusCounts.OPEN}</span> open
+                <span className="mx-1.5 text-[color:var(--border-strong)]">·</span>
+                <span className="font-semibold text-ink-secondary">{statusCounts.DELIVERED}</span> delivered
+                <span className="mx-1.5 text-[color:var(--border-strong)]">·</span>
+                <span className="font-semibold text-ink-secondary">{statusCounts.FAILED}</span> failed
               </p>
-              <div className="flex rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
+              <div className="flex rounded-xl bg-surface-2 p-0.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-2 text-xs font-semibold ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'text-ink'}`}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    viewMode === 'list' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted'
+                  }`}
                 >
                   List
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode('board')}
-                  className={`px-3 py-2 text-xs font-semibold border-l border-gray-200 dark:border-gray-600 ${
-                    viewMode === 'board' ? 'bg-brand-600 text-white' : 'text-ink'
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    viewMode === 'board' ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted'
                   }`}
                 >
                   Board
@@ -894,13 +985,17 @@ export default function StoreDeliveryPage() {
         )}
         {isDriver && (
           <p className="text-xs text-ink-muted">
-            Today · {statusCounts.OPEN} open · {statusCounts.DELIVERED} delivered
+            Showing today · <span className="font-semibold text-ink-secondary">{statusCounts.OPEN}</span> open ·{' '}
+            <span className="font-semibold text-ink-secondary">{statusCounts.DELIVERED}</span> delivered
           </p>
         )}
       </div>
 
       {listError && (
-        <div className="rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-800 dark:text-red-200" role="alert">
+        <div
+          className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-800 dark:text-red-200"
+          role="alert"
+        >
           <strong className="font-semibold">Couldn’t load deliveries. </strong>
           {listError}
         </div>
@@ -910,26 +1005,32 @@ export default function StoreDeliveryPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-28 rounded-2xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+              <div
+                key={i}
+                className="h-32 rounded-2xl bg-surface-2 animate-pulse border border-[color:var(--border-subtle)]"
+              />
             ))}
           </div>
         ) : filteredDeliveries.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 px-6 py-14 text-center">
+          <div className="rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-surface/60 px-6 py-16 text-center">
+            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-brand-500/10 flex items-center justify-center">
+              <span className="h-2.5 w-2.5 rounded-full bg-brand-500" aria-hidden />
+            </div>
             <p className="text-lg font-bold text-ink">
               {queueTab === 'active' && queueCounts.done > 0
-                ? 'No open deliveries'
+                ? 'Queue is clear'
                 : queueTab === 'done' && queueCounts.active > 0
-                  ? 'No completed deliveries in this view'
+                  ? 'Nothing completed in this view'
                   : 'No deliveries found'}
             </p>
-            <p className="text-sm text-ink-muted mt-1">
+            <p className="text-sm text-ink-muted mt-1.5 max-w-md mx-auto leading-relaxed">
               {queueTab === 'active' && queueCounts.done > 0
-                ? `${queueCounts.done} finished ${queueCounts.done === 1 ? 'order is' : 'orders are'} under Done. Open All to see every order.`
+                ? `${queueCounts.done} finished ${queueCounts.done === 1 ? 'order is' : 'orders are'} under Done.`
                 : datePreset !== 'all'
-                  ? 'This date filter hides older orders. Click All time, then All.'
+                  ? 'This date filter is hiding older orders. Switch to All time.'
                   : search.trim()
                     ? 'No match for this search. Clear the search box.'
-                    : 'Only bills that created a delivery row appear here. Walk-in bills without a customer stay off this list.'}
+                    : 'Only bills with a delivery row show here. Walk-ins without a customer stay off this list.'}
             </p>
             {(queueTab !== 'all' || datePreset !== 'all') && (
               <button
@@ -938,7 +1039,7 @@ export default function StoreDeliveryPage() {
                   setQueueTab('all');
                   setDatePreset('all');
                 }}
-                className="mt-4 min-h-11 px-4 rounded-xl bg-brand-600 text-white text-sm font-semibold"
+                className="mt-5 min-h-11 px-5 rounded-xl bg-gradient-brand text-white text-sm font-semibold shadow-glow-brand"
               >
                 Show all deliveries
               </button>
@@ -955,24 +1056,30 @@ export default function StoreDeliveryPage() {
                   ? (['OPEN'] as const)
                   : SIMPLE_COLUMNS
               ).map((status) => (
-                  <div
-                    key={status}
-                    className="w-72 flex-shrink-0 rounded-2xl border border-gray-200 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-900/50 p-3"
-                  >
-                    <h2 className="font-bold text-xs uppercase tracking-wide text-ink-secondary mb-3 px-1">
+                <div
+                  key={status}
+                  className="w-80 flex-shrink-0 rounded-2xl border border-[color:var(--border-subtle)] bg-surface-2/70 p-3"
+                >
+                  <div className="flex items-center gap-2 mb-3 px-1">
+                    <span className={`h-2 w-2 rounded-full ${statusAccentClass(status)}`} aria-hidden />
+                    <h2 className="font-bold text-xs uppercase tracking-wide text-ink-secondary">
                       {formatStatusLabel(status)}
-                      <span className="ml-1 text-gray-400">({(groupedByStatus[status] || []).length})</span>
                     </h2>
-                    <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
-                      {(groupedByStatus[status] || []).length === 0 ? (
-                        <p className="text-xs text-gray-400 text-center py-6">None</p>
-                      ) : (
-                        (groupedByStatus[status] || []).map((delivery) => renderDeliveryCard(delivery, true))
-                      )}
-                    </div>
+                    <span className="text-xs text-ink-muted tabular-nums">
+                      {(groupedByStatus[status] || []).length}
+                    </span>
                   </div>
-                )
-              )}
+                  <div className="space-y-2.5 max-h-[70vh] overflow-y-auto pr-1">
+                    {(groupedByStatus[status] || []).length === 0 ? (
+                      <p className="text-xs text-ink-muted text-center py-8">Empty</p>
+                    ) : (
+                      (groupedByStatus[status] || []).map((delivery) =>
+                        renderDeliveryCard(delivery, true)
+                      )
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -980,14 +1087,19 @@ export default function StoreDeliveryPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass-panel-strong rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-scale-in">
-            <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 glass-panel z-10">
-              <h2 className="text-lg font-bold text-ink">New delivery</h2>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/55 backdrop-blur-sm">
+          <div className="glass-panel-strong rounded-t-3xl sm:rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto animate-scale-in shadow-2xl">
+            <div className="p-5 border-b border-[color:var(--border-subtle)] flex items-center justify-between sticky top-0 glass-panel-strong z-10">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300">
+                  Create
+                </p>
+                <h2 className="text-lg font-bold text-ink">New delivery</h2>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowCreate(false)}
-                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                className="h-10 w-10 rounded-xl hover:bg-surface-2 text-ink-muted hover:text-ink transition"
                 aria-label="Close"
               >
                 ✕
@@ -995,16 +1107,16 @@ export default function StoreDeliveryPage() {
             </div>
             <form onSubmit={handleCreateDelivery} className="p-5 space-y-4">
               {createError && (
-                <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                <div className="p-3 rounded-xl bg-red-500/10 text-red-700 dark:text-red-300 text-sm border border-red-500/20">
                   {createError}
                 </div>
               )}
               <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Paid or credit sale</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Paid or credit sale</label>
                 <select
                   value={form.saleId}
                   onChange={(e) => onSelectSale(e.target.value)}
-                  className="w-full px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                  className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                   required
                 >
                   <option value="">Choose a sale…</option>
@@ -1015,15 +1127,23 @@ export default function StoreDeliveryPage() {
                     </option>
                   ))}
                 </select>
-                {loadingSales && <p className="text-xs text-gray-500 mt-1">Loading…</p>}
+                {loadingSales && <p className="text-xs text-ink-muted mt-1.5">Loading sales…</p>}
                 {!loadingSales && paidSales.length === 0 && (
-                  <p className="text-xs text-gray-500 mt-1">No eligible sales (need customer, no delivery yet).</p>
+                  <p className="text-xs text-ink-muted mt-1.5">
+                    No eligible sales (need customer, no delivery yet).
+                  </p>
                 )}
               </div>
               <div>
-                <p className="text-sm font-semibold text-ink-secondary mb-2">Type</p>
-                <div className="flex gap-3">
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-gray-200 dark:border-gray-600 py-3 has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50 dark:has-[:checked]:bg-brand-900/20">
+                <p className="text-sm font-semibold text-ink-secondary mb-2">Fulfillment</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label
+                    className={`flex items-center justify-center cursor-pointer rounded-xl border py-3 transition ${
+                      form.type === 'PICKUP'
+                        ? 'border-brand-500 bg-brand-500/10 text-brand-800 dark:text-brand-200'
+                        : 'border-[color:var(--border-subtle)] text-ink-secondary'
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="type"
@@ -1035,9 +1155,15 @@ export default function StoreDeliveryPage() {
                       }}
                       className="sr-only"
                     />
-                    <span className="text-sm font-medium dark:text-white">Pickup</span>
+                    <span className="text-sm font-semibold">Pickup</span>
                   </label>
-                  <label className="flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-gray-200 dark:border-gray-600 py-3 has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50 dark:has-[:checked]:bg-brand-900/20">
+                  <label
+                    className={`flex items-center justify-center cursor-pointer rounded-xl border py-3 transition ${
+                      form.type === 'DELIVERY'
+                        ? 'border-brand-500 bg-brand-500/10 text-brand-800 dark:text-brand-200'
+                        : 'border-[color:var(--border-subtle)] text-ink-secondary'
+                    }`}
+                  >
                     <input
                       type="radio"
                       name="type"
@@ -1048,19 +1174,19 @@ export default function StoreDeliveryPage() {
                       }}
                       className="sr-only"
                     />
-                    <span className="text-sm font-medium dark:text-white">Delivery</span>
+                    <span className="text-sm font-semibold">Home delivery</span>
                   </label>
                 </div>
               </div>
               {form.type === 'DELIVERY' && (
                 <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-1">Address</label>
+                  <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Address</label>
                   {!createAddNewAddress ? (
                     <>
                       <select
                         value={form.addressId}
                         onChange={(e) => setForm((f) => ({ ...f, addressId: e.target.value }))}
-                        className="w-full px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                        className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                       >
                         <option value="">Select saved address</option>
                         {addresses.map((a) => (
@@ -1072,47 +1198,42 @@ export default function StoreDeliveryPage() {
                       <button
                         type="button"
                         onClick={() => setCreateAddNewAddress(true)}
-                        className="mt-2 text-sm text-brand-600 dark:text-brand-400 font-medium"
+                        className="mt-2 text-sm text-brand-700 dark:text-brand-300 font-semibold"
                       >
                         + Add new address
                       </button>
                     </>
                   ) : (
                     <div className="space-y-2">
-                      <input
-                        type="text"
-                        value={createNewAddress.label}
-                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, label: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                        placeholder="Label"
-                      />
-                      <input
-                        type="text"
-                        value={createNewAddress.line1}
-                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, line1: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                        placeholder="Line 1 *"
-                      />
-                      <input
-                        type="text"
-                        value={createNewAddress.line2}
-                        onChange={(e) => setCreateNewAddress((a) => ({ ...a, line2: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                        placeholder="Line 2"
-                      />
+                      {(
+                        [
+                          ['label', 'Label', createNewAddress.label],
+                          ['line1', 'Line 1 *', createNewAddress.line1],
+                          ['line2', 'Line 2', createNewAddress.line2],
+                        ] as const
+                      ).map(([key, placeholder, value]) => (
+                        <input
+                          key={key}
+                          type="text"
+                          value={value}
+                          onChange={(e) => setCreateNewAddress((a) => ({ ...a, [key]: e.target.value }))}
+                          className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
+                          placeholder={placeholder}
+                        />
+                      ))}
                       <div className="grid grid-cols-2 gap-2">
                         <input
                           type="text"
                           value={createNewAddress.city}
                           onChange={(e) => setCreateNewAddress((a) => ({ ...a, city: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                          className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                           placeholder="City *"
                         />
                         <input
                           type="text"
                           value={createNewAddress.state}
                           onChange={(e) => setCreateNewAddress((a) => ({ ...a, state: e.target.value }))}
-                          className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                          className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                           placeholder="State"
                         />
                       </div>
@@ -1120,13 +1241,13 @@ export default function StoreDeliveryPage() {
                         type="text"
                         value={createNewAddress.zip}
                         onChange={(e) => setCreateNewAddress((a) => ({ ...a, zip: e.target.value }))}
-                        className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                        className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                         placeholder="PIN"
                       />
                       <button
                         type="button"
                         onClick={() => setCreateAddNewAddress(false)}
-                        className="text-xs text-gray-500"
+                        className="text-xs font-medium text-ink-muted hover:text-ink"
                       >
                         Use saved address
                       </button>
@@ -1135,28 +1256,28 @@ export default function StoreDeliveryPage() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-semibold text-ink-secondary mb-1">Delivery fee (₹)</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Delivery fee (₹)</label>
                 <input
                   type="number"
                   min={0}
                   step={0.01}
                   value={form.deliveryFee}
                   onChange={(e) => setForm((f) => ({ ...f, deliveryFee: parseFloat(e.target.value) || 0 }))}
-                  className="w-full px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                  className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                 />
               </div>
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-gray-600 font-medium text-gray-700 dark:text-gray-200"
+                  className="flex-1 py-3 rounded-xl border border-[color:var(--border-strong)] font-semibold text-ink hover:bg-surface-2 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creating || !form.saleId}
-                  className="flex-1 py-3 rounded-xl bg-brand-600 text-white font-semibold hover:bg-brand-700 disabled:opacity-50"
+                  className="flex-1 py-3 rounded-xl bg-gradient-brand text-white font-semibold shadow-glow-brand hover:brightness-105 disabled:opacity-50 transition"
                 >
                   {creating ? 'Creating…' : 'Create'}
                 </button>
@@ -1168,14 +1289,19 @@ export default function StoreDeliveryPage() {
 
       {/* Details modal */}
       {editingDelivery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass-panel-strong rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-scale-in">
-            <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 glass-panel">
-              <h2 className="text-lg font-bold text-ink">Order {editingDelivery.sale.saleNo}</h2>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/55 backdrop-blur-sm">
+          <div className="glass-panel-strong rounded-t-3xl sm:rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto animate-scale-in shadow-2xl">
+            <div className="p-5 border-b border-[color:var(--border-subtle)] flex items-center justify-between sticky top-0 glass-panel-strong">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300">
+                  Details
+                </p>
+                <h2 className="text-lg font-bold text-ink">Order {editingDelivery.sale.saleNo}</h2>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingDelivery(null)}
-                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                className="h-10 w-10 rounded-xl hover:bg-surface-2 text-ink-muted hover:text-ink transition"
                 aria-label="Close"
               >
                 ✕
@@ -1183,34 +1309,36 @@ export default function StoreDeliveryPage() {
             </div>
             <form onSubmit={handleSaveDetails} className="p-5 space-y-4">
               {detailsError && (
-                <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 text-sm">{detailsError}</div>
+                <div className="p-3 rounded-xl bg-red-500/10 text-red-700 dark:text-red-300 text-sm border border-red-500/20">
+                  {detailsError}
+                </div>
               )}
               <div>
-                <label className="block text-sm font-semibold mb-1 dark:text-gray-300">Customer name</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Customer name</label>
                 <input
                   type="text"
                   value={detailsForm.customerName}
                   onChange={(e) => setDetailsForm((f) => ({ ...f, customerName: e.target.value }))}
-                  className="w-full px-3 py-3 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                  className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1 dark:text-gray-300">Phone</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Phone</label>
                 <input
                   type="text"
                   value={detailsForm.customerPhone}
                   onChange={(e) => setDetailsForm((f) => ({ ...f, customerPhone: e.target.value }))}
-                  className="w-full px-3 py-3 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                  className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1 dark:text-gray-300">Address</label>
+                <label className="block text-sm font-semibold text-ink-secondary mb-1.5">Address</label>
                 {!addNewAddress ? (
                   <>
                     <select
                       value={detailsForm.addressId}
                       onChange={(e) => setDetailsForm((f) => ({ ...f, addressId: e.target.value }))}
-                      className="w-full px-3 py-3 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                      className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                     >
                       <option value="">Select</option>
                       {detailsAddresses.map((a) => (
@@ -1222,7 +1350,7 @@ export default function StoreDeliveryPage() {
                     <button
                       type="button"
                       onClick={() => setAddNewAddress(true)}
-                      className="mt-2 text-sm text-brand-600 font-medium"
+                      className="mt-2 text-sm text-brand-700 dark:text-brand-300 font-semibold"
                     >
                       + New address
                     </button>
@@ -1235,7 +1363,7 @@ export default function StoreDeliveryPage() {
                       onChange={(e) =>
                         setDetailsForm((f) => ({ ...f, newAddress: { ...f.newAddress, line1: e.target.value } }))
                       }
-                      className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                      className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                       placeholder="Line 1"
                     />
                     <input
@@ -1244,7 +1372,7 @@ export default function StoreDeliveryPage() {
                       onChange={(e) =>
                         setDetailsForm((f) => ({ ...f, newAddress: { ...f.newAddress, line2: e.target.value } }))
                       }
-                      className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                      className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                       placeholder="Line 2"
                     />
                     <div className="grid grid-cols-2 gap-2">
@@ -1254,7 +1382,7 @@ export default function StoreDeliveryPage() {
                         onChange={(e) =>
                           setDetailsForm((f) => ({ ...f, newAddress: { ...f.newAddress, city: e.target.value } }))
                         }
-                        className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                        className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                         placeholder="City"
                       />
                       <input
@@ -1263,7 +1391,7 @@ export default function StoreDeliveryPage() {
                         onChange={(e) =>
                           setDetailsForm((f) => ({ ...f, newAddress: { ...f.newAddress, state: e.target.value } }))
                         }
-                        className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                        className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                         placeholder="State"
                       />
                     </div>
@@ -1273,10 +1401,14 @@ export default function StoreDeliveryPage() {
                       onChange={(e) =>
                         setDetailsForm((f) => ({ ...f, newAddress: { ...f.newAddress, zip: e.target.value } }))
                       }
-                      className="w-full px-3 py-2 rounded-xl border dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                      className="w-full px-3 py-2.5 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                       placeholder="PIN"
                     />
-                    <button type="button" onClick={() => setAddNewAddress(false)} className="text-xs text-gray-500">
+                    <button
+                      type="button"
+                      onClick={() => setAddNewAddress(false)}
+                      className="text-xs font-medium text-ink-muted hover:text-ink"
+                    >
                       Pick saved address
                     </button>
                   </div>
@@ -1286,14 +1418,14 @@ export default function StoreDeliveryPage() {
                 <button
                   type="button"
                   onClick={() => setEditingDelivery(null)}
-                  className="flex-1 py-3 rounded-xl border font-medium dark:border-gray-600 dark:text-gray-200"
+                  className="flex-1 py-3 rounded-xl border border-[color:var(--border-strong)] font-semibold text-ink hover:bg-surface-2 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={detailsSaving}
-                  className="flex-1 py-3 rounded-xl bg-brand-600 text-white font-semibold disabled:opacity-50"
+                  className="flex-1 py-3 rounded-xl bg-gradient-brand text-white font-semibold shadow-glow-brand disabled:opacity-50 transition"
                 >
                   {detailsSaving ? 'Saving…' : 'Save'}
                 </button>

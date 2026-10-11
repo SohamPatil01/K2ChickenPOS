@@ -15,6 +15,7 @@ import {
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { generateSaleNo } from '../utils/saleNo.js';
 import { applyPaymentsToSale } from '../services/applySalePayment.js';
+import { ensureDeliveryForSale } from '../services/ensureDeliveryForSale.js';
 import { canAccessCustomerStore, canAccessStoreResource } from '../utils/storeScope.js';
 import {
   PROFILE_REWARD_PERCENT,
@@ -64,6 +65,62 @@ async function fetchSaleForPayResponse(saleId: string) {
 
 function enrichSaleResponse(sale: any) {
   return enrichSaleWithDeliveryFee(enrichSaleCustomer(sale));
+}
+
+/** Paid total including CREDIT (matches offline replay underpaid check). */
+function salePaymentsTotal(sale: { payments?: Array<{ amount?: number }> }) {
+  return Math.round(
+    (sale.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  );
+}
+
+/**
+ * On clientSaleId hit / P2002 race: if the request includes payments and the
+ * sale is still underpaid, apply them so a timeout retry completes checkout.
+ */
+async function resolveExistingSaleForCheckout(
+  existing: any,
+  payments: Array<{ method: string; amount: number; txnRef?: string | null }> | null | undefined,
+  actorUserId: string,
+  actorStoreId: string
+) {
+  if (!existing) return null;
+  const list = Array.isArray(payments) ? payments : null;
+  if (!list?.length) {
+    return enrichSaleResponse(existing);
+  }
+  const paid = salePaymentsTotal(existing);
+  const gt = Math.round(Number(existing.grandTotal) || 0);
+  if (paid >= gt - 1 || existing.status === 'PAID') {
+    return enrichSaleResponse(existing);
+  }
+  try {
+    const paidSale = await applyPaymentsToSale({
+      saleId: existing.id,
+      payments: list,
+      actorUserId,
+      actorStoreId,
+      skipInventorySync: true,
+    });
+    return enrichSaleResponse(paidSale);
+  } catch (err: any) {
+    // Already fully paid / idempotent race — return current row
+    if (
+      String(err?.message || '').toLowerCase().includes('exceeds') ||
+      String(err?.message || '').toLowerCase().includes('not open')
+    ) {
+      const fresh = await prisma.sale.findUnique({
+        where: { id: existing.id },
+        include: {
+          items: { include: { product: true } },
+          payments: true,
+          customer: customerWithAreaInclude,
+        },
+      });
+      return enrichSaleResponse(fresh || existing);
+    }
+    throw err;
+  }
 }
 
 function truthyQueryFlag(value: unknown) {
@@ -667,7 +724,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
           },
         });
         if (existingByKey) {
-          return enrichSaleResponse(existingByKey);
+          const checkoutPaymentsReplay = Array.isArray((data as any).payments)
+            ? (data as any).payments
+            : null;
+          return resolveExistingSaleForCheckout(
+            existingByKey,
+            checkoutPaymentsReplay,
+            userId,
+            storeId
+          );
         }
       }
 
@@ -771,6 +836,10 @@ export async function saleRoutes(fastify: FastifyInstance) {
       subTotal = Math.round(subTotal * 100) / 100;
       taxTotal = Math.round(taxTotal * 100) / 100;
       const deliveryFee = Math.max(0, data.deliveryFee ?? 0);
+
+      // Coupons are applied on the client (discountTotal already in the payload).
+      // Server only records couponCode on the audit log — never mutates discount here,
+      // or inline payments would no longer match the payable total.
 
       // Check discount limit and lock status
       if (config?.isDiscountLocked) {
@@ -1071,12 +1140,23 @@ export async function saleRoutes(fastify: FastifyInstance) {
               customer: customerWithAreaInclude,
             },
           });
-          if (raced) return enrichSaleResponse(raced);
+          if (raced) {
+            return resolveExistingSaleForCheckout(
+              raced,
+              checkoutPaymentsEarly,
+              userId,
+              storeId
+            );
+          }
         }
         throw txErr;
       }
 
-      // Create audit log (also records clientSaleId for support)
+      // Create audit log (also records clientSaleId + coupon for support)
+      const couponCode = String((data as any).couponCode || '')
+        .trim()
+        .toUpperCase()
+        .slice(0, 32);
       void prisma.auditLog
         .create({
           data: {
@@ -1085,14 +1165,20 @@ export async function saleRoutes(fastify: FastifyInstance) {
             action: 'SALE_CREATED',
             entityType: 'Sale',
             entityId: sale.id,
-            metaJson: { saleNo, grandTotal, ...(clientSaleId ? { clientSaleId } : {}) },
+            metaJson: {
+              saleNo,
+              grandTotal,
+              ...(clientSaleId ? { clientSaleId } : {}),
+              ...(couponCode ? { couponCode } : {}),
+            },
           },
         })
         .catch((err) => console.warn('[Sales] Audit log failed (non-critical):', err));
 
       const checkoutPayments = checkoutPaymentsEarly;
+      let finalSale = sale;
       if (checkoutPayments?.length) {
-        const paidSale = await applyPaymentsToSale({
+        finalSale = await applyPaymentsToSale({
           saleId: sale.id,
           payments: checkoutPayments,
           actorUserId: userId,
@@ -1107,10 +1193,23 @@ export async function saleRoutes(fastify: FastifyInstance) {
             payments: [],
           },
         });
-        return enrichSaleResponse(paidSale);
       }
 
-      return enrichSaleResponse(sale);
+      const fulfillmentType = String((data as any).fulfillmentType || '').toUpperCase();
+      if (fulfillmentType === 'DELIVERY' && finalSale?.customerId) {
+        try {
+          await ensureDeliveryForSale({
+            saleId: finalSale.id,
+            deliveryFee: Number((data as any).deliveryFee) || 0,
+            actorUserId: userId,
+            type: 'DELIVERY',
+          });
+        } catch (delErr) {
+          console.warn('[Sales] ensureDeliveryForSale failed (non-blocking):', delErr);
+        }
+      }
+
+      return enrichSaleResponse(finalSale);
     } catch (error: any) {
       console.error('Failed to create sale:', error);
 
@@ -1134,7 +1233,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
                 customer: customerWithAreaInclude,
               },
             });
-            if (raced) return enrichSaleResponse(raced);
+            if (raced) {
+              const bodyPayments = Array.isArray((request.body as any)?.payments)
+                ? (request.body as any).payments
+                : null;
+              return resolveExistingSaleForCheckout(
+                raced,
+                bodyPayments,
+                userId,
+                retryStoreId
+              );
+            }
           } catch {
             /* fall through */
           }
@@ -1164,7 +1273,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
   fastify.post('/:id/pay', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const { id } = (request.params as any);
-      const { payments } = paySaleSchema.parse(request.body as any);
+      const payBody = paySaleSchema.parse(request.body as any);
+      const { payments, paymentAttemptId, fulfillmentType: payFulfillmentType } = payBody;
       const storeId = (getUser(request) as any).storeId;
       const userId = (getUser(request) as any).userId;
 
@@ -1231,7 +1341,29 @@ export async function saleRoutes(fastify: FastifyInstance) {
           payments,
           actorUserId: userId,
           actorStoreId: storeId,
+          paymentAttemptId: paymentAttemptId || null,
         });
+        // Only create delivery when the client explicitly asked for DELIVERY
+        // (never infer from rounding residuals on pickup bills).
+        if (updatedSale?.customerId && payFulfillmentType === 'DELIVERY') {
+          try {
+            const fee = Math.max(
+              0,
+              Math.round(updatedSale.grandTotal) -
+                Math.round(
+                  updatedSale.subTotal + updatedSale.taxTotal - updatedSale.discountTotal
+                )
+            );
+            await ensureDeliveryForSale({
+              saleId: updatedSale.id,
+              deliveryFee: fee,
+              actorUserId: userId,
+              type: 'DELIVERY',
+            });
+          } catch (delErr) {
+            console.warn('[Payment API] ensureDeliveryForSale failed:', delErr);
+          }
+        }
         return enrichSaleResponse(updatedSale);
       } catch (payErr: any) {
         if (payErr?.requiresApproval) {

@@ -10,19 +10,10 @@ import { parseCustomerListResponse } from '@/lib/customers';
 import NumPad from '@/components/NumPad';
 import VirtualKeyboard from '@/components/VirtualKeyboard';
 import BillSuccessAnimation from '@/components/BillSuccessAnimation';
-import {
-  isCheckoutNetworkError,
-  isOfflineForCheckout,
-  queueOfflineCheckout,
-} from '@/lib/offlineCheckout';
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
 import PendingCreditSettlement from '@/components/PendingCreditSettlement';
-import {
-  completeNewSaleCheckout,
-  checkoutPaymentMismatch,
-} from '@/lib/pendingCreditCheckout';
-import { runPostCheckoutSideEffects } from '@/lib/checkoutPostSuccess';
+import { executeCheckout } from '@/lib/executeCheckout';
 import { LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 import CustomerDisplayButton from '@/components/customerDisplay/CustomerDisplayButton';
 import {
@@ -71,6 +62,8 @@ export default function StoreCartPage() {
   const setFulfillmentType = useCartStore((state) => state.setFulfillmentType);
   const deliveryFee = useCartStore((state) => state.deliveryFee);
   const setDeliveryFee = useCartStore((state) => state.setDeliveryFee);
+  const couponCode = useCartStore((state) => state.couponCode);
+  const setCouponCode = useCartStore((state) => state.setCouponCode);
   const loadCart = useCartStore((state) => state.loadCart);
   const clearCart = useCartStore((state) => state.clearCart);
   const loyaltyRedeemPoints = useCartStore((state) => state.loyaltyRedeemPoints);
@@ -82,6 +75,7 @@ export default function StoreCartPage() {
   const customerDisplayActive = useCustomerDisplayStore((state) => state.active);
 
   // State
+  const [discountLocked, setDiscountLocked] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showNumPad, setShowNumPad] = useState(false);
   /** Which phone field the numpad is editing. */
@@ -115,7 +109,11 @@ export default function StoreCartPage() {
   const checkoutGhostClickGuardUntilRef = useRef(0);
   const [checkoutGhostBlocker, setCheckoutGhostBlocker] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [completedSale, setCompletedSale] = useState<{ saleNo: string; grandTotal: number } | null>(null);
+  const [completedSale, setCompletedSale] = useState<{
+    saleNo: string;
+    grandTotal: number;
+    saleId?: string | null;
+  } | null>(null);
   const [showCustomerSection, setShowCustomerSection] = useState(true); // Show by default
   const [skipCustomer, setSkipCustomer] = useState(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
@@ -146,6 +144,22 @@ export default function StoreCartPage() {
     setTempAddressLine2(customerAddressLine2 || '');
     setTempAddressCity(customerAddressCity || '');
   }, [customerAddressLine1, customerAddressLine2, customerAddressCity]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/api/v1/stores/franchise-config').catch(() => null);
+        const locked = Boolean(res?.data?.isDiscountLocked);
+        if (!cancelled) setDiscountLocked(locked);
+      } catch {
+        if (!cancelled) setDiscountLocked(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /** Applies a customer record fetched from the API (search hit, save response, or hydrate) to address + reward state. */
   const applyCustomerProfileData = (data: {
@@ -620,293 +634,59 @@ export default function StoreCartPage() {
       return;
     }
 
-    const cartState = useCartStore.getState();
-    if (payments.some((p) => p.method === 'CREDIT')) {
-      if (skipCustomer || !cartState.customerId) {
-        showNotification(
-          'Credit bills need a customer. Turn off walk-in and add phone & name first.',
-          'warning'
-        );
-        return;
-      }
-    }
-
     paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
 
-    const clientSaleId =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `cart-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-    const buildSaleData = () => {
-      const state = useCartStore.getState();
-      const {
-        items,
-        customerId,
-        customerPhone,
-        customerName,
-        customerArea,
-        discountTotal,
-        discountSource,
-        fulfillmentType: ft,
-        deliveryFee: fee,
-      } = state;
-      const profileRewardApplied = !skipCustomer && customerId && discountSource === 'profile_reward';
-      // Loyalty redemption only applies to an attached (non-walk-in) customer.
-      const loyaltyPointsRedeemed =
-        !skipCustomer && customerId ? state.getTotal().loyaltyPointsApplied : 0;
-      return {
-        clientSaleId,
-        items: items.map((item) => ({
-          productId: item.productId,
-          qtyKg: item.qtyKg,
-          qtyPcs: item.qtyPcs,
-          rate: item.rate,
-          taxRate: item.taxRate,
-          metaJson: item.metaJson || undefined,
-        })),
-        customerId: !skipCustomer && customerId ? customerId : undefined,
-        customerPhone: !skipCustomer && customerPhone ? customerPhone : undefined,
-        customerName: !skipCustomer && customerName ? customerName : undefined,
-        customerArea: !skipCustomer && customerArea ? customerArea : undefined,
-        discountTotal: discountTotal || 0,
-        discountSource: profileRewardApplied ? ('profile_reward' as const) : undefined,
-        profileRewardApplied: profileRewardApplied || undefined,
-        deliveryFee: ft === 'DELIVERY' ? fee || 0 : 0,
-        loyaltyPointsRedeemed,
-        referredByPhone:
-          !skipCustomer && state.referredByPhone ? state.referredByPhone : undefined,
-        referredByCode:
-          !skipCustomer && state.referredByCode ? state.referredByCode : undefined,
-      };
-    };
-
-    const finishOfflineCheckout = async (message: string) => {
-      const saleData = buildSaleData();
-      const { grandTotal } = getTotal();
-      await queueOfflineCheckout(
-        saleData,
-        payments,
-        grandTotal,
-        useCartStore.getState().fulfillmentType
-      );
-      setShowPaymentModal(false);
-      publishSuccessMode(grandTotal, null, null, {
-        loyaltyPointsRedeemed: useCartStore.getState().getTotal().loyaltyPointsApplied,
-      });
-      try {
-        await clearCart();
-      } catch (clearErr) {
-        console.error('[Cart] clearCart after offline checkout:', clearErr);
-      }
-      setCompletedSale({
-        saleNo: 'Queued (offline)',
-        grandTotal: Math.round(grandTotal),
-      });
-      setShowSuccessAnimation(true);
-      showNotification(message, 'success', 6500);
-    };
-    
     try {
-      if (useCartStore.getState().items.length === 0) {
-        showNotification('Cart is empty', 'warning');
-        return;
-      }
-
-      const saleData = buildSaleData();
-      const { grandTotal } = getTotal();
-
-      if (isOfflineForCheckout()) {
-        if (getPendingSettlementTotal() > 0) {
-          showNotification(
-            'Settling old credit needs internet. Uncheck previous credit or go online.',
-            'warning',
-            6000
-          );
-          return;
-        }
-        await finishOfflineCheckout(
-          'Bill saved offline. It will sync automatically when internet is back.'
-        );
-        return;
-      }
-
-      const pendingLines = getSelectedPendingSettlements();
-      const checkoutGrandTotal = getCheckoutTotal();
-      if (checkoutPaymentMismatch(payments, checkoutGrandTotal)) {
-        showNotification(
-          `Payment total must match checkout amount ₹${checkoutGrandTotal}`,
-          'error'
-        );
-        return;
-      }
-
-      console.log('[Cart] Creating sale with data:', saleData);
-      const saleResponse = await api.post('/api/v1/sales', {
-        ...saleData,
-        ...(pendingLines.length === 0 ? { payments } : {}),
-      });
-      console.log('[Cart] Sale response:', saleResponse.data);
-
-      const payload = saleResponse.data;
-      // Discount over limit: sale is OPEN + pending override (HTTP 202 body is nested).
-      const needsDiscountApproval =
-        payload?.requiresApproval === true ||
-        payload?.override?.status === 'PENDING' ||
-        (payload?.sale?.id && payload?.override && !payload?.id);
-
-      const finishPendingDiscountApproval = async (saleNo: string) => {
-        setShowPaymentModal(false);
-        publishIdleMode();
-        showNotification(
-          `Sale #${saleNo} created. Discount needs manager approval before payment.`,
-          'info',
-          6000
-        );
-        try {
-          await clearCart();
-        } catch (clearErr) {
-          console.error('[Cart] clearCart after discount approval request:', clearErr);
-        }
-        setTimeout(() => router.push('/store/discount-approvals'), 1500);
-      };
-
-      if (needsDiscountApproval) {
-        const saleNo = payload?.sale?.saleNo || payload?.saleNo || 'pending';
-        await finishPendingDiscountApproval(saleNo);
-        return;
-      }
-
-      const sale = payload?.sale?.id ? payload.sale : payload;
-      if (!sale || !sale.id) {
-        console.error('[Cart] Invalid sale response:', sale);
-        throw new Error('Invalid sale response: Sale ID not found');
-      }
-
-      const cartOnlyTotal = getTotal().grandTotal;
-
-      try {
-        const { settledSaleNos } = await completeNewSaleCheckout(
-          api,
-          sale,
-          payments,
-          pendingLines,
-          cartOnlyTotal
-        );
-        if (settledSaleNos.length > 0) {
-          showNotification(
-            `Settled previous credit: ${settledSaleNos.map((n) => `#${n}`).join(', ')}`,
-            'success',
-            5000
-          );
-        }
-      } catch (payErr: any) {
-        const payData = payErr?.response?.data;
-        if (
-          payData?.requiresApproval ||
-          String(payData?.error || '').toLowerCase().includes('pending approval')
-        ) {
-          await finishPendingDiscountApproval(sale.saleNo || sale.id);
-          return;
-        }
-        throw payErr;
-      }
-
-      const fulfillType = useCartStore.getState().fulfillmentType;
-      const isHomeDelivery = fulfillType === 'DELIVERY' && sale.customerId;
-      const loyaltyCustomerId = useCartStore.getState().customerId;
-      const loyaltyPointsRedeemed = useCartStore.getState().getTotal().loyaltyPointsApplied;
-
-      setShowPaymentModal(false);
-      setCompletedSale({
-        saleNo: sale.saleNo || 'N/A',
-        grandTotal: checkoutGrandTotal,
-      });
-      setShowSuccessAnimation(true);
-
-      // Publish success before cart clears so the display stays on success → review.
-      publishSuccessMode(checkoutGrandTotal, sale.saleNo || null, sale.id || null, {
-        loyaltyPointsRedeemed,
-        loyaltyPointsBalance: null,
-      });
-
-      runPostCheckoutSideEffects({
+      await executeCheckout({
         api,
-        saleId: sale.id,
         payments,
-        checkoutGrandTotal,
-        loyaltyCustomerId,
         skipCustomer,
-        isHomeDelivery,
-        deliveryFee: useCartStore.getState().getTotal().deliveryFee,
         clearCart,
+        onClosePaymentUi: () => setShowPaymentModal(false),
+        onPaymentFailedUi: () => publishCurrentBill(),
+        onNotify: showNotification,
         onLoyaltyBalance: (balance) => {
           setCustomerPoints(balance);
           setCustomerLoyaltyPoints(balance);
         },
-        onDeliveryError: (message) => showNotification(message, 'info', 4000),
+        onDiscountApproval: async (saleNo) => {
+          publishIdleMode();
+          showNotification(
+            `Sale #${saleNo} created. Discount needs manager approval before payment.`,
+            'info',
+            6000
+          );
+          try {
+            await clearCart();
+          } catch (clearErr) {
+            console.error('[Cart] clearCart after discount approval:', clearErr);
+          }
+          setTimeout(() => router.push('/store/discount-approvals'), 1500);
+        },
+        onSuccess: ({ saleNo, saleId, checkoutGrandTotal, loyaltyPointsRedeemed, offline }) => {
+          setCompletedSale({
+            saleNo,
+            grandTotal: checkoutGrandTotal,
+            saleId,
+          });
+          setShowSuccessAnimation(true);
+          publishSuccessMode(checkoutGrandTotal, offline ? null : saleNo, saleId, {
+            loyaltyPointsRedeemed,
+            loyaltyPointsBalance: null,
+          });
+        },
       });
     } catch (error: any) {
       console.error('[Cart] Failed to process payment:', error);
-
-      const errData = error?.response?.data;
-      // Some proxies surface HTTP 202 discount-approval as an error; sale already exists.
-      if (
-        errData?.requiresApproval ||
-        errData?.override?.status === 'PENDING' ||
-        (errData?.sale?.id && errData?.override)
-      ) {
-        setShowPaymentModal(false);
-        publishIdleMode();
-        const saleNo = errData?.sale?.saleNo || 'pending';
-        showNotification(
-          `Sale #${saleNo} created. Discount needs manager approval before payment.`,
-          'info',
-          6000
-        );
-        try {
-          await clearCart();
-        } catch (clearErr) {
-          console.error('[Cart] clearCart after discount approval error path:', clearErr);
-        }
-        setTimeout(() => router.push('/store/discount-approvals'), 1500);
-        return;
-      }
-
-      if (isCheckoutNetworkError(error) && useCartStore.getState().items.length > 0) {
-        try {
-          await finishOfflineCheckout(
-            'No connection — bill saved offline and will sync when you are back online.'
-          );
-          return;
-        } catch (queueErr) {
-          console.error('[Cart] Offline queue fallback failed:', queueErr);
-        }
-      }
-      
-      let errorMessage = 'Failed to process payment';
-      
-      if (error.response?.status === 401) {
-        errorMessage = 'Authentication failed. Please log in again.';
+      if (error?.response?.status === 401) {
         setTimeout(() => router.push('/login'), 2000);
-      } else if (error.response?.status === 400) {
-        errorMessage = error.response?.data?.error || 'Invalid request. Please check your cart items.';
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.message) {
-        errorMessage = error.message;
       }
-      
-      // Unstick payment UI + customer display on any failure.
-      setShowPaymentModal(false);
-      publishCurrentBill();
-      showNotification(errorMessage, 'error', 5000);
     } finally {
       paymentInFlightRef.current = false;
       setIsProcessingPayment(false);
     }
-  }, [isProcessingPayment, router, showNotification, clearCart, getTotal, skipCustomer]);
+  }, [isProcessingPayment, router, showNotification, clearCart, skipCustomer]);
 
   // Keyboard shortcuts for quick actions (after handleCreateSale — avoids TDZ)
   useEffect(() => {
@@ -1775,76 +1555,103 @@ export default function StoreCartPage() {
                     <span className="font-medium text-ink">₹{Math.round(taxTotal)}</span>
                   </div>
                   
+                  <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <label className="block text-sm font-semibold text-ink-secondary mb-1.5">
+                      Coupon code
+                    </label>
+                    <input
+                      type="text"
+                      value={couponCode || ''}
+                      onChange={(e) => setCouponCode(e.target.value || null)}
+                      placeholder="e.g. K2CHICKEN10"
+                      className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      disabled={discountLocked}
+                    />
+                    <p className="text-[10px] text-ink-muted mt-1">
+                      Built-in: K2CHICKEN10 (10%), WELCOME5 (5%) when no other discount is set.
+                    </p>
+                  </div>
+
                   {/* Quick Discount Buttons */}
                   <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-3">
                         <label className="text-sm font-semibold text-ink-secondary">Quick Discount</label>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setDiscountType('amount')}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ discountType === 'amount' ? 'bg-brand-500 text-white shadow-sm' : 'bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600' }`}
-                          >
-                            ₹ Amount
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDiscountType('percentage')}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ discountType === 'percentage' ? 'bg-brand-500 text-white shadow-sm' : 'bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600' }`}
-                          >
-                            % Percent
-                          </button>
-                        </div>
+                        {!discountLocked && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDiscountType('amount')}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ discountType === 'amount' ? 'bg-brand-500 text-white shadow-sm' : 'bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600' }`}
+                            >
+                              ₹ Amount
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDiscountType('percentage')}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ discountType === 'percentage' ? 'bg-brand-500 text-white shadow-sm' : 'bg-gray-200 dark:bg-gray-700 text-ink-secondary hover:bg-gray-300 dark:hover:bg-gray-600' }`}
+                            >
+                              % Percent
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      
-                      {/* Quick Discount Buttons */}
-                      <div className="grid grid-cols-4 gap-2 mb-3">
-                        {[5, 10, 15, 20].map((percent) => (
-                          <button
-                            key={percent}
-                            onClick={() => {
-                              setDiscountType('percentage');
-                              setDiscountPercentage(percent);
-                            }}
-                            className="px-2 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg text-xs font-semibold transition-colors"
-                          >
-                            {percent}%
-                          </button>
-                        ))}
-                      </div>
-                      
-                      {discountType === 'amount' ? (
-                        <input
-                          type="number"
-                          value={discountTotal || ''}
-                          onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                          className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
-                          step="0.01"
-                          min="0"
-                          placeholder="0.00"
-                        />
+
+                      {discountLocked ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                          Discounts are locked by HQ for this franchise. Profile rewards and manager-approved overrides still apply when allowed.
+                        </p>
                       ) : (
-                        <div className="space-y-2">
-                          <input
-                            type="number"
-                            value={discountPercentage || ''}
-                            onChange={(e) => {
-                              const percentage = parseFloat(e.target.value) || 0;
-                              setDiscountPercentage(Math.min(100, Math.max(0, percentage)));
-                            }}
-                            className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            placeholder="0"
-                          />
-                          {discountPercentage > 0 && (
-                            <div className="text-sm text-center text-ink-secondary bg-gray-50 dark:bg-gray-700/50 py-2 rounded-lg">
-                              Discount: <span className="font-semibold">₹{Math.round((subTotal * discountPercentage) / 100)}</span>
+                        <>
+                          <div className="grid grid-cols-4 gap-2 mb-3">
+                            {[5, 10, 15, 20].map((percent) => (
+                              <button
+                                key={percent}
+                                type="button"
+                                onClick={() => {
+                                  setDiscountType('percentage');
+                                  setDiscountPercentage(percent);
+                                }}
+                                className="px-2 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-lg text-xs font-semibold transition-colors"
+                              >
+                                {percent}%
+                              </button>
+                            ))}
+                          </div>
+
+                          {discountType === 'amount' ? (
+                            <input
+                              type="number"
+                              value={discountTotal || ''}
+                              onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                              className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                            />
+                          ) : (
+                            <div className="space-y-2">
+                              <input
+                                type="number"
+                                value={discountPercentage || ''}
+                                onChange={(e) => {
+                                  const percentage = parseFloat(e.target.value) || 0;
+                                  setDiscountPercentage(Math.min(100, Math.max(0, percentage)));
+                                }}
+                                className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                placeholder="0"
+                              />
+                              {discountPercentage > 0 && (
+                                <div className="text-sm text-center text-ink-secondary bg-gray-50 dark:bg-gray-700/50 py-2 rounded-lg">
+                                  Discount: <span className="font-semibold">₹{Math.round((subTotal * discountPercentage) / 100)}</span>
+                                </div>
+                              )}
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>
@@ -1916,22 +1723,61 @@ export default function StoreCartPage() {
                   {/* Settle previous customer credit with this checkout */}
                   <PendingCreditSettlement customerId={customerId} hidden={skipCustomer} />
 
-                  {fulfillmentType === 'DELIVERY' && customerId && (
-                    <div className="pt-3">
-                      <label className="block text-sm font-semibold text-ink-secondary mb-1">
-                        Delivery fee (₹)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={deliveryFee || ''}
-                        onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
-                        className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
-                        placeholder="0"
-                      />
+                  <div className="pt-3 space-y-2">
+                    <label className="block text-sm font-semibold text-ink-secondary">
+                      Fulfillment
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFulfillmentType('PICKUP')}
+                        className={`py-2.5 rounded-xl text-sm font-semibold transition ${
+                          fulfillmentType === 'PICKUP'
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-surface-2 text-ink-secondary hover:text-ink'
+                        }`}
+                      >
+                        Pickup
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!customerId || skipCustomer) {
+                            showNotification(
+                              'Select a customer before choosing delivery',
+                              'warning'
+                            );
+                            return;
+                          }
+                          setFulfillmentType('DELIVERY');
+                        }}
+                        disabled={!customerId || skipCustomer}
+                        className={`py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50 ${
+                          fulfillmentType === 'DELIVERY'
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-surface-2 text-ink-secondary hover:text-ink'
+                        }`}
+                      >
+                        Delivery
+                      </button>
                     </div>
-                  )}
+                    {fulfillmentType === 'DELIVERY' && customerId && !skipCustomer && (
+                      <div>
+                        <label className="block text-sm font-semibold text-ink-secondary mb-1">
+                          Delivery fee (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={deliveryFee || ''}
+                          onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                          className="w-full px-4 py-3 text-base font-semibold border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <div className="pt-4 border-t-2 border-gray-300 dark:border-gray-600 space-y-1">
                     {effectiveDeliveryFee > 0 && (
@@ -2107,8 +1953,16 @@ export default function StoreCartPage() {
               subtitle={
                 completedSale.saleNo.includes('offline')
                   ? 'Saved offline — will sync when internet is back.'
-                  : 'Redirecting to POS...'
+                  : 'Tap print if needed, or continue to POS…'
               }
+              onPrint={
+                completedSale.saleNo.includes('offline')
+                  ? undefined
+                  : () => {
+                      printReceipt(generateReceiptData(completedSale, user?.store));
+                    }
+              }
+              billUrl={completedSale.saleId ? `/bill/${completedSale.saleId}` : null}
               onComplete={() => {
                 setShowSuccessAnimation(false);
                 setCompletedSale(null);
@@ -2128,7 +1982,6 @@ export default function StoreCartPage() {
                 }}
                 className="px-4 py-2 bg-gradient-brand hover:brightness-105 shadow-glow-brand text-white rounded-lg transition-colors flex items-center gap-2"
               >
-                <span>🖨️</span>
                 <span>Print Receipt</span>
               </button>
               <button

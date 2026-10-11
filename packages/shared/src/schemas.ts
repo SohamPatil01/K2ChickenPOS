@@ -98,6 +98,8 @@ export const createSaleSchema = z.object({
   referredByCode: z.string().optional(),
   /** When set, payment is applied in the same request (one round-trip checkout). */
   payments: z.array(paymentSchema).min(1).optional(),
+  /** When DELIVERY and sale settles, server creates the delivery row. */
+  fulfillmentType: z.enum(['PICKUP', 'DELIVERY']).optional(),
 });
 
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */
@@ -116,6 +118,10 @@ export const REFERRAL_BONUS_POINTS = 50;
 
 export const paySaleSchema = z.object({
   payments: z.array(paymentSchema).min(1),
+  /** Client retry key — stored on Payment.txnRef to make /pay idempotent. */
+  paymentAttemptId: z.string().min(8).max(64).optional(),
+  /** When DELIVERY, server ensures a delivery row after settle. */
+  fulfillmentType: z.enum(['PICKUP', 'DELIVERY']).optional(),
 });
 
 // Scale Barcode

@@ -48,6 +48,7 @@ import { cronRoutes } from './routes/cron.js';
 import { portalRoutes } from './routes/portal.js';
 import { shiftRoutes } from './routes/shifts.js';
 import { publicPreOrderRoutes, preOrderRoutes } from './routes/preOrders.js';
+import { heldCartRoutes } from './routes/heldCarts.js';
 
 const fastify = Fastify({
   logger: true,
@@ -138,6 +139,7 @@ async function build() {
   await fastify.register(discountRoutes, { prefix: '/api/v1' });
   await fastify.register(dailyClosingRoutes, { prefix: '/api/v1' });
   await fastify.register(shiftRoutes, { prefix: '/api/v1/shifts' });
+  await fastify.register(heldCartRoutes, { prefix: '/api/v1/held-carts' });
   await fastify.register(preOrderRoutes, { prefix: '/api/v1/pre-orders' });
   await fastify.register(publicPreOrderRoutes, { prefix: '/api/v1/public' });
   await fastify.register(backupRoutes, { prefix: '/api/v1/backup' });

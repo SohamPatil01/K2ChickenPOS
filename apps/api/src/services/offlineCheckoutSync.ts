@@ -6,6 +6,7 @@ import {
   normalizePaymentsForSale,
   ymdInStoreTz,
   businessDateForNow,
+  LOYALTY_POINT_VALUE,
 } from '@azela-pos/shared';
 import { z } from 'zod';
 import {
@@ -15,6 +16,8 @@ import {
 import { upsertCustomerArea } from '../utils/customerArea.js';
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
+import { applyPaymentsToSale } from './applySalePayment.js';
+import { ensureDeliveryForSale } from './ensureDeliveryForSale.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from './shiftService.js';
 
 const offlinePayloadSchema = z.object({
@@ -42,38 +45,66 @@ export async function applyOfflineCheckoutFromSync(
     });
   }
 
-  // Idempotency without Sale.offlineIdempotencyKey (supports DBs that never added that column).
-  const existingAudit = await prisma.auditLog.findFirst({
-    where: {
-      storeId,
-      action: 'SALE_CREATED_OFFLINE_SYNC',
-      metaJson: {
-        path: ['offlineIdempotencyKey'],
-        equals: data.idempotencyKey,
+  // Prefer indexed Sale.offlineIdempotencyKey; fall back to AuditLog JSON scan.
+  let existing = await prisma.sale
+    .findUnique({
+      where: {
+        storeId_offlineIdempotencyKey: {
+          storeId,
+          offlineIdempotencyKey: data.idempotencyKey,
+        },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      include: { payments: true, items: true },
+    })
+    .catch(() => null);
 
-  const existing =
-    existingAudit?.entityId != null
-      ? await prisma.sale.findUnique({
-          where: { id: existingAudit.entityId },
-          include: { payments: true },
-        })
-      : null;
+  if (!existing) {
+    const existingAudit = await prisma.auditLog.findFirst({
+      where: {
+        storeId,
+        action: 'SALE_CREATED_OFFLINE_SYNC',
+        metaJson: {
+          path: ['offlineIdempotencyKey'],
+          equals: data.idempotencyKey,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    existing =
+      existingAudit?.entityId != null
+        ? await prisma.sale.findUnique({
+            where: { id: existingAudit.entityId },
+            include: { payments: true, items: true },
+          })
+        : null;
+  }
 
   if (existing) {
     const paid = Math.round(
       existing.payments.reduce((s: number, p: { amount: number }) => s + p.amount, 0)
     );
     const gt = Math.round(existing.grandTotal);
-    if (paid >= gt - 1) {
+    if (paid >= gt - 1 || existing.status === 'PAID') {
       return;
     }
-    throw new Error(
-      `OFFLINE_REPLAY_INCOMPLETE: sale ${existing.saleNo} exists but payments (${paid}) < total (${gt})`
-    );
+    // Complete underpaid replay instead of failing the sync batch.
+    await applyPaymentsToSale({
+      saleId: existing.id,
+      payments: data.payments,
+      actorUserId: userId,
+      actorStoreId: storeId,
+      skipInventorySync: true,
+      existingSale: {
+        id: existing.id,
+        status: existing.status,
+        grandTotal: existing.grandTotal,
+        storeId,
+        items: existing.items || [],
+        payments: existing.payments,
+      },
+    });
+    return;
   }
 
   const store = await prisma.store.findUnique({
@@ -159,9 +190,25 @@ export async function applyOfflineCheckoutFromSync(
   }
 
   const deliveryFee = Math.max(0, cs.deliveryFee ?? 0);
-  const grandTotal =
+  const baseGrandTotal =
     Math.round((subTotal + taxTotal - cs.discountTotal + deliveryFee) * 100) / 100;
-  const roundedGrandTotal = Math.round(grandTotal);
+  const roundedBaseGrandTotal = Math.round(baseGrandTotal);
+
+  let loyaltyPointsToRedeem = 0;
+  let loyaltyRedeemValue = 0;
+  const requestedRedeem = Math.max(0, Math.floor(Number(cs.loyaltyPointsRedeemed) || 0));
+  if (requestedRedeem > 0 && customerId) {
+    const redeemCustomer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { loyaltyPoints: true },
+    });
+    const available = Math.floor(redeemCustomer?.loyaltyPoints || 0);
+    const maxByBill = Math.floor(roundedBaseGrandTotal / LOYALTY_POINT_VALUE);
+    loyaltyPointsToRedeem = Math.max(0, Math.min(requestedRedeem, available, maxByBill));
+    loyaltyRedeemValue = loyaltyPointsToRedeem * LOYALTY_POINT_VALUE;
+  }
+
+  const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue;
 
   const todayForNo = new Date();
   const dateStr = ymdInStoreTz(todayForNo).replace(/-/g, '');
@@ -244,6 +291,7 @@ export async function applyOfflineCheckoutFromSync(
         createdByUserId: userId,
         shiftId: openShiftId,
         businessDate: businessDateForNow(),
+        offlineIdempotencyKey: data.idempotencyKey,
         items: {
           create: saleItems.map((item: any) => {
             const qty = item.qtyKg || item.qtyPcs || 0;
@@ -287,6 +335,34 @@ export async function applyOfflineCheckoutFromSync(
       await tx.payment.createMany({ data: paymentRows });
     }
 
+    if (loyaltyPointsToRedeem > 0 && customerId) {
+      const redeemCur = await tx.customer.findUnique({
+        where: { id: customerId },
+        select: { loyaltyPoints: true },
+      });
+      const curPoints = Math.floor(redeemCur?.loyaltyPoints || 0);
+      const applied = Math.max(0, Math.min(loyaltyPointsToRedeem, curPoints));
+      if (applied > 0) {
+        const newBalance = curPoints - applied;
+        await tx.customer.update({
+          where: { id: customerId },
+          data: { loyaltyPoints: newBalance },
+        });
+        await tx.loyaltyTransaction.create({
+          data: {
+            customerId,
+            storeId,
+            type: 'REDEEM',
+            points: -applied,
+            balance: newBalance,
+            description: `Redeemed ${applied} points on ${saleNo} (offline sync)`,
+            saleId: created.id,
+            createdBy: userId,
+          },
+        });
+      }
+    }
+
     await tx.auditLog.create({
       data: {
         storeId,
@@ -298,6 +374,8 @@ export async function applyOfflineCheckoutFromSync(
           saleNo,
           offlineIdempotencyKey: data.idempotencyKey,
           grandTotal: roundedGrandTotal,
+          loyaltyPointsRedeemed: loyaltyPointsToRedeem,
+          couponCode: cs.couponCode || undefined,
         },
       },
     });
@@ -323,19 +401,12 @@ export async function applyOfflineCheckoutFromSync(
 
   if (data.fulfillmentType === 'DELIVERY' && sale.customerId) {
     try {
-      const existingDel = await prisma.deliveryOrder.findUnique({
-        where: { saleId: sale.id },
+      await ensureDeliveryForSale({
+        saleId: sale.id,
+        deliveryFee,
+        actorUserId: userId,
+        type: 'DELIVERY',
       });
-      if (!existingDel) {
-        await prisma.deliveryOrder.create({
-          data: {
-            storeId,
-            saleId: sale.id,
-            type: 'DELIVERY',
-            deliveryFee,
-          },
-        });
-      }
     } catch (e) {
       console.warn('[offlineCheckoutSync] delivery create skipped:', e);
     }

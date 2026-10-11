@@ -10,6 +10,8 @@ export type OfflineCreateSalePayload = {
     taxRate: number;
     metaJson?: Record<string, unknown>;
   }>;
+  /** Online/offline shared idempotency key when present. */
+  clientSaleId?: string;
   customerId?: string;
   customerPhone?: string;
   customerName?: string;
@@ -22,6 +24,9 @@ export type OfflineCreateSalePayload = {
   referredByPhone?: string;
   /** Optional referrer loyalty code for loyalty referral at counter. */
   referredByCode?: string;
+  discountSource?: string;
+  profileRewardApplied?: boolean;
+  couponCode?: string;
 };
 
 /** True when the browser reports no connectivity. */
@@ -53,18 +58,26 @@ export async function queueOfflineCheckout(
   createSale: OfflineCreateSalePayload,
   payments: Array<{ method: string; amount: number }>,
   grandTotal: number,
-  fulfillmentType: 'PICKUP' | 'DELIVERY' = 'PICKUP'
+  fulfillmentType: 'PICKUP' | 'DELIVERY' = 'PICKUP',
+  /** Prefer the same key as online `clientSaleId` so retries don't double-bill. */
+  clientSaleId?: string
 ): Promise<void> {
-  const idempotencyKey =
-    typeof crypto !== 'undefined' && crypto.randomUUID
+  const fromPayload =
+    clientSaleId ||
+    createSale.clientSaleId ||
+    (typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
-      : `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      : `offline-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const idempotencyKey = String(fromPayload).trim().slice(0, 64);
 
   const paymentsQueued = normalizePaymentsForSale(payments, grandTotal);
 
   await queueEvent('OFFLINE_CHECKOUT_COMPLETE', {
     idempotencyKey,
-    createSale,
+    createSale: {
+      ...createSale,
+      clientSaleId: idempotencyKey,
+    },
     payments: paymentsQueued,
     fulfillmentType,
   });

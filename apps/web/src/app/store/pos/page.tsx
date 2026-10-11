@@ -11,7 +11,8 @@ import Link from "next/link";
 import CartAnimation from "@/components/CartAnimation";
 import BillSuccessAnimation from "@/components/BillSuccessAnimation";
 import NumPad from "@/components/NumPad";
-import { SkeletonProductCard, AnimatedNumber } from "@/components/ui";
+import { SkeletonProductCard } from "@/components/ui";
+import { printReceipt, generateReceiptData } from "@/lib/printReceipt";
 import { normalizeBarcodeForLookup } from "@azela-pos/shared";
 import {
   saveHeldCart,
@@ -23,17 +24,8 @@ import {
   type HeldCartSnapshot,
   type LocalProduct,
 } from "@azela-pos/offline";
-import {
-  isCheckoutNetworkError,
-  isOfflineForCheckout,
-  queueOfflineCheckout,
-} from "@/lib/offlineCheckout";
-import PendingCreditSettlement from "@/components/PendingCreditSettlement";
-import {
-  completeNewSaleCheckout,
-  checkoutPaymentMismatch,
-} from "@/lib/pendingCreditCheckout";
-import { runPostCheckoutSideEffects } from "@/lib/checkoutPostSuccess";
+import CartPaymentModal from "@/components/CartPaymentModal";
+import { executeCheckout } from "@/lib/executeCheckout";
 import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
 import PosPreOrders from "@/components/pre-orders/PosPreOrders";
 import {
@@ -205,8 +197,11 @@ export default function StorePOSPage() {
     setDiscountPercentage,
   } = useCartStore();
   const checkoutGrandTotal = useCartStore((s) => s.getCheckoutTotal());
-  const cartGrandTotal = useCartStore((s) => s.getTotal().grandTotal);
-  const pendingSettlementTotal = useCartStore((s) => s.getPendingSettlementTotal());
+  const cartTotals = useCartStore((s) => s.getTotal());
+  const cartGrandTotal = cartTotals.grandTotal;
+  const cartSubTotal = cartTotals.subTotal;
+  const cartTaxTotal = cartTotals.taxTotal;
+  const cartDiscountTotal = useCartStore((s) => s.discountTotal || 0);
   const pendingSettlements = useCartStore((s) => s.pendingSettlements);
   const { showNotification } = useNotificationStore();
   const [products, setProducts] = useState<Product[]>([]);
@@ -225,8 +220,12 @@ export default function StorePOSPage() {
     productName: string;
     lockedPrice: number;
     requestedPrice: number;
-    managerPin: string;
+    qtyKg?: number;
+    qtyPcs?: number;
   } | null>(null);
+  const [showHoldLabelModal, setShowHoldLabelModal] = useState(false);
+  const [holdLabel, setHoldLabel] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [manualItem, setManualItem] = useState({
     sku: "",
     description: "",
@@ -260,6 +259,7 @@ export default function StorePOSPage() {
   const [completedSale, setCompletedSale] = useState<{
     saleNo: string;
     grandTotal: number;
+    saleId?: string | null;
   } | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [stockByProductId, setStockByProductId] = useState<
@@ -268,7 +268,13 @@ export default function StorePOSPage() {
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [heldRows, setHeldRows] = useState<
-    Array<{ id: number; label: string; createdAt: number }>
+    Array<{
+      id: number;
+      label: string;
+      createdAt: number;
+      _serverId?: string;
+      _snapshot?: HeldCartSnapshot;
+    }>
   >([]);
   const [shortcutsBanner, setShortcutsBanner] = useState(false);
 
@@ -293,8 +299,44 @@ export default function StorePOSPage() {
 
   const openHoldModal = useCallback(async () => {
     try {
-      setHeldRows(await listHeldCarts());
+      const local = await listHeldCarts();
+      setHeldRows(local);
       setShowHoldModal(true);
+      // Merge server holds from other registers (best-effort)
+      try {
+        const res = await api.get("/api/v1/held-carts");
+        const remote = Array.isArray(res.data?.items) ? res.data.items : [];
+        if (remote.length > 0) {
+          setHeldRows((prev) => {
+            const labels = new Set(prev.map((p) => `${p.label}|${p.createdAt}`));
+            const extras = remote
+              .filter((r: any) => r?.id && r?.label && r?.snapshot)
+              .map((r: any, idx: number) => ({
+                id: -(idx + 1) - Math.abs(
+                  String(r.id)
+                    .split("")
+                    .reduce((a: number, c: string) => a + c.charCodeAt(0), 0)
+                ),
+                label: `☁ ${r.label}`,
+                createdAt: new Date(r.createdAt).getTime() || Date.now(),
+                _serverId: String(r.id),
+                _snapshot: r.snapshot as HeldCartSnapshot,
+              }));
+            const merged = [...prev];
+            const serverSeen = new Set(
+              prev.map((p) => p._serverId).filter(Boolean)
+            );
+            for (const e of extras) {
+              if (e._serverId && serverSeen.has(e._serverId)) continue;
+              const key = `${e.label}|${e.createdAt}`;
+              if (!labels.has(key)) merged.push(e);
+            }
+            return merged.sort((a, b) => b.createdAt - a.createdAt);
+          });
+        }
+      } catch {
+        /* local-only is fine */
+      }
     } catch {
       showNotification("Could not load held carts", "error");
     }
@@ -587,18 +629,16 @@ export default function StorePOSPage() {
           normalizeBarcodeForLookup(p.plu) === lookup
       );
       if (localProduct) {
-        const added = await handleAddProductToCart(
-          localProduct,
-          localProduct.unitType === "KG" ? 1 : undefined,
-          localProduct.unitType === "PCS" ? 1 : undefined
-        );
         setBarcodeInput("");
         if (barcodeInputRef.current) {
           barcodeInputRef.current.focus();
         }
-        if (added) {
-          router.push("/store/cart");
+        // KG without encoded weight → same weight pad as grid tap
+        if (localProduct.unitType === "KG") {
+          handleAddProduct(localProduct);
+          return;
         }
+        await handleAddProductToCart(localProduct, undefined, 1);
         return;
       }
 
@@ -633,19 +673,25 @@ export default function StorePOSPage() {
         }
 
         if (product) {
-          const added = await handleAddProductToCart(
+          // Scale barcodes encode weight/qty — add directly (no pad)
+          const needsWeightPad =
+            product.unitType === "KG" &&
+            !(Number(parsed.weightKg) > 0) &&
+            !(Number(parsed.qtyPcs) > 0);
+          setBarcodeInput("");
+          if (barcodeInputRef.current) {
+            barcodeInputRef.current.focus();
+          }
+          if (needsWeightPad) {
+            handleAddProduct(product);
+            return;
+          }
+          await handleAddProductToCart(
             product,
             parsed.weightKg,
             parsed.qtyPcs,
             parsed.pricePerKg
           );
-          setBarcodeInput("");
-          if (barcodeInputRef.current) {
-            barcodeInputRef.current.focus();
-          }
-          if (added) {
-            router.push("/store/cart");
-          }
           return;
         } else {
           // If we have parsed data but no product, try to add directly using parsed data
@@ -762,7 +808,8 @@ export default function StorePOSPage() {
         productName: product.name,
         lockedPrice: lockedPrice!,
         requestedPrice: overridePrice,
-        managerPin: "",
+        qtyKg,
+        qtyPcs,
       });
       setShowPriceOverrideModal(true);
       return false;
@@ -885,65 +932,64 @@ export default function StorePOSPage() {
   };
 
   const handlePriceOverride = async () => {
-    if (!priceOverrideData || !priceOverrideData.managerPin) {
-      showNotification("Please enter manager PIN", "warning", 3000);
+    if (!priceOverrideData) return;
+
+    if (user?.role !== "MANAGER" && user?.role !== "OWNER") {
+      showNotification(
+        "Only managers or owners can override locked prices",
+        "error",
+        3000
+      );
       return;
     }
 
     try {
-      // Verify manager PIN (simplified - in production, verify against user's PIN)
-      if (user?.role !== "MANAGER" && user?.role !== "OWNER") {
-        showNotification(
-          "Only managers can override locked prices",
-          "error",
-          3000
-        );
-        return;
-      }
-
-      // Find product and add to cart with override price
       const product = products.find(
-        (p) => p.id === priceOverrideData!.productId
+        (p) => p.id === priceOverrideData.productId
       );
       if (!product) {
         showNotification("Product not found", "error", 3000);
         return;
       }
 
-      const qty = 1; // Default, would come from barcode/input
+      const qtyKg =
+        priceOverrideData.qtyKg ??
+        (product.unitType === "KG" ? 1 : undefined);
+      const qtyPcs =
+        priceOverrideData.qtyPcs ??
+        (product.unitType === "PCS" ? 1 : undefined);
+      const qty = qtyKg || qtyPcs || 1;
       const rate = priceOverrideData.requestedPrice;
-      const lineTotal = qty * rate; // Base amount without tax
+      const lineTotal = qty * rate;
 
-      if (
-        !assertStockForLine(
-          product,
-          product.unitType === "KG" ? qty : undefined,
-          product.unitType === "PCS" ? qty : undefined
-        )
-      ) {
+      if (!assertStockForLine(product, qtyKg, qtyPcs)) {
         return;
       }
 
       await addItem({
         productId: product.id,
         productName: product.name,
-        qtyKg: product.unitType === "KG" ? qty : undefined,
-        qtyPcs: product.unitType === "PCS" ? qty : undefined,
+        qtyKg,
+        qtyPcs,
         rate,
         taxRate: product.taxRate,
-        lineTotal, // Store base amount, tax calculated separately
+        lineTotal,
         metaJson: {
           isPriceLocked: true,
           lockedPrice: priceOverrideData.lockedPrice,
           overridePrice: priceOverrideData.requestedPrice,
           managerOverride: true,
-          managerPin: priceOverrideData.managerPin,
+          overriddenBy: user?.id || user?.role,
         },
       });
 
       setShowPriceOverrideModal(false);
       setPriceOverrideData(null);
-      router.push("/store/cart");
+      setCartAnimation({
+        productName: product.name,
+        productImage: product.imageUrl,
+      });
+      showNotification("Price override applied", "success", 2500);
     } catch (error: any) {
       showNotification(
         "Failed to override price: " +
@@ -954,16 +1000,17 @@ export default function StorePOSPage() {
     }
   };
 
-  const holdCurrentCart = async () => {
+  const openParkCartModal = () => {
     if (items.length === 0) {
       showNotification("Cart is empty", "warning");
       return;
     }
-    const label = window.prompt(
-      "Hold label (e.g. Counter 2)",
-      `Hold ${items.length} items`
-    );
-    if (label === null) return;
+    setHoldLabel(`Hold ${items.length} items`);
+    setShowHoldLabelModal(true);
+  };
+
+  const confirmHoldCart = async () => {
+    const label = holdLabel.trim() || `Hold ${items.length} items`;
     const st = useCartStore.getState();
     const snap: HeldCartSnapshot = {
       customerId: st.customerId,
@@ -984,10 +1031,25 @@ export default function StorePOSPage() {
         metaJson: i.metaJson as Record<string, unknown> | undefined,
       })),
     };
-    await saveHeldCart(label || "Hold", snap);
+    const localId = await saveHeldCart(label, snap);
+    // Sync to server so other registers can recall
+    const clientHeldId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `hold-${localId}-${Date.now()}`;
+    try {
+      await api.put("/api/v1/held-carts", {
+        clientHeldId,
+        label,
+        snapshot: snap,
+      });
+    } catch (syncErr) {
+      console.warn("[POS] Server hold sync failed (local hold kept):", syncErr);
+    }
     await clearCart();
     await loadCart();
-    showNotification("Cart held", "success");
+    setShowHoldLabelModal(false);
+    showNotification(`Held as “${label}”`, "success");
     try {
       setHeldRows(await listHeldCarts());
     } catch {
@@ -996,10 +1058,20 @@ export default function StorePOSPage() {
   };
 
   const recallHeldCartById = async (heldId: number) => {
-    const row = await getHeldCart(heldId);
-    if (!row) return;
+    const listed = heldRows.find((h) => h.id === heldId);
+    let snap: HeldCartSnapshot | null = listed?._snapshot || null;
+    let label = listed?.label || "Hold";
+    if (!snap && heldId > 0) {
+      const row = await getHeldCart(heldId);
+      if (!row) return;
+      snap = row.snapshot;
+      label = row.label;
+    }
+    if (!snap?.items?.length) {
+      showNotification("Held cart not found", "error");
+      return;
+    }
     await clearCart();
-    const snap = row.snapshot;
     setCustomer(snap.customerId, snap.customerPhone, snap.customerName);
     setFulfillmentType(snap.fulfillmentType);
     setDiscountType(snap.discountType);
@@ -1020,320 +1092,73 @@ export default function StorePOSPage() {
         metaJson: line.metaJson,
       });
     }
-    await deleteHeldCart(heldId);
+    if (heldId > 0) {
+      await deleteHeldCart(heldId);
+    }
+    if (listed?._serverId) {
+      try {
+        await api.delete(`/api/v1/held-carts/${listed._serverId}`);
+      } catch {
+        /* ignore */
+      }
+    }
     await loadCart();
-    showNotification(`Recalled: ${row.label}`, "success");
+    showNotification(`Recalled: ${label}`, "success");
     setShowHoldModal(false);
   };
 
-  const handleQuickCheckoutPay = async (method: string) => {
+  const handleQuickCheckoutPay = async (
+    payments: Array<{ method: string; amount: number }>
+  ) => {
     if (paymentInFlightRef.current || isProcessingPayment) return;
-
-    if (method === "CREDIT") {
-      const st = useCartStore.getState();
-      if (!st.customerId) {
-        showNotification(
-          "Credit bills need a customer. Add phone & name from the cart first.",
-          "warning"
-        );
-        return;
-      }
-    }
 
     paymentInFlightRef.current = true;
     setIsProcessingPayment(true);
 
     try {
-      const {
-        items: cartItems,
-        customerId,
-        customerPhone,
-        customerName,
-        discountTotal,
-      } = useCartStore.getState();
-
-      const payableTotal = useCartStore.getState().getCheckoutTotal();
-      // Cash/card/credit → no UPI QR; UPI/online → QR for full amount only.
-      publishPaymentMode(payableTotal, null, {
-        payments: [{ method, amount: payableTotal }],
-      });
-
-      const ft = useCartStore.getState().fulfillmentType;
-      const fee = useCartStore.getState().deliveryFee;
-      // Stable idempotency key for this checkout attempt so transport-level
-      // retries don't create duplicate bills (and double-deduct inventory).
-      const clientSaleId =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `pos-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const saleData = {
-        clientSaleId,
-        customerId: customerId || undefined,
-        customerPhone: customerPhone || undefined,
-        customerName: customerName || undefined,
-        customerArea: useCartStore.getState().customerArea || undefined,
-        discountTotal: discountTotal || 0,
-        discountSource:
-          useCartStore.getState().discountSource === "profile_reward"
-            ? "profile_reward"
-            : undefined,
-        profileRewardApplied:
-          useCartStore.getState().discountSource === "profile_reward" || undefined,
-        deliveryFee: ft === "DELIVERY" ? fee || 0 : 0,
-        loyaltyPointsRedeemed: customerId
-          ? useCartStore.getState().getTotal().loyaltyPointsApplied
-          : 0,
-        referredByPhone: useCartStore.getState().referredByPhone || undefined,
-        referredByCode: useCartStore.getState().referredByCode || undefined,
-        items: cartItems.map((item) => ({
-          productId: item.productId,
-          qtyKg: item.qtyKg || undefined,
-          qtyPcs: item.qtyPcs || undefined,
-          rate: item.rate,
-          taxRate: item.taxRate,
-          metaJson: item.metaJson || undefined,
-        })),
-      };
-
-      const clientGrandTotal = useCartStore.getState().getTotal().grandTotal;
-
-      const finishOfflineCheckout = async (message: string) => {
-        await queueOfflineCheckout(
-          saleData,
-          [{ method, amount: clientGrandTotal }],
-          clientGrandTotal,
-          useCartStore.getState().fulfillmentType
-        );
-        await clearCart();
-        await loadCart();
-        setShowQuickCheckout(false);
-        setCompletedSale({
-          saleNo: "Queued (offline)",
-          grandTotal: Math.round(clientGrandTotal),
-        });
-        setShowSuccessAnimation(true);
-        showNotification(message, "success", 6500);
-      };
-
-      if (isOfflineForCheckout()) {
-        if (useCartStore.getState().getPendingSettlementTotal() > 0) {
-          showNotification(
-            "Settling old credit needs internet. Uncheck previous credit or go online.",
-            "warning",
-            6000
-          );
-          return;
-        }
-        await finishOfflineCheckout(
-          "Bill saved offline. It will sync automatically when internet is back."
-        );
-        return;
-      }
-
-      const pendingLines = useCartStore.getState().getSelectedPendingSettlements();
-      const checkoutTotal = useCartStore.getState().getCheckoutTotal();
-      const paymentInput = [{ method, amount: checkoutTotal }];
-
-      const saleResponse = await api.post("/api/v1/sales", {
-        ...saleData,
-        ...(pendingLines.length === 0 ? { payments: paymentInput } : {}),
-      });
-      const payload = saleResponse.data;
-      const needsDiscountApproval =
-        payload?.requiresApproval === true ||
-        payload?.override?.status === "PENDING" ||
-        (payload?.sale?.id && payload?.override && !payload?.id);
-
-      const finishPendingDiscountApproval = async (saleNo: string) => {
-        setShowQuickCheckout(false);
-        publishIdleMode();
-        showNotification(
-          `Sale #${saleNo} created. Discount needs manager approval before payment.`,
-          "info",
-          6000
-        );
-        try {
-          await useCartStore.getState().clearCart();
-        } catch (clearErr) {
-          console.error("[POS] clearCart after discount approval request:", clearErr);
-        }
-        setTimeout(() => router.push("/store/discount-approvals"), 1500);
-      };
-
-      if (needsDiscountApproval) {
-        const saleNo = payload?.sale?.saleNo || payload?.saleNo || "pending";
-        await finishPendingDiscountApproval(saleNo);
-        return;
-      }
-
-      const sale = payload?.sale?.id ? payload.sale : payload;
-      if (!sale || !sale.id) {
-        throw new Error("Invalid sale response");
-      }
-
-      if (checkoutPaymentMismatch(paymentInput, checkoutTotal)) {
-        showNotification(
-          `Payment total must match checkout amount ₹${checkoutTotal}`,
-          "error"
-        );
-        return;
-      }
-
-      const cartOnlyTotal = useCartStore.getState().getTotal().grandTotal;
-
-      try {
-        const { settledSaleNos } = await completeNewSaleCheckout(
-          api,
-          sale,
-          paymentInput,
-          pendingLines,
-          cartOnlyTotal
-        );
-        if (settledSaleNos.length > 0) {
-          showNotification(
-            `Settled previous credit: ${settledSaleNos.map((n) => `#${n}`).join(", ")}`,
-            "success",
-            5000
-          );
-        }
-      } catch (payErr: any) {
-        const payData = payErr?.response?.data;
-        if (
-          payData?.requiresApproval ||
-          String(payData?.error || "").toLowerCase().includes("pending approval")
-        ) {
-          await finishPendingDiscountApproval(sale.saleNo || sale.id);
-          return;
-        }
-        throw payErr;
-      }
-
-      const fulfillType = useCartStore.getState().fulfillmentType;
-      const isHomeDelivery = fulfillType === "DELIVERY" && sale.customerId;
-      const loyaltyPointsRedeemed = Number(saleData.loyaltyPointsRedeemed || 0);
-
-      setShowQuickCheckout(false);
-      setCompletedSale({
-        saleNo: sale.saleNo || "N/A",
-        grandTotal: checkoutTotal,
-      });
-      setShowSuccessAnimation(true);
-
-      publishSuccessMode(checkoutTotal, sale.saleNo || null, sale.id || null, {
-        loyaltyPointsRedeemed,
-        loyaltyPointsBalance: null,
-      });
-
-      runPostCheckoutSideEffects({
+      await executeCheckout({
         api,
-        saleId: sale.id,
-        payments: paymentInput,
-        checkoutGrandTotal: checkoutTotal,
-        loyaltyCustomerId: customerId,
-        isHomeDelivery,
-        deliveryFee: useCartStore.getState().getTotal().deliveryFee,
-        clearCart: () => useCartStore.getState().clearCart(),
+        payments,
+        skipCustomer: false,
+        clearCart: async () => {
+          await useCartStore.getState().clearCart();
+          await loadCart();
+        },
+        onClosePaymentUi: () => setShowQuickCheckout(false),
+        onPaymentFailedUi: () => publishCurrentBill(),
+        onNotify: showNotification,
         onLoyaltyBalance: (balance) => {
           useCartStore.getState().setCustomerLoyaltyPoints(balance);
         },
-        onDeliveryError: (message) => showNotification(message, "info", 4000),
+        onDiscountApproval: async (saleNo) => {
+          publishIdleMode();
+          showNotification(
+            `Sale #${saleNo} created. Discount needs manager approval before payment.`,
+            "info",
+            6000
+          );
+          try {
+            await useCartStore.getState().clearCart();
+          } catch (clearErr) {
+            console.error("[POS] clearCart after discount approval:", clearErr);
+          }
+          setTimeout(() => router.push("/store/discount-approvals"), 1500);
+        },
+        onSuccess: ({ saleNo, saleId, checkoutGrandTotal, loyaltyPointsRedeemed, offline }) => {
+          setCompletedSale({
+            saleNo,
+            grandTotal: checkoutGrandTotal,
+            saleId,
+          });
+          setShowSuccessAnimation(true);
+          publishSuccessMode(checkoutGrandTotal, offline ? null : saleNo, saleId, {
+            loyaltyPointsRedeemed,
+            loyaltyPointsBalance: null,
+          });
+        },
       });
     } catch (error: any) {
       console.error("[Quick Checkout] Payment error:", error);
-
-      const errData = error?.response?.data;
-      if (
-        errData?.requiresApproval ||
-        errData?.override?.status === "PENDING" ||
-        (errData?.sale?.id && errData?.override)
-      ) {
-        setShowQuickCheckout(false);
-        publishIdleMode();
-        const saleNo = errData?.sale?.saleNo || "pending";
-        showNotification(
-          `Sale #${saleNo} created. Discount needs manager approval before payment.`,
-          "info",
-          6000
-        );
-        try {
-          await useCartStore.getState().clearCart();
-        } catch (clearErr) {
-          console.error("[POS] clearCart after discount approval error path:", clearErr);
-        }
-        setTimeout(() => router.push("/store/discount-approvals"), 1500);
-        return;
-      }
-
-      if (
-        isCheckoutNetworkError(error) &&
-        useCartStore.getState().items.length > 0
-      ) {
-        try {
-          const {
-            items: cartItems,
-            customerId,
-            customerPhone,
-            customerName,
-            discountTotal,
-          } = useCartStore.getState();
-          const clientGrandTotal = useCartStore.getState().getTotal().grandTotal;
-          const ftFb = useCartStore.getState().fulfillmentType;
-          const feeFb = useCartStore.getState().deliveryFee;
-          const saleDataFb = {
-            customerId: customerId || undefined,
-            customerPhone: customerPhone || undefined,
-            customerName: customerName || undefined,
-            discountTotal: discountTotal || 0,
-            deliveryFee: ftFb === "DELIVERY" ? feeFb || 0 : 0,
-            loyaltyPointsRedeemed: customerId
-              ? useCartStore.getState().getTotal().loyaltyPointsApplied
-              : 0,
-            referredByPhone: useCartStore.getState().referredByPhone || undefined,
-            referredByCode: useCartStore.getState().referredByCode || undefined,
-            items: cartItems.map((item) => ({
-              productId: item.productId,
-              qtyKg: item.qtyKg || undefined,
-              qtyPcs: item.qtyPcs || undefined,
-              rate: item.rate,
-              taxRate: item.taxRate,
-              metaJson: item.metaJson || undefined,
-            })),
-          };
-          await queueOfflineCheckout(
-            saleDataFb,
-            [{ method, amount: clientGrandTotal }],
-            clientGrandTotal,
-            useCartStore.getState().fulfillmentType
-          );
-          await clearCart();
-          await loadCart();
-          setShowQuickCheckout(false);
-          setCompletedSale({
-            saleNo: "Queued (offline)",
-            grandTotal: Math.round(clientGrandTotal),
-          });
-          setShowSuccessAnimation(true);
-          showNotification(
-            "No connection — bill saved offline and will sync when you are back online.",
-            "success",
-            6500
-          );
-          return;
-        } catch (queueErr) {
-          console.error("[Quick Checkout] Offline queue failed:", queueErr);
-        }
-      }
-
-      const errorMessage =
-        error.response?.data?.error || error.message || "Payment failed";
-      if (error.response?.data?.code === "DAY_IN_REQUIRED") {
-        window.dispatchEvent(new Event("pos-day-in-required"));
-        showNotification("Day In required before billing", "error", 5000);
-        return;
-      }
-      setShowQuickCheckout(false);
-      publishCurrentBill();
-      showNotification(errorMessage, "error", 5000);
     } finally {
       paymentInFlightRef.current = false;
       setIsProcessingPayment(false);
@@ -1372,10 +1197,11 @@ export default function StorePOSPage() {
 
   const masaleIds = new Set(masaleProducts.map((p) => p.id));
 
-  // Main grid: exclude masale; filter by search only
+  // Main grid: exclude masale; filter by search + optional category chip
   const productsForGrid = sortProductsByDisplayOrder(
     products.filter((p) => {
       if (masaleIds.has(p.id)) return false;
+      if (categoryFilter !== "all" && p.categoryId !== categoryFilter) return false;
       if (
         searchQuery &&
         !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -1456,7 +1282,7 @@ export default function StorePOSPage() {
             </button>
             <button
               type="button"
-              onClick={() => void holdCurrentCart()}
+              onClick={() => openParkCartModal()}
               className="min-h-[44px] px-2 sm:px-4 py-2.5 glass-panel text-ink hover:shadow-glow-brand rounded-xl text-xs sm:text-sm font-medium flex items-center justify-center gap-1 sm:gap-2 transition-all active:scale-[0.98] touch-manipulation"
             >
               ⏸ Hold
@@ -1583,11 +1409,40 @@ export default function StorePOSPage() {
               </div>
             </div>
 
+            {categories.length > 0 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-2 mb-1 flex-shrink-0 scrollbar-thin touch-pan-x">
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter("all")}
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    categoryFilter === "all"
+                      ? "bg-brand-600 text-white"
+                      : "bg-surface-2 text-ink-secondary"
+                  }`}
+                >
+                  All
+                </button>
+                {categories.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCategoryFilter(c.id)}
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      categoryFilter === c.id
+                        ? "bg-brand-600 text-white"
+                        : "bg-surface-2 text-ink-secondary"
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {franchiseConfig?.isPricingLocked && (
               <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-2 flex-shrink-0 flex items-center gap-2">
-                <span className="text-amber-600">🔒</span>
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  HQ locked price. Manager PIN to override.
+                  HQ locked pricing. Manager/owner can confirm an override when needed.
                 </p>
               </div>
             )}
@@ -1865,23 +1720,15 @@ export default function StorePOSPage() {
                   ₹{priceOverrideData.requestedPrice.toFixed(2)}
                 </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Manager PIN *
-                </label>
-                <input
-                  type="password"
-                  value={priceOverrideData.managerPin}
-                  onChange={(e) =>
-                    setPriceOverrideData({
-                      ...priceOverrideData,
-                      managerPin: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:ring-2 focus:ring-brand-500 touch-target"
-                  placeholder="Enter your PIN"
-                />
-              </div>
+              <p className="text-sm text-ink-muted">
+                Confirm as {user?.role === "OWNER" ? "owner" : "manager"} to sell
+                at the requested price. Qty:{" "}
+                {priceOverrideData.qtyKg
+                  ? `${priceOverrideData.qtyKg} kg`
+                  : priceOverrideData.qtyPcs
+                    ? `${priceOverrideData.qtyPcs} pcs`
+                    : "1"}
+              </p>
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                 <button
                   onClick={() => {
@@ -1896,7 +1743,7 @@ export default function StorePOSPage() {
                   onClick={handlePriceOverride}
                   className="flex-1 px-4 py-3 text-base bg-brand-500 text-white rounded-md hover:bg-brand-600 touch-target font-semibold"
                 >
-                  Override
+                  Confirm override
                 </button>
               </div>
             </div>
@@ -1904,214 +1751,78 @@ export default function StorePOSPage() {
         </div>
       )}
 
-      {/* Quick Checkout Modal */}
+      {/* Quick Checkout — same payment surface as Cart */}
       {showQuickCheckout && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-3 md:p-4 animate-in fade-in duration-200">
-          <div className="glass-panel-strong rounded-2xl w-full max-w-sm sm:max-w-md max-h-[95vh] sm:max-h-[90vh] overflow-y-auto animate-scale-in mx-2 sm:mx-0">
-            {/* Header */}
-            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between z-10">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Quick Checkout
-                </h2>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                  Select payment method
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowQuickCheckout(false);
-                  // Cashier backed out of payment — return the display to the bill.
-                  publishCurrentBill();
-                }}
-                disabled={isProcessingPayment}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+        <CartPaymentModal
+          grandTotal={checkoutGrandTotal}
+          cartGrandTotal={cartGrandTotal}
+          pendingSettlementLines={pendingSettlements}
+          subTotal={cartSubTotal}
+          taxTotal={cartTaxTotal}
+          discountTotal={cartDiscountTotal}
+          deliveryFee={deliveryFee}
+          setDeliveryFee={setDeliveryFee}
+          fulfillmentType={fulfillmentType}
+          setFulfillmentType={setFulfillmentType}
+          customerId={customerId}
+          isProcessing={isProcessingPayment}
+          onClose={() => {
+            setShowQuickCheckout(false);
+            publishCurrentBill();
+          }}
+          onPay={handleQuickCheckoutPay}
+        />
+      )}
+
+      {showHoldLabelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+            <div>
+              <h2 className="text-lg font-bold text-ink">Hold cart</h2>
+              <p className="text-sm text-ink-muted mt-1">
+                {items.length} lines · ₹
+                {Math.round(cartGrandTotal).toLocaleString("en-IN")}
+              </p>
             </div>
-
-            <div className="p-4 space-y-3">
-              {/* Cart Items Summary */}
-              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 max-h-40 overflow-y-auto">
-                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Items ({items.length})
-                </h3>
-                <div className="space-y-1.5">
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex justify-between items-center text-xs"
-                    >
-                      <div className="flex-1">
-                        <span className="text-gray-900 dark:text-white font-medium">
-                          {item.productName}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400 ml-2">
-                          {item.qtyKg ? `${item.qtyKg}kg` : `${item.qtyPcs}pcs`}{" "}
-                          × ₹{item.rate}
-                        </span>
-                      </div>
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        ₹
-                        {((item.qtyKg || item.qtyPcs || 0) * item.rate).toFixed(
-                          2
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <PendingCreditSettlement customerId={customerId} compact />
-
-              {/* Total Summary */}
-              <div className="bg-gradient-to-br from-brand-50 to-brand-100/50 dark:from-brand-900/20 dark:to-brand-800/10 border border-brand-200/50 dark:border-brand-800/30 rounded-lg p-3">
-                {pendingSettlementTotal > 0 && (
-                  <div className="space-y-1 mb-2 pb-2 border-b border-brand-200/50 dark:border-brand-800/30">
-                    <div className="flex justify-between text-xs text-gray-700 dark:text-gray-300">
-                      <span>Today&apos;s items</span>
-                      <span className="font-semibold">₹{cartGrandTotal}</span>
-                    </div>
-                    {pendingSettlements
-                      .filter((l) => l.selected && l.amount > 0)
-                      .map((l) => (
-                        <div
-                          key={l.saleId}
-                          className="flex justify-between text-xs text-amber-800 dark:text-amber-300"
-                        >
-                          <span>Credit #{l.saleNo}</span>
-                          <span className="font-semibold">₹{Math.round(l.amount)}</span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {pendingSettlementTotal > 0 ? "Total to pay" : "Total Amount"}
-                  </span>
-                  <span className="text-2xl font-bold text-brand-600 dark:text-brand-400 tabular-nums">
-                    <AnimatedNumber
-                      value={Number(checkoutGrandTotal) || 0}
-                      format={(v) => `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
-                      duration={0.15}
-                    />
-                  </span>
-                </div>
-              </div>
-
-              {/* Pickup / Delivery */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Fulfillment
-                </label>
-                <div className="flex gap-2">
+            <div>
+              <label className="block text-sm font-semibold text-ink-secondary mb-1.5">
+                Label
+              </label>
+              <input
+                type="text"
+                value={holdLabel}
+                onChange={(e) => setHoldLabel(e.target.value)}
+                className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
+                autoFocus
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {["Counter 1", "Counter 2", "Phone order", "Waiting"].map((preset) => (
                   <button
+                    key={preset}
                     type="button"
-                    onClick={() => setFulfillmentType("PICKUP")}
-                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                      fulfillmentType === "PICKUP"
-                        ? "bg-brand-600 text-white"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    }`}
+                    onClick={() => setHoldLabel(preset)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-surface-2 text-ink-secondary hover:text-ink"
                   >
-                    Pickup
+                    {preset}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => customerId && setFulfillmentType("DELIVERY")}
-                    disabled={!customerId}
-                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      fulfillmentType === "DELIVERY"
-                        ? "bg-brand-600 text-white"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    }`}
-                    title={!customerId ? "Select a customer for delivery" : ""}
-                  >
-                    Delivery
-                  </button>
-                </div>
-                {!customerId && (
-                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5">
-                    Walk-in orders are pickup only. Select a customer for delivery.
-                  </p>
-                )}
-                {fulfillmentType === "DELIVERY" && customerId && (
-                  <>
-                    <div className="mt-2">
-                      <label className="block text-[10px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                        Delivery fee (₹)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={deliveryFee || ""}
-                        onChange={(e) =>
-                          setDeliveryFee(parseFloat(e.target.value) || 0)
-                        }
-                        disabled={isProcessingPayment}
-                        className="w-full px-2 py-1.5 text-sm font-semibold border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-right"
-                        placeholder="0"
-                      />
-                    </div>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1.5">
-                      Fee is included in total. Add address in Delivery after checkout.
-                    </p>
-                  </>
-                )}
+                ))}
               </div>
-
-              {/* Payment Method Buttons */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Select Payment Method
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: "CASH", label: "Cash", icon: "💵" },
-                    { value: "CARD", label: "Card", icon: "💳" },
-                    { value: "UPI", label: "UPI", icon: "📱" },
-                    { value: "CREDIT", label: "Credit", icon: "📝" },
-                    { value: "ONLINE", label: "Online", icon: "🌐" },
-                  ].map((method) => (
-                    <button
-                      key={method.value}
-                      onClick={() => handleQuickCheckoutPay(method.value)}
-                      disabled={isProcessingPayment}
-                      className="relative p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-2xl">{method.icon}</span>
-                        <span className="font-semibold text-xs text-gray-900 dark:text-white">
-                          {method.label}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {isProcessingPayment && (
-                <div className="text-center py-2">
-                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-brand-500"></div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Processing payment...
-                  </p>
-                </div>
-              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowHoldLabelModal(false)}
+                className="flex-1 py-3 rounded-xl border border-[color:var(--border-strong)] font-semibold text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmHoldCart()}
+                className="flex-1 py-3 rounded-xl bg-gradient-brand text-white font-semibold"
+              >
+                Hold
+              </button>
             </div>
           </div>
         </div>
@@ -2150,7 +1861,7 @@ export default function StorePOSPage() {
               ) : (
                 heldRows.map((h) => (
                   <div
-                    key={h.id}
+                    key={h._serverId || h.id}
                     className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-600"
                   >
                     <div className="min-w-0">
@@ -2184,7 +1895,21 @@ export default function StorePOSPage() {
           subtitle={
             completedSale.saleNo.includes("offline")
               ? "Saved offline — will sync when internet is back."
-              : undefined
+              : "Tap print if needed, or wait to continue…"
+          }
+          onPrint={
+            completedSale.saleNo.includes("offline")
+              ? undefined
+              : () => {
+                  printReceipt(
+                    generateReceiptData(completedSale, user?.store)
+                  );
+                }
+          }
+          billUrl={
+            completedSale.saleId
+              ? `/bill/${completedSale.saleId}`
+              : null
           }
           onComplete={() => {
             setShowSuccessAnimation(false);

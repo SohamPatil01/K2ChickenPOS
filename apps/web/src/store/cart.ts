@@ -72,6 +72,8 @@ interface CartState {
   discountPercentage: number;
   fulfillmentType: FulfillmentType;
   deliveryFee: number;
+  /** Optional checkout coupon code (e.g. K2CHICKEN10). */
+  couponCode: string | null;
   /** Loyalty points the customer is redeeming on this bill (1 point = ₹1). */
   loyaltyRedeemPoints: number;
   /** Old credit bills the cashier chose to settle in this checkout. */
@@ -98,6 +100,7 @@ interface CartState {
   setDiscountPercentage: (percentage: number) => void;
   setFulfillmentType: (type: FulfillmentType) => void;
   setDeliveryFee: (fee: number) => void;
+  setCouponCode: (code: string | null) => void;
   setLoyaltyRedeemPoints: (points: number) => void;
   initPendingSettlements: (lines: PendingSettlementLine[]) => void;
   togglePendingSettlement: (saleId: string, selected: boolean) => void;
@@ -140,6 +143,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   discountPercentage: 0,
   fulfillmentType: 'PICKUP',
   deliveryFee: 0,
+  couponCode: null,
   loyaltyRedeemPoints: 0,
   pendingSettlements: [],
   loadCart: async () => {
@@ -365,6 +369,46 @@ export const useCartStore = create<CartState>((set, get) => ({
     const fee = Math.max(0, Math.round(deliveryFee));
     set({ deliveryFee: fee });
   },
+  setCouponCode: (code: string | null) => {
+    const cleaned = code ? String(code).trim().toUpperCase().slice(0, 32) : null;
+    // Built-in percent coupons — apply on the client so Pay totals stay in sync.
+    const builtin: Record<string, number> = {
+      K2CHICKEN10: 10,
+      WELCOME5: 5,
+    };
+    const prev = get().couponCode;
+    if (cleaned && builtin[cleaned]) {
+      const { discountTotal, discountSource } = get();
+      // Do not override profile rewards or a cashier-entered discount.
+      if (
+        discountSource === 'profile_reward' ||
+        (discountTotal > 0 && prev !== cleaned && !builtin[prev || ''])
+      ) {
+        set({ couponCode: cleaned });
+        return;
+      }
+      set({
+        couponCode: cleaned,
+        discountSource: 'manual',
+        discountType: 'percentage',
+        discountPercentage: builtin[cleaned],
+      });
+      get().setDiscountPercentage(builtin[cleaned]);
+      return;
+    }
+    // Clearing a built-in coupon also clears its discount.
+    if (!cleaned && prev && builtin[prev]) {
+      set({
+        couponCode: null,
+        discountTotal: 0,
+        discountPercentage: 0,
+        discountType: 'amount',
+        discountSource: 'none',
+      });
+      return;
+    }
+    set({ couponCode: cleaned || null });
+  },
   setLoyaltyRedeemPoints: (points: number) => {
     const safe = Math.max(0, Math.floor(Number(points) || 0));
     set({ loyaltyRedeemPoints: safe });
@@ -427,6 +471,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       discountPercentage: 0,
       fulfillmentType: 'PICKUP',
       deliveryFee: 0,
+      couponCode: null,
       loyaltyRedeemPoints: 0,
       pendingSettlements: [],
       referredByPhone: null,

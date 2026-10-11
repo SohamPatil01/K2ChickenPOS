@@ -42,11 +42,20 @@ export function runPostCheckoutSideEffects(options: {
           deliveryFee: deliveryFee || 0,
         });
       } catch (delErr: any) {
-        console.error('[Checkout] Create delivery failed:', delErr);
-        onDeliveryError?.(
-          delErr?.response?.data?.error ||
-            'Order paid. Add delivery from Delivery section.'
-        );
+        const msg = String(delErr?.response?.data?.error || '');
+        // Server often already created the row on sale create — treat as success.
+        if (
+          delErr?.response?.status === 400 &&
+          msg.toLowerCase().includes('already has a delivery')
+        ) {
+          /* ok */
+        } else {
+          console.error('[Checkout] Create delivery failed:', delErr);
+          onDeliveryError?.(
+            delErr?.response?.data?.error ||
+              'Order paid. Add delivery from Delivery section.'
+          );
+        }
       }
     }
 

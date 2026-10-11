@@ -80,13 +80,23 @@ export async function paySaleWithRecovery(
   api: { post: (url: string, data: unknown) => Promise<unknown> },
   saleId: string,
   payments: Array<{ method: string; amount: number }>,
-  expectedTotal: number
+  expectedTotal: number,
+  opts?: { fulfillmentType?: 'PICKUP' | 'DELIVERY' }
 ): Promise<void> {
   const normalized = normalizePaymentsForSale(payments, expectedTotal);
   if (!normalized.length || normalized.every((p) => p.amount <= 0)) return;
 
+  const paymentAttemptId =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `pay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   try {
-    await api.post(`/api/v1/sales/${saleId}/pay`, { payments: normalized });
+    await api.post(`/api/v1/sales/${saleId}/pay`, {
+      payments: normalized,
+      paymentAttemptId,
+      ...(opts?.fulfillmentType ? { fulfillmentType: opts.fulfillmentType } : {}),
+    });
   } catch (err) {
     if (!shouldTreatDuplicateCreditPayAsSuccess(err, normalized)) {
       throw err;
@@ -140,7 +150,8 @@ export async function completeNewSaleCheckout(
   allPayments: Array<{ method: string; amount: number }>,
   pendingLines: PendingSettlementLine[],
   /** Optional client cart-only total; used when server grandTotal is missing/odd. */
-  clientCartGrandTotal?: number
+  clientCartGrandTotal?: number,
+  opts?: { fulfillmentType?: 'PICKUP' | 'DELIVERY' }
 ): Promise<{ settledSaleNos: string[] }> {
   const pendingTotal = sumSelectedPendingSettlements(pendingLines);
   const paymentTotal = allPayments.reduce((s, p) => s + Math.round(Number(p.amount)), 0);
@@ -171,7 +182,9 @@ export async function completeNewSaleCheckout(
   pool = remaining;
 
   if (sale.status !== 'PAID') {
-    await paySaleWithRecovery(api, sale.id, cartPayments, roundedSaleGrandTotal);
+    await paySaleWithRecovery(api, sale.id, cartPayments, roundedSaleGrandTotal, {
+      fulfillmentType: opts?.fulfillmentType,
+    });
   }
 
   if (pendingTotal <= 0) {

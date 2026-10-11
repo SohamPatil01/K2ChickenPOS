@@ -35,6 +35,8 @@ export type ApplyPaymentsInput = {
   actorStoreId: string;
   /** Inventory was already synced during sale create — skip the pay-time ledger pass. */
   skipInventorySync?: boolean;
+  /** Client retry key — when set, duplicate /pay calls return the existing sale. */
+  paymentAttemptId?: string | null;
   /** Skip re-fetch when caller just created the sale in the same request. */
   existingSale?: {
     id: string;
@@ -51,7 +53,37 @@ export type ApplyPaymentsInput = {
  * Shared by POST /sales/:id/pay and inline checkout on POST /sales.
  */
 export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
-  const { saleId, payments, actorUserId, actorStoreId, skipInventorySync, existingSale } = input;
+  const {
+    saleId,
+    payments,
+    actorUserId,
+    actorStoreId,
+    skipInventorySync,
+    existingSale,
+    paymentAttemptId,
+  } = input;
+
+  const attemptKey = paymentAttemptId ? String(paymentAttemptId).trim().slice(0, 64) : '';
+
+  if (attemptKey) {
+    const already = await prisma.payment.findFirst({
+      where: {
+        saleId,
+        txnRef: { startsWith: `attempt:${attemptKey}` },
+      },
+      select: { id: true },
+    });
+    if (already) {
+      return prisma.sale.findUnique({
+        where: { id: saleId },
+        include: {
+          items: { include: { product: true } },
+          payments: true,
+          customer: customerWithAreaInclude,
+        },
+      });
+    }
+  }
 
   const sale =
     existingSale && existingSale.id === saleId
@@ -191,7 +223,9 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
       saleId,
       method: methodStr as PaymentMethod,
       amount,
-      txnRef: p.txnRef || null,
+      txnRef:
+        p.txnRef ||
+        (attemptKey ? `attempt:${attemptKey}:${methodStr}` : null),
     });
   }
 
