@@ -26,6 +26,7 @@ import {
 } from "@azela-pos/offline";
 import CartPaymentModal from "@/components/CartPaymentModal";
 import { executeCheckout } from "@/lib/executeCheckout";
+import { setStockSnapshot } from "@/lib/stockSnapshot";
 import CustomerDisplayButton from "@/components/customerDisplay/CustomerDisplayButton";
 import PosPreOrders from "@/components/pre-orders/PosPreOrders";
 import {
@@ -292,6 +293,7 @@ export default function StorePOSPage() {
         };
       }
       setStockByProductId(map);
+      setStockSnapshot(map);
     } catch (e) {
       console.warn("POS: could not load inventory summary for stock hints", e);
     }
@@ -1122,7 +1124,8 @@ export default function StorePOSPage() {
         skipCustomer: false,
         clearCart: async () => {
           await useCartStore.getState().clearCart();
-          await loadCart();
+          // Refresh product strip in background — don't hold the next bill.
+          void loadCart();
         },
         onClosePaymentUi: () => setShowQuickCheckout(false),
         onPaymentFailedUi: () => publishCurrentBill(),

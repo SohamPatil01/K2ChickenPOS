@@ -22,29 +22,36 @@ function formatQty(item: BillSale["items"][0]) {
   return "-";
 }
 
+function loyaltyPointsForBill(grandTotal: number) {
+  return Math.floor(Math.max(0, Number(grandTotal) || 0) * 0.0125);
+}
+
 export default function CustomerBill({ sale, store }: CustomerBillProps) {
   const storeName = store?.name || BRAND.name;
   const storePhone = store?.phone || BRAND.phoneDisplay;
   const { paid, balance, isPending } = paymentSummary(sale);
+  const hasCredit = (sale.payments || []).some(
+    (p) => String(p.method || "").toUpperCase() === "CREDIT" && Number(p.amount) > 0
+  );
   const statusLabel =
     String(sale.status).toUpperCase() === "VOID"
       ? "CANCELLED"
       : isPending
-        ? "PENDING"
-        : String(sale.status).toUpperCase();
+        ? hasCredit
+          ? "CREDIT DUE"
+          : "AMOUNT DUE"
+        : String(sale.status).toUpperCase() === "PAID"
+          ? "PAID"
+          : String(sale.status).toUpperCase();
+
+  const statusBg =
+    statusLabel === "CANCELLED" ? "#dc2626" : isPending ? "#c2410c" : "#15803d";
+
+  const pointsEarned = loyaltyPointsForBill(sale.grandTotal);
+  const upiCfg = getUpiConfig();
+  const loyaltyHost = LOYALTY.portalUrl.replace(/^https?:\/\//, "");
 
   const [upiQr, setUpiQr] = useState("");
-  useEffect(() => {
-    const id = "k2-bill-fonts";
-    if (!document.getElementById(id)) {
-      const link = document.createElement("link");
-      link.id = id;
-      link.rel = "stylesheet";
-      link.href =
-        "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap";
-      document.head.appendChild(link);
-    }
-  }, []);
   useEffect(() => {
     if (!isPending || balance <= 0) {
       setUpiQr("");
@@ -65,22 +72,6 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
     );
   }, [isPending, balance, sale.saleNo]);
 
-  const statusBg = isPending
-    ? "#fff7ed"
-    : statusLabel === "CANCELLED"
-      ? "#fef2f2"
-      : "#f1f5f9";
-  const statusFg = isPending
-    ? "#9a3412"
-    : statusLabel === "CANCELLED"
-      ? "#991b1b"
-      : "#334155";
-  const statusBd = isPending
-    ? "#fdba74"
-    : statusLabel === "CANCELLED"
-      ? "#fecaca"
-      : "#e2e8f0";
-
   return (
     <div
       className="customer-bill"
@@ -89,32 +80,22 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
         width: "210mm",
         maxWidth: "100%",
         margin: "0 auto",
-        background: "#ffffff",
-        color: "#0f172a",
-        fontFamily: '"IBM Plex Sans", "Segoe UI", sans-serif',
+        background: "#fbf7f2",
+        color: "#1c1917",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         fontSize: "12px",
-        border: "1px solid #cbd5e1",
+        border: "1px solid #e7ddd2",
+        borderRadius: 14,
         overflow: "hidden",
       }}
     >
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-          zIndex: 0,
+          height: 5,
+          background: "linear-gradient(90deg, #E65C00 0%, #f59e0b 55%, #E65C00 100%)",
         }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={BRAND.logoPath}
-          alt=""
-          style={{ width: 220, height: 220, objectFit: "contain", opacity: 0.045 }}
-        />
-      </div>
+      />
 
       <div style={{ position: "relative", zIndex: 1 }}>
         <div
@@ -122,12 +103,13 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
             display: "flex",
             justifyContent: "space-between",
             gap: 14,
-            padding: "16px 18px 12px",
-            borderBottom: "2px solid #0f172a",
+            padding: "22px 26px 18px",
+            borderBottom: "1px solid #eadfd3",
+            background: "linear-gradient(180deg, #fffdfb 0%, #fbf7f2 100%)",
           }}
         >
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={BRAND.logoPath}
@@ -136,18 +118,19 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                   width: 52,
                   height: 52,
                   objectFit: "contain",
-                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                  border: "1px solid #eadfd3",
                   background: "#fff",
-                  padding: 3,
+                  padding: 4,
                 }}
               />
               <div>
                 <div
                   style={{
-                    fontFamily: '"Libre Baskerville", Georgia, serif',
                     fontSize: 22,
                     fontWeight: 700,
                     lineHeight: 1.15,
+                    letterSpacing: "-0.02em",
                   }}
                 >
                   {BRAND.name}
@@ -156,22 +139,21 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                   style={{
                     marginTop: 3,
                     fontSize: 10,
-                    color: "#64748b",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    fontWeight: 500,
+                    color: "#C04A00",
+                    letterSpacing: "0.06em",
+                    fontWeight: 600,
                   }}
                 >
-                  Fresh · Pure · Trusted
+                  {BRAND.tagline}
                 </div>
               </div>
             </div>
             <div
               style={{
-                marginTop: 8,
-                fontSize: 11,
-                lineHeight: 1.45,
-                color: "#475569",
+                marginTop: 10,
+                fontSize: 10.5,
+                lineHeight: 1.55,
+                color: "#78716c",
                 maxWidth: 340,
               }}
             >
@@ -183,18 +165,26 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div
               style={{
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 700,
-                letterSpacing: "0.14em",
+                letterSpacing: "0.12em",
                 textTransform: "uppercase",
+                color: "#a8a29e",
               }}
             >
               Tax Invoice
             </div>
-            <div style={{ marginTop: 6, fontSize: 14, fontWeight: 700 }}>
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 15,
+                fontWeight: 700,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
               {sale.saleNo}
             </div>
-            <div style={{ marginTop: 3, fontSize: 11, color: "#64748b" }}>
+            <div style={{ marginTop: 3, fontSize: 10.5, color: "#78716c" }}>
               {new Date(sale.createdAt).toLocaleString("en-IN", {
                 day: "2-digit",
                 month: "short",
@@ -203,17 +193,17 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                 minute: "2-digit",
               })}
             </div>
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 10 }}>
               <span
                 style={{
                   display: "inline-block",
-                  padding: "2px 8px",
+                  padding: "4px 11px",
                   fontSize: 9,
                   fontWeight: 700,
                   letterSpacing: "0.08em",
-                  border: `1px solid ${statusBd}`,
+                  borderRadius: 999,
                   background: statusBg,
-                  color: statusFg,
+                  color: "#fff",
                 }}
               >
                 {statusLabel}
@@ -222,16 +212,17 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
           </div>
         </div>
 
-        <div style={{ padding: "12px 18px 8px" }}>
+        <div style={{ padding: "18px 26px 10px" }}>
           {isPending && (
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                gap: 10,
-                marginBottom: 10,
-                padding: "8px 12px",
+                gap: 12,
+                marginBottom: 14,
+                padding: "12px 14px",
+                borderRadius: 12,
                 border: "1px solid #fdba74",
                 background: "#fff7ed",
               }}
@@ -246,18 +237,18 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                     fontWeight: 700,
                   }}
                 >
-                  Pending / Credit bill
+                  {hasCredit ? "Credit bill" : "Balance due"}
                 </div>
-                <div style={{ fontSize: 11, color: "#c2410c", marginTop: 1 }}>
-                  Balance still due on this invoice
+                <div style={{ fontSize: 11, color: "#c2410c", marginTop: 2 }}>
+                  Pay below with UPI — amount is pre-filled
                 </div>
               </div>
               <div
                 style={{
-                  fontFamily: '"Libre Baskerville", Georgia, serif',
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: 700,
                   color: "#9a3412",
+                  fontVariantNumeric: "tabular-nums",
                 }}
               >
                 {formatMoney(balance)}
@@ -269,19 +260,26 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
-              gap: 8,
-              marginBottom: 12,
+              gap: 10,
+              marginBottom: 16,
             }}
           >
-            <div style={{ border: "1px solid #e2e8f0", padding: "8px 10px" }}>
+            <div
+              style={{
+                border: "1px solid #eadfd3",
+                background: "#fffdfb",
+                borderRadius: 12,
+                padding: "12px 14px",
+              }}
+            >
               <div
                 style={{
                   fontSize: 9,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
-                  color: "#94a3b8",
-                  marginBottom: 3,
-                  fontWeight: 600,
+                  color: "#a8a29e",
+                  marginBottom: 5,
+                  fontWeight: 700,
                 }}
               >
                 Bill to
@@ -290,35 +288,42 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                 {sale.customer?.name || "Walk-in Customer"}
               </div>
               {sale.customer?.phone && (
-                <div style={{ marginTop: 2, fontSize: 11, color: "#64748b" }}>
+                <div style={{ marginTop: 2, fontSize: 11, color: "#78716c" }}>
                   {sale.customer.phone}
                 </div>
               )}
               {sale.customer?.area && (
-                <div style={{ marginTop: 2, fontSize: 11, color: "#64748b" }}>
+                <div style={{ marginTop: 2, fontSize: 11, color: "#78716c" }}>
                   {sale.customer.area}
                 </div>
               )}
             </div>
-            <div style={{ border: "1px solid #e2e8f0", padding: "8px 10px" }}>
+            <div
+              style={{
+                border: "1px solid #eadfd3",
+                background: "#fffdfb",
+                borderRadius: 12,
+                padding: "12px 14px",
+              }}
+            >
               <div
                 style={{
                   fontSize: 9,
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
-                  color: "#94a3b8",
-                  marginBottom: 3,
-                  fontWeight: 600,
+                  color: "#a8a29e",
+                  marginBottom: 5,
+                  fontWeight: 700,
                 }}
               >
                 Store
               </div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>{storeName}</div>
-              <div style={{ marginTop: 2, fontSize: 11, color: "#64748b" }}>
+              <div style={{ marginTop: 2, fontSize: 11, color: "#78716c" }}>
                 {storePhone}
               </div>
               {sale.createdBy?.name && (
-                <div style={{ marginTop: 2, fontSize: 11, color: "#64748b" }}>
+                <div style={{ marginTop: 2, fontSize: 11, color: "#78716c" }}>
                   Cashier: {sale.createdBy.name}
                 </div>
               )}
@@ -327,18 +332,20 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
 
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#0f172a", color: "#f8fafc" }}>
+              <tr style={{ background: "#292524", color: "#fafaf9" }}>
                 {["#", "Item", "Qty", "Rate", "Amount"].map((h, i) => (
                   <th
                     key={h}
                     style={{
-                      padding: "7px 6px",
+                      padding: "10px 8px",
                       textAlign: i < 2 ? "left" : "right",
                       fontSize: 9,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
                       width: i === 0 ? 28 : undefined,
+                      borderRadius:
+                        i === 0 ? "8px 0 0 8px" : i === 4 ? "0 8px 8px 0" : 0,
                     }}
                   >
                     {h}
@@ -348,22 +355,43 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
             </thead>
             <tbody>
               {sale.items.map((item, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                  <td style={{ padding: "7px 6px", color: "#94a3b8" }}>{i + 1}</td>
-                  <td style={{ padding: "7px 6px", fontWeight: 500 }}>
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid #efe6dc",
+                    background: i % 2 === 1 ? "rgba(255,255,255,0.55)" : undefined,
+                  }}
+                >
+                  <td style={{ padding: "10px 8px", color: "#a8a29e" }}>{i + 1}</td>
+                  <td style={{ padding: "10px 8px", fontWeight: 600 }}>
                     {item.product.name}
                   </td>
-                  <td style={{ padding: "7px 6px", textAlign: "right", color: "#334155" }}>
+                  <td
+                    style={{
+                      padding: "10px 8px",
+                      textAlign: "right",
+                      color: "#57534e",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
                     {formatQty(item)}
                   </td>
-                  <td style={{ padding: "7px 6px", textAlign: "right", color: "#334155" }}>
+                  <td
+                    style={{
+                      padding: "10px 8px",
+                      textAlign: "right",
+                      color: "#57534e",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
                     {formatMoney(item.rate)}
                   </td>
                   <td
                     style={{
-                      padding: "7px 6px",
+                      padding: "10px 8px",
                       textAlign: "right",
                       fontWeight: 700,
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
                     {formatMoney(item.lineTotal)}
@@ -373,30 +401,34 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
             </tbody>
           </table>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-            <div style={{ width: 240 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+            <div style={{ width: 248 }}>
               <div
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  padding: "2px 0",
-                  color: "#475569",
+                  padding: "3px 0",
+                  color: "#57534e",
                 }}
               >
                 <span>Subtotal</span>
-                <span>{formatMoney(sale.subTotal)}</span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {formatMoney(sale.subTotal)}
+                </span>
               </div>
               {sale.discountTotal > 0 && (
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    padding: "2px 0",
-                    color: "#475569",
+                    padding: "3px 0",
+                    color: "#57534e",
                   }}
                 >
                   <span>Discount</span>
-                  <span>- {formatMoney(sale.discountTotal)}</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    - {formatMoney(sale.discountTotal)}
+                  </span>
                 </div>
               )}
               {sale.taxTotal > 0 && (
@@ -404,12 +436,14 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    padding: "2px 0",
-                    color: "#475569",
+                    padding: "3px 0",
+                    color: "#57534e",
                   }}
                 >
                   <span>Tax</span>
-                  <span>{formatMoney(sale.taxTotal)}</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {formatMoney(sale.taxTotal)}
+                  </span>
                 </div>
               )}
               {(sale.deliveryFee ?? 0) > 0 && (
@@ -417,12 +451,14 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    padding: "2px 0",
-                    color: "#475569",
+                    padding: "3px 0",
+                    color: "#57534e",
                   }}
                 >
                   <span>Delivery</span>
-                  <span>{formatMoney(sale.deliveryFee!)}</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {formatMoney(sale.deliveryFee!)}
+                  </span>
                 </div>
               )}
               <div
@@ -430,20 +466,21 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginTop: 6,
-                  padding: "8px 10px",
-                  background: "#0f172a",
+                  marginTop: 8,
+                  padding: "12px 14px",
+                  background: "#E65C00",
                   color: "#fff",
-                  fontWeight: 600,
+                  fontWeight: 700,
                   fontSize: 12,
+                  borderRadius: 10,
                 }}
               >
                 <span>Grand Total</span>
                 <span
                   style={{
-                    fontFamily: '"Libre Baskerville", Georgia, serif',
-                    fontSize: 16,
-                    fontWeight: 700,
+                    fontSize: 19,
+                    fontWeight: 800,
+                    fontVariantNumeric: "tabular-nums",
                   }}
                 >
                   {formatMoney(sale.grandTotal)}
@@ -456,10 +493,13 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                     justifyContent: "space-between",
                     marginTop: 8,
                     fontSize: 12,
+                    fontWeight: 700,
                   }}
                 >
-                  <span>Paid</span>
-                  <span>{formatMoney(paid)}</span>
+                  <span>Total paid</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {formatMoney(paid)}
+                  </span>
                 </div>
               )}
               {isPending && (
@@ -469,34 +509,197 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
                     justifyContent: "space-between",
                     marginTop: 4,
                     color: "#9a3412",
-                    fontWeight: 700,
+                    fontWeight: 800,
                     fontSize: 12,
                   }}
                 >
-                  <span>Pending amount</span>
-                  <span>{formatMoney(balance)}</span>
+                  <span>Amount due</span>
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {formatMoney(balance)}
+                  </span>
                 </div>
               )}
             </div>
           </div>
 
+          {(sale.payments || []).some((p) => Number(p.amount) > 0) && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid #eadfd3",
+                background: "#fffdfb",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  color: "#a8a29e",
+                  marginBottom: 6,
+                  fontWeight: 700,
+                }}
+              >
+                Payment details
+              </div>
+              {(sale.payments || [])
+                .filter((p) => Number(p.amount) > 0)
+                .map((p, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 12,
+                      padding: "3px 0",
+                      color: "#44403c",
+                    }}
+                  >
+                    <span>{String(p.method || "").toUpperCase()}</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {formatMoney(p.amount)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+
           {isPending && upiQr && (
             <div
               style={{
-                marginTop: 10,
-                padding: 10,
-                border: "1px solid #e2e8f0",
+                marginTop: 14,
+                padding: 16,
+                borderRadius: 14,
+                border: "1.5px solid #E65C00",
+                background:
+                  "linear-gradient(135deg, #fff8f1 0%, #ffffff 55%, #fff7ed 100%)",
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 16,
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "#C04A00",
+                    marginBottom: 4,
+                  }}
+                >
+                  Pay now
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#1c1917" }}>
+                  Scan this QR to clear your bill
+                </div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 26,
+                    fontWeight: 800,
+                    color: "#C04A00",
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {formatMoney(balance)}
+                </div>
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 11,
+                    color: "#78716c",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Open any UPI app and scan — amount for bill{" "}
+                  <strong>{sale.saleNo}</strong> is already filled.
+                  {upiCfg ? (
+                    <>
+                      <br />
+                      Pay to {upiCfg.payeeName}
+                    </>
+                  ) : null}
+                </div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#57534e",
+                  }}
+                >
+                  GPay · PhonePe · Paytm · BHIM
+                </div>
+              </div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 8,
+                  borderRadius: 12,
+                  background: "#fff",
+                  border: "1px solid #eadfd3",
+                }}
+              >
+                <QrCode value={upiQr} size={148} alt="Scan to pay" />
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "#a8a29e",
+                  }}
+                >
+                  Scan to pay
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isPending && !upiQr && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 14,
+                borderRadius: 12,
+                border: "1px dashed #fdba74",
+                background: "#fff7ed",
+                textAlign: "center",
+                fontSize: 12,
+                color: "#9a3412",
+                fontWeight: 600,
+              }}
+            >
+              UPI QR unavailable — please pay {formatMoney(balance)} via WhatsApp{" "}
+              {BRAND.whatsappDisplay} or at the counter.
+            </div>
+          )}
+
+          {!isPending && statusLabel !== "CANCELLED" && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "12px 14px",
+                borderRadius: 12,
+                background: "#ecfdf5",
+                border: "1px solid #a7f3d0",
                 textAlign: "center",
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 12 }}>
-                Scan to pay pending {formatMoney(balance)}
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#14532d" }}>
+                Thank you for choosing {BRAND.name}
               </div>
-              <div style={{ fontSize: 10, color: "#64748b", margin: "2px 0 8px" }}>
-                GPay · PhonePe · Paytm · BHIM
-              </div>
-              <div style={{ display: "inline-block", padding: 4, border: "1px solid #f1f5f9" }}>
-                <QrCode value={upiQr} size={128} alt="Scan to pay" />
+              <div style={{ marginTop: 3, fontSize: 11, color: "#166534" }}>
+                {pointsEarned > 0
+                  ? `You earned ${pointsEarned} rewards points on this bill`
+                  : "Fresh · Hygienic · Delivered with care"}
               </div>
             </div>
           )}
@@ -505,37 +708,35 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
         <div
           style={{
             textAlign: "center",
-            padding: "10px 18px 12px",
-            borderTop: "1px solid #e2e8f0",
-            color: "#64748b",
+            padding: "14px 26px 16px",
+            borderTop: "1px solid #eadfd3",
+            color: "#78716c",
             fontSize: 10.5,
-            lineHeight: 1.45,
-            background: "#f8fafc",
+            lineHeight: 1.55,
+            background: "#f3ebe3",
           }}
         >
           <div
             style={{
-              fontFamily: '"Libre Baskerville", Georgia, serif',
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: 700,
-              color: "#0f172a",
-              marginBottom: 2,
+              color: "#1c1917",
+              marginBottom: 3,
             }}
           >
-            Thank you for shopping with {BRAND.name}
+            {BRAND.name} · Tax Invoice
           </div>
-          <div>Freshness you can taste · Quality you can trust</div>
-          <div style={{ marginTop: 4 }}>
+          <div>
             Loyalty{" "}
-            <strong style={{ color: "#0f172a", fontWeight: 600 }}>
-              {LOYALTY.portalUrl.replace(/^https?:\/\//, "")}
-            </strong>{" "}
-            · <strong style={{ color: "#0f172a", fontWeight: 600 }}>{BRAND.website}</strong> ·
+            <strong style={{ color: "#C04A00", fontWeight: 700 }}>{loyaltyHost}</strong> ·{" "}
+            <strong style={{ color: "#C04A00", fontWeight: 700 }}>{BRAND.website}</strong> ·
             WhatsApp{" "}
-            <strong style={{ color: "#0f172a", fontWeight: 600 }}>
+            <strong style={{ color: "#C04A00", fontWeight: 700 }}>
               {BRAND.whatsappDisplay}
-            </strong>{" "}
-            · Redeem in shop · Computer-generated tax invoice
+            </strong>
+          </div>
+          <div style={{ marginTop: 3 }}>
+            Computer-generated invoice · No signature required
           </div>
         </div>
       </div>

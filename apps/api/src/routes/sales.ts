@@ -740,24 +740,25 @@ export async function saleRoutes(fastify: FastifyInstance) {
         ? (data as any).payments
         : null;
 
-      const { items: saleItems, unitTypeByProductId: unitMapCreate } =
-        await resolveSaleItemsForCreate(prisma, data.items, ownerStoreId);
-
-      // Get franchise config separately if store is a franchise
-      let config = null;
-      if (store.type === 'FRANCHISE') {
-        config = await prisma.franchiseConfig.findUnique({
-          where: { franchiseStoreId: storeId },
-        });
-      }
+      // Parallel prep: line resolve + saleNo + franchise config + attached customer
+      const [resolvedItems, saleNo, config, attachedCustomer] = await Promise.all([
+        resolveSaleItemsForCreate(prisma, data.items, ownerStoreId),
+        generateSaleNo(prisma, storeId),
+        store.type === 'FRANCHISE'
+          ? prisma.franchiseConfig.findUnique({ where: { franchiseStoreId: storeId } })
+          : Promise.resolve(null),
+        data.customerId
+          ? prisma.customer.findUnique({
+              where: { id: data.customerId },
+              select: { id: true, storeId: true, phone: true, loyaltyPoints: true, profileRewardStatus: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      const { items: saleItems, unitTypeByProductId: unitMapCreate } = resolvedItems;
 
       // Get or create customer
       let customerId = data.customerId;
       if (customerId) {
-        const attachedCustomer = await prisma.customer.findUnique({
-          where: { id: customerId },
-          select: { id: true, storeId: true, phone: true },
-        });
         if (
           !attachedCustomer ||
           !(await canAccessCustomerStore(storeId, user.role, attachedCustomer.storeId))
@@ -805,22 +806,21 @@ export async function saleRoutes(fastify: FastifyInstance) {
         await upsertCustomerArea(prisma, customerId, data.customerArea);
       }
 
-      // Optional counter referral: link once via phone and/or referral code
+      // Referral linking is non-critical — don't hold Pay on it.
       if (customerId && (data.referredByPhone || data.referredByCode)) {
-        try {
-          if (data.referredByPhone) {
-            await linkReferredByPhone(prisma, customerId, data.referredByPhone);
+        void (async () => {
+          try {
+            if (data.referredByPhone) {
+              await linkReferredByPhone(prisma, customerId!, data.referredByPhone);
+            }
+            if (data.referredByCode) {
+              await linkReferredByCode(prisma, customerId!, data.referredByCode);
+            }
+          } catch (refErr) {
+            console.warn('[Sales] referral link failed (non-critical):', refErr);
           }
-          if (data.referredByCode) {
-            await linkReferredByCode(prisma, customerId, data.referredByCode);
-          }
-        } catch (refErr) {
-          console.warn('[Sales] referral link failed (non-critical):', refErr);
-        }
+        })();
       }
-
-      // Generate sale number (one count query; unique index handles rare races).
-      const saleNo = await generateSaleNo(prisma, storeId);
 
       // Calculate totals
       let subTotal = 0;
@@ -964,11 +964,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
       let loyaltyRedeemValue = 0;
       const requestedRedeem = Math.max(0, Math.floor((data as any).loyaltyPointsRedeemed || 0));
       if (requestedRedeem > 0 && customerId) {
-        const redeemCustomer = await prisma.customer.findUnique({
-          where: { id: customerId },
-          select: { loyaltyPoints: true },
-        });
-        const available = Math.floor(redeemCustomer?.loyaltyPoints || 0);
+        // Reuse the attached-customer row when we already loaded it in prep.
+        let available = 0;
+        if (attachedCustomer && attachedCustomer.id === customerId) {
+          available = Math.floor((attachedCustomer as any).loyaltyPoints || 0);
+        } else {
+          const redeemCustomer = await prisma.customer.findUnique({
+            where: { id: customerId },
+            select: { loyaltyPoints: true },
+          });
+          available = Math.floor(redeemCustomer?.loyaltyPoints || 0);
+        }
         const maxByBill = Math.floor(roundedBaseGrandTotal / LOYALTY_POINT_VALUE);
         loyaltyPointsToRedeem = Math.max(0, Math.min(requestedRedeem, available, maxByBill));
         loyaltyRedeemValue = loyaltyPointsToRedeem * LOYALTY_POINT_VALUE;
@@ -985,11 +991,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
         // A client can send discountSource: 'profile_reward' with any 10%-shaped
         // discount regardless of whether this customer actually earned/still has
         // the reward — verify eligibility server-side, not just the discount math.
-        const rewardCustomer = await prisma.customer.findUnique({
-          where: { id: customerId },
-          select: { profileRewardStatus: true },
-        });
-        if (rewardCustomer?.profileRewardStatus !== 'PENDING') {
+        let profileRewardStatus: string | null | undefined =
+          attachedCustomer && attachedCustomer.id === customerId
+            ? (attachedCustomer as any).profileRewardStatus
+            : undefined;
+        if (profileRewardStatus === undefined) {
+          const rewardCustomer = await prisma.customer.findUnique({
+            where: { id: customerId },
+            select: { profileRewardStatus: true },
+          });
+          profileRewardStatus = rewardCustomer?.profileRewardStatus;
+        }
+        if (profileRewardStatus !== 'PENDING') {
           reply.code(400).send({ error: 'Profile reward is not available for this customer' });
           return;
         }
@@ -1184,6 +1197,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           actorUserId: userId,
           actorStoreId: storeId,
           skipInventorySync: true,
+          skipDiscountOverrideCheck: true,
           existingSale: {
             id: sale.id,
             status: sale.status,
@@ -1197,16 +1211,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       const fulfillmentType = String((data as any).fulfillmentType || '').toUpperCase();
       if (fulfillmentType === 'DELIVERY' && finalSale?.customerId) {
-        try {
-          await ensureDeliveryForSale({
-            saleId: finalSale.id,
-            deliveryFee: Number((data as any).deliveryFee) || 0,
-            actorUserId: userId,
-            type: 'DELIVERY',
-          });
-        } catch (delErr) {
-          console.warn('[Sales] ensureDeliveryForSale failed (non-blocking):', delErr);
-        }
+        // Don't hold the Pay response on delivery row creation.
+        void ensureDeliveryForSale({
+          saleId: finalSale.id,
+          deliveryFee: Number((data as any).deliveryFee) || 0,
+          actorUserId: userId,
+          type: 'DELIVERY',
+        }).catch((delErr) =>
+          console.warn('[Sales] ensureDeliveryForSale failed (non-blocking):', delErr)
+        );
       }
 
       return enrichSaleResponse(finalSale);
@@ -1346,23 +1359,21 @@ export async function saleRoutes(fastify: FastifyInstance) {
         // Only create delivery when the client explicitly asked for DELIVERY
         // (never infer from rounding residuals on pickup bills).
         if (updatedSale?.customerId && payFulfillmentType === 'DELIVERY') {
-          try {
-            const fee = Math.max(
-              0,
-              Math.round(updatedSale.grandTotal) -
-                Math.round(
-                  updatedSale.subTotal + updatedSale.taxTotal - updatedSale.discountTotal
-                )
-            );
-            await ensureDeliveryForSale({
-              saleId: updatedSale.id,
-              deliveryFee: fee,
-              actorUserId: userId,
-              type: 'DELIVERY',
-            });
-          } catch (delErr) {
-            console.warn('[Payment API] ensureDeliveryForSale failed:', delErr);
-          }
+          const fee = Math.max(
+            0,
+            Math.round(updatedSale.grandTotal) -
+              Math.round(
+                updatedSale.subTotal + updatedSale.taxTotal - updatedSale.discountTotal
+              )
+          );
+          void ensureDeliveryForSale({
+            saleId: updatedSale.id,
+            deliveryFee: fee,
+            actorUserId: userId,
+            type: 'DELIVERY',
+          }).catch((delErr) =>
+            console.warn('[Payment API] ensureDeliveryForSale failed:', delErr)
+          );
         }
         return enrichSaleResponse(updatedSale);
       } catch (payErr: any) {

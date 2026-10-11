@@ -12,6 +12,7 @@ import {
   type OfflineCreateSalePayload,
 } from '@/lib/offlineCheckout';
 import { runPostCheckoutSideEffects } from '@/lib/checkoutPostSuccess';
+import { checkCartAgainstStockSnapshot } from '@/lib/stockSnapshot';
 
 export type CheckoutPayment = { method: string; amount: number };
 
@@ -194,64 +195,22 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     return;
   }
 
-  // Hard stock block at checkout — short timeout so Pay never waits on a slow inventory call.
-  try {
-    const stockRes = await Promise.race([
-      api.get('/api/v1/inventory/summary'),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
-    ]);
-    if (stockRes) {
-      const rows = Array.isArray(stockRes.data)
-        ? stockRes.data
-        : Array.isArray(stockRes.data?.items)
-          ? stockRes.data.items
-          : [];
-      const byId = new Map<string, { kg: number; pcs: number }>();
-      for (const r of rows) {
-        const id = String(r.productId || r.id || '');
-        if (!id) continue;
-        byId.set(id, {
-          kg: Number(r.currentQtyKg ?? r.onHandKg ?? r.kg ?? 0) || 0,
-          pcs: Number(r.currentQtyPcs ?? r.onHandPcs ?? r.pcs ?? 0) || 0,
-        });
-      }
-      // Only enforce when we actually received stock rows (empty summary = skip).
-      if (byId.size > 0) {
-        for (const line of useCartStore.getState().items) {
-          if (!line.productId || line.productId === 'manual') continue;
-          const st = byId.get(line.productId);
-          if (!st) continue;
-          if (line.qtyKg != null && line.qtyKg > 0 && st.kg + 1e-6 < line.qtyKg) {
-            onNotify(
-              `Not enough stock for ${line.productName} — only ${st.kg.toFixed(3)} kg on hand`,
-              'error',
-              5000
-            );
-            return;
-          }
-          if (line.qtyPcs != null && line.qtyPcs > 0 && st.pcs < line.qtyPcs) {
-            onNotify(
-              `Not enough stock for ${line.productName} — only ${st.pcs} pcs on hand`,
-              'error',
-              5000
-            );
-            return;
-          }
-        }
-      }
-    }
-  } catch (stockErr) {
-    console.warn('[Checkout] Stock check skipped:', stockErr);
+  // Soft stock gate from POS-prefetched summary — zero network on Pay.
+  const stockGate = checkCartAgainstStockSnapshot(useCartStore.getState().items);
+  if (!stockGate.ok) {
+    onNotify(stockGate.message, 'error', 5000);
+    return;
   }
 
   try {
     const fulfillmentType = useCartStore.getState().fulfillmentType;
     const couponCode = useCartStore.getState().couponCode;
+    const inlinePayments = pendingLines.length === 0;
     const saleResponse = await api.post('/api/v1/sales', {
       ...saleData,
       fulfillmentType,
       ...(couponCode ? { couponCode } : {}),
-      ...(pendingLines.length === 0 ? { payments } : {}),
+      ...(inlinePayments ? { payments } : {}),
     });
     const payload = saleResponse.data;
 
@@ -268,34 +227,46 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     }
 
     const cartOnlyTotal = useCartStore.getState().getTotal().grandTotal;
+    const salePaymentsTotal = Math.round(
+      (Array.isArray(sale.payments) ? sale.payments : []).reduce(
+        (s: number, p: { amount?: number }) => s + (Number(p.amount) || 0),
+        0
+      )
+    );
+    const saleAlreadySettled =
+      sale.status === 'PAID' ||
+      salePaymentsTotal >= Math.round(Number(sale.grandTotal) || cartOnlyTotal) - 1;
 
-    try {
-      const { settledSaleNos } = await completeNewSaleCheckout(
-        api,
-        sale,
-        payments,
-        pendingLines,
-        cartOnlyTotal,
-        { fulfillmentType: useCartStore.getState().fulfillmentType }
-      );
-      if (settledSaleNos.length > 0) {
-        onNotify(
-          `Settled previous credit: ${settledSaleNos.map((n) => `#${n}`).join(', ')}`,
-          'success',
-          5000
+    // Only hit /pay again when payments were deferred (pending credit) or create left the sale unpaid.
+    if (!inlinePayments || !saleAlreadySettled || pendingLines.length > 0) {
+      try {
+        const { settledSaleNos } = await completeNewSaleCheckout(
+          api,
+          sale,
+          payments,
+          pendingLines,
+          cartOnlyTotal,
+          { fulfillmentType: useCartStore.getState().fulfillmentType }
         );
+        if (settledSaleNos.length > 0) {
+          onNotify(
+            `Settled previous credit: ${settledSaleNos.map((n) => `#${n}`).join(', ')}`,
+            'success',
+            5000
+          );
+        }
+      } catch (payErr: any) {
+        const payData = payErr?.response?.data;
+        if (
+          payData?.requiresApproval ||
+          String(payData?.error || '').toLowerCase().includes('pending approval')
+        ) {
+          onClosePaymentUi?.();
+          await onDiscountApproval(sale.saleNo || sale.id);
+          return;
+        }
+        throw payErr;
       }
-    } catch (payErr: any) {
-      const payData = payErr?.response?.data;
-      if (
-        payData?.requiresApproval ||
-        String(payData?.error || '').toLowerCase().includes('pending approval')
-      ) {
-        onClosePaymentUi?.();
-        await onDiscountApproval(sale.saleNo || sale.id);
-        return;
-      }
-      throw payErr;
     }
 
     const fulfillType = useCartStore.getState().fulfillmentType;
@@ -303,6 +274,7 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     const loyaltyCustomerId = useCartStore.getState().customerId;
     const loyaltyPointsRedeemed = Number(saleData.loyaltyPointsRedeemed || 0);
 
+    // Success UI first — side effects (delivery, loyalty refresh, clearCart) run in background.
     onClosePaymentUi?.();
     onSuccess({
       saleNo: sale.saleNo || 'N/A',

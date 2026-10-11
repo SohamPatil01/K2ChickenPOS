@@ -181,7 +181,17 @@ export async function completeNewSaleCheckout(
   const { allocated: cartPayments, remaining } = allocatePaymentsFromPool(pool, roundedSaleGrandTotal);
   pool = remaining;
 
-  if (sale.status !== 'PAID') {
+  const existingPaid = Math.round(
+    (Array.isArray((sale as any).payments) ? (sale as any).payments : []).reduce(
+      (s: number, p: { amount?: number }) => s + (Number(p.amount) || 0),
+      0
+    )
+  );
+  // CREDIT-only bills stay OPEN — still skip /pay when create already booked payments.
+  const saleAlreadySettled =
+    sale.status === 'PAID' || existingPaid >= roundedSaleGrandTotal - 1;
+
+  if (!saleAlreadySettled && cartPayments.some((p) => p.amount > 0)) {
     await paySaleWithRecovery(api, sale.id, cartPayments, roundedSaleGrandTotal, {
       fulfillmentType: opts?.fulfillmentType,
     });

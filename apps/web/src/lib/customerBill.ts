@@ -68,52 +68,6 @@ function escapeHtml(s: string) {
     .replace(/"/g, "&quot;");
 }
 
-/**
- * Original line-art rooster mark — a weathervane-style silhouette, drawn
- * for this invoice specifically (not stock art). `ROOSTER_MARK` is the bare
- * silhouette for small crisp use (e.g. the footer sign-off); `ROOSTER_BADGE`
- * wraps it in a ring with wheat-sprig flourishes for use as a large,
- * low-opacity background watermark.
- */
-const ROOSTER_MARK = `<g fill="currentColor">
-  <path d="M118 108 C 150 95, 168 62, 160 28 C 158 60, 142 82, 116 100 C 118 103, 118 106, 118 108 Z"/>
-  <path d="M112 112 C 138 88, 148 52, 132 20 C 136 52, 128 80, 104 104 C 107 108, 110 110, 112 112 Z"/>
-  <path d="M104 114 C 120 84, 120 48, 100 22 C 110 50, 108 78, 92 106 C 96 109, 100 112, 104 114 Z"/>
-  <path d="M60 118 C 58 100, 72 86, 92 86 C 112 86, 126 98, 128 116 C 130 132, 120 148, 98 150 C 76 152, 62 138, 60 118 Z"/>
-  <path d="M64 100 C 56 88, 50 74, 54 60 C 58 66, 62 72, 68 76 C 66 84, 66 92, 68 100 Z"/>
-  <circle cx="52" cy="54" r="13"/>
-  <path d="M44 44 C 42 39, 46 36, 49 40 C 50 35, 56 35, 56 40 C 59 36, 64 39, 61 44 C 58 47, 47 47, 44 44 Z"/>
-  <path d="M40 58 L 27 55 L 40 51 Z"/>
-  <path d="M42 62 C 39 65, 39 70, 43 71 C 45 67, 44 64, 42 62 Z"/>
-  <path d="M92 148 L 90 172" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/>
-  <path d="M90 172 L 78 178 M90 172 L 90 180 M90 172 L 100 177" stroke="currentColor" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-</g>
-<ellipse cx="90" cy="181" rx="20" ry="3" fill="currentColor" opacity="0.3"/>`;
-
-function roosterBadgeSvg(opts: {
-  size: number;
-  color: string;
-  opacity?: number;
-  rotate?: number;
-  ring?: boolean;
-}): string {
-  const { size, color, opacity = 1, rotate = 0, ring = true } = opts;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 240 240" style="color:${color};opacity:${opacity};transform:rotate(${rotate}deg)">
-    ${ring ? `<circle cx="120" cy="122" r="100" fill="none" stroke="currentColor" stroke-width="2"/>` : ""}
-    <g transform="translate(30,20)">${ROOSTER_MARK}</g>
-    ${
-      ring
-        ? `<g stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round">
-      <path d="M40 190 Q30 150 45 105"/>
-      <path d="M43 175 L32 170 M45 162 L33 158 M47 149 L35 146 M49 136 L37 134 M51 123 L40 122 M53 111 L42 111"/>
-      <path d="M200 190 Q210 150 195 105"/>
-      <path d="M197 175 L208 170 M195 162 L207 158 M193 149 L205 146 M191 136 L203 134 M189 123 L200 122 M187 111 L198 111"/>
-    </g>`
-        : ""
-    }
-  </svg>`;
-}
-
 /** Cash/card/UPI count as paid; CREDIT is a promise, not money received. */
 export function actualPayments(sale: BillSale) {
   return (sale.payments || []).filter(
@@ -206,7 +160,7 @@ function trimCanvasWhitespace(
 function collectSafeBreakOffsets(billEl: HTMLElement): number[] {
   const billTop = billEl.getBoundingClientRect().top;
   const selector =
-    "table.items tbody tr, table tbody tr, .card, .pay, .qr, .alert, .totals, .grid2";
+    "table.items tbody tr, table tbody tr, .card, .pay, .pay-scan, .thanks, .alert, .totals, .grid2";
   const offsets = Array.from(billEl.querySelectorAll(selector)).map(
     (el) => el.getBoundingClientRect().bottom - billTop
   );
@@ -230,15 +184,20 @@ async function pendingQrDataUrl(
   });
   if (!upi) return "";
   try {
+    // Larger QR so it scans cleanly from a WhatsApp bill photo.
     return await QRCode.toDataURL(upi, {
-      width: 180,
+      width: 240,
       margin: 1,
       errorCorrectionLevel: "M",
-      color: { dark: "#0f172a", light: "#ffffff" },
+      color: { dark: "#1c1917", light: "#ffffff" },
     });
   } catch {
     return "";
   }
+}
+
+function loyaltyPointsForBill(grandTotal: number) {
+  return Math.floor(Math.max(0, Number(grandTotal) || 0) * 0.0125);
 }
 
 export async function buildCustomerBillHtml(
@@ -253,17 +212,29 @@ export async function buildCustomerBillHtml(
     ? await pendingQrDataUrl(balance, sale.saleNo)
     : "";
 
+  const hasCredit = (sale.payments || []).some(
+    (p) => String(p.method || "").toUpperCase() === "CREDIT" && Number(p.amount) > 0
+  );
   const statusLabel =
     String(sale.status).toUpperCase() === "VOID"
       ? "CANCELLED"
       : isPending
-        ? "PENDING"
-        : String(sale.status).toUpperCase();
+        ? hasCredit
+          ? "CREDIT DUE"
+          : "AMOUNT DUE"
+        : String(sale.status).toUpperCase() === "PAID"
+          ? "PAID"
+          : String(sale.status).toUpperCase();
 
-  // Paid = confirmed green, Pending = brand amber, Cancelled = red — a
-  // filled pill reads as a real status at a glance instead of a grey chip.
   const statusBg =
-    isPending ? "#fb923c" : statusLabel === "CANCELLED" ? "#ef4444" : "#16a34a";
+    statusLabel === "CANCELLED"
+      ? "#dc2626"
+      : isPending
+        ? "#c2410c"
+        : "#15803d";
+
+  const pointsEarned = loyaltyPointsForBill(sale.grandTotal);
+  const upiCfg = getUpiConfig();
 
   const itemRows = sale.items
     .map(
@@ -298,181 +269,188 @@ export async function buildCustomerBillHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Tax Invoice ${escapeHtml(sale.saleNo)} — ${escapeHtml(BRAND.name)}</title>
   <style>
-    /*
-     * Font stack is intentionally system-only — no Google Fonts. Two reasons:
-     * 1) this is rendered inside an offscreen hidden iframe for the PDF/canvas
-     *    capture, where webfont loading is a real, hard-to-debug race;
-     * 2) IBM Plex Sans's served subsets don't cover U+20B9 (₹), so the rupee
-     *    sign silently fell back to a different font than the digits next to
-     *    it on every single price. A system-ui stack loads instantly and has
-     *    full glyph coverage, so every amount renders in one consistent face.
-     */
+    /* System fonts only — reliable ₹ glyphs + PDF iframe capture. */
     @page { size: A4; margin: 10mm; }
     @media print {
       body { background: #fff !important; padding: 0 !important; }
       .no-print { display: none !important; }
-      .bill { box-shadow: none !important; border: none !important; }
-      .bill { animation: none !important; opacity: 1 !important; transform: none !important; }
+      .bill { box-shadow: none !important; border: none !important; animation: none !important; }
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      padding: 16px;
+      margin: 0; padding: 16px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #eef0f2;
-      color: #16181c;
-      -webkit-font-smoothing: antialiased;
-    }
-    /* On-screen only — settles well before the PDF/canvas capture reads the
-       page, and is force-disabled under @media print above regardless. */
-    @keyframes billIn {
-      from { opacity: 0; transform: translateY(10px) scale(0.99); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
+      background: #ebe4dc; color: #1c1917; -webkit-font-smoothing: antialiased;
     }
     .bill {
-      position: relative;
-      max-width: 680px;
-      margin: 0 auto;
-      background: #ffffff;
-      border: 1px solid #e4e7eb;
-      overflow: hidden;
-      animation: billIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      position: relative; max-width: 680px; margin: 0 auto;
+      background: #fbf7f2; border: 1px solid #e7ddd2; border-radius: 14px;
+      overflow: hidden; box-shadow: 0 8px 28px rgba(28, 25, 23, 0.08);
     }
-    .topbar { height: 4px; background: #E65C00; }
-    .wm {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      pointer-events: none; z-index: 0; overflow: hidden;
+    .topbar {
+      height: 5px;
+      background: linear-gradient(90deg, #E65C00 0%, #f59e0b 55%, #E65C00 100%);
     }
     .inner { position: relative; z-index: 1; }
     .hdr {
       display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 16px; padding: 24px 28px 20px;
-      border-bottom: 2px solid #16181c;
+      gap: 16px; padding: 22px 26px 18px;
+      border-bottom: 1px solid #eadfd3;
+      background: linear-gradient(180deg, #fffdfb 0%, #fbf7f2 100%);
     }
     .brand-row { display: flex; align-items: center; gap: 12px; }
     .brand-row img {
-      width: 46px; height: 46px; object-fit: contain; flex-shrink: 0;
-      border: 1px solid #e4e7eb; background: #fff; padding: 3px;
+      width: 52px; height: 52px; object-fit: contain; flex-shrink: 0;
+      border-radius: 12px; border: 1px solid #eadfd3; background: #fff; padding: 4px;
     }
     .brand-name {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 22px; font-weight: 700; line-height: 1.2; color: #16181c;
-      letter-spacing: -0.01em;
+      font-size: 22px; font-weight: 700; line-height: 1.15; color: #1c1917;
+      letter-spacing: -0.02em;
     }
     .brand-tag {
-      margin-top: 2px; font-size: 9.5px; color: #E65C00;
-      letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;
+      margin-top: 3px; font-size: 10px; color: #C04A00;
+      letter-spacing: 0.06em; font-weight: 600;
     }
     .meta {
-      margin-top: 10px; font-size: 10.5px; line-height: 1.6; color: #5c6470; max-width: 320px;
+      margin-top: 10px; font-size: 10.5px; line-height: 1.55; color: #78716c; max-width: 340px;
     }
     .inv { text-align: right; flex-shrink: 0; }
     .inv-label {
-      font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em;
-      text-transform: uppercase; color: #5c6470;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: #a8a29e;
     }
-    .inv-no { margin-top: 6px; font-size: 16px; font-weight: 700; color: #16181c; font-variant-numeric: tabular-nums; }
-    .inv-dt { margin-top: 3px; font-size: 10.5px; color: #5c6470; }
+    .inv-no { margin-top: 6px; font-size: 15px; font-weight: 700; color: #1c1917; font-variant-numeric: tabular-nums; }
+    .inv-dt { margin-top: 3px; font-size: 10.5px; color: #78716c; }
     .badge {
-      display: inline-block; margin-top: 10px; padding: 3px 10px;
-      border-radius: 3px;
-      font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+      display: inline-block; margin-top: 10px; padding: 4px 11px;
+      border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
       background: ${statusBg}; color: #ffffff;
     }
-    .body { padding: 20px 28px 8px; }
+    .body { padding: 18px 26px 10px; }
     .alert {
-      display: flex; justify-content: space-between; align-items: center; gap: 10px;
-      margin-bottom: 16px; padding: 12px 16px;
-      border: 1px solid #fdba74; border-left: 3px solid #ea580c; background: #fff7ed;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      margin-bottom: 14px; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid #fdba74; background: #fff7ed;
     }
     .alert-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #9a3412; font-weight: 700; }
-    .alert-s { font-size: 11px; color: #c2410c; margin-top: 1px; }
-    .alert-amt { font-size: 19px; font-weight: 700; color: #9a3412; font-variant-numeric: tabular-nums; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-bottom: 20px; border: 1px solid #e4e7eb; }
-    .card { padding: 12px 16px; }
-    .card + .card { border-left: 1px solid #e4e7eb; }
-    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #8a919c; margin-bottom: 4px; font-weight: 700; }
-    .card-t { font-size: 13px; font-weight: 700; color: #16181c; }
-    .card-s { font-size: 11px; color: #5c6470; margin-top: 2px; }
+    .alert-s { font-size: 11px; color: #c2410c; margin-top: 2px; }
+    .alert-amt { font-size: 20px; font-weight: 700; color: #9a3412; font-variant-numeric: tabular-nums; }
+    .grid2 {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;
+    }
+    .card {
+      padding: 12px 14px; border-radius: 12px;
+      border: 1px solid #eadfd3; background: #fffdfb;
+    }
+    .card-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #a8a29e; margin-bottom: 5px; font-weight: 700; }
+    .card-t { font-size: 13px; font-weight: 700; color: #1c1917; }
+    .card-s { font-size: 11px; color: #78716c; margin-top: 2px; }
     table.items { width: 100%; border-collapse: collapse; font-size: 12px; }
     table.items th {
-      background: #16181c; color: #fff; font-size: 9px; font-weight: 600;
+      background: #292524; color: #fafaf9; font-size: 9px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.08em;
-      padding: 9px 8px; text-align: left;
+      padding: 10px 8px; text-align: left;
     }
+    table.items th:first-child { border-radius: 8px 0 0 8px; }
+    table.items th:last-child { border-radius: 0 8px 8px 0; text-align: right; }
     table.items th.r { text-align: right; }
     table.items td {
-      padding: 9px 8px; border-bottom: 1px solid #e4e7eb; vertical-align: top;
+      padding: 10px 8px; border-bottom: 1px solid #efe6dc; vertical-align: top;
     }
-    table.items tbody tr:nth-child(even) td { background: #f8f9fa; }
-    .c-muted { color: #b2b8c2; width: 28px; }
-    .c-item { font-weight: 500; color: #16181c; }
-    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #5c6470; }
-    .c-strong { font-weight: 700; color: #16181c; }
-    .totals { margin: 14px 0 4px; display: flex; justify-content: flex-end; }
-    .totals-box { width: 240px; }
+    table.items tbody tr:nth-child(even) td { background: rgba(255,255,255,0.55); }
+    .c-muted { color: #a8a29e; width: 28px; }
+    .c-item { font-weight: 600; color: #1c1917; }
+    .c-num { text-align: right; font-variant-numeric: tabular-nums; color: #57534e; }
+    .c-strong { font-weight: 700; color: #1c1917; }
+    .totals { margin: 14px 0 6px; display: flex; justify-content: flex-end; }
+    .totals-box { width: 248px; }
     .t-row {
       display: flex; justify-content: space-between; padding: 3px 0;
-      font-size: 12px; color: #5c6470;
+      font-size: 12px; color: #57534e;
     }
     .t-row span:last-child { font-variant-numeric: tabular-nums; }
     .t-grand {
-      margin-top: 8px; padding: 11px 14px;
-      background: #E65C00;
-      color: #fff;
+      margin-top: 8px; padding: 12px 14px; border-radius: 10px;
+      background: #E65C00; color: #fff;
       display: flex; justify-content: space-between; align-items: center;
-      font-size: 12px; font-weight: 600;
+      font-size: 12px; font-weight: 700;
     }
     .t-grand span:last-child {
-      font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+      font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums;
     }
     .pay {
-      margin: 16px 0 4px; padding: 12px 16px; border: 1px solid #e4e7eb;
+      margin: 14px 0 6px; padding: 12px 14px; border-radius: 12px;
+      border: 1px solid #eadfd3; background: #fffdfb;
     }
     .pay-l {
       font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
-      color: #8a919c; margin-bottom: 6px; font-weight: 700;
+      color: #a8a29e; margin-bottom: 6px; font-weight: 700;
     }
     .pay-row {
       display: flex; justify-content: space-between; font-size: 12px;
-      padding: 3px 0; color: #33383f;
+      padding: 3px 0; color: #44403c;
     }
     .pay-row span:last-child, .pay-total span:last-child, .pay-due span:last-child { font-variant-numeric: tabular-nums; }
     .pay-total {
       display: flex; justify-content: space-between; font-size: 12px;
-      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #cbd2d9; font-weight: 600;
+      margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d6d3d1; font-weight: 700;
     }
     .pay-due {
       display: flex; justify-content: space-between; font-size: 12px;
-      margin-top: 4px; font-weight: 700; color: #9a3412;
+      margin-top: 4px; font-weight: 800; color: #9a3412;
     }
-    .qr {
-      margin: 12px 0 6px; padding: 14px; border: 1px solid #e4e7eb; text-align: center;
+    /* Credit / pending: large pay-here scanner on the bill itself */
+    .pay-scan {
+      margin: 14px 0 8px; padding: 16px;
+      border-radius: 14px; border: 1.5px solid #E65C00;
+      background: linear-gradient(135deg, #fff8f1 0%, #ffffff 55%, #fff7ed 100%);
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center;
     }
-    .qr-t { font-size: 12px; font-weight: 700; color: #16181c; }
-    .qr-s { font-size: 10px; color: #5c6470; margin: 2px 0 8px; }
-    .qr img {
-      width: 128px; height: 128px; background: #fff; padding: 4px;
-      border: 1px solid #e4e7eb;
+    .pay-scan-kicker {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #C04A00; margin-bottom: 4px;
     }
+    .pay-scan-title { font-size: 15px; font-weight: 700; color: #1c1917; line-height: 1.25; }
+    .pay-scan-amt {
+      margin-top: 8px; font-size: 26px; font-weight: 800; color: #C04A00;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    }
+    .pay-scan-hint { margin-top: 6px; font-size: 11px; color: #78716c; line-height: 1.45; }
+    .pay-scan-apps { margin-top: 8px; font-size: 10px; font-weight: 700; color: #57534e; }
+    .pay-scan-qr {
+      text-align: center; padding: 8px; border-radius: 12px;
+      background: #fff; border: 1px solid #eadfd3;
+    }
+    .pay-scan-qr img {
+      width: 148px; height: 148px; display: block; background: #fff;
+    }
+    .pay-scan-qr-cap {
+      margin-top: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #a8a29e;
+    }
+    .pay-scan-missing {
+      margin: 14px 0 8px; padding: 14px; border-radius: 12px;
+      border: 1px dashed #fdba74; background: #fff7ed; text-align: center;
+      font-size: 12px; color: #9a3412; font-weight: 600;
+    }
+    .thanks {
+      margin: 12px 0 6px; padding: 12px 14px; border-radius: 12px;
+      background: #ecfdf5; border: 1px solid #a7f3d0; text-align: center;
+    }
+    .thanks-t { font-size: 13px; font-weight: 700; color: #14532d; }
+    .thanks-s { margin-top: 3px; font-size: 11px; color: #166534; }
     .ftr {
-      border-top: 1px solid #e4e7eb; padding: 16px 28px 18px;
-      text-align: center; font-size: 10.5px; color: #5c6470; line-height: 1.6;
-      background: #fafbfc;
+      border-top: 1px solid #eadfd3; padding: 14px 26px 16px;
+      text-align: center; font-size: 10.5px; color: #78716c; line-height: 1.55;
+      background: #f3ebe3;
     }
-    .ftr-badge { display: flex; justify-content: center; margin-bottom: 6px; }
-    .ftr-t {
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 13px; font-weight: 700; color: #16181c; margin-bottom: 3px;
-    }
-    .ftr strong { color: #C04A00; font-weight: 600; }
+    .ftr-t { font-size: 12.5px; font-weight: 700; color: #1c1917; margin-bottom: 3px; }
+    .ftr strong { color: #C04A00; font-weight: 700; }
   </style>
 </head>
 <body>
   <div class="bill" id="k2-bill">
     <div class="topbar"></div>
-    <div class="wm">${roosterBadgeSvg({ size: 380, color: "#E65C00", opacity: 0.1, rotate: -6 })}</div>
     <div class="inner">
       <div class="hdr">
         <div>
@@ -480,7 +458,7 @@ export async function buildCustomerBillHtml(
             <img src="${logo}" alt="${escapeHtml(BRAND.name)}"/>
             <div>
               <div class="brand-name">${escapeHtml(BRAND.name)}</div>
-              <div class="brand-tag">Fresh · Pure · Trusted</div>
+              <div class="brand-tag">${escapeHtml(BRAND.tagline)}</div>
             </div>
           </div>
           <div class="meta">
@@ -501,8 +479,8 @@ export async function buildCustomerBillHtml(
           isPending
             ? `<div class="alert">
           <div>
-            <div class="alert-l">Pending / Credit bill</div>
-            <div class="alert-s">Balance still due on this invoice</div>
+            <div class="alert-l">${hasCredit ? "Credit bill" : "Balance due"}</div>
+            <div class="alert-s">Pay below with UPI — amount is pre-filled</div>
           </div>
           <div class="alert-amt">${formatMoney(balance)}</div>
         </div>`
@@ -571,7 +549,7 @@ export async function buildCustomerBillHtml(
           }
           ${
             isPending
-              ? `<div class="pay-due"><span>Pending amount</span><span>${formatMoney(balance)}</span></div>`
+              ? `<div class="pay-due"><span>Amount due</span><span>${formatMoney(balance)}</span></div>`
               : ""
           }
         </div>`
@@ -580,31 +558,58 @@ export async function buildCustomerBillHtml(
 
         ${
           isPending && qrDataUrl
-            ? `<div class="qr">
-          <div class="qr-t">Scan to pay pending ${formatMoney(balance)}</div>
-          <div class="qr-s">GPay · PhonePe · Paytm · BHIM</div>
-          <img src="${qrDataUrl}" alt="Scan to pay"/>
+            ? `<div class="pay-scan">
+          <div>
+            <div class="pay-scan-kicker">Pay now</div>
+            <div class="pay-scan-title">Scan this QR to clear your bill</div>
+            <div class="pay-scan-amt">${formatMoney(balance)}</div>
+            <div class="pay-scan-hint">
+              Open any UPI app and scan — amount for bill
+              <strong>${escapeHtml(sale.saleNo)}</strong> is already filled.
+              ${upiCfg ? `<br/>Pay to ${escapeHtml(upiCfg.payeeName)}` : ""}
+            </div>
+            <div class="pay-scan-apps">GPay · PhonePe · Paytm · BHIM</div>
+          </div>
+          <div class="pay-scan-qr">
+            <img src="${qrDataUrl}" alt="Scan to pay ${formatMoney(balance)}"/>
+            <div class="pay-scan-qr-cap">Scan to pay</div>
+          </div>
+        </div>`
+            : isPending
+              ? `<div class="pay-scan-missing">
+          UPI QR unavailable — please pay ${formatMoney(balance)} via WhatsApp ${escapeHtml(BRAND.whatsappDisplay)} or at the counter.
+        </div>`
+              : ""
+        }
+
+        ${
+          !isPending && statusLabel !== "CANCELLED"
+            ? `<div class="thanks">
+          <div class="thanks-t">Thank you for choosing ${escapeHtml(BRAND.name)}</div>
+          ${
+            pointsEarned > 0
+              ? `<div class="thanks-s">You earned <strong>${pointsEarned}</strong> rewards points on this bill</div>`
+              : `<div class="thanks-s">Fresh · Hygienic · Delivered with care</div>`
+          }
         </div>`
             : ""
         }
       </div>
 
       <div class="ftr">
-        <div class="ftr-badge">${roosterBadgeSvg({ size: 40, color: "#C04A00", ring: false })}</div>
-        <div class="ftr-t">Thank you for shopping with ${escapeHtml(BRAND.name)}</div>
-        <div>Freshness you can taste · Quality you can trust</div>
-        <div style="margin-top:4px;">
+        <div class="ftr-t">${escapeHtml(BRAND.name)} · Tax Invoice</div>
+        <div>
           Loyalty <strong>${escapeHtml(loyaltyHost)}</strong>
           · <strong>${escapeHtml(BRAND.website)}</strong>
           · WhatsApp <strong>${escapeHtml(BRAND.whatsappDisplay)}</strong>
-          · Redeem in shop · Computer-generated tax invoice
         </div>
+        <div style="margin-top:3px;">Computer-generated invoice · No signature required</div>
       </div>
     </div>
   </div>
 
   <div class="no-print" style="text-align:center;margin-top:14px;">
-    <button onclick="window.print()" style="padding:10px 22px;border-radius:4px;background:#E65C00;color:#fff;border:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Print / Save as PDF</button>
+    <button onclick="window.print()" style="padding:10px 22px;border-radius:10px;background:#E65C00;color:#fff;border:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Print / Save as PDF</button>
   </div>
 </body>
 </html>`;
@@ -624,29 +629,45 @@ export async function printCustomerBill(sale: BillSale, store?: BillStoreInfo) {
   };
 }
 
-/** Download the branded bill as a PDF file. */
-export async function downloadCustomerBill(
-  sale: BillSale,
-  store?: BillStoreInfo
-) {
-  try {
-    const html = await buildCustomerBillHtml(sale, store);
-    await downloadHtmlRootAsPdf(html, "k2-bill", `K2-Bill-${sale.saleNo}.pdf`);
-  } catch (err) {
-    console.error("PDF bill download failed, opening print view:", err);
-    await printCustomerBill(sale, store);
-  }
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, data] = dataUrl.split(",");
+  const mime = /data:([^;]+)/.exec(header || "")?.[1] || "application/octet-stream";
+  const binary = atob(data || "");
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }
 
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+export type RenderedBillFiles = {
+  /** Full invoice photo (JPEG) — best for WhatsApp attach. */
+  imageBlob: Blob;
+  imageFileName: string;
+  /** Paginated A4 PDF. */
+  pdfBlob: Blob;
+  pdfFileName: string;
+};
+
 /**
- * Render an HTML document (with a known root id) to a paginated PDF.
- * Shared by single bills and pending statements.
+ * Render bill HTML to JPEG + PDF blobs (no download).
+ * Shared by Download and WhatsApp share.
  */
-export async function downloadHtmlRootAsPdf(
+export async function renderHtmlRootAsBillFiles(
   html: string,
   rootId: string,
-  filename: string
-) {
+  baseName: string
+): Promise<RenderedBillFiles> {
   const iframe = document.createElement("iframe");
   iframe.style.cssText =
     "position:fixed;left:-10000px;top:0;width:720px;height:1400px;border:0;opacity:0;pointer-events:none;";
@@ -711,10 +732,14 @@ export async function downloadHtmlRootAsPdf(
     const drawH = (canvas.height * drawW) / canvas.width;
 
     const imgData = canvas.toDataURL("image/jpeg", 0.93);
+    const imageBlob = dataUrlToBlob(imgData);
+    const imageFileName = `${baseName}.jpg`;
+
+    let pdf: InstanceType<typeof jsPDF>;
 
     if (drawH <= maxContentH) {
       const pageH = Math.min(maxPageH, Math.max(drawH + margin * 2, 80));
-      const pdf = new jsPDF({
+      pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: [pageW, pageH],
@@ -722,70 +747,109 @@ export async function downloadHtmlRootAsPdf(
       });
       const x = margin + (usableW - drawW) / 2;
       pdf.addImage(imgData, "JPEG", x, margin, drawW, drawH);
-      pdf.save(filename);
-      return;
-    }
+    } else {
+      const scaleRatio = canvasRaw.width / billEl.getBoundingClientRect().width;
+      const safeBreaksPx = safeBreaksCss
+        .map((y) => Math.min(canvas.height, Math.round(y * scaleRatio) - topOffset + 3))
+        .filter((y) => y > 0)
+        .sort((a, b) => a - b);
 
-    const scaleRatio = canvasRaw.width / billEl.getBoundingClientRect().width;
-    const safeBreaksPx = safeBreaksCss
-      .map((y) => Math.min(canvas.height, Math.round(y * scaleRatio) - topOffset + 3))
-      .filter((y) => y > 0)
-      .sort((a, b) => a - b);
-
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-      compress: true,
-    });
-    const pxPerMm = canvas.width / drawW;
-    const minSlicePx = 20 * pxPerMm;
-    let offsetPx = 0;
-    let page = 0;
-    while (offsetPx < canvas.height - 0.5) {
-      const hardMaxPx = Math.min(canvas.height, offsetPx + maxContentH * pxPerMm);
-      const safeEndPx = safeBreaksPx.reduce(
-        (best, y) => (y > offsetPx + minSlicePx && y <= hardMaxPx ? y : best),
-        0
-      );
-      const sliceEndPx = safeEndPx > 0 ? safeEndPx : hardMaxPx;
-      const slicePx = Math.max(1, Math.round(sliceEndPx - offsetPx));
-      const srcY = Math.round(offsetPx);
-      const pageCanvas = document.createElement("canvas");
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = Math.min(slicePx, canvas.height - srcY);
-      const ctx = pageCanvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        ctx.drawImage(
-          canvas,
-          0,
-          srcY,
-          canvas.width,
-          pageCanvas.height,
-          0,
-          0,
-          canvas.width,
-          pageCanvas.height
+      pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+      const pxPerMm = canvas.width / drawW;
+      const minSlicePx = 20 * pxPerMm;
+      let offsetPx = 0;
+      let page = 0;
+      while (offsetPx < canvas.height - 0.5) {
+        const hardMaxPx = Math.min(canvas.height, offsetPx + maxContentH * pxPerMm);
+        const safeEndPx = safeBreaksPx.reduce(
+          (best, y) => (y > offsetPx + minSlicePx && y <= hardMaxPx ? y : best),
+          0
         );
+        const sliceEndPx = safeEndPx > 0 ? safeEndPx : hardMaxPx;
+        const slicePx = Math.max(1, Math.round(sliceEndPx - offsetPx));
+        const srcY = Math.round(offsetPx);
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = Math.min(slicePx, canvas.height - srcY);
+        const ctx = pageCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          ctx.drawImage(
+            canvas,
+            0,
+            srcY,
+            canvas.width,
+            pageCanvas.height,
+            0,
+            0,
+            canvas.width,
+            pageCanvas.height
+          );
+        }
+        const sliceDrawH = pageCanvas.height / pxPerMm;
+        if (page > 0) pdf.addPage();
+        pdf.addImage(
+          pageCanvas.toDataURL("image/jpeg", 0.93),
+          "JPEG",
+          margin,
+          margin,
+          drawW,
+          sliceDrawH
+        );
+        offsetPx += pageCanvas.height;
+        page += 1;
+        if (page > 20) break;
       }
-      const sliceDrawH = pageCanvas.height / pxPerMm;
-      if (page > 0) pdf.addPage();
-      pdf.addImage(
-        pageCanvas.toDataURL("image/jpeg", 0.93),
-        "JPEG",
-        margin,
-        margin,
-        drawW,
-        sliceDrawH
-      );
-      offsetPx += pageCanvas.height;
-      page += 1;
-      if (page > 20) break;
     }
-    pdf.save(filename);
+
+    const pdfBlob = pdf.output("blob");
+    const pdfFileName = `${baseName}.pdf`;
+    return { imageBlob, imageFileName, pdfBlob, pdfFileName };
   } finally {
     document.body.removeChild(iframe);
   }
+}
+
+/** Render a sale bill to JPEG + PDF blobs. */
+export async function renderCustomerBillFiles(
+  sale: BillSale,
+  store?: BillStoreInfo
+): Promise<RenderedBillFiles> {
+  const html = await buildCustomerBillHtml(sale, store);
+  const safeNo = String(sale.saleNo || sale.id).replace(/[^\w.-]+/g, "_");
+  return renderHtmlRootAsBillFiles(html, "k2-bill", `K2-Bill-${safeNo}`);
+}
+
+/** Download the branded bill as a PDF file. */
+export async function downloadCustomerBill(
+  sale: BillSale,
+  store?: BillStoreInfo
+) {
+  try {
+    const files = await renderCustomerBillFiles(sale, store);
+    triggerBlobDownload(files.pdfBlob, files.pdfFileName);
+  } catch (err) {
+    console.error("PDF bill download failed, opening print view:", err);
+    await printCustomerBill(sale, store);
+  }
+}
+
+/**
+ * Render an HTML document (with a known root id) to a paginated PDF and download it.
+ * Shared by pending statements.
+ */
+export async function downloadHtmlRootAsPdf(
+  html: string,
+  rootId: string,
+  filename: string
+) {
+  const baseName = filename.replace(/\.pdf$/i, "");
+  const files = await renderHtmlRootAsBillFiles(html, rootId, baseName);
+  triggerBlobDownload(files.pdfBlob, files.pdfFileName);
 }

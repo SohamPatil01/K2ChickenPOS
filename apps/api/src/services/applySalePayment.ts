@@ -46,6 +46,8 @@ export type ApplyPaymentsInput = {
     items: any[];
     payments?: any[];
   };
+  /** Fresh create already gated overrides — skip an extra DB round-trip. */
+  skipDiscountOverrideCheck?: boolean;
 };
 
 /**
@@ -61,6 +63,7 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     skipInventorySync,
     existingSale,
     paymentAttemptId,
+    skipDiscountOverrideCheck,
   } = input;
 
   const attemptKey = paymentAttemptId ? String(paymentAttemptId).trim().slice(0, 64) : '';
@@ -120,20 +123,22 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     throw err;
   }
 
-  try {
-    const discountOverride = await (prisma as any).discountOverride?.findFirst({
-      where: { saleId },
-    }).catch(() => null);
-    if (discountOverride?.status === 'PENDING') {
-      const err: any = new Error(
-        'Discount override is pending approval. Please wait for manager approval before processing payment.'
-      );
-      err.statusCode = 400;
-      err.requiresApproval = true;
-      throw err;
+  if (!skipDiscountOverrideCheck) {
+    try {
+      const discountOverride = await (prisma as any).discountOverride?.findFirst({
+        where: { saleId },
+      }).catch(() => null);
+      if (discountOverride?.status === 'PENDING') {
+        const err: any = new Error(
+          'Discount override is pending approval. Please wait for manager approval before processing payment.'
+        );
+        err.statusCode = 400;
+        err.requiresApproval = true;
+        throw err;
+      }
+    } catch (err: any) {
+      if (err.requiresApproval) throw err;
     }
-  } catch (err: any) {
-    if (err.requiresApproval) throw err;
   }
 
   const existingSums = sumPaymentAmounts(existingPayments);
