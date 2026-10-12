@@ -16,6 +16,7 @@ import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { generateSaleNo } from '../utils/saleNo.js';
 import { applyPaymentsToSale } from '../services/applySalePayment.js';
 import { ensureDeliveryForSale } from '../services/ensureDeliveryForSale.js';
+import { applyStoreCredit } from '../services/storeCredit.js';
 import { canAccessCustomerStore, canAccessStoreResource } from '../utils/storeScope.js';
 import {
   PROFILE_REWARD_PERCENT,
@@ -750,7 +751,14 @@ export async function saleRoutes(fastify: FastifyInstance) {
         data.customerId
           ? prisma.customer.findUnique({
               where: { id: data.customerId },
-              select: { id: true, storeId: true, phone: true, loyaltyPoints: true, profileRewardStatus: true },
+              select: {
+                id: true,
+                storeId: true,
+                phone: true,
+                loyaltyPoints: true,
+                storeCredit: true,
+                profileRewardStatus: true,
+              },
             })
           : Promise.resolve(null),
       ]);
@@ -980,8 +988,33 @@ export async function saleRoutes(fastify: FastifyInstance) {
         loyaltyRedeemValue = loyaltyPointsToRedeem * LOYALTY_POINT_VALUE;
       }
 
-      const grandTotal = baseGrandTotal - loyaltyRedeemValue;
-      const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue;
+      // Store credit (surplus / prepaid) — after loyalty, before payable.
+      let storeCreditToApply = 0;
+      if (customerId) {
+        const availableCredit = Math.round(
+          attachedCustomer && attachedCustomer.id === customerId
+            ? Number((attachedCustomer as any).storeCredit) || 0
+            : (
+                await prisma.customer.findUnique({
+                  where: { id: customerId },
+                  select: { storeCredit: true },
+                })
+              )?.storeCredit || 0
+        );
+        const afterLoyalty = Math.max(0, roundedBaseGrandTotal - loyaltyRedeemValue);
+        const requestedCredit =
+          (data as any).storeCreditToApply !== undefined &&
+          (data as any).storeCreditToApply !== null
+            ? Math.max(0, Math.round(Number((data as any).storeCreditToApply) || 0))
+            : availableCredit; // auto-apply all available when omitted
+        storeCreditToApply = Math.max(
+          0,
+          Math.min(requestedCredit, availableCredit, afterLoyalty)
+        );
+      }
+
+      const grandTotal = baseGrandTotal - loyaltyRedeemValue - storeCreditToApply;
+      const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue - storeCreditToApply;
 
       if (requestedProfileReward) {
         if (!customerId) {
@@ -1135,6 +1168,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
           await redeemProfileReward(tx, customerId);
         }
 
+        if (storeCreditToApply > 0 && customerId) {
+          await applyStoreCredit(tx, {
+            customerId,
+            storeId,
+            amount: storeCreditToApply,
+            saleId: created.id,
+            description: `Applied ₹${storeCreditToApply} store credit on ${saleNo}`,
+            actorUserId: userId,
+          });
+        }
+
         return created;
       });
       } catch (txErr: any) {
@@ -1282,6 +1326,134 @@ export async function saleRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  /**
+   * Correct the outstanding pending balance on a credit/open bill.
+   * Sets remaining (grandTotal − non-CREDIT paid) to `newRemaining` by adjusting
+   * discountTotal + grandTotal. Used when the listed pending amount is wrong.
+   */
+  fastify.post(
+    '/:id/adjust-pending',
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] },
+    async (request: any, reply: FastifyReply) => {
+      try {
+        const { id } = request.params as { id: string };
+        const body = (request.body as any) || {};
+        const newRemaining = Math.max(0, Math.round(Number(body.newRemaining)));
+        const reason = String(body.reason || 'Manual pending correction').slice(0, 200);
+        if (!Number.isFinite(newRemaining)) {
+          reply.code(400).send({ error: 'newRemaining must be a number' });
+          return;
+        }
+
+        const storeId = (getUser(request) as any).storeId;
+        const userId = (getUser(request) as any).userId;
+        const userRole = (getUser(request) as any).role || '';
+
+        const sale = await prisma.sale.findUnique({
+          where: { id },
+          include: {
+            payments: true,
+            store: { select: { id: true, type: true, parentOwnerStoreId: true } },
+          },
+        });
+        if (!sale) {
+          reply.code(404).send({ error: 'Sale not found' });
+          return;
+        }
+
+        let hasAccess = sale.storeId === storeId;
+        if (
+          !hasAccess &&
+          userRole === 'OWNER' &&
+          sale.store?.type === 'FRANCHISE' &&
+          sale.store.parentOwnerStoreId === storeId
+        ) {
+          hasAccess = true;
+        }
+        if (!hasAccess) {
+          reply.code(403).send({ error: 'You do not have permission to adjust this sale' });
+          return;
+        }
+        if (sale.status === 'VOID' || sale.status === 'REFUNDED') {
+          reply.code(400).send({ error: 'Cancelled sales cannot be adjusted' });
+          return;
+        }
+
+        const actualPaid = Math.round(
+          (sale.payments || [])
+            .filter((p) => String(p.method).toUpperCase() !== 'CREDIT')
+            .reduce((s, p) => s + (Number(p.amount) || 0), 0)
+        );
+        const previousRemaining = Math.max(0, Math.round(sale.grandTotal) - actualPaid);
+        if (Math.abs(previousRemaining - newRemaining) <= 0) {
+          return enrichSaleResponse(sale);
+        }
+
+        const desiredGrandTotal = actualPaid + newRemaining;
+        const deliveryFee = Math.max(
+          0,
+          Math.round(sale.grandTotal) -
+            Math.round(sale.subTotal + sale.taxTotal - sale.discountTotal)
+        );
+        // Keep discount/grandTotal consistent with the bill math.
+        const recomputedDiscount = Math.max(
+          0,
+          Math.round(sale.subTotal + sale.taxTotal + deliveryFee - desiredGrandTotal)
+        );
+        const nextStatus =
+          newRemaining <= 0 && actualPaid > 0
+            ? 'PAID'
+            : sale.status === 'PAID' && newRemaining > 0
+              ? 'OPEN'
+              : sale.status;
+
+        const updated = await prisma.sale.update({
+          where: { id: sale.id },
+          data: {
+            discountTotal: recomputedDiscount,
+            grandTotal: desiredGrandTotal,
+            status: nextStatus,
+          },
+          include: {
+            items: { include: { product: true } },
+            payments: true,
+            customer: customerWithAreaInclude,
+          },
+        });
+
+        await prisma.auditLog.create({
+          data: {
+            storeId: sale.storeId,
+            actorUserId: userId,
+            action: 'PENDING_BALANCE_ADJUSTED',
+            entityType: 'Sale',
+            entityId: sale.id,
+            metaJson: {
+              saleNo: sale.saleNo,
+              previousRemaining,
+              newRemaining,
+              previousGrandTotal: sale.grandTotal,
+              newGrandTotal: desiredGrandTotal,
+              previousDiscount: sale.discountTotal,
+              newDiscount: recomputedDiscount,
+              reason,
+            },
+          },
+        });
+
+        return {
+          ...enrichSaleResponse(updated),
+          previousRemaining,
+          newRemaining,
+          adjustedBy: previousRemaining - newRemaining,
+        };
+      } catch (error: any) {
+        console.error('[Sales] adjust-pending failed:', error);
+        reply.code(500).send({ error: error?.message || 'Failed to adjust pending balance' });
+      }
+    }
+  );
 
   fastify.post('/:id/pay', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {

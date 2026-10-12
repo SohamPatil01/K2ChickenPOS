@@ -76,6 +76,10 @@ interface CartState {
   couponCode: string | null;
   /** Loyalty points the customer is redeeming on this bill (1 point = ₹1). */
   loyaltyRedeemPoints: number;
+  /** Prepaid / surplus balance on the attached customer (₹). */
+  customerStoreCredit: number | null;
+  /** When true, apply available store credit to this bill (default on). */
+  applyStoreCredit: boolean;
   /** Old credit bills the cashier chose to settle in this checkout. */
   pendingSettlements: PendingSettlementLine[];
   loadCart: () => Promise<void>;
@@ -84,6 +88,8 @@ interface CartState {
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
   setCustomerLoyaltyPoints: (points: number | null) => void;
+  setCustomerStoreCredit: (amount: number | null) => void;
+  setApplyStoreCredit: (apply: boolean) => void;
   setCustomerAddress: (
     line1: string | null,
     line2: string | null,
@@ -120,6 +126,8 @@ interface CartState {
     loyaltyDiscount: number;
     /** Points actually applied after capping to balance/bill. */
     loyaltyPointsApplied: number;
+    /** ₹ of prepaid surplus applied to this bill. */
+    storeCreditApplied: number;
   };
 }
 
@@ -130,6 +138,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerName: null,
   customerArea: null,
   customerLoyaltyPoints: null,
+  customerStoreCredit: null,
+  applyStoreCredit: true,
   customerAddressLine1: null,
   customerAddressLine2: null,
   customerAddressCity: null,
@@ -239,6 +249,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         customerName: name,
         ...areaUpdate,
         customerLoyaltyPoints: null,
+        customerStoreCredit: null,
+        applyStoreCredit: true,
         customerAddressLine1: null,
         customerAddressLine2: null,
         customerAddressCity: null,
@@ -270,6 +282,8 @@ export const useCartStore = create<CartState>((set, get) => ({
             referredByCode: null,
             loyaltyRedeemPoints: 0,
             customerLoyaltyPoints: null,
+            customerStoreCredit: null,
+            applyStoreCredit: true,
             customerAddressLine1: null,
             customerAddressLine2: null,
             customerAddressCity: null,
@@ -283,6 +297,13 @@ export const useCartStore = create<CartState>((set, get) => ({
   setCustomerLoyaltyPoints: (points) => {
     const safe = points == null ? null : Math.max(0, Math.floor(Number(points) || 0));
     set({ customerLoyaltyPoints: safe });
+  },
+  setCustomerStoreCredit: (amount) => {
+    const safe = amount == null ? null : Math.max(0, Math.round(Number(amount) || 0));
+    set({ customerStoreCredit: safe });
+  },
+  setApplyStoreCredit: (apply) => {
+    set({ applyStoreCredit: !!apply });
   },
   setCustomerAddress: (line1, line2, city, addressId) => {
     set({
@@ -460,6 +481,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       customerName: null,
       customerArea: null,
       customerLoyaltyPoints: null,
+      customerStoreCredit: null,
+      applyStoreCredit: true,
       customerAddressLine1: null,
       customerAddressLine2: null,
       customerAddressCity: null,
@@ -484,7 +507,17 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
   getTotal: () => {
-    const { items, discountTotal, discountType, discountPercentage, deliveryFee, fulfillmentType, loyaltyRedeemPoints } = get();
+    const {
+      items,
+      discountTotal,
+      discountType,
+      discountPercentage,
+      deliveryFee,
+      fulfillmentType,
+      loyaltyRedeemPoints,
+      customerStoreCredit,
+      applyStoreCredit,
+    } = get();
     const effectiveDeliveryFee = fulfillmentType === 'DELIVERY' ? deliveryFee : 0;
     let subTotal = 0;
     let taxTotal = 0;
@@ -519,7 +552,14 @@ export const useCartStore = create<CartState>((set, get) => ({
     const maxRedeemableValue = roundedGrandTotal;
     const loyaltyDiscount = Math.min(requestedPoints * LOYALTY_POINT_VALUE, maxRedeemableValue);
     const loyaltyPointsApplied = Math.floor(loyaltyDiscount / LOYALTY_POINT_VALUE);
-    const finalGrandTotal = roundedGrandTotal - loyaltyDiscount;
+    let finalGrandTotal = roundedGrandTotal - loyaltyDiscount;
+
+    const creditAvail =
+      applyStoreCredit && customerStoreCredit != null
+        ? Math.max(0, Math.round(customerStoreCredit))
+        : 0;
+    const storeCreditApplied = Math.min(creditAvail, finalGrandTotal);
+    finalGrandTotal -= storeCreditApplied;
 
     return {
       subTotal,
@@ -528,6 +568,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       grandTotal: finalGrandTotal,
       loyaltyDiscount,
       loyaltyPointsApplied,
+      storeCreditApplied,
     };
   },
 }));

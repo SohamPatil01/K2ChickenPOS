@@ -92,6 +92,9 @@ function buildSalePayload(
     profileRewardApplied: profileRewardApplied || undefined,
     deliveryFee: ft === 'DELIVERY' ? fee || 0 : 0,
     loyaltyPointsRedeemed,
+    storeCreditToApply: attachCustomer
+      ? state.getTotal().storeCreditApplied
+      : 0,
     referredByPhone:
       !skipCustomer && state.referredByPhone ? state.referredByPhone : undefined,
     referredByCode:

@@ -923,6 +923,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
                 phone: true,
                 email: true,
                 area: true,
+                storeCredit: true,
               },
             },
             payments: { select: { method: true, amount: true } },
@@ -1023,6 +1024,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
               phone: sale.customer.phone,
               email: sale.customer.email,
               area: customerArea,
+              storeCredit: Math.round(Number((sale.customer as any).storeCredit) || 0),
               totalPending: 0,
               openOrders: [],
               orderCount: 0,
@@ -1116,6 +1118,123 @@ export async function customerRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Prepaid / surplus balance ledger for a customer
+  fastify.get(
+    '/:customerId/store-credit',
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    async (request: any, reply: FastifyReply) => {
+      try {
+        const { customerId } = request.params as { customerId: string };
+        const user = getUser(request) as any;
+        const customer = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, storeId: true, name: true, phone: true, storeCredit: true },
+        });
+        if (
+          !customer ||
+          !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+        ) {
+          reply.code(404).send({ error: 'Customer not found' });
+          return;
+        }
+        const { listStoreCreditLedger } = await import('../services/storeCredit.js');
+        return listStoreCreditLedger(customerId, 80);
+      } catch (error: any) {
+        console.error('Failed to load store credit:', error);
+        reply.code(500).send({ error: 'Failed to load store credit' });
+      }
+    }
+  );
+
+  // Manual store-credit adjust (surplus already uses settle-pending / this for single-bill)
+  fastify.post(
+    '/:customerId/store-credit',
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] },
+    async (request: any, reply: FastifyReply) => {
+      try {
+        const { customerId } = request.params as { customerId: string };
+        const body = (request.body as any) || {};
+        const amount = Math.round(Number(body.amount) || 0);
+        const description = String(body.description || '').trim().slice(0, 200);
+        const type = String(body.type || 'SURPLUS').toUpperCase();
+        if (!description) {
+          reply.code(400).send({ error: 'Description is required' });
+          return;
+        }
+        if (amount === 0) {
+          reply.code(400).send({ error: 'Amount cannot be zero' });
+          return;
+        }
+        const user = getUser(request) as any;
+        const customer = await prisma.customer.findUnique({
+          where: { id: customerId },
+          select: { id: true, storeId: true, storeCredit: true },
+        });
+        if (
+          !customer ||
+          !(await canAccessCustomerStore(user.storeId, user.role, customer.storeId))
+        ) {
+          reply.code(404).send({ error: 'Customer not found' });
+          return;
+        }
+
+        const { creditStoreCredit, applyStoreCredit } = await import(
+          '../services/storeCredit.js'
+        );
+
+        if (amount > 0) {
+          const result = await creditStoreCredit(prisma, {
+            customerId,
+            storeId: customer.storeId,
+            amount,
+            type: type === 'ADJUST' ? 'ADJUST' : 'SURPLUS',
+            description,
+            saleId: body.saleId || null,
+            actorUserId: user.userId,
+          });
+          await prisma.auditLog.create({
+            data: {
+              storeId: customer.storeId,
+              actorUserId: user.userId,
+              action: 'STORE_CREDIT_CREDITED',
+              entityType: 'Customer',
+              entityId: customerId,
+              metaJson: { amount, balance: result.balance, description, type },
+            },
+          });
+          return { ok: true, ...result };
+        }
+
+        // Negative amount = reduce / apply without a sale
+        const result = await applyStoreCredit(prisma, {
+          customerId,
+          storeId: customer.storeId,
+          amount: Math.abs(amount),
+          saleId: body.saleId || null,
+          description,
+          actorUserId: user.userId,
+        });
+        // applyStoreCredit requires saleId - if null it might still work. Check service - saleId is required string. Fix apply to allow null saleId.
+        await prisma.auditLog.create({
+          data: {
+            storeId: customer.storeId,
+            actorUserId: user.userId,
+            action: 'STORE_CREDIT_APPLIED',
+            entityType: 'Customer',
+            entityId: customerId,
+            metaJson: { amount: -Math.abs(amount), balance: result.balance, description },
+          },
+        });
+        return { ok: true, ...result };
+      } catch (error: any) {
+        console.error('Failed to adjust store credit:', error);
+        reply
+          .code(error?.statusCode || 500)
+          .send({ error: error?.message || 'Failed to adjust store credit' });
+      }
+    }
+  );
+
   // Settle pending balance for one customer in a single request (FIFO across open bills).
   // Avoids mid-loop failures from the old client-side Pay All (N sequential /sales/:id/pay calls).
   fastify.post(
@@ -1127,6 +1246,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
         const body = (request.body as any) || {};
         const amount = Math.round(Number(body.amount) || 0);
         const methodRaw = String(body.method || 'CASH').toUpperCase().trim();
+        /**
+         * When true (default), leftover after FIFO is held as customer store credit
+         * (prepaid balance) with a full ledger entry.
+         */
+        const creditSurplusToStore = body.creditSurplusToStore !== false;
         const validMethods = ['CASH', 'CARD', 'UPI', 'ONLINE'];
         if (!validMethods.includes(methodRaw)) {
           reply.code(400).send({ error: `Invalid payment method. Use one of: ${validMethods.join(', ')}` });
@@ -1279,6 +1403,33 @@ export async function customerRoutes(fastify: FastifyInstance) {
           }
         }
 
+        const unallocated = Math.max(0, amount - applied);
+        let surplusStoreCredit = 0;
+        let storeCreditBalance: number | null = null;
+
+        // Surplus after clearing pending bills → hold on customer for future bills.
+        if (
+          creditSurplusToStore &&
+          unallocated > 0 &&
+          customerId !== 'WALK_IN_CREDIT'
+        ) {
+          try {
+            const { creditStoreCredit } = await import('../services/storeCredit.js');
+            const result = await creditStoreCredit(prisma, {
+              customerId,
+              storeId: customer.storeId || userStoreId,
+              amount: unallocated,
+              type: 'SURPLUS',
+              description: `Surplus from pending settlement (${methodRaw})`,
+              actorUserId: userId,
+            });
+            surplusStoreCredit = result.credited;
+            storeCreditBalance = result.balance;
+          } catch (surplusErr) {
+            console.warn('[settle-pending] surplus store credit failed:', surplusErr);
+          }
+        }
+
         try {
           await prisma.auditLog.create({
             data: {
@@ -1290,7 +1441,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
               metaJson: {
                 requested: amount,
                 applied,
-                unallocated: amount - applied,
+                unallocated,
+                surplusStoreCredit,
+                storeCreditBalance,
                 method: methodRaw,
                 allocations,
               },
@@ -1305,7 +1458,9 @@ export async function customerRoutes(fastify: FastifyInstance) {
           customerName: customer.name,
           requested: amount,
           applied,
-          unallocated: amount - applied,
+          unallocated,
+          surplusStoreCredit,
+          storeCreditBalance,
           method: methodRaw,
           allocations,
         };

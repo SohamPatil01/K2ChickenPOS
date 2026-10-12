@@ -215,6 +215,7 @@ model Store {
   discountOverrides DiscountOverride[]
   dailyClosings    DailyClosing[]
   loyaltyTransactions LoyaltyTransaction[]
+  storeCreditTransactions StoreCreditTransaction[]
   checklistTemplates ComplianceChecklistTemplate[] @relation("ChecklistTemplate")
   alertRules       AlertRule[] @relation("AlertRule")
   replenishmentRequests ReplenishmentRequest[] @relation("ReplenishmentRequest")
@@ -293,6 +294,8 @@ model Customer {
   profileRewardSource     String?
   /// Staff-only notes (e.g. "likes less chili", "pays Fridays")
   staffNotes    String?
+  /// Prepaid / surplus balance (₹) held on the customer — applied on future bills.
+  storeCredit   Float    @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -300,6 +303,7 @@ model Customer {
   sales             Sale[]
   preOrders         PreOrder[]
   loyaltyTransactions LoyaltyTransaction[]
+  storeCreditTransactions StoreCreditTransaction[]
 
   @@unique([storeId, phone])
   @@index([storeId, phone])
@@ -442,6 +446,7 @@ model Sale {
   deliveryOrder DeliveryOrder?
   discountOverride DiscountOverride?
   loyaltyTransactions LoyaltyTransaction[]
+  storeCreditTransactions StoreCreditTransaction[]
   preOrders     PreOrder[]
 
   @@unique([storeId, saleNo])
@@ -1418,5 +1423,29 @@ model LoyaltyTransaction {
   @@index([storeId])
   @@index([saleId])
   @@index([createdAt])
+}
+
+/// Prepaid / surplus balance ledger for a customer (full audit trail).
+model StoreCreditTransaction {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// SURPLUS (from overpay), APPLY (used on a bill), ADJUST (manual)
+  type        String
+  /// Positive increases balance; negative decreases (apply).
+  amount      Float
+  balance     Float
+  description String?
+  saleId      String?
+  sale        Sale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  createdBy   String?
+
+  @@index([customerId, createdAt])
+  @@index([storeId])
+  @@index([saleId])
+  @@index([type])
 }
 

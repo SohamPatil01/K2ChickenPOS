@@ -68,6 +68,9 @@ export default function StoreCartPage() {
   const clearCart = useCartStore((state) => state.clearCart);
   const loyaltyRedeemPoints = useCartStore((state) => state.loyaltyRedeemPoints);
   const setLoyaltyRedeemPoints = useCartStore((state) => state.setLoyaltyRedeemPoints);
+  const customerStoreCredit = useCartStore((state) => state.customerStoreCredit);
+  const applyStoreCredit = useCartStore((state) => state.applyStoreCredit);
+  const setApplyStoreCredit = useCartStore((state) => state.setApplyStoreCredit);
   const pendingSettlements = useCartStore((state) => state.pendingSettlements);
   const getCheckoutTotal = useCartStore((state) => state.getCheckoutTotal);
   const getPendingSettlementTotal = useCartStore((state) => state.getPendingSettlementTotal);
@@ -212,11 +215,12 @@ export default function StoreCartPage() {
     }
   };
 
-  // Fetch the attached customer's loyalty balance so the cashier can redeem it.
+  // Fetch loyalty + store-credit balances for the attached customer.
   useEffect(() => {
     let cancelled = false;
     if (!customerId || skipCustomer) {
       setCustomerPoints(null);
+      useCartStore.getState().setCustomerStoreCredit(null);
       return;
     }
     (async () => {
@@ -234,7 +238,6 @@ export default function StoreCartPage() {
         }
       } catch (err) {
         console.error('[Cart] Failed to load loyalty balance:', err);
-        // Fall back to the customer record itself (list/search already has points).
         try {
           const res = await api.get(`/api/v1/customers/${customerId}`);
           const pts = Math.floor(Number(res.data?.loyaltyPoints) || 0);
@@ -246,11 +249,32 @@ export default function StoreCartPage() {
           if (!cancelled) setCustomerPoints((prev) => (prev === null ? 0 : prev));
         }
       }
+      try {
+        const creditRes = await api.get(`/api/v1/customers/${customerId}/store-credit`);
+        const bal = Math.round(
+          Number(creditRes.data?.customer?.storeCredit ?? creditRes.data?.storeCredit) || 0
+        );
+        if (!cancelled) {
+          useCartStore.getState().setCustomerStoreCredit(bal);
+          useCartStore.getState().setApplyStoreCredit(bal > 0);
+        }
+      } catch {
+        try {
+          const res = await api.get(`/api/v1/customers/${customerId}`);
+          const bal = Math.round(Number(res.data?.storeCredit) || 0);
+          if (!cancelled) {
+            useCartStore.getState().setCustomerStoreCredit(bal);
+            useCartStore.getState().setApplyStoreCredit(bal > 0);
+          }
+        } catch {
+          if (!cancelled) useCartStore.getState().setCustomerStoreCredit(0);
+        }
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [customerId, skipCustomer]);
+  }, [customerId, skipCustomer, setCustomerLoyaltyPoints]);
 
   useEffect(() => {
     if (!user) {
@@ -714,12 +738,19 @@ export default function StoreCartPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [items.length, isProcessingPayment, showPaymentModal, handleCreateSale, getTotal]);
 
-  const { subTotal, taxTotal, deliveryFee: effectiveDeliveryFee, grandTotal: cartGrandTotal, loyaltyDiscount } = getTotal();
+  const {
+    subTotal,
+    taxTotal,
+    deliveryFee: effectiveDeliveryFee,
+    grandTotal: cartGrandTotal,
+    loyaltyDiscount,
+    storeCreditApplied,
+  } = getTotal();
   const pendingSettlementTotal = getPendingSettlementTotal();
   const checkoutGrandTotal = getCheckoutTotal();
   // Loyalty redeem caps (1 point = ₹LOYALTY_POINT_VALUE). The bill before redemption
-  // is the net grand total plus whatever is currently being redeemed.
-  const billBeforeRedeem = cartGrandTotal + loyaltyDiscount;
+  // is the net grand total plus whatever is currently being redeemed (and store credit).
+  const billBeforeRedeem = cartGrandTotal + loyaltyDiscount + storeCreditApplied;
   const maxRedeemablePoints = Math.max(
     0,
     Math.min(
@@ -1717,6 +1748,31 @@ export default function StoreCartPage() {
                           1 point = ₹{LOYALTY_POINT_VALUE}. Points are deducted when the bill is paid.
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {/* Prepaid surplus / store credit from earlier overpay */}
+                  {!skipCustomer && customerId && (customerStoreCredit || 0) > 0 && (
+                    <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          checked={applyStoreCredit}
+                          onChange={(e) => setApplyStoreCredit(e.target.checked)}
+                        />
+                        <span className="flex-1">
+                          <span className="block text-sm font-semibold text-ink-secondary">
+                            Apply account credit
+                          </span>
+                          <span className="block text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                            ₹{Math.round(customerStoreCredit || 0)} on account
+                            {storeCreditApplied > 0
+                              ? ` · −₹${storeCreditApplied} on this bill`
+                              : ''}
+                          </span>
+                        </span>
+                      </label>
                     </div>
                   )}
                   

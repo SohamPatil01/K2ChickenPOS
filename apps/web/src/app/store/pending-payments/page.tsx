@@ -53,6 +53,8 @@ interface CustomerWithPending {
   phone: string;
   area?: string | null;
   email?: string;
+  /** Prepaid surplus balance held for future bills (₹). */
+  storeCredit?: number;
   totalPending: number;
   orderCount: number;
   openOrders: PendingOrder[];
@@ -145,10 +147,14 @@ export default function PendingPaymentsPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithPending | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
+  /** Editable due — corrects wrong system pending (single-bill) or caps apply amount (pay-all). */
+  const [adjustedDue, setAdjustedDue] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+  /** Surplus above due: hold on customer account (default) or return as cash change. */
+  const [surplusMode, setSurplusMode] = useState<'store_credit' | 'change'>('store_credit');
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null); // null = pay all, or specific order ID
   const [processing, setProcessing] = useState(false);
-  const [showNumPad, setShowNumPad] = useState(false);
+  const [numPadTarget, setNumPadTarget] = useState<'payment' | 'due' | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [successData, setSuccessData] = useState<{ amount: number; customerName: string; orderNo?: string } | null>(null);
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set());
@@ -357,92 +363,134 @@ export default function PendingPaymentsPage() {
     }
   };
 
+  const systemDueForSelection = (
+    customer: CustomerWithPending,
+    orderId: string | null
+  ) => {
+    if (orderId) {
+      const order = customer.openOrders.find((o) => o.id === orderId);
+      return Math.round(
+        Number(order?.remainingBalance ?? order?.pending ?? customer.totalPending) || 0
+      );
+    }
+    return Math.round(Number(customer.totalPending) || 0);
+  };
+
   const handlePayPending = (customer: CustomerWithPending, orderId?: string) => {
     setSelectedCustomer(customer);
     setSelectedOrder(orderId || null);
-    const amount = orderId
-      ? customer.openOrders.find((o) => o.id === orderId)?.remainingBalance ??
-        customer.openOrders.find((o) => o.id === orderId)?.pending ??
-        customer.totalPending
-      : customer.totalPending;
-    setPaymentAmount(String(Math.round(Number(amount) || 0)));
+    const due = systemDueForSelection(customer, orderId || null);
+    setAdjustedDue(String(due));
+    setPaymentAmount(String(due));
     setPaymentMethod('UPI');
+    setSurplusMode('store_credit');
     setShowPaymentModal(true);
   };
 
   const handleProcessPayment = async () => {
     if (!selectedCustomer) return;
 
-    const amount = parseFloat(paymentAmount);
-    if (isNaN(amount) || amount <= 0) {
-      showNotification('Please enter a valid payment amount', 'error');
+    const received = Math.round(Number(paymentAmount) || 0);
+    const due = Math.round(Number(adjustedDue) || 0);
+    const systemDue = systemDueForSelection(selectedCustomer, selectedOrder);
+
+    if (due < 0) {
+      showNotification('Due amount cannot be negative', 'error');
+      return;
+    }
+    // Allow due-only correction (₹0 received) on a single bill.
+    if (received <= 0 && !(selectedOrder && due !== systemDue)) {
+      showNotification('Please enter a valid amount received', 'error');
       return;
     }
 
-    const maxDue = selectedOrder
-      ? selectedCustomer.openOrders.find((o) => o.id === selectedOrder)?.remainingBalance ??
-        selectedCustomer.openOrders.find((o) => o.id === selectedOrder)?.pending ??
-        selectedCustomer.totalPending
-      : selectedCustomer.totalPending;
-    const capped = Math.min(Math.round(amount), Math.round(Number(maxDue) || 0));
-    if (capped <= 0) {
-      showNotification('Nothing due on this bill', 'error');
-      return;
-    }
-    if (capped < Math.round(amount)) {
-      showNotification(`Amount capped to remaining ₹${capped}`, 'info');
-    }
-
+    const applyToBills = Math.min(Math.max(0, received), due);
+    const surplus = Math.max(0, received - due);
+    const waiver = Math.max(0, systemDue - due);
     const method = String(paymentMethod || 'CASH').toUpperCase();
+    const isWalkIn = selectedCustomer.id === 'WALK_IN_CREDIT';
 
     setProcessing(true);
     try {
       if (selectedOrder) {
-        // Pay specific order
-        const order = selectedCustomer.openOrders.find(o => o.id === selectedOrder);
+        const order = selectedCustomer.openOrders.find((o) => o.id === selectedOrder);
         if (!order) {
           showNotification('Order not found', 'error');
           return;
         }
 
-        const totalPaid = order.totalPaid + capped;
-        const remaining = order.grandTotal - totalPaid;
+        // Correct wrong pending on this bill before taking payment.
+        if (due !== systemDue) {
+          await api.post(`/api/v1/sales/${selectedOrder}/adjust-pending`, {
+            newRemaining: due,
+            reason: waiver > 0
+              ? `Pending reduced by ₹${waiver} (manual correction)`
+              : `Pending increased to ₹${due} (manual correction)`,
+          });
+        }
 
-        // Add payment to the order
-        await api.post(`/api/v1/sales/${selectedOrder}/pay`, {
-          payments: [
-            {
-              method,
-              amount: capped,
-            },
-          ],
-        });
+        if (applyToBills > 0) {
+          await api.post(`/api/v1/sales/${selectedOrder}/pay`, {
+            payments: [{ method, amount: applyToBills }],
+          });
+        }
 
-        // Show success animation
+        if (surplus > 0 && !isWalkIn && surplusMode === 'store_credit') {
+          await api.post(`/api/v1/customers/${selectedCustomer.id}/store-credit`, {
+            amount: surplus,
+            type: 'SURPLUS',
+            description: `Surplus ₹${surplus} from pending payment on ${order.saleNo} (${method})`,
+            saleId: selectedOrder,
+          });
+        }
+
         setSuccessData({
-          amount: capped,
+          amount: Math.max(received, applyToBills, waiver),
           customerName: selectedCustomer.name,
           orderNo: order.saleNo,
         });
         setShowSuccessAnimation(true);
 
-        // If fully paid, the order will be marked as PAID automatically
-        if (remaining <= 0.01) {
-          showNotification(`✅ Order ${order.saleNo} fully paid (${method})!`, 'success');
-        } else {
-          showNotification(`Payment of ₹${capped} (${method}) recorded for order ${order.saleNo}. Remaining: ₹${Math.round(remaining)}`, 'success');
+        const parts: string[] = [];
+        if (applyToBills > 0) {
+          parts.push(`₹${applyToBills} applied to ${order.saleNo} (${method})`);
         }
+        if (waiver > 0) parts.push(`due corrected −₹${waiver}`);
+        if (due > systemDue) parts.push(`due corrected +₹${due - systemDue}`);
+        if (surplus > 0) {
+          parts.push(
+            surplusMode === 'store_credit' && !isWalkIn
+              ? `₹${surplus} surplus held on account`
+              : `₹${surplus} surplus / change to return`
+          );
+        } else if (applyToBills > 0 && applyToBills >= due) {
+          parts.push('bill cleared');
+        } else if (applyToBills > 0 && applyToBills < due) {
+          parts.push(`₹${due - applyToBills} still due`);
+        }
+        showNotification(parts.join(' · ') || 'Pending updated', 'success', 7000);
       } else {
-        // Pay all pending orders in one server-side settlement (FIFO)
+        // Pay all — apply up to adjusted due via FIFO; remainder is surplus on account.
+        const settleAmount =
+          surplusMode === 'store_credit' && !isWalkIn ? received : applyToBills;
+
+        if (settleAmount <= 0 && due <= 0) {
+          showNotification('Nothing to settle', 'error');
+          return;
+        }
+
         const res = await api.post(
           `/api/v1/customers/${selectedCustomer.id}/settle-pending`,
           {
-            amount: capped,
+            amount: settleAmount > 0 ? settleAmount : applyToBills,
             method,
+            creditSurplusToStore: surplusMode === 'store_credit' && !isWalkIn,
           }
         );
         const applied = Math.round(Number(res.data?.applied) || 0);
         const unallocated = Math.round(Number(res.data?.unallocated) || 0);
+        const surplusCredit = Math.round(Number(res.data?.surplusStoreCredit) || 0);
+        const creditBal = Math.round(Number(res.data?.storeCreditBalance) || 0);
         const allocations = (res.data?.allocations || []) as Array<{
           saleNo: string;
           amount: number;
@@ -452,36 +500,39 @@ export default function PendingPaymentsPage() {
         const completed = allocations.filter((a) => a.fullyPaid).map((a) => a.saleNo);
         const partial = allocations.filter((a) => !a.fullyPaid);
 
+        const changeToReturn =
+          surplusMode === 'change' || isWalkIn ? Math.max(0, received - applied) : 0;
+
         setSuccessData({
-          amount: applied,
+          amount: received,
           customerName: selectedCustomer.name,
         });
         setShowSuccessAnimation(true);
 
-        let successMessage = `Payment of ₹${applied} applied`;
+        let successMessage = `₹${applied} applied across pending bills`;
         if (completed.length > 0) {
-          successMessage += `. ${completed.length} order${completed.length > 1 ? 's' : ''} completed`;
+          successMessage += ` · ${completed.length} cleared`;
         }
         if (partial.length > 0) {
           const rem = partial.reduce((s, a) => s + Math.round(a.remainingAfter || 0), 0);
-          successMessage += `. ₹${rem} still pending on ${partial.length} order${partial.length > 1 ? 's' : ''}`;
+          successMessage += ` · ₹${rem} still pending`;
         }
-        if (unallocated > 0) {
-          successMessage += `. ₹${unallocated} not allocated (no more pending bills)`;
+        if (surplusCredit > 0) {
+          successMessage += ` · ₹${surplusCredit} held on account (balance ₹${creditBal})`;
+        } else if (changeToReturn > 0) {
+          successMessage += ` · return ₹${changeToReturn} change`;
+        } else if (unallocated > 0) {
+          successMessage += ` · ₹${unallocated} unallocated`;
         }
-        if (applied < capped && unallocated === 0) {
-          successMessage += ` (requested ₹${capped})`;
-        }
-
-        showNotification(successMessage, 'success');
+        showNotification(successMessage, 'success', 7000);
       }
 
       setShowPaymentModal(false);
       setSelectedCustomer(null);
       setSelectedOrder(null);
       setPaymentAmount('');
-      
-      // Reload after animation completes
+      setAdjustedDue('');
+
       setTimeout(() => {
         loadPendingPayments();
       }, 2800);
@@ -726,6 +777,11 @@ export default function PendingPaymentsPage() {
                           <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-semibold border border-red-200 dark:border-red-800">
                             {customer.orderCount} {customer.orderCount === 1 ? 'order' : 'orders'}
                           </span>
+                          {(customer.storeCredit || 0) > 0 && (
+                            <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
+                              ₹{Math.round(customer.storeCredit || 0)} on account
+                            </span>
+                          )}
                           {daysSinceOldest > 7 && (
                             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${ urgencyColor === 'red' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' : urgencyColor === 'orange' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800' }`}>
                               {daysSinceOldest}d old
@@ -1013,20 +1069,83 @@ export default function PendingPaymentsPage() {
                   <div>
                     <p className="text-sm text-ink-secondary mb-1">Order</p>
                     <p className="font-medium dark:text-white">
-                      {selectedCustomer.openOrders.find(o => o.id === selectedOrder)?.saleNo}
+                      {selectedCustomer.openOrders.find((o) => o.id === selectedOrder)?.saleNo}
                     </p>
                     <p className="text-sm text-ink-muted">
-                      Pending: ₹{Math.round(selectedCustomer.openOrders.find(o => o.id === selectedOrder)?.pending || 0)}
+                      System pending: ₹
+                      {systemDueForSelection(selectedCustomer, selectedOrder)}
                     </p>
                   </div>
                 ) : (
                   <div>
-                    <p className="text-sm text-ink-secondary mb-1">Total Pending</p>
+                    <p className="text-sm text-ink-secondary mb-1">Total pending (system)</p>
                     <p className="text-lg font-semibold text-red-600 dark:text-red-400">
-                      ₹{Math.round(selectedCustomer.totalPending)}
+                      ₹{systemDueForSelection(selectedCustomer, null)}
                     </p>
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-sm font-semibold text-ink-secondary mb-2">
+                    {selectedOrder ? 'Correct due amount' : 'Apply toward bills (due)'}
+                    <span className="ml-2 font-normal text-ink-muted">
+                      edit if the pending figure is wrong
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={adjustedDue}
+                      onChange={(e) => {
+                        setAdjustedDue(e.target.value.replace(/[^\d.]/g, ''));
+                      }}
+                      onClick={() => setNumPadTarget('due')}
+                      className="w-full px-4 py-3 text-xl border-2 border-amber-300 dark:border-amber-700 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold cursor-pointer text-center"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sys = systemDueForSelection(selectedCustomer, selectedOrder);
+                        setAdjustedDue(String(sys));
+                        setPaymentAmount(String(sys));
+                      }}
+                      className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                    >
+                      Reset to system ₹{systemDueForSelection(selectedCustomer, selectedOrder)}
+                    </button>
+                    {selectedOrder && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustedDue('0');
+                        }}
+                        className="text-xs font-semibold text-ink-muted hover:underline"
+                      >
+                        Clear due (₹0)
+                      </button>
+                    )}
+                  </div>
+                  {selectedOrder &&
+                    Math.round(Number(adjustedDue) || 0) !==
+                      systemDueForSelection(selectedCustomer, selectedOrder) && (
+                      <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                        {Math.round(Number(adjustedDue) || 0) <
+                        systemDueForSelection(selectedCustomer, selectedOrder)
+                          ? `Will reduce pending by ₹${
+                              systemDueForSelection(selectedCustomer, selectedOrder) -
+                              Math.round(Number(adjustedDue) || 0)
+                            }`
+                          : `Will increase pending by ₹${
+                              Math.round(Number(adjustedDue) || 0) -
+                              systemDueForSelection(selectedCustomer, selectedOrder)
+                            }`}
+                      </p>
+                    )}
+                </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-ink-secondary mb-2">
@@ -1063,21 +1182,10 @@ export default function PendingPaymentsPage() {
 
                 <div>
                   <label className="block text-sm font-semibold text-ink-secondary mb-2">
-                    Payment Amount
-                    {selectedCustomer && (
-                      <span className="ml-2 font-normal text-ink-muted">
-                        Due ₹
-                        {Math.round(
-                          selectedOrder
-                            ? selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
-                                ?.remainingBalance ??
-                                selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
-                                  ?.pending ??
-                                selectedCustomer.totalPending
-                            : selectedCustomer.totalPending
-                        )}
-                      </span>
-                    )}
+                    Amount received
+                    <span className="ml-2 font-normal text-ink-muted">
+                      can be more than due (surplus)
+                    </span>
                   </label>
                   <div className="relative">
                     <input
@@ -1085,16 +1193,15 @@ export default function PendingPaymentsPage() {
                       inputMode="decimal"
                       value={paymentAmount}
                       onChange={(e) => {
-                        const next = e.target.value.replace(/[^\d.]/g, '');
-                        setPaymentAmount(next);
+                        setPaymentAmount(e.target.value.replace(/[^\d.]/g, ''));
                       }}
-                      onClick={() => setShowNumPad(true)}
+                      onClick={() => setNumPadTarget('payment')}
                       className="w-full px-4 py-4 text-2xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-bold cursor-pointer text-center"
                       placeholder="0.00"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowNumPad(true)}
+                      onClick={() => setNumPadTarget('payment')}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-500 dark:hover:text-brand-400 transition-colors"
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1102,25 +1209,55 @@ export default function PendingPaymentsPage() {
                       </svg>
                     </button>
                   </div>
-                  {selectedCustomer && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const due = selectedOrder
-                          ? selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
-                              ?.remainingBalance ??
-                            selectedCustomer.openOrders.find((o) => o.id === selectedOrder)
-                              ?.pending ??
-                            selectedCustomer.totalPending
-                          : selectedCustomer.totalPending;
-                        setPaymentAmount(String(Math.round(Number(due) || 0)));
-                      }}
-                      className="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
-                    >
-                      Pay full remaining
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentAmount(adjustedDue || '0')}
+                    className="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Match due ₹{Math.round(Number(adjustedDue) || 0)}
+                  </button>
                 </div>
+
+                {Math.round(Number(paymentAmount) || 0) >
+                  Math.round(Number(adjustedDue) || 0) && (
+                  <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3 space-y-2">
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                      Surplus ₹
+                      {Math.round(Number(paymentAmount) || 0) -
+                        Math.round(Number(adjustedDue) || 0)}
+                    </p>
+                    {selectedCustomer.id !== 'WALK_IN_CREDIT' ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSurplusMode('store_credit')}
+                          className={`px-3 py-2 rounded-lg text-sm font-semibold border-2 ${
+                            surplusMode === 'store_credit'
+                              ? 'border-emerald-600 bg-white dark:bg-gray-800 text-emerald-700'
+                              : 'border-transparent text-ink-muted'
+                          }`}
+                        >
+                          Keep on account
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSurplusMode('change')}
+                          className={`px-3 py-2 rounded-lg text-sm font-semibold border-2 ${
+                            surplusMode === 'change'
+                              ? 'border-emerald-600 bg-white dark:bg-gray-800 text-emerald-700'
+                              : 'border-transparent text-ink-muted'
+                          }`}
+                        >
+                          Return as change
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                        Walk-in — treat surplus as change to return
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -1130,6 +1267,8 @@ export default function PendingPaymentsPage() {
                     setSelectedCustomer(null);
                     setSelectedOrder(null);
                     setPaymentAmount('');
+                    setAdjustedDue('');
+                    setNumPadTarget(null);
                   }}
                   disabled={processing}
                   className="flex-1 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl hover:bg-brand-100/30 dark:hover:bg-brand-900/10 dark:text-white font-semibold transition-all duration-200 disabled:opacity-50"
@@ -1138,7 +1277,15 @@ export default function PendingPaymentsPage() {
                 </button>
                 <button
                   onClick={handleProcessPayment}
-                  disabled={processing || !paymentAmount || parseFloat(paymentAmount) <= 0}
+                  disabled={
+                    processing ||
+                    ((!(parseFloat(paymentAmount) > 0) &&
+                      !(
+                        selectedOrder &&
+                        Math.round(Number(adjustedDue) || 0) !==
+                          systemDueForSelection(selectedCustomer, selectedOrder)
+                      )) as boolean)
+                  }
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl hover:from-brand-600 hover:to-brand-700 font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {processing ? (
@@ -1150,7 +1297,7 @@ export default function PendingPaymentsPage() {
                       Processing...
                     </span>
                   ) : (
-                    '✅ Record Payment' + (paymentMethod ? ` (${paymentMethod})` : '')
+                    'Record Payment' + (paymentMethod ? ` (${paymentMethod})` : '')
                   )}
                 </button>
               </div>
@@ -1160,12 +1307,15 @@ export default function PendingPaymentsPage() {
       )}
 
       {/* NumPad */}
-      {showNumPad && (
+      {numPadTarget && (
         <NumPad
-          value={paymentAmount}
-          onChange={(value) => setPaymentAmount(value)}
-          onClose={() => setShowNumPad(false)}
-          onSubmit={() => setShowNumPad(false)}
+          value={numPadTarget === 'due' ? adjustedDue : paymentAmount}
+          onChange={(value) => {
+            if (numPadTarget === 'due') setAdjustedDue(value);
+            else setPaymentAmount(value);
+          }}
+          onClose={() => setNumPadTarget(null)}
+          onSubmit={() => setNumPadTarget(null)}
           allowDecimal
         />
       )}

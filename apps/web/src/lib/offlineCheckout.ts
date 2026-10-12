@@ -20,6 +20,8 @@ export type OfflineCreateSalePayload = {
   deliveryFee?: number;
   /** Loyalty points redeemed at checkout (1 point = ₹1). */
   loyaltyPointsRedeemed?: number;
+  /** Prepaid / surplus balance (₹) applied on this bill. */
+  storeCreditToApply?: number;
   /** Optional referrer phone for loyalty referral at counter. */
   referredByPhone?: string;
   /** Optional referrer loyalty code for loyalty referral at counter. */

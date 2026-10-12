@@ -18,6 +18,7 @@ import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
 import { applyPaymentsToSale } from './applySalePayment.js';
 import { ensureDeliveryForSale } from './ensureDeliveryForSale.js';
+import { applyStoreCredit } from './storeCredit.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from './shiftService.js';
 
 const offlinePayloadSchema = z.object({
@@ -208,7 +209,25 @@ export async function applyOfflineCheckoutFromSync(
     loyaltyRedeemValue = loyaltyPointsToRedeem * LOYALTY_POINT_VALUE;
   }
 
-  const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue;
+  let storeCreditToApply = 0;
+  if (customerId) {
+    const creditCust = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { storeCredit: true },
+    });
+    const availableCredit = Math.round(Number(creditCust?.storeCredit) || 0);
+    const afterLoyalty = Math.max(0, roundedBaseGrandTotal - loyaltyRedeemValue);
+    const requestedCredit =
+      (cs as any).storeCreditToApply !== undefined && (cs as any).storeCreditToApply !== null
+        ? Math.max(0, Math.round(Number((cs as any).storeCreditToApply) || 0))
+        : availableCredit;
+    storeCreditToApply = Math.max(
+      0,
+      Math.min(requestedCredit, availableCredit, afterLoyalty)
+    );
+  }
+
+  const roundedGrandTotal = roundedBaseGrandTotal - loyaltyRedeemValue - storeCreditToApply;
 
   const todayForNo = new Date();
   const dateStr = ymdInStoreTz(todayForNo).replace(/-/g, '');
@@ -363,6 +382,17 @@ export async function applyOfflineCheckoutFromSync(
       }
     }
 
+    if (storeCreditToApply > 0 && customerId) {
+      await applyStoreCredit(tx, {
+        customerId,
+        storeId,
+        amount: storeCreditToApply,
+        saleId: created.id,
+        description: `Applied ₹${storeCreditToApply} store credit on ${saleNo} (offline sync)`,
+        actorUserId: userId,
+      });
+    }
+
     await tx.auditLog.create({
       data: {
         storeId,
@@ -375,6 +405,7 @@ export async function applyOfflineCheckoutFromSync(
           offlineIdempotencyKey: data.idempotencyKey,
           grandTotal: roundedGrandTotal,
           loyaltyPointsRedeemed: loyaltyPointsToRedeem,
+          storeCreditApplied: storeCreditToApply,
           couponCode: cs.couponCode || undefined,
         },
       },

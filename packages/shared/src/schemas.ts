@@ -90,6 +90,11 @@ export const createSaleSchema = z.object({
   couponCode: z.string().optional(),
   /** Loyalty points the customer chooses to redeem at checkout (1 point = ₹1). */
   loyaltyPointsRedeemed: z.number().int().min(0).default(0),
+  /**
+   * Prepaid / surplus balance (₹) to apply on this bill.
+   * Omit to auto-apply available credit; send 0 to skip.
+   */
+  storeCreditToApply: z.number().min(0).optional(),
   discountSource: z.enum(['profile_reward', 'manual']).optional(),
   profileRewardApplied: z.boolean().optional(),
   /** Optional: referrer's mobile number (friend naming them at the counter). */
