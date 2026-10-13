@@ -594,8 +594,13 @@ export default function PendingPaymentsPage() {
           Pending Payments
         </h1>
         <p className="text-xs sm:text-sm text-ink-muted">
-          Manage customer credit and pending payments
+          Collect dues, correct wrong pending amounts, and keep surplus on the customer account
         </p>
+        <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-xs sm:text-sm text-amber-900 dark:text-amber-100">
+          Open <span className="font-semibold">Pay / Edit due</span> on a bill (or{' '}
+          <span className="font-semibold">Pay All</span>) to change the due amount or record extra
+          payment as store credit.
+        </div>
       </div>
 
       {/* Search and Filter Bar */}
@@ -777,8 +782,14 @@ export default function PendingPaymentsPage() {
                           <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-semibold border border-red-200 dark:border-red-800">
                             {customer.orderCount} {customer.orderCount === 1 ? 'order' : 'orders'}
                           </span>
-                          {(customer.storeCredit || 0) > 0 && (
-                            <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
+                          {customer.id !== 'WALK_IN_CREDIT' && (
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                                (customer.storeCredit || 0) > 0
+                                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-ink-muted border-gray-200 dark:border-gray-600'
+                              }`}
+                            >
                               ₹{Math.round(customer.storeCredit || 0)} on account
                             </span>
                           )}
@@ -876,7 +887,7 @@ export default function PendingPaymentsPage() {
                               onClick={() => handlePayPending(customer)}
                               className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-bold text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
                             >
-                              Pay All
+                              Pay All / Edit due
                             </button>
                           </div>
                         </div>
@@ -979,16 +990,26 @@ export default function PendingPaymentsPage() {
                               
                               {/* Remaining Balance - Prominently Displayed */}
                               <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-lg p-3 mb-3">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-3 flex-wrap">
                                   <div className="flex items-center gap-2">
                                     <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     <span className="text-sm font-semibold text-red-700 dark:text-red-300">Remaining Balance</span>
                                   </div>
-                                  <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                                    ₹{Math.round(remainingBalance)}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                                      ₹{Math.round(remainingBalance)}
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePayPending(customer, order.id)}
+                                      className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                                      title="Correct wrong pending amount or collect payment"
+                                    >
+                                      Edit due
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
 
@@ -1015,7 +1036,7 @@ export default function PendingPaymentsPage() {
                                   onClick={() => handlePayPending(customer, order.id)}
                                   className="flex-[1.4] px-3 py-2.5 text-sm font-semibold bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 transition-all duration-200 shadow-md hover:shadow-lg"
                                 >
-                                  Pay ₹{Math.round(remainingBalance)}
+                                  Pay / Edit due ₹{Math.round(remainingBalance)}
                                 </button>
                               </div>
                             </div>
