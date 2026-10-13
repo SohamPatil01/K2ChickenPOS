@@ -78,14 +78,14 @@
 }
 
 .k2-brand-name {
-  font: 800 21px/1.1 var(--font-display);
+  font: 800 23px/1.1 var(--font-display);
   letter-spacing: -0.8px;
   color: #202124;
 }
 
 .k2-brand-tag {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: #77777a;
   margin-top: 3px;
 }
@@ -104,7 +104,7 @@
   border: 1px solid #e0e9d9;
   border-radius: 999px;
   padding: 9px 13px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #3f5d42;
 }
@@ -124,7 +124,7 @@
   border-radius: 999px;
   padding: 11px 15px;
   text-decoration: none;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   transition: background 0.2s, transform 0.2s;
@@ -136,7 +136,7 @@
 }
 
 .k2-link-quiet {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--red);
   text-decoration: none;
@@ -186,7 +186,7 @@
 }
 
 .k2-eyebrow {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 3px;
   text-transform: uppercase;
@@ -194,7 +194,7 @@
 }
 
 .k2-hero-copy h1 {
-  font: 800 clamp(31px, 3.5vw, 49px) / 1.06 var(--font-display);
+  font: 800 clamp(34px, 3.8vw, 52px) / 1.06 var(--font-display);
   letter-spacing: -1.9px;
   margin: 10px 0;
   max-width: 500px;
@@ -206,7 +206,7 @@
 }
 
 .k2-hero-copy > p {
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.6;
   color: #55565a;
   max-width: 450px;
@@ -224,7 +224,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1.4;
   color: #4c4c50;
 }
@@ -232,7 +232,7 @@
 .k2-benefit i {
   font-style: normal;
   color: var(--red);
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .k2-hero-image {
@@ -298,54 +298,54 @@
 }
 
 .k2-step {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--red-soft);
   color: var(--red);
   display: grid;
   place-items: center;
-  font: 800 16px var(--font-display);
+  font: 800 18px var(--font-display);
 }
 
 .k2-section-head h2 {
-  font: 800 18px var(--font-display);
+  font: 800 22px var(--font-display);
   letter-spacing: -0.4px;
   margin: 0 0 4px;
 }
 
 .k2-section-head p {
-  font-size: 10px;
+  font-size: 14px;
   color: var(--muted);
   margin: 0;
   line-height: 1.5;
 }
 
 .k2-counter {
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   background: #fff0ee;
   color: var(--red);
   border-radius: 999px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   white-space: nowrap;
 }
 
 .k2-search {
-  height: 41px;
+  height: 48px;
   display: flex;
   align-items: center;
   gap: 9px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0 12px;
+  border-radius: 12px;
+  padding: 0 14px;
   margin-bottom: 12px;
   background: #fff;
 }
 
 .k2-search span {
-  font-size: 18px;
+  font-size: 20px;
   color: #777;
 }
 
@@ -354,7 +354,7 @@
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 11px;
+  font-size: 15px;
   color: var(--ink);
 }
 
@@ -376,8 +376,8 @@
   border-radius: 999px;
   background: #fff4f0;
   color: #3d3d42;
-  padding: 9px 15px;
-  font-size: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
   font-weight: 700;
   transition: background 0.2s, color 0.2s, transform 0.2s;
 }
@@ -465,8 +465,8 @@
   background: var(--red);
   color: #fff;
   border-radius: 6px;
-  padding: 5px 7px;
-  font-size: 9px;
+  padding: 5px 8px;
+  font-size: 11px;
   font-weight: 800;
   z-index: 1;
 }
@@ -480,14 +480,14 @@
 }
 
 .k2-product h3 {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 800;
   margin: 0 0 4px;
   color: var(--ink);
 }
 
 .k2-desc {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 8px;
 }
@@ -501,25 +501,25 @@
 
 .k2-price {
   color: var(--red);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .k2-unit {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 500;
 }
 
 .k2-add {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border: 0;
   border-radius: 50%;
   background: var(--red);
   color: #fff;
-  font-size: 20px;
+  font-size: 22px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -538,13 +538,13 @@
 }
 
 .k2-qty button {
-  width: 25px;
-  height: 25px;
+  width: 28px;
+  height: 28px;
   border: 1px solid #f1dedb;
   border-radius: 50%;
   background: #fff0ed;
   color: var(--red);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
 }
 
@@ -555,9 +555,9 @@
 }
 
 .k2-qty strong {
-  min-width: 28px;
+  min-width: 32px;
   text-align: center;
-  font-size: 11px;
+  font-size: 14px;
 }
 
 /* Booking sidebar */
@@ -586,12 +586,12 @@
 }
 
 .k2-booking-head h2 {
-  font: 800 18px var(--font-display);
+  font: 800 22px var(--font-display);
   margin: 0 0 3px;
 }
 
 .k2-booking-head p {
-  font-size: 10px;
+  font-size: 13px;
   color: #ffe4e3;
   margin: 0;
 }
@@ -602,7 +602,7 @@
   color: white;
   text-decoration: underline;
   text-underline-offset: 3px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   padding: 5px;
 }
@@ -611,7 +611,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 800;
   padding: 14px 0 8px;
 }
@@ -620,8 +620,8 @@
   color: var(--red);
   background: #fff0ee;
   border-radius: 999px;
-  padding: 5px 8px;
-  font-size: 9px;
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .k2-cart-list {
@@ -634,12 +634,12 @@
   padding: 22px 10px;
   text-align: center;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
 .k2-empty-icon {
-  font-size: 23px;
+  font-size: 28px;
   color: var(--red);
   margin-bottom: 6px;
 }
@@ -668,13 +668,13 @@
 }
 
 .k2-cart-name {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 800;
   margin-bottom: 3px;
 }
 
 .k2-cart-sub {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -687,22 +687,23 @@
 }
 
 .k2-cart-controls button {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border: 1px solid #f0dfdc;
   border-radius: 50%;
   background: #fff1ef;
   color: var(--red);
   font-weight: 800;
+  font-size: 14px;
 }
 
 .k2-cart-controls input {
-  width: 52px;
-  height: 22px;
+  width: 58px;
+  height: 28px;
   border: 1px solid #f0dfdc;
   border-radius: 6px;
   text-align: center;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -717,8 +718,8 @@
   border: 1px solid #f0dfdc;
   background: #fff;
   border-radius: 999px;
-  padding: 3px 7px;
-  font-size: 8px;
+  padding: 5px 9px;
+  font-size: 12px;
   font-weight: 700;
   color: #4f4b4b;
 }
@@ -730,7 +731,7 @@
 }
 
 .k2-cart-total {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
   color: var(--red);
@@ -741,16 +742,16 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 0 0;
-  font-size: 11px;
+  font-size: 15px;
 }
 
 .k2-subtotal strong {
-  font-size: 15px;
+  font-size: 22px;
   color: var(--red);
 }
 
 .k2-fine {
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.5;
   color: var(--muted);
   margin-top: 5px;
@@ -763,7 +764,7 @@
 }
 
 .k2-form-title {
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 800;
   margin: 0 0 9px;
 }
@@ -771,19 +772,19 @@
 .k2-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px;
+  gap: 8px;
 }
 
 .k2-field {
-  height: 38px;
+  height: 48px;
   width: 100%;
   min-width: 0;
   border: 1px solid #e8e3e1;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #fff;
-  padding: 0 10px;
+  padding: 0 12px;
   color: var(--ink);
-  font-size: 10px;
+  font-size: 15px;
   transition: border 0.2s, box-shadow 0.2s;
 }
 
@@ -794,22 +795,22 @@
 }
 
 textarea.k2-field {
-  height: 49px;
-  padding-top: 9px;
+  height: 72px;
+  padding-top: 12px;
   resize: vertical;
 }
 
 .k2-field-label {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 800;
-  margin: 12px 0 6px;
+  margin: 14px 0 8px;
 }
 
 .k2-slots {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 6px;
 }
 
 .k2-slot {
@@ -817,8 +818,8 @@ textarea.k2-field {
   border-radius: 999px;
   background: #fff7f5;
   color: #4f4b4b;
-  padding: 8px 2px;
-  font-size: 9px;
+  padding: 11px 4px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   transition: 0.2s;
@@ -838,12 +839,12 @@ textarea.k2-field {
 }
 
 .k2-fulfil button {
-  min-height: 39px;
+  min-height: 48px;
   border: 1px solid #e8e3e1;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #fff;
   color: #45454a;
-  font-size: 9px;
+  font-size: 13px;
   font-weight: 700;
   transition: 0.2s;
 }
@@ -857,14 +858,14 @@ textarea.k2-field {
 
 .k2-submit {
   width: 100%;
-  height: 44px;
+  height: 52px;
   border: 0;
   border-radius: 999px;
   background: var(--red);
   color: #fff;
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 800;
-  margin-top: 12px;
+  margin-top: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -889,9 +890,9 @@ textarea.k2-field {
   gap: 6px;
   text-align: center;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.5;
-  margin-top: 9px;
+  margin-top: 10px;
 }
 
 .k2-reassurance b {
@@ -900,11 +901,11 @@ textarea.k2-field {
 
 .k2-error {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 14px;
   color: var(--red);
   background: var(--red-soft);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 
 .k2-trust-strip {
@@ -938,13 +939,13 @@ textarea.k2-field {
 
 .k2-trust strong {
   display: block;
-  font-size: 10px;
+  font-size: 14px;
   margin-bottom: 3px;
 }
 
 .k2-trust small {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
 }
@@ -966,8 +967,8 @@ textarea.k2-field {
   background: #2b1d1d;
   color: white;
   border-radius: 10px;
-  padding: 12px 16px;
-  font-size: 11px;
+  padding: 14px 18px;
+  font-size: 14px;
   box-shadow: 0 12px 30px #0003;
   transition: 0.22s;
   max-width: calc(100vw - 24px);
@@ -1017,12 +1018,12 @@ textarea.k2-field {
 }
 
 .k2-modal-card h2 {
-  font: 800 22px var(--font-display);
+  font: 800 26px var(--font-display);
   margin: 0 0 8px;
 }
 
 .k2-modal-card p {
-  font-size: 11px;
+  font-size: 15px;
   line-height: 1.7;
   color: var(--muted);
   margin: 0 0 12px;
@@ -1038,13 +1039,13 @@ textarea.k2-field {
 
 .k2-code-box span {
   display: block;
-  font-size: 10px;
+  font-size: 13px;
   color: var(--muted);
   margin-bottom: 4px;
 }
 
 .k2-code-box strong {
-  font: 800 28px/1.1 var(--font-display);
+  font: 800 30px/1.1 var(--font-display);
   letter-spacing: 0.2em;
   color: var(--ink);
 }
@@ -1059,9 +1060,9 @@ textarea.k2-field {
   width: 100%;
   border: 0;
   border-radius: 9px;
-  padding: 12px;
+  padding: 14px;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 15px;
   text-decoration: none;
   text-align: center;
 }
@@ -1217,13 +1218,13 @@ textarea.k2-field {
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
   }
   .k2-mobile-summary {
-    font-size: 9px;
+    font-size: 12px;
     color: var(--muted);
   }
   .k2-mobile-summary strong {
     display: block;
     color: var(--ink);
-    font-size: 12px;
+    font-size: 15px;
     margin-bottom: 2px;
   }
   .k2-mobile-bar button {
@@ -1231,8 +1232,8 @@ textarea.k2-field {
     border-radius: 999px;
     background: var(--red);
     color: #fff;
-    padding: 12px 16px;
-    font-size: 10px;
+    padding: 13px 16px;
+    font-size: 14px;
     font-weight: 800;
     white-space: nowrap;
   }
@@ -1263,7 +1264,7 @@ textarea.k2-field {
 }
 
 .k2-track-hero p {
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.6;
   color: #55565a;
   margin: 0;
@@ -1294,7 +1295,7 @@ textarea.k2-field {
 }
 
 .k2-track-store {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--muted);
   margin: 0 0 4px;
@@ -1303,13 +1304,13 @@ textarea.k2-field {
 }
 
 .k2-track-status-row h2 {
-  font: 800 22px / 1.15 var(--font-display);
+  font: 800 26px / 1.15 var(--font-display);
   margin: 0 0 6px;
   letter-spacing: -0.5px;
 }
 
 .k2-track-hint {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--muted);
   margin: 0;
   line-height: 1.5;
@@ -1326,13 +1327,13 @@ textarea.k2-field {
 
 .k2-track-code-pill span {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 2px;
 }
 
 .k2-track-code-pill strong {
-  font: 800 16px / 1 var(--font-display);
+  font: 800 18px / 1 var(--font-display);
   letter-spacing: 0.18em;
   color: var(--ink);
 }
@@ -1350,7 +1351,7 @@ textarea.k2-field {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--muted);
 }
@@ -1364,12 +1365,12 @@ textarea.k2-field {
 }
 
 .k2-track-step-dot {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   background: #fff4f0;
   border: 2px solid #f0e0dc;
@@ -1419,14 +1420,14 @@ textarea.k2-field {
 
 .k2-track-meta > div span {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 3px;
 }
 
 .k2-track-meta > div strong {
   display: block;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.35;
 }
@@ -1443,7 +1444,7 @@ textarea.k2-field {
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid #f0e8e5;
-  font-size: 12px;
+  font-size: 15px;
   animation: k2-rise 0.3s ease-out both;
 }
 
@@ -1473,7 +1474,7 @@ textarea.k2-field {
 
 .k2-track-timeline li.muted {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
   padding: 4px 0;
 }
@@ -1499,13 +1500,13 @@ textarea.k2-field {
 
 .k2-track-timeline p {
   margin: 0 0 2px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
 }
 
 .k2-track-timeline time {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -1514,7 +1515,7 @@ textarea.k2-field {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   color: #3f5d42;
   background: #f4f7ef;
@@ -1545,7 +1546,7 @@ textarea.k2-field {
     margin-top: 18px;
   }
   .k2-track-step span {
-    font-size: 8px;
+    font-size: 11px;
   }
 }
 

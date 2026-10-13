@@ -835,7 +835,7 @@ export default function BookPreOrderPage() {
         <p
           style={{
             textAlign: 'center',
-            fontSize: 10,
+            fontSize: 13,
             color: '#8a7a76',
             marginTop: 16,
             lineHeight: 1.5,
