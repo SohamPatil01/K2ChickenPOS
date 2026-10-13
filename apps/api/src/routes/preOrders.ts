@@ -488,34 +488,40 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
 
 /** Authenticated staff pre-order endpoints */
 export async function preOrderRoutes(fastify: FastifyInstance) {
-  // List pre-orders for store
+  // List pre-orders for store (full day log — includes cancelled / fulfilled / no-show)
   fastify.get(
     '/',
     { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
     async (request: any) => {
       const { storeId } = getUser(request) as any;
       const q = request.query || {};
-      const status = q.status ? String(q.status) : undefined;
+      const status = q.status ? String(q.status).toUpperCase() : 'ALL';
       const day = q.date ? String(q.date).split('T')[0] : ymdInStoreTz();
 
       const dayStart = new Date(`${day}T00:00:00.000${STORE_TZ_OFFSET}`);
       const dayEnd = new Date(`${day}T23:59:59.999${STORE_TZ_OFFSET}`);
 
+      // Placed today OR ready today — so every customer booking stays in the log,
+      // including after cancel (never deleted).
       const where: any = {
         storeId,
-        readyAt: { gte: dayStart, lte: dayEnd },
+        OR: [
+          { readyAt: { gte: dayStart, lte: dayEnd } },
+          { createdAt: { gte: dayStart, lte: dayEnd } },
+        ],
       };
-      if (status && status !== 'ALL') {
-        where.status = status;
-      } else {
+      if (status === 'OPEN') {
         where.status = { in: ['PENDING', 'CONFIRMED', 'READY'] };
+      } else if (status && status !== 'ALL') {
+        where.status = status;
       }
+      // status=ALL (default): keep CANCELLED / FULFILLED / NO_SHOW in the log
 
       const items = await prisma.preOrder.findMany({
         where,
         include: includeFull,
-        orderBy: [{ readyAt: 'asc' }, { createdAt: 'asc' }],
-        take: 100,
+        orderBy: [{ createdAt: 'desc' }, { readyAt: 'asc' }],
+        take: 200,
       });
 
       const priced = [];

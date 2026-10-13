@@ -101,7 +101,7 @@ export default function PosPreOrders({
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/v1/pre-orders');
+      const res = await api.get('/api/v1/pre-orders', { params: { status: 'ALL' } });
       setItems(res.data?.items || []);
     } catch (e) {
       console.error(e);
@@ -299,8 +299,125 @@ export default function PosPreOrders({
     }
   };
 
-  const pendingCount = items.length;
+  const OPEN_STATUSES = new Set(['PENDING', 'CONFIRMED', 'READY']);
+  const activeItems = items.filter((po) => OPEN_STATUSES.has(po.status));
+  const closedItems = items.filter((po) => !OPEN_STATUSES.has(po.status));
+  const pendingCount = activeItems.length;
   const canPortal = typeof document !== 'undefined';
+
+  const renderPreOrderCard = (po: PreOrderRow, closed: boolean) => (
+    <div
+      key={po.id}
+      className={`rounded-xl border p-3 space-y-2 ${
+        closed
+          ? po.status === 'CANCELLED'
+            ? 'bg-red-50/80 border-red-200'
+            : 'bg-gray-50 border-gray-200 opacity-90'
+          : 'bg-white/90'
+      }`}
+    >
+      <div className="flex justify-between gap-2">
+        <div>
+          <div className="font-semibold">{po.customerName}</div>
+          <div className="text-sm text-gray-600">{po.customerPhone}</div>
+          {po.trackingCode && (
+            <div className="text-xs font-mono text-orange-800 mt-0.5">
+              Track: {po.trackingCode}
+            </div>
+          )}
+        </div>
+        <div className="text-right text-sm">
+          <div className="font-medium">{fmtReady(po.readyAt)}</div>
+          <div
+            className={`text-xs font-semibold ${
+              po.status === 'CANCELLED'
+                ? 'text-red-700'
+                : po.status === 'FULFILLED'
+                  ? 'text-green-700'
+                  : 'text-gray-500'
+            }`}
+          >
+            {po.source.replace('_', ' ')} · {po.status}
+          </div>
+        </div>
+      </div>
+      <ul className="text-sm text-gray-700 space-y-0.5">
+        {po.items.map((it) => (
+          <li key={it.id}>
+            {it.productName} —{' '}
+            {it.unitType === 'KG' ? `${it.qtyKg} kg` : `${it.qtyPcs} pcs`}
+          </li>
+        ))}
+      </ul>
+      {po.notes && (
+        <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1">{po.notes}</p>
+      )}
+      {po.cancelReason && (
+        <p className="text-xs text-red-800 bg-red-100/70 rounded-lg px-2 py-1">
+          Cancel reason: {po.cancelReason}
+        </p>
+      )}
+      {!closed && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button
+            className="!py-1 !px-3 text-sm"
+            disabled={busyId === po.id}
+            onClick={() => loadToCart(po)}
+          >
+            Load to cart
+          </Button>
+          <Button
+            variant="secondary"
+            className="!py-1 !px-3 text-sm"
+            disabled={busyId === po.id}
+            onClick={() => setStatus(po.id, 'CONFIRMED')}
+          >
+            Confirm
+          </Button>
+          <Button
+            variant="secondary"
+            className="!py-1 !px-3 text-sm"
+            disabled={busyId === po.id}
+            onClick={() => setStatus(po.id, 'READY')}
+          >
+            Mark ready
+          </Button>
+          <Button
+            variant="ghost"
+            className="!py-1 !px-3 text-sm"
+            disabled={busyId === po.id}
+            onClick={() => {
+              setActionPo(po);
+              setActionMode('message');
+              setActionText('');
+            }}
+          >
+            Message
+          </Button>
+          <Button
+            variant="ghost"
+            className="!py-1 !px-3 text-sm text-red-700"
+            disabled={busyId === po.id}
+            onClick={() => {
+              setActionPo(po);
+              setActionMode('cancel');
+              setActionText('Stock not available today — sorry for the inconvenience.');
+            }}
+          >
+            Cancel (no stock)
+          </Button>
+          <Button
+            variant="ghost"
+            className="!py-1 !px-3 text-sm"
+            disabled={busyId === po.id}
+            onClick={() => setStatus(po.id, 'NO_SHOW')}
+          >
+            No-show
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 
   const overlays =
     canPortal &&
@@ -312,7 +429,9 @@ export default function PosPreOrders({
               <div className="p-4 border-b flex items-center justify-between gap-2">
                 <div>
                   <h2 className="text-lg font-bold">Today&apos;s pre-orders</h2>
-                  <p className="text-xs text-gray-500">Load to cart, then bill as usual</p>
+                  <p className="text-xs text-gray-500">
+                    Full log kept — cancelled orders stay listed below
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="secondary" className="!py-1 !px-2 text-sm" onClick={refresh}>
@@ -328,7 +447,7 @@ export default function PosPreOrders({
                   <p className="text-center text-gray-500 py-8">Loading…</p>
                 ) : items.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">
-                    No pending bookings for today.
+                    No bookings logged for today.
                     <br />
                     <button
                       type="button"
@@ -342,101 +461,29 @@ export default function PosPreOrders({
                     </button>
                   </p>
                 ) : (
-                  items.map((po) => (
-                    <div key={po.id} className="rounded-xl border p-3 space-y-2 bg-white/90">
-                      <div className="flex justify-between gap-2">
-                        <div>
-                          <div className="font-semibold">{po.customerName}</div>
-                          <div className="text-sm text-gray-600">{po.customerPhone}</div>
-                          {po.trackingCode && (
-                            <div className="text-xs font-mono text-orange-800 mt-0.5">
-                              Track: {po.trackingCode}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right text-sm">
-                          <div className="font-medium">{fmtReady(po.readyAt)}</div>
-                          <div className="text-xs text-gray-500">
-                            {po.source.replace('_', ' ')} · {po.status}
-                          </div>
-                        </div>
-                      </div>
-                      <ul className="text-sm text-gray-700 space-y-0.5">
-                        {po.items.map((it) => (
-                          <li key={it.id}>
-                            {it.productName} —{' '}
-                            {it.unitType === 'KG'
-                              ? `${it.qtyKg} kg`
-                              : `${it.qtyPcs} pcs`}
-                          </li>
-                        ))}
-                      </ul>
-                      {po.notes && (
-                        <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1">
-                          {po.notes}
+                  <>
+                    {activeItems.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-0.5">
+                          Open ({activeItems.length})
                         </p>
-                      )}
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <Button
-                          className="!py-1 !px-3 text-sm"
-                          disabled={busyId === po.id}
-                          onClick={() => loadToCart(po)}
-                        >
-                          Load to cart
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          className="!py-1 !px-3 text-sm"
-                          disabled={busyId === po.id}
-                          onClick={() => setStatus(po.id, 'CONFIRMED')}
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          className="!py-1 !px-3 text-sm"
-                          disabled={busyId === po.id}
-                          onClick={() => setStatus(po.id, 'READY')}
-                        >
-                          Mark ready
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="!py-1 !px-3 text-sm"
-                          disabled={busyId === po.id}
-                          onClick={() => {
-                            setActionPo(po);
-                            setActionMode('message');
-                            setActionText('');
-                          }}
-                        >
-                          Message
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="!py-1 !px-3 text-sm text-red-700"
-                          disabled={busyId === po.id}
-                          onClick={() => {
-                            setActionPo(po);
-                            setActionMode('cancel');
-                            setActionText(
-                              'Stock not available today — sorry for the inconvenience.'
-                            );
-                          }}
-                        >
-                          Cancel (no stock)
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="!py-1 !px-3 text-sm"
-                          disabled={busyId === po.id}
-                          onClick={() => setStatus(po.id, 'NO_SHOW')}
-                        >
-                          No-show
-                        </Button>
+                        {activeItems.map((po) => renderPreOrderCard(po, false))}
                       </div>
-                    </div>
-                  ))
+                    )}
+                    {closedItems.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-0.5">
+                          Log — cancelled / done ({closedItems.length})
+                        </p>
+                        {closedItems.map((po) => renderPreOrderCard(po, true))}
+                      </div>
+                    )}
+                    {activeItems.length === 0 && closedItems.length > 0 && (
+                      <p className="text-center text-xs text-gray-500 pt-1">
+                        No open bookings — cancelled and completed stay in the log above.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </Card>
