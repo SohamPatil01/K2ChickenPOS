@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { isMasaleProduct } from '@azela-pos/shared';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { BRAND } from '@/lib/customerDisplay/brand';
 
@@ -19,6 +20,16 @@ type CatalogProduct = {
   stockQtyPcs?: number;
   availableLabel?: string;
 };
+
+type FilterChip =
+  | { key: 'All'; kind: 'all'; label: string }
+  | { key: string; kind: 'category'; label: string }
+  | { key: 'Masale'; kind: 'masale-all'; label: string }
+  | { key: string; kind: 'masale'; label: string; productId: string };
+
+function productIsMasale(p: CatalogProduct) {
+  return isMasaleProduct(p.categoryName, p.name);
+}
 
 type LineDraft = {
   key: string;
@@ -82,7 +93,7 @@ export default function BookPreOrderPage() {
   } | null>(null);
 
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All Cuts');
+  const [filterKey, setFilterKey] = useState('All');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [readyAt, setReadyAt] = useState(() => readyInHours(2));
@@ -159,20 +170,58 @@ export default function BookPreOrderPage() {
     );
   }, [products]);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products) if (p.categoryName) set.add(p.categoryName);
-    return ['All Cuts', ...Array.from(set).sort()];
+  const filterChips = useMemo((): FilterChip[] => {
+    const cutCats = new Set<string>();
+    const masale: CatalogProduct[] = [];
+    for (const p of products) {
+      if (productIsMasale(p)) {
+        masale.push(p);
+        continue;
+      }
+      if (p.categoryName) cutCats.add(p.categoryName);
+    }
+    const chips: FilterChip[] = [{ key: 'All', kind: 'all', label: 'All' }];
+    for (const name of Array.from(cutCats).sort()) {
+      chips.push({ key: `cat:${name}`, kind: 'category', label: name });
+    }
+    if (masale.length) {
+      chips.push({ key: 'Masale', kind: 'masale-all', label: 'Masale' });
+      for (const p of masale.sort((a, b) => a.name.localeCompare(b.name))) {
+        chips.push({
+          key: `masale:${p.id}`,
+          kind: 'masale',
+          label: p.name,
+          productId: p.id,
+        });
+      }
+    }
+    return chips;
   }, [products]);
+
+  const activeFilter = useMemo(
+    () => filterChips.find((c) => c.key === filterKey) || filterChips[0],
+    [filterChips, filterKey]
+  );
+
+  useEffect(() => {
+    if (!filterChips.some((c) => c.key === filterKey)) setFilterKey('All');
+  }, [filterChips, filterKey]);
 
   const visibleProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
-      const catOk = category === 'All Cuts' || p.categoryName === category;
+      let filterOk = true;
+      if (activeFilter?.kind === 'category') {
+        filterOk = !productIsMasale(p) && p.categoryName === activeFilter.label;
+      } else if (activeFilter?.kind === 'masale-all') {
+        filterOk = productIsMasale(p);
+      } else if (activeFilter?.kind === 'masale') {
+        filterOk = p.id === activeFilter.productId;
+      }
       const searchOk = !q || p.name.toLowerCase().includes(q);
-      return catOk && searchOk;
+      return filterOk && searchOk;
     });
-  }, [products, category, search]);
+  }, [products, activeFilter, search]);
 
   const maxAvailable = (p: CatalogProduct) =>
     p.unitType === 'KG' ? Number(p.stockQtyKg) || 0 : Number(p.stockQtyPcs) || 0;
@@ -474,17 +523,31 @@ export default function BookPreOrderPage() {
                   />
                 </label>
 
-                <div className="k2-categories">
-                  {categories.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      className={`k2-cat${category === c ? ' active' : ''}`}
-                      onClick={() => setCategory(c)}
-                    >
-                      {c}
-                    </button>
-                  ))}
+                <div className="k2-categories" role="tablist" aria-label="Product filters">
+                  {filterChips.map((c, i) => {
+                    const prev = filterChips[i - 1];
+                    const showMasaleBreak =
+                      (c.kind === 'masale-all' || c.kind === 'masale') &&
+                      prev &&
+                      prev.kind !== 'masale-all' &&
+                      prev.kind !== 'masale';
+                    return (
+                      <span key={c.key} className="k2-cat-wrap">
+                        {showMasaleBreak ? <span className="k2-cat-break" aria-hidden /> : null}
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={filterKey === c.key}
+                          className={`k2-cat${filterKey === c.key ? ' active' : ''}${
+                            c.kind === 'masale-all' || c.kind === 'masale' ? ' masale' : ''
+                          }`}
+                          onClick={() => setFilterKey(c.key)}
+                        >
+                          {c.label}
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
 
                 <div className="k2-products" aria-live="polite">
