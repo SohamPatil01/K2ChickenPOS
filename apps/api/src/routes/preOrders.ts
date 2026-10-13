@@ -1,9 +1,62 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyReply } from 'fastify';
-import { prisma } from '@azela-pos/db';
+import { prisma, Prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { getUser, requireRole } from '../utils/auth.js';
 import { ymdInStoreTz, STORE_TZ_OFFSET } from '@azela-pos/shared';
+
+/** On-hand qty for products at a physical store (same math as inventory summary). */
+async function stockByProductIds(
+  storeId: string,
+  productIds: string[]
+): Promise<Map<string, { qtyKg: number; qtyPcs: number }>> {
+  const map = new Map<string, { qtyKg: number; qtyPcs: number }>();
+  if (!productIds.length) return map;
+  const rows = await prisma.$queryRaw<
+    Array<{ productId: string; qtyKg: number; qtyPcs: number }>
+  >`
+    SELECT
+      "productId",
+      COALESCE(
+        SUM(
+          CASE
+            WHEN type = 'IN' THEN COALESCE("qtyKg", 0)
+            ELSE -COALESCE("qtyKg", 0)
+          END
+        ),
+        0
+      )::float AS "qtyKg",
+      COALESCE(
+        SUM(
+          CASE
+            WHEN type = 'IN' THEN COALESCE("qtyPcs", 0)
+            ELSE -COALESCE("qtyPcs", 0)
+          END
+        ),
+        0
+      )::int AS "qtyPcs"
+    FROM "InventoryLedger"
+    WHERE "storeId" = ${storeId}
+      AND "productId" IN (${Prisma.join(productIds)})
+    GROUP BY "productId"
+  `;
+  for (const row of rows) {
+    map.set(row.productId, {
+      qtyKg: Math.max(0, Math.round((Number(row.qtyKg) || 0) * 1000) / 1000),
+      qtyPcs: Math.max(0, Math.round(Number(row.qtyPcs) || 0)),
+    });
+  }
+  return map;
+}
+
+function isOutOfStock(
+  unitType: string,
+  stock: { qtyKg: number; qtyPcs: number } | undefined
+): boolean {
+  if (!stock) return true;
+  if (unitType === 'KG') return stock.qtyKg <= 0.001;
+  return stock.qtyPcs <= 0;
+}
 
 const itemSchema = z.object({
   productId: z.string().optional().nullable(),
@@ -381,19 +434,45 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
       orderBy: { name: 'asc' },
     });
 
+    const priced = products.filter(
+      (p) => (p.storeProductPrices[0]?.pricePerUnit || 0) > 0
+    );
+    const stockMap = await stockByProductIds(
+      storeId,
+      priced.map((p) => p.id)
+    );
+
+    // In-stock first, then out of stock (still visible so customers know)
+    const mapped = priced.map((p) => {
+      const stock = stockMap.get(p.id) || { qtyKg: 0, qtyPcs: 0 };
+      const outOfStock = isOutOfStock(p.unitType, stock);
+      return {
+        id: p.id,
+        name: p.name,
+        unitType: p.unitType,
+        taxRate: p.taxRate,
+        imageUrl: p.imageUrl,
+        categoryName: p.category?.name || null,
+        pricePerUnit: p.storeProductPrices[0]?.pricePerUnit || 0,
+        stockQtyKg: stock.qtyKg,
+        stockQtyPcs: stock.qtyPcs,
+        outOfStock,
+        availableLabel:
+          p.unitType === 'KG'
+            ? outOfStock
+              ? 'Out of stock'
+              : `${stock.qtyKg} kg left`
+            : outOfStock
+              ? 'Out of stock'
+              : `${stock.qtyPcs} pcs left`,
+      };
+    });
+    mapped.sort((a, b) => Number(a.outOfStock) - Number(b.outOfStock) || a.name.localeCompare(b.name));
+
+    reply.header('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=60');
     return {
       store: { id: store.id, name: store.name },
-      products: products
-        .filter((p) => (p.storeProductPrices[0]?.pricePerUnit || 0) > 0)
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          unitType: p.unitType,
-          taxRate: p.taxRate,
-          imageUrl: p.imageUrl,
-          categoryName: p.category?.name || null,
-          pricePerUnit: p.storeProductPrices[0]?.pricePerUnit || 0,
-        })),
+      products: mapped,
     };
   });
 
@@ -456,6 +535,52 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
           error: 'Please choose a ready time at least 20 minutes from now',
         });
         return;
+      }
+
+      // Block booking products that are out of stock at this store
+      const productIds = data.items
+        .map((it) => it.productId)
+        .filter((id): id is string => Boolean(id));
+      if (productIds.length > 0) {
+        const stockMap = await stockByProductIds(data.storeId, productIds);
+        const products = await prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true, unitType: true },
+        });
+        const byId = new Map(products.map((p) => [p.id, p]));
+        for (const it of data.items) {
+          if (!it.productId) continue;
+          const product = byId.get(it.productId);
+          if (!product) continue;
+          const stock = stockMap.get(it.productId);
+          if (isOutOfStock(product.unitType, stock)) {
+            reply.code(400).send({
+              error: `${product.name} is out of stock right now — please remove it or try another cut`,
+              code: 'OUT_OF_STOCK',
+              productId: product.id,
+            });
+            return;
+          }
+          // Soft check: requested qty vs on hand (still allow slight over — shop may cut fresh)
+          if (product.unitType === 'KG' && it.qtyKg && stock && it.qtyKg > stock.qtyKg + 0.05) {
+            reply.code(400).send({
+              error: `Only ${stock.qtyKg} kg of ${product.name} left — please lower the weight`,
+              code: 'INSUFFICIENT_STOCK',
+              productId: product.id,
+              availableQtyKg: stock.qtyKg,
+            });
+            return;
+          }
+          if (product.unitType === 'PCS' && it.qtyPcs && stock && it.qtyPcs > stock.qtyPcs) {
+            reply.code(400).send({
+              error: `Only ${stock.qtyPcs} pcs of ${product.name} left — please lower the quantity`,
+              code: 'INSUFFICIENT_STOCK',
+              productId: product.id,
+              availableQtyPcs: stock.qtyPcs,
+            });
+            return;
+          }
+        }
       }
 
       const preOrder = await createPreOrderRecord({

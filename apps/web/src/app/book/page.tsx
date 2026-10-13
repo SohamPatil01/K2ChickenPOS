@@ -11,6 +11,10 @@ type CatalogProduct = {
   unitType: 'KG' | 'PCS';
   pricePerUnit: number;
   categoryName: string | null;
+  outOfStock?: boolean;
+  stockQtyKg?: number;
+  stockQtyPcs?: number;
+  availableLabel?: string;
 };
 
 type LineDraft = {
@@ -117,19 +121,51 @@ export default function BookPreOrderPage() {
     if (storeId) loadCatalog(storeId);
   }, [storeId, loadCatalog]);
 
+  // Refresh stock every 45s while the page is open
+  useEffect(() => {
+    if (!storeId) return;
+    const t = setInterval(() => loadCatalog(storeId), 45000);
+    return () => clearInterval(t);
+  }, [storeId, loadCatalog]);
+
+  // Drop bag lines that went out of stock after a catalog refresh
+  useEffect(() => {
+    if (!products.length) return;
+    setLines((prev) =>
+      prev.filter((l) => {
+        const p = products.find((x) => x.id === l.productId);
+        return p && !p.outOfStock;
+      })
+    );
+  }, [products]);
+
   /** Common butcher weights (kg) — customers often order 250g / 300g packs. */
   const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
 
+  const maxAvailable = (p: CatalogProduct) =>
+    p.unitType === 'KG' ? Number(p.stockQtyKg) || 0 : Number(p.stockQtyPcs) || 0;
+
   const addOrBumpProduct = (p: CatalogProduct) => {
+    if (p.outOfStock) return;
     setLines((prev) => {
       const existing = prev.find((l) => l.productId === p.id);
+      const avail = maxAvailable(p);
       if (existing) {
-        // Re-tapping focuses the line; bump slightly so repeat taps still feel responsive
-        const nextQty =
+        const bumped =
           p.unitType === 'KG'
-            ? String(Math.round((Number(existing.qty) + 0.05) * 1000) / 1000)
-            : String(Number(existing.qty) + 1);
-        return prev.map((l) => (l.productId === p.id ? { ...l, qty: nextQty } : l));
+            ? Math.round((Number(existing.qty) + 0.05) * 1000) / 1000
+            : Number(existing.qty) + 1;
+        const nextQty = avail > 0 ? Math.min(bumped, avail) : bumped;
+        return prev.map((l) =>
+          l.productId === p.id ? { ...l, qty: String(nextQty) } : l
+        );
+      }
+      // Default 500g for KG when stock allows, else use what's left
+      let qty = p.unitType === 'KG' ? '0.500' : '1';
+      if (p.unitType === 'KG' && avail > 0) {
+        qty = String(Math.min(0.5, avail));
+      } else if (p.unitType === 'PCS' && avail > 0) {
+        qty = String(Math.min(1, avail));
       }
       return [
         ...prev,
@@ -138,8 +174,7 @@ export default function BookPreOrderPage() {
           productId: p.id,
           productName: p.name,
           unitType: p.unitType,
-          // Default 500g for KG — easy to change to 0.250 / 0.300 etc.
-          qty: p.unitType === 'KG' ? '0.500' : '1',
+          qty,
         },
       ];
     });
@@ -157,8 +192,11 @@ export default function BookPreOrderPage() {
   const bumpLine = (line: LineDraft, dir: 1 | -1) => {
     const step = line.unitType === 'KG' ? 0.05 : 1;
     const min = line.unitType === 'KG' ? 0.05 : 1;
+    const product = products.find((p) => p.id === line.productId);
+    const avail = product ? maxAvailable(product) : 0;
     const raw = Number(line.qty) || 0;
-    const next = Math.max(min, Math.round((raw + dir * step) * 1000) / 1000);
+    let next = Math.max(min, Math.round((raw + dir * step) * 1000) / 1000);
+    if (dir > 0 && avail > 0) next = Math.min(next, avail);
     setLines((prev) =>
       prev.map((x) =>
         x.key === line.key
@@ -211,6 +249,26 @@ export default function BookPreOrderPage() {
     });
     if (bad) {
       return setError('Enter a valid weight (e.g. 0.250, 0.300 kg) or quantity');
+    }
+    const oos = lines.find((l) => {
+      const p = products.find((x) => x.id === l.productId);
+      return p?.outOfStock;
+    });
+    if (oos) {
+      return setError(`${oos.productName} is out of stock — remove it to continue`);
+    }
+    const over = lines.find((l) => {
+      const p = products.find((x) => x.id === l.productId);
+      if (!p || p.outOfStock) return false;
+      const avail = maxAvailable(p);
+      if (avail <= 0) return false;
+      return Number(l.qty) > avail + 0.001;
+    });
+    if (over) {
+      const p = products.find((x) => x.id === over.productId)!;
+      return setError(
+        `Only ${p.availableLabel?.replace(' left', '') || maxAvailable(p)} of ${over.productName} left`
+      );
     }
     setSubmitting(true);
     try {
@@ -388,29 +446,49 @@ export default function BookPreOrderPage() {
               <div className="grid grid-cols-2 gap-2">
                 {products.map((p) => {
                   const inBag = lines.find((l) => l.productId === p.id);
+                  const oos = Boolean(p.outOfStock);
                   return (
                     <button
                       key={p.id}
                       type="button"
+                      disabled={oos}
                       onClick={() => addOrBumpProduct(p)}
-                      className={`text-left rounded-2xl border p-3 transition-all active:scale-[0.97] ${
-                        inBag
-                          ? 'border-[#2d8a4e] bg-[#eef8ea] ring-1 ring-[#2d8a4e]'
-                          : 'border-[#d7e8d4] bg-[#fafdf8] hover:border-[#2d8a4e]/50'
+                      className={`text-left rounded-2xl border p-3 transition-all relative ${
+                        oos
+                          ? 'border-[#e0d8d0] bg-[#f3f1ee] opacity-70 cursor-not-allowed'
+                          : inBag
+                            ? 'border-[#2d8a4e] bg-[#eef8ea] ring-1 ring-[#2d8a4e] active:scale-[0.97]'
+                            : 'border-[#d7e8d4] bg-[#fafdf8] hover:border-[#2d8a4e]/50 active:scale-[0.97]'
                       }`}
                     >
-                      <div className="flex justify-between gap-1">
-                        <span className="font-semibold text-sm text-[#1a2e1c] leading-snug">
+                      {oos && (
+                        <span className="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wide bg-[#c45c4a] text-white px-1.5 py-0.5 rounded-md">
+                          Out of stock
+                        </span>
+                      )}
+                      <div className="flex justify-between gap-1 pr-1">
+                        <span
+                          className={`font-semibold text-sm leading-snug ${
+                            oos ? 'text-[#8a8078] line-through' : 'text-[#1a2e1c]'
+                          }`}
+                        >
                           {p.name}
                         </span>
-                        {inBag && (
+                        {inBag && !oos && (
                           <span className="shrink-0 text-[10px] font-bold bg-[#2d8a4e] text-white rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
                             {inBag.qty}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-[#5a7a60] mt-1">
+                      <p className={`text-xs mt-1 ${oos ? 'text-[#a09088]' : 'text-[#5a7a60]'}`}>
                         ₹{Math.round(p.pricePerUnit)}/{p.unitType === 'KG' ? 'kg' : 'pc'}
+                      </p>
+                      <p
+                        className={`text-[11px] mt-0.5 font-medium ${
+                          oos ? 'text-[#c45c4a]' : 'text-[#6b9a70]'
+                        }`}
+                      >
+                        {p.availableLabel || (oos ? 'Out of stock' : 'In stock')}
                       </p>
                     </button>
                   );
@@ -492,7 +570,11 @@ export default function BookPreOrderPage() {
 
                     {l.unitType === 'KG' && (
                       <div className="flex flex-wrap gap-1.5">
-                        {WEIGHT_PRESETS.map((w) => (
+                        {WEIGHT_PRESETS.filter((w) => {
+                          const p = products.find((x) => x.id === l.productId);
+                          const avail = p ? maxAvailable(p) : 0;
+                          return avail <= 0 || Number(w) <= avail + 0.001;
+                        }).map((w) => (
                           <button
                             key={w}
                             type="button"
@@ -508,6 +590,15 @@ export default function BookPreOrderPage() {
                         ))}
                       </div>
                     )}
+                    {(() => {
+                      const p = products.find((x) => x.id === l.productId);
+                      if (!p || p.outOfStock) return null;
+                      return (
+                        <p className="text-[11px] text-[#5a7a60]">
+                          Available: {p.availableLabel || 'In stock'}
+                        </p>
+                      );
+                    })()}
                   </div>
                 ))}
                 {estimated > 0 && (
