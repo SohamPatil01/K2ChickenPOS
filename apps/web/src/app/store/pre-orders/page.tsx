@@ -6,6 +6,12 @@ import { useAuthStore } from '@/store/auth';
 import api from '@/lib/api';
 import { Card, Button } from '@/components/ui';
 import Link from 'next/link';
+import { LOYALTY } from '@/lib/customerDisplay/brand';
+
+function customerBookUrl(storeId?: string | null) {
+  const base = (LOYALTY.bookUrl || 'https://book.k2chicken.com').replace(/\/$/, '');
+  return storeId ? `${base}?store=${storeId}` : base;
+}
 
 export default function StorePreOrdersPage() {
   const router = useRouter();
@@ -13,17 +19,14 @@ export default function StorePreOrdersPage() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [bookUrl, setBookUrl] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!user) {
       router.push('/login');
       return;
     }
-    if (typeof window !== 'undefined') {
-      const origin = window.location.origin;
-      const storeQ = user.storeId ? `?store=${user.storeId}` : '';
-      setBookUrl(`${origin}/book${storeQ}`);
-    }
+    setBookUrl(customerBookUrl(user.storeId));
     (async () => {
       setLoading(true);
       try {
@@ -49,8 +52,8 @@ export default function StorePreOrdersPage() {
       <Card className="p-4 space-y-2">
         <h2 className="font-semibold">Customer booking link</h2>
         <p className="text-sm text-gray-600">
-          Share the booking link with customers. Staff control status, messages, and cancellations
-          from POS. Customers track live at /book/track with phone + code.
+          Share this K2 Chicken link on WhatsApp. It opens the pre-order form (and redirects to the
+          live booking page). Customers track status at book.k2chicken.com/book/track with phone + code.
         </p>
         {bookUrl && (
           <div className="flex flex-wrap gap-2 items-center">
@@ -61,11 +64,17 @@ export default function StorePreOrdersPage() {
               type="button"
               variant="secondary"
               className="!py-1 !px-3 text-sm"
-              onClick={() => {
-                navigator.clipboard?.writeText(bookUrl);
+              onClick={async () => {
+                try {
+                  await navigator.clipboard?.writeText(bookUrl);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                } catch {
+                  /* ignore */
+                }
               }}
             >
-              Copy
+              {copied ? 'Copied' : 'Copy'}
             </Button>
             <Link href={bookUrl} target="_blank" className="text-sm text-brand-600 underline">
               Open form

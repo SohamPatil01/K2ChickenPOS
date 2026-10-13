@@ -1,7 +1,29 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const BOOK_HOSTS = new Set(['book.k2chicken.com', 'www.book.k2chicken.com']);
+
 export function middleware(request: NextRequest) {
+  const host = (request.headers.get('host') || '').split(':')[0].toLowerCase();
+
+  // Branded pre-order domain: send customers straight to the booking form.
+  if (BOOK_HOSTS.has(host)) {
+    const { pathname, search } = request.nextUrl;
+    if (pathname === '/' || pathname === '') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/book';
+      return NextResponse.redirect(url, 308);
+    }
+    // Keep /book and /book/track on this host; send everything else to the form.
+    if (!pathname.startsWith('/book') && !pathname.startsWith('/_next') && pathname !== '/favicon.svg') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/book';
+      url.search = search;
+      return NextResponse.redirect(url, 308);
+    }
+    return NextResponse.next();
+  }
+
   // Allow login and public routes
   if (request.nextUrl.pathname === '/login') {
     return NextResponse.next();

@@ -52,6 +52,11 @@ export const LOYALTY = {
     "https://points.k2chicken.com",
   portalHint: "Scan to check your balance",
   websiteUrl: "https://www.k2chicken.com",
+  /** Public pre-order / booking link (customer WhatsApp share). Override with NEXT_PUBLIC_BOOK_URL. */
+  bookUrl:
+    (typeof process !== "undefined" &&
+      (process.env.NEXT_PUBLIC_BOOK_URL || "").trim()) ||
+    "https://book.k2chicken.com",
   tips: [
     "📱 Just your number",
     "🏪 Redeem in shop",

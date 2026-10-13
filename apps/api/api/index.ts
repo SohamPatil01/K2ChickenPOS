@@ -28,6 +28,7 @@ const ALLOWED_ORIGINS = [
   'https://hq.azeelaai.com',
   'https://points.k2chicken.com',
   'https://loyalty.k2chicken.com',
+  'https://book.k2chicken.com',
   'https://www.k2chicken.com',
   'https://k2chicken.com',
   'http://localhost:3000',
