@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-[#c4a882] bg-[#1a120e]">
+        <div className="min-h-screen flex items-center justify-center text-[#5a7a60] bg-[#f7fbf4]">
           Loading tracker…
         </div>
       }
