@@ -599,11 +599,13 @@ export default function PosPreOrders({
                 </select>
                 <input
                   type="number"
-                  min={0.1}
-                  step={0.1}
+                  min={0.05}
+                  step={0.05}
                   value={cQty}
                   onChange={(e) => setCQty(e.target.value)}
-                  className="w-20 px-2 py-2 border rounded-lg"
+                  className="w-24 px-2 py-2 border rounded-lg"
+                  placeholder="0.250"
+                  title="Custom weight in kg, e.g. 0.250 or 0.300"
                 />
                 <Button type="button" variant="secondary" onClick={addCreateLine}>
                   Add

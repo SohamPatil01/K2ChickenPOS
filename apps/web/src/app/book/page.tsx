@@ -117,13 +117,17 @@ export default function BookPreOrderPage() {
     if (storeId) loadCatalog(storeId);
   }, [storeId, loadCatalog]);
 
+  /** Common butcher weights (kg) — customers often order 250g / 300g packs. */
+  const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
+
   const addOrBumpProduct = (p: CatalogProduct) => {
     setLines((prev) => {
       const existing = prev.find((l) => l.productId === p.id);
       if (existing) {
+        // Re-tapping focuses the line; bump slightly so repeat taps still feel responsive
         const nextQty =
           p.unitType === 'KG'
-            ? String(Math.round((Number(existing.qty) + 0.5) * 10) / 10)
+            ? String(Math.round((Number(existing.qty) + 0.05) * 1000) / 1000)
             : String(Number(existing.qty) + 1);
         return prev.map((l) => (l.productId === p.id ? { ...l, qty: nextQty } : l));
       }
@@ -134,16 +138,40 @@ export default function BookPreOrderPage() {
           productId: p.id,
           productName: p.name,
           unitType: p.unitType,
-          qty: '1',
+          // Default 500g for KG — easy to change to 0.250 / 0.300 etc.
+          qty: p.unitType === 'KG' ? '0.500' : '1',
         },
       ];
     });
   };
 
+  const setLineQty = (key: string, qty: string) => {
+    // Allow typing decimals like 0.250 while editing
+    const cleaned = qty.replace(/[^\d.]/g, '');
+    const parts = cleaned.split('.');
+    const normalized =
+      parts.length <= 1 ? cleaned : `${parts[0]}.${parts.slice(1).join('').slice(0, 3)}`;
+    setLines((prev) => prev.map((x) => (x.key === key ? { ...x, qty: normalized } : x)));
+  };
+
   const bumpLine = (line: LineDraft, dir: 1 | -1) => {
-    const step = line.unitType === 'KG' ? 0.5 : 1;
-    const next = Math.max(step, Math.round((Number(line.qty) + dir * step) * 10) / 10);
-    setLines((prev) => prev.map((x) => (x.key === line.key ? { ...x, qty: String(next) } : x)));
+    const step = line.unitType === 'KG' ? 0.05 : 1;
+    const min = line.unitType === 'KG' ? 0.05 : 1;
+    const raw = Number(line.qty) || 0;
+    const next = Math.max(min, Math.round((raw + dir * step) * 1000) / 1000);
+    setLines((prev) =>
+      prev.map((x) =>
+        x.key === line.key
+          ? {
+              ...x,
+              qty:
+                line.unitType === 'KG'
+                  ? next.toFixed(3).replace(/\.?0+$/, '') || String(next)
+                  : String(next),
+            }
+          : x
+      )
+    );
   };
 
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
@@ -175,13 +203,23 @@ export default function BookPreOrderPage() {
       return setError('Enter name and 10-digit phone');
     }
     if (lines.length === 0) return setError('Tap a cut to add it');
+    const bad = lines.find((l) => {
+      const q = Number(l.qty);
+      if (!(q > 0)) return true;
+      if (l.unitType === 'KG' && q < 0.05) return true;
+      return false;
+    });
+    if (bad) {
+      return setError('Enter a valid weight (e.g. 0.250, 0.300 kg) or quantity');
+    }
     setSubmitting(true);
     try {
       const items = lines.map((l) => ({
         productId: l.productId,
         productName: l.productName,
         unitType: l.unitType,
-        qtyKg: l.unitType === 'KG' ? Number(l.qty) : null,
+        qtyKg:
+          l.unitType === 'KG' ? Math.round(Number(l.qty) * 1000) / 1000 : null,
         qtyPcs: l.unitType === 'PCS' ? Math.round(Number(l.qty)) : null,
       }));
       const res = await fetch(apiUrl('/api/v1/public/pre-orders'), {
@@ -382,47 +420,94 @@ export default function BookPreOrderPage() {
 
             {/* Bag */}
             {lines.length > 0 && (
-              <section className="bg-white rounded-3xl border border-[#d7e8d4] p-4 shadow-sm space-y-2">
-                <h2 className="font-bold text-[#1a2e1c]" style={displayFont}>
-                  Your bag
-                </h2>
+              <section className="bg-white rounded-3xl border border-[#d7e8d4] p-4 shadow-sm space-y-3">
+                <div>
+                  <h2 className="font-bold text-[#1a2e1c]" style={displayFont}>
+                    Your bag
+                  </h2>
+                  <p className="text-xs text-[#5a7a60] mt-0.5">
+                    Type any weight — e.g. 0.250, 0.300 kg
+                  </p>
+                </div>
                 {lines.map((l) => (
                   <div
                     key={l.key}
-                    className="flex items-center gap-2 rounded-2xl bg-[#eef8ea] border border-[#c8e0c4] p-2.5"
+                    className="rounded-2xl bg-[#eef8ea] border border-[#c8e0c4] p-3 space-y-2"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-[#1a2e1c] truncate">{l.productName}</p>
-                      <p className="text-[11px] text-[#5a7a60]">
-                        {l.unitType === 'KG' ? 'kg' : 'pcs'}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-sm text-[#1a2e1c] truncate">
+                        {l.productName}
                       </p>
-                    </div>
-                    <div className="flex items-center bg-white rounded-xl border border-[#c8e0c4]">
                       <button
                         type="button"
-                        onClick={() => bumpLine(l, -1)}
-                        className="w-8 h-8 text-lg font-bold text-[#1a2e1c]"
-                        aria-label="Less"
+                        onClick={() => removeLine(l.key)}
+                        className="text-xs font-semibold text-[#c45c4a] shrink-0"
                       >
-                        −
-                      </button>
-                      <span className="w-8 text-center text-sm font-bold">{l.qty}</span>
-                      <button
-                        type="button"
-                        onClick={() => bumpLine(l, 1)}
-                        className="w-8 h-8 text-lg font-bold text-[#1a2e1c]"
-                        aria-label="More"
-                      >
-                        +
+                        Remove
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeLine(l.key)}
-                      className="text-xs font-semibold text-[#c45c4a] px-1"
-                    >
-                      ✕
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-white rounded-xl border border-[#c8e0c4]">
+                        <button
+                          type="button"
+                          onClick={() => bumpLine(l, -1)}
+                          className="w-9 h-9 text-lg font-bold text-[#1a2e1c]"
+                          aria-label="Less"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={l.qty}
+                          onChange={(e) => setLineQty(l.key, e.target.value)}
+                          onBlur={() => {
+                            const q = Number(l.qty);
+                            if (!(q > 0)) {
+                              setLineQty(l.key, l.unitType === 'KG' ? '0.250' : '1');
+                            }
+                          }}
+                          className="w-16 text-center text-sm font-bold bg-transparent outline-none text-[#1a2e1c]"
+                          aria-label={l.unitType === 'KG' ? 'Weight in kg' : 'Quantity'}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => bumpLine(l, 1)}
+                          className="w-9 h-9 text-lg font-bold text-[#1a2e1c]"
+                          aria-label="More"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="text-sm font-semibold text-[#5a7a60]">
+                        {l.unitType === 'KG' ? 'kg' : 'pcs'}
+                      </span>
+                      {l.unitType === 'KG' && Number(l.qty) > 0 && (
+                        <span className="text-xs text-[#5a7a60]">
+                          ({Math.round(Number(l.qty) * 1000)} g)
+                        </span>
+                      )}
+                    </div>
+
+                    {l.unitType === 'KG' && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {WEIGHT_PRESETS.map((w) => (
+                          <button
+                            key={w}
+                            type="button"
+                            onClick={() => setLineQty(l.key, w)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                              Number(l.qty) === Number(w)
+                                ? 'bg-[#2d8a4e] text-white border-[#2d8a4e]'
+                                : 'bg-white text-[#4a6350] border-[#c8e0c4]'
+                            }`}
+                          >
+                            {w} kg
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {estimated > 0 && (
