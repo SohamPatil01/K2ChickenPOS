@@ -7,7 +7,16 @@ export default function Page() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-[#5a7a60] bg-[#f7fbf4]">
+        <div
+          className="k2-book"
+          style={{
+            minHeight: '100vh',
+            display: 'grid',
+            placeItems: 'center',
+            color: '#73747a',
+            fontSize: 13,
+          }}
+        >
           Loading tracker…
         </div>
       }

@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
+import { BRAND } from '@/lib/customerDisplay/brand';
 
 type StoreOpt = { id: string; name: string };
 type CatalogProduct = {
@@ -11,6 +13,7 @@ type CatalogProduct = {
   unitType: 'KG' | 'PCS';
   pricePerUnit: number;
   categoryName: string | null;
+  imageUrl?: string | null;
   outOfStock?: boolean;
   stockQtyKg?: number;
   stockQtyPcs?: number;
@@ -23,7 +26,11 @@ type LineDraft = {
   productName: string;
   unitType: 'KG' | 'PCS';
   qty: string;
+  imageUrl?: string | null;
 };
+
+const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
+const FALLBACK_IMG = '/book/hero-chicken.jpg';
 
 function apiUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
@@ -32,12 +39,6 @@ function apiUrl(path: string) {
 function toLocalInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function defaultReadyLocal(): string {
-  const d = new Date();
-  d.setHours(d.getHours() + 2, 0, 0, 0);
-  return toLocalInput(d);
 }
 
 function readyInHours(hours: number): string {
@@ -51,13 +52,17 @@ function tonightAt(hour: number): string {
   const d = new Date();
   d.setMinutes(0, 0, 0);
   d.setHours(hour);
-  if (d.getTime() <= Date.now() + 30 * 60 * 1000) {
-    d.setDate(d.getDate() + 1);
-  }
+  if (d.getTime() <= Date.now() + 30 * 60 * 1000) d.setDate(d.getDate() + 1);
   return toLocalInput(d);
 }
 
-const displayFont = { fontFamily: 'var(--font-book-display), Georgia, serif' } as const;
+function money(n: number) {
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}
+
+function productImg(p: { imageUrl?: string | null; name?: string }) {
+  return p.imageUrl || FALLBACK_IMG;
+}
 
 export default function BookPreOrderPage() {
   const [stores, setStores] = useState<StoreOpt[]>([]);
@@ -66,18 +71,35 @@ export default function BookPreOrderPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [done, setDone] = useState<{
     readyAt: string;
     trackingCode: string;
     phone: string;
+    name: string;
   } | null>(null);
 
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('All Cuts');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [readyAt, setReadyAt] = useState(defaultReadyLocal);
+  const [readyAt, setReadyAt] = useState(() => readyInHours(2));
+  const [slot, setSlot] = useState('1 hr');
   const [notes, setNotes] = useState('');
+  const [prep, setPrep] = useState('');
   const [fulfillment, setFulfillment] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
+  const [address, setAddress] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
+
+  const bookingRef = useRef<HTMLElement>(null);
+
+  const notify = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2200);
+  }, []);
 
   const loadStores = useCallback(async () => {
     setLoading(true);
@@ -121,14 +143,12 @@ export default function BookPreOrderPage() {
     if (storeId) loadCatalog(storeId);
   }, [storeId, loadCatalog]);
 
-  // Refresh stock every 45s while the page is open
   useEffect(() => {
     if (!storeId) return;
     const t = setInterval(() => loadCatalog(storeId), 45000);
     return () => clearInterval(t);
   }, [storeId, loadCatalog]);
 
-  // Drop bag lines that went out of stock after a catalog refresh
   useEffect(() => {
     if (!products.length) return;
     setLines((prev) =>
@@ -139,34 +159,51 @@ export default function BookPreOrderPage() {
     );
   }, [products]);
 
-  /** Common butcher weights (kg) — customers often order 250g / 300g packs. */
-  const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) if (p.categoryName) set.add(p.categoryName);
+    return ['All Cuts', ...Array.from(set).sort()];
+  }, [products]);
+
+  const visibleProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      const catOk = category === 'All Cuts' || p.categoryName === category;
+      const searchOk = !q || p.name.toLowerCase().includes(q);
+      return catOk && searchOk;
+    });
+  }, [products, category, search]);
 
   const maxAvailable = (p: CatalogProduct) =>
     p.unitType === 'KG' ? Number(p.stockQtyKg) || 0 : Number(p.stockQtyPcs) || 0;
 
-  const addOrBumpProduct = (p: CatalogProduct) => {
-    if (p.outOfStock) return;
+  const lineQty = (productId: string) =>
+    lines.find((l) => l.productId === productId)?.qty || '';
+
+  const addOrBump = (p: CatalogProduct, delta = 0.05) => {
+    if (p.outOfStock) {
+      notify(`${p.name} is out of stock`);
+      return;
+    }
+    const avail = maxAvailable(p);
     setLines((prev) => {
       const existing = prev.find((l) => l.productId === p.id);
-      const avail = maxAvailable(p);
       if (existing) {
-        const bumped =
+        const step = p.unitType === 'KG' ? delta : 1;
+        let next =
           p.unitType === 'KG'
-            ? Math.round((Number(existing.qty) + 0.05) * 1000) / 1000
+            ? Math.round((Number(existing.qty) + step) * 1000) / 1000
             : Number(existing.qty) + 1;
-        const nextQty = avail > 0 ? Math.min(bumped, avail) : bumped;
+        if (avail > 0) next = Math.min(next, avail);
+        notify(`${p.name} updated`);
         return prev.map((l) =>
-          l.productId === p.id ? { ...l, qty: String(nextQty) } : l
+          l.productId === p.id ? { ...l, qty: String(next) } : l
         );
       }
-      // Default 500g for KG when stock allows, else use what's left
       let qty = p.unitType === 'KG' ? '0.500' : '1';
-      if (p.unitType === 'KG' && avail > 0) {
-        qty = String(Math.min(0.5, avail));
-      } else if (p.unitType === 'PCS' && avail > 0) {
-        qty = String(Math.min(1, avail));
-      }
+      if (p.unitType === 'KG' && avail > 0) qty = String(Math.min(0.5, avail));
+      if (p.unitType === 'PCS' && avail > 0) qty = String(Math.min(1, avail));
+      notify(`${p.name} added to your booking`);
       return [
         ...prev,
         {
@@ -175,13 +212,13 @@ export default function BookPreOrderPage() {
           productName: p.name,
           unitType: p.unitType,
           qty,
+          imageUrl: p.imageUrl,
         },
       ];
     });
   };
 
   const setLineQty = (key: string, qty: string) => {
-    // Allow typing decimals like 0.250 while editing
     const cleaned = qty.replace(/[^\d.]/g, '');
     const parts = cleaned.split('.');
     const normalized =
@@ -194,9 +231,12 @@ export default function BookPreOrderPage() {
     const min = line.unitType === 'KG' ? 0.05 : 1;
     const product = products.find((p) => p.id === line.productId);
     const avail = product ? maxAvailable(product) : 0;
-    const raw = Number(line.qty) || 0;
-    let next = Math.max(min, Math.round((raw + dir * step) * 1000) / 1000);
+    let next = Math.max(min, Math.round((Number(line.qty) + dir * step) * 1000) / 1000);
     if (dir > 0 && avail > 0) next = Math.min(next, avail);
+    if (dir < 0 && next < min) {
+      setLines((prev) => prev.filter((x) => x.key !== line.key));
+      return;
+    }
     setLines((prev) =>
       prev.map((x) =>
         x.key === line.key
@@ -214,6 +254,11 @@ export default function BookPreOrderPage() {
 
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
 
+  const clearCart = () => {
+    setLines([]);
+    notify('Your selection has been cleared');
+  };
+
   const estimated = useMemo(
     () =>
       lines.reduce((sum, l) => {
@@ -223,63 +268,52 @@ export default function BookPreOrderPage() {
     [lines, products]
   );
 
-  const timePresets = useMemo(
-    () => [
-      { label: '1 hr', value: readyInHours(1) },
-      { label: '2 hrs', value: readyInHours(2) },
-      { label: '6 PM', value: tonightAt(18) },
-      { label: '7 PM', value: tonightAt(19) },
-    ],
-    []
-  );
+  const itemCountLabel = lines.length
+    ? `${lines.length} item${lines.length === 1 ? '' : 's'}`
+    : '0 items';
+
+  const applySlot = (label: string) => {
+    setSlot(label);
+    if (label === '1 hr') setReadyAt(readyInHours(1));
+    else if (label === '2 hrs') setReadyAt(readyInHours(2));
+    else if (label === '4 hrs') setReadyAt(readyInHours(4));
+    else if (label === '7 PM+') setReadyAt(tonightAt(19));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!storeId) return setError('Select a store');
+    if (!lines.length) {
+      notify('Please select at least one cut first.');
+      document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
     if (!name.trim() || phone.replace(/\D/g, '').length < 10) {
-      return setError('Enter name and 10-digit phone');
+      return setError('Enter your name and a valid 10-digit phone');
     }
-    if (lines.length === 0) return setError('Tap a cut to add it');
-    const bad = lines.find((l) => {
-      const q = Number(l.qty);
-      if (!(q > 0)) return true;
-      if (l.unitType === 'KG' && q < 0.05) return true;
-      return false;
-    });
-    if (bad) {
-      return setError('Enter a valid weight (e.g. 0.250, 0.300 kg) or quantity');
+    if (fulfillment === 'DELIVERY' && !address.trim()) {
+      return setError('Please enter a delivery address');
     }
-    const oos = lines.find((l) => {
-      const p = products.find((x) => x.id === l.productId);
-      return p?.outOfStock;
-    });
-    if (oos) {
-      return setError(`${oos.productName} is out of stock — remove it to continue`);
-    }
-    const over = lines.find((l) => {
-      const p = products.find((x) => x.id === l.productId);
-      if (!p || p.outOfStock) return false;
-      const avail = maxAvailable(p);
-      if (avail <= 0) return false;
-      return Number(l.qty) > avail + 0.001;
-    });
-    if (over) {
-      const p = products.find((x) => x.id === over.productId)!;
-      return setError(
-        `Only ${p.availableLabel?.replace(' left', '') || maxAvailable(p)} of ${over.productName} left`
-      );
-    }
+    const bad = lines.find((l) => !(Number(l.qty) > 0));
+    if (bad) return setError('Enter a valid weight/quantity for each item');
+
     setSubmitting(true);
     try {
+      const noteParts = [
+        prep ? `Prep: ${prep}` : '',
+        fulfillment === 'DELIVERY' && address.trim() ? `Address: ${address.trim()}` : '',
+        notes.trim(),
+      ].filter(Boolean);
+
       const items = lines.map((l) => ({
         productId: l.productId,
         productName: l.productName,
         unitType: l.unitType,
-        qtyKg:
-          l.unitType === 'KG' ? Math.round(Number(l.qty) * 1000) / 1000 : null,
+        qtyKg: l.unitType === 'KG' ? Math.round(Number(l.qty) * 1000) / 1000 : null,
         qtyPcs: l.unitType === 'PCS' ? Math.round(Number(l.qty)) : null,
       }));
+
       const res = await fetch(apiUrl('/api/v1/public/pre-orders'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -289,7 +323,7 @@ export default function BookPreOrderPage() {
           customerPhone: phone,
           fulfillment,
           readyAt,
-          notes: notes.trim() || null,
+          notes: noteParts.join(' · ') || null,
           source: 'WEB_FORM',
           items,
         }),
@@ -300,437 +334,583 @@ export default function BookPreOrderPage() {
         readyAt: data.preOrder?.readyAt || readyAt,
         trackingCode: data.trackingCode || data.preOrder?.trackingCode || '',
         phone: phone.replace(/\D/g, '').slice(-10),
+        name: name.trim(),
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       setError(err.message || 'Booking failed');
+      notify(err.message || 'Booking failed');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (done) {
-    const when = new Date(done.readyAt);
-    const trackHref = `/book/track?phone=${encodeURIComponent(done.phone)}&code=${encodeURIComponent(done.trackingCode)}`;
-    return (
-      <div className="min-h-screen bg-[#f7fbf4] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-sm border border-[#d7e8d4] p-6 space-y-4 text-center">
-          <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-bold">
-            ✓
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#1a2e1c]" style={displayFont}>
-            Booked!
-          </h1>
-          <p className="text-sm text-[#4a6350]">
-            Ready around{' '}
-            <strong className="text-[#1a2e1c]">
-              {when.toLocaleString('en-IN', {
-                timeZone: 'Asia/Kolkata',
-                weekday: 'short',
-                day: 'numeric',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </strong>
-          </p>
-          {done.trackingCode && (
-            <div className="rounded-2xl bg-[#eef8ea] border border-[#c8e0c4] p-4">
-              <p className="text-xs text-[#5a7a60]">Your code</p>
-              <p className="text-2xl font-extrabold tracking-[0.2em] text-[#1a2e1c]" style={displayFont}>
-                {done.trackingCode}
-              </p>
-              <p className="text-xs text-[#5a7a60] mt-1">Save it to track your order</p>
-            </div>
-          )}
-          <p className="text-xs text-[#6b8570] leading-relaxed">
-            We&apos;ll try our best near your time. During rush it may take a little longer.
-          </p>
-          <a
-            href={trackHref}
-            className="block w-full py-3.5 rounded-2xl bg-[#2d8a4e] text-white font-bold"
-          >
-            Track order
-          </a>
-          <button
-            type="button"
-            className="w-full py-3 rounded-2xl border border-[#c8e0c4] font-semibold text-[#1a2e1c]"
-            onClick={() => {
-              setDone(null);
-              setLines([]);
-              setNotes('');
-            }}
-          >
-            Book another
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const trackHref = done
+    ? `/book/track?phone=${encodeURIComponent(done.phone)}&code=${encodeURIComponent(done.trackingCode)}`
+    : '/book/track';
 
   return (
-    <div className="min-h-screen bg-[#f7fbf4] pb-28">
-      {/* Soft fresh wash */}
-      <div
-        className="pointer-events-none fixed inset-0 opacity-90"
-        aria-hidden
-        style={{
-          background:
-            'radial-gradient(ellipse 80% 50% at 50% -20%, #d8f0d0 0%, transparent 55%), radial-gradient(ellipse 60% 40% at 100% 20%, #fff3e0 0%, transparent 45%)',
-        }}
-      />
+    <>
+      <header className="k2-topbar">
+        <a className="k2-brand" href="/book" aria-label="K2 Chicken pre-order">
+          <span className="k2-brand-mark">
+            <Image src={BRAND.logoPath} alt="" fill className="object-contain p-0.5" sizes="42px" />
+          </span>
+          <span>
+            <span className="k2-brand-name">{BRAND.name}</span>
+            <span className="k2-brand-tag">Fresh cuts, ready when you are</span>
+          </span>
+        </a>
+        <div className="k2-top-right">
+          <div className="k2-open">
+            <span className="k2-dot" />
+            <span>Store open · Pre-orders welcome</span>
+          </div>
+          <Link className="k2-link-quiet" href="/book/track">
+            Track order
+          </Link>
+          <a className="k2-call" href={`tel:+91${BRAND.phone}`}>
+            ☎ &nbsp; {BRAND.phoneDisplay}
+          </a>
+        </div>
+      </header>
 
-      <div className="relative max-w-lg mx-auto px-4 pt-5">
-        <header className="mb-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="relative w-11 h-11 rounded-2xl overflow-hidden bg-white border border-[#d7e8d4] shadow-sm">
-                <Image
-                  src="/chicken-vicken-logo.png"
-                  alt="K2 Chicken"
-                  fill
-                  className="object-contain p-1"
-                  sizes="44px"
-                  priority
-                />
+      <main className="k2-page">
+        <section className="k2-hero">
+          <div className="k2-hero-copy">
+            <div className="k2-eyebrow">Premium fresh chicken</div>
+            <h1>
+              Book your cut
+              <br />
+              <span>in minutes.</span>
+            </h1>
+            <p>Choose your favourites. Pick a time. We&apos;ll take care of the rest.</p>
+            <div className="k2-benefits">
+              <div className="k2-benefit">
+                <i>♧</i>
+                <span>
+                  Hygienic &amp; fresh
+                  <br />
+                  every day
+                </span>
               </div>
-              <div>
-                <p className="text-lg font-extrabold text-[#1a2e1c] leading-none" style={displayFont}>
-                  K2 Chicken
-                </p>
-                <p className="text-[11px] text-[#5a7a60] mt-0.5">Fresh · Cut to order</p>
+              <div className="k2-benefit">
+                <i>✳</i>
+                <span>Locally sourced</span>
+              </div>
+              <div className="k2-benefit">
+                <i>♧</i>
+                <span>
+                  Clean handling
+                  <br />
+                  and packaging
+                </span>
+              </div>
+              <div className="k2-benefit">
+                <i>♡</i>
+                <span>
+                  Trusted in
+                  <br />
+                  Pimple Nilakh
+                </span>
               </div>
             </div>
-            <a href="/book/track" className="text-sm font-semibold text-[#2d8a4e] underline-offset-2 hover:underline">
-              Track
-            </a>
           </div>
-
-          <h1 className="text-[1.75rem] font-extrabold text-[#1a2e1c] leading-tight" style={displayFont}>
-            Book in 1 minute
-          </h1>
-          <p className="text-sm text-[#4a6350] mt-1">
-            Tap your cut → pick a time → done. Fresh chicken waiting for you.
-          </p>
-        </header>
+          <div className="k2-hero-image">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={FALLBACK_IMG} alt="Fresh chicken prepared for K2 Chicken" />
+            <div className="k2-image-note">
+              Same great taste.
+              <br />
+              Freshness every day!
+            </div>
+          </div>
+        </section>
 
         {loading ? (
-          <div className="bg-white rounded-3xl border border-[#d7e8d4] p-10 text-center text-[#5a7a60]">
-            Loading menu…
+          <div className="k2-panel" style={{ padding: 40, textAlign: 'center', color: '#73747a' }}>
+            Loading fresh menu…
           </div>
         ) : (
-          <form onSubmit={submit} className="space-y-3">
-            {stores.length > 1 && (
-              <div className="bg-white rounded-2xl border border-[#d7e8d4] p-3">
-                <label className="text-xs font-semibold text-[#5a7a60]">Store</label>
-                <select
-                  value={storeId}
-                  onChange={(e) => setStoreId(e.target.value)}
-                  className="mt-1 w-full px-3 py-2.5 rounded-xl border border-[#c8e0c4] bg-[#f7fbf4] text-[#1a2e1c]"
-                >
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Cuts */}
-            <section className="bg-white rounded-3xl border border-[#d7e8d4] p-4 shadow-sm">
-              <h2 className="font-bold text-[#1a2e1c] mb-1" style={displayFont}>
-                What do you need?
-              </h2>
-              <p className="text-xs text-[#5a7a60] mb-3">Tap to add · tap again for more</p>
-              <div className="grid grid-cols-2 gap-2">
-                {products.map((p) => {
-                  const inBag = lines.find((l) => l.productId === p.id);
-                  const oos = Boolean(p.outOfStock);
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      disabled={oos}
-                      onClick={() => addOrBumpProduct(p)}
-                      className={`text-left rounded-2xl border p-3 transition-all relative ${
-                        oos
-                          ? 'border-[#e0d8d0] bg-[#f3f1ee] opacity-70 cursor-not-allowed'
-                          : inBag
-                            ? 'border-[#2d8a4e] bg-[#eef8ea] ring-1 ring-[#2d8a4e] active:scale-[0.97]'
-                            : 'border-[#d7e8d4] bg-[#fafdf8] hover:border-[#2d8a4e]/50 active:scale-[0.97]'
-                      }`}
-                    >
-                      {oos && (
-                        <span className="absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wide bg-[#c45c4a] text-white px-1.5 py-0.5 rounded-md">
-                          Out of stock
-                        </span>
-                      )}
-                      <div className="flex justify-between gap-1 pr-1">
-                        <span
-                          className={`font-semibold text-sm leading-snug ${
-                            oos ? 'text-[#8a8078] line-through' : 'text-[#1a2e1c]'
-                          }`}
-                        >
-                          {p.name}
-                        </span>
-                        {inBag && !oos && (
-                          <span className="shrink-0 text-[10px] font-bold bg-[#2d8a4e] text-white rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
-                            {inBag.qty}
-                          </span>
-                        )}
-                      </div>
-                      <p className={`text-xs mt-1 ${oos ? 'text-[#a09088]' : 'text-[#5a7a60]'}`}>
-                        ₹{Math.round(p.pricePerUnit)}/{p.unitType === 'KG' ? 'kg' : 'pc'}
-                      </p>
-                      <p
-                        className={`text-[11px] mt-0.5 font-medium ${
-                          oos ? 'text-[#c45c4a]' : 'text-[#6b9a70]'
-                        }`}
-                      >
-                        {p.availableLabel || (oos ? 'Out of stock' : 'In stock')}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Bag */}
-            {lines.length > 0 && (
-              <section className="bg-white rounded-3xl border border-[#d7e8d4] p-4 shadow-sm space-y-3">
-                <div>
-                  <h2 className="font-bold text-[#1a2e1c]" style={displayFont}>
-                    Your bag
-                  </h2>
-                  <p className="text-xs text-[#5a7a60] mt-0.5">
-                    Type any weight — e.g. 0.250, 0.300 kg
-                  </p>
-                </div>
-                {lines.map((l) => (
-                  <div
-                    key={l.key}
-                    className="rounded-2xl bg-[#eef8ea] border border-[#c8e0c4] p-3 space-y-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-sm text-[#1a2e1c] truncate">
-                        {l.productName}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => removeLine(l.key)}
-                        className="text-xs font-semibold text-[#c45c4a] shrink-0"
-                      >
-                        Remove
-                      </button>
+          <form onSubmit={submit}>
+            <div className="k2-layout">
+              <section className="k2-panel k2-catalogue" id="products">
+                <div className="k2-section-head">
+                  <div className="k2-head-left">
+                    <span className="k2-step">01</span>
+                    <div>
+                      <h2>Choose your cuts</h2>
+                      <p>Select your favourites and adjust quantities below.</p>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center bg-white rounded-xl border border-[#c8e0c4]">
-                        <button
-                          type="button"
-                          onClick={() => bumpLine(l, -1)}
-                          className="w-9 h-9 text-lg font-bold text-[#1a2e1c]"
-                          aria-label="Less"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={l.qty}
-                          onChange={(e) => setLineQty(l.key, e.target.value)}
-                          onBlur={() => {
-                            const q = Number(l.qty);
-                            if (!(q > 0)) {
-                              setLineQty(l.key, l.unitType === 'KG' ? '0.250' : '1');
-                            }
-                          }}
-                          className="w-16 text-center text-sm font-bold bg-transparent outline-none text-[#1a2e1c]"
-                          aria-label={l.unitType === 'KG' ? 'Weight in kg' : 'Quantity'}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => bumpLine(l, 1)}
-                          className="w-9 h-9 text-lg font-bold text-[#1a2e1c]"
-                          aria-label="More"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <span className="text-sm font-semibold text-[#5a7a60]">
-                        {l.unitType === 'KG' ? 'kg' : 'pcs'}
-                      </span>
-                      {l.unitType === 'KG' && Number(l.qty) > 0 && (
-                        <span className="text-xs text-[#5a7a60]">
-                          ({Math.round(Number(l.qty) * 1000)} g)
-                        </span>
-                      )}
-                    </div>
-
-                    {l.unitType === 'KG' && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {WEIGHT_PRESETS.filter((w) => {
-                          const p = products.find((x) => x.id === l.productId);
-                          const avail = p ? maxAvailable(p) : 0;
-                          return avail <= 0 || Number(w) <= avail + 0.001;
-                        }).map((w) => (
-                          <button
-                            key={w}
-                            type="button"
-                            onClick={() => setLineQty(l.key, w)}
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                              Number(l.qty) === Number(w)
-                                ? 'bg-[#2d8a4e] text-white border-[#2d8a4e]'
-                                : 'bg-white text-[#4a6350] border-[#c8e0c4]'
-                            }`}
-                          >
-                            {w} kg
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {(() => {
-                      const p = products.find((x) => x.id === l.productId);
-                      if (!p || p.outOfStock) return null;
-                      return (
-                        <p className="text-[11px] text-[#5a7a60]">
-                          Available: {p.availableLabel || 'In stock'}
-                        </p>
-                      );
-                    })()}
                   </div>
-                ))}
-                {estimated > 0 && (
-                  <p className="text-sm text-[#4a6350]">
-                    Approx. <strong className="text-[#1a2e1c]">₹{Math.round(estimated)}</strong>
-                    <span className="text-[#5a7a60]"> · final at counter</span>
-                  </p>
+                  <span className="k2-counter">
+                    {visibleProducts.length} {visibleProducts.length === 1 ? 'cut' : 'cuts'}
+                  </span>
+                </div>
+
+                {stores.length > 1 && (
+                  <select
+                    className="k2-field"
+                    style={{ width: '100%', marginBottom: 12 }}
+                    value={storeId}
+                    onChange={(e) => setStoreId(e.target.value)}
+                  >
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                 )}
-              </section>
-            )}
 
-            {/* Details — compact */}
-            <section className="bg-white rounded-3xl border border-[#d7e8d4] p-4 shadow-sm space-y-3">
-              <h2 className="font-bold text-[#1a2e1c]" style={displayFont}>
-                Almost done
-              </h2>
+                <label className="k2-search">
+                  <span>⌕</span>
+                  <input
+                    type="search"
+                    placeholder="Search a cut (e.g. breast, liver, kheema…)"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    aria-label="Search chicken cuts"
+                  />
+                </label>
 
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="col-span-2 sm:col-span-1 px-3 py-3 rounded-xl border border-[#c8e0c4] bg-[#f7fbf4] text-[#1a2e1c] placeholder:text-[#8aa890]"
-                  required
-                  placeholder="Your name"
-                  autoComplete="name"
-                />
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  className="col-span-2 sm:col-span-1 px-3 py-3 rounded-xl border border-[#c8e0c4] bg-[#f7fbf4] text-[#1a2e1c] placeholder:text-[#8aa890]"
-                  required
-                  placeholder="Phone (10 digits)"
-                  autoComplete="tel"
-                />
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-[#5a7a60] mb-1.5">Ready by</p>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {timePresets.map((t) => (
+                <div className="k2-categories">
+                  {categories.map((c) => (
                     <button
-                      key={t.label}
+                      key={c}
                       type="button"
-                      onClick={() => setReadyAt(t.value)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
-                        readyAt === t.value
-                          ? 'bg-[#2d8a4e] text-white border-[#2d8a4e]'
-                          : 'bg-white text-[#4a6350] border-[#c8e0c4]'
-                      }`}
+                      className={`k2-cat${category === c ? ' active' : ''}`}
+                      onClick={() => setCategory(c)}
                     >
-                      {t.label}
+                      {c}
                     </button>
                   ))}
                 </div>
+
+                <div className="k2-products" aria-live="polite">
+                  {visibleProducts.length === 0 ? (
+                    <div className="k2-empty" style={{ gridColumn: '1 / -1' }}>
+                      No matching cuts. Try another search.
+                    </div>
+                  ) : (
+                    visibleProducts.map((p, i) => {
+                      const q = lineQty(p.id);
+                      const selected = Boolean(q);
+                      const oos = Boolean(p.outOfStock);
+                      return (
+                        <article
+                          key={p.id}
+                          className={`k2-product${selected ? ' selected' : ''}${oos ? ' oos' : ''}`}
+                          style={{ animationDelay: `${i * 35}ms` }}
+                        >
+                          <div className="k2-photo">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={productImg(p)}
+                              alt={p.name}
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = FALLBACK_IMG;
+                              }}
+                            />
+                            {oos ? (
+                              <span className="k2-tag oos-tag">Out of stock</span>
+                            ) : i < 3 ? (
+                              <span className="k2-tag">★ Fresh</span>
+                            ) : null}
+                          </div>
+                          <div className="k2-product-info">
+                            <h3>{p.name}</h3>
+                            <div className="k2-desc">
+                              {p.availableLabel || (p.unitType === 'KG' ? 'Sold by kg' : 'Sold by piece')}
+                              {p.categoryName ? `  ·  ${p.categoryName}` : ''}
+                            </div>
+                            <div className="k2-product-bottom">
+                              <div className="k2-price">
+                                {money(p.pricePerUnit)}{' '}
+                                <span className="k2-unit">
+                                  / {p.unitType === 'KG' ? 'kg' : 'pc'}
+                                </span>
+                              </div>
+                              {oos ? null : selected ? (
+                                <div className="k2-qty">
+                                  <button
+                                    type="button"
+                                    aria-label={`Less ${p.name}`}
+                                    onClick={() => {
+                                      const line = lines.find((l) => l.productId === p.id);
+                                      if (line) bumpLine(line, -1);
+                                    }}
+                                  >
+                                    −
+                                  </button>
+                                  <strong>{q}</strong>
+                                  <button
+                                    type="button"
+                                    aria-label={`More ${p.name}`}
+                                    onClick={() => addOrBump(p)}
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="k2-add"
+                                  aria-label={`Add ${p.name}`}
+                                  onClick={() => addOrBump(p)}
+                                >
+                                  +
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+
+              <aside className="k2-panel k2-booking" id="booking" ref={bookingRef}>
+                <div className="k2-booking-head">
+                  <div className="k2-head-left">
+                    <span className="k2-step">02</span>
+                    <div>
+                      <h2>Your booking</h2>
+                      <p>Review your items and provide your details.</p>
+                    </div>
+                  </div>
+                  <button className="k2-clear" type="button" onClick={clearCart}>
+                    Clear all
+                  </button>
+                </div>
+
+                <div className="k2-selected-label">
+                  <span>
+                    Selected items (<span>{lines.length}</span>)
+                  </span>
+                  <span className="k2-items-count">{itemCountLabel}</span>
+                </div>
+
+                <div className="k2-cart-list">
+                  {lines.length === 0 ? (
+                    <div className="k2-empty">
+                      <div className="k2-empty-icon">＋</div>
+                      Your order starts here.
+                      <br />
+                      Add your favourite cuts to get started.
+                    </div>
+                  ) : (
+                    lines.map((l) => {
+                      const p = products.find((x) => x.id === l.productId);
+                      const lineTotal = (p?.pricePerUnit || 0) * (Number(l.qty) || 0);
+                      return (
+                        <div key={l.key} className="k2-cart-row">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={productImg({ imageUrl: l.imageUrl || p?.imageUrl })}
+                            alt=""
+                            loading="lazy"
+                          />
+                          <div>
+                            <div className="k2-cart-name">{l.productName}</div>
+                            <div className="k2-cart-sub">
+                              {l.unitType === 'KG'
+                                ? `${l.qty} kg (${Math.round(Number(l.qty) * 1000) || 0} g)`
+                                : `${l.qty} pcs`}
+                            </div>
+                            <div className="k2-cart-controls">
+                              <button type="button" onClick={() => bumpLine(l, -1)} aria-label="Less">
+                                −
+                              </button>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={l.qty}
+                                onChange={(e) => setLineQty(l.key, e.target.value)}
+                                aria-label="Quantity"
+                              />
+                              <button type="button" onClick={() => bumpLine(l, 1)} aria-label="More">
+                                +
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeLine(l.key)}
+                                style={{ width: 'auto', padding: '0 6px', borderRadius: 6 }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            {l.unitType === 'KG' && (
+                              <div className="k2-weight-chips">
+                                {WEIGHT_PRESETS.filter((w) => {
+                                  const avail = p ? maxAvailable(p) : 0;
+                                  return avail <= 0 || Number(w) <= avail + 0.001;
+                                }).map((w) => (
+                                  <button
+                                    key={w}
+                                    type="button"
+                                    className={Number(l.qty) === Number(w) ? 'active' : ''}
+                                    onClick={() => setLineQty(l.key, w)}
+                                  >
+                                    {w} kg
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="k2-cart-total">{money(lineTotal)}</div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="k2-subtotal">
+                  <span>Estimated subtotal</span>
+                  <strong>{money(estimated)}</strong>
+                </div>
+                <div className="k2-fine">
+                  Final amount may vary if products are sold by actual weight. The store will confirm
+                  your order.
+                </div>
+
+                <div className="k2-rule" />
+
+                <h3 className="k2-form-title">◉ &nbsp; Your details</h3>
+                <div className="k2-fields">
+                  <input
+                    className="k2-field"
+                    placeholder="Full name"
+                    autoComplete="name"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  <input
+                    className="k2-field"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    placeholder="10 digit mobile number"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  />
+                </div>
+
+                <label className="k2-field-label">◷ &nbsp; Preferred time slot</label>
+                <div className="k2-slots">
+                  {['1 hr', '2 hrs', '4 hrs', '7 PM+'].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`k2-slot${slot === s ? ' active' : ''}`}
+                      onClick={() => applySlot(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="k2-field-label" htmlFor="k2-date">
+                  Preferred date and time
+                </label>
                 <input
+                  id="k2-date"
+                  className="k2-field"
+                  style={{ width: '100%' }}
                   type="datetime-local"
+                  required
                   value={readyAt}
                   onChange={(e) => setReadyAt(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-[#c8e0c4] bg-[#f7fbf4] text-[#1a2e1c]"
-                  required
                 />
-              </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { value: 'PICKUP' as const, label: 'Pickup' },
-                    { value: 'DELIVERY' as const, label: 'Delivery' },
-                  ] as const
-                ).map((opt) => (
+                <label className="k2-field-label">♧ &nbsp; Pickup or delivery</label>
+                <div className="k2-fulfil">
                   <button
-                    key={opt.value}
                     type="button"
-                    onClick={() => setFulfillment(opt.value)}
-                    className={`py-2.5 rounded-xl border text-sm font-bold ${
-                      fulfillment === opt.value
-                        ? 'border-[#2d8a4e] bg-[#eef8ea] text-[#1a2e1c] ring-1 ring-[#2d8a4e]'
-                        : 'border-[#d7e8d4] bg-white text-[#4a6350]'
-                    }`}
+                    className={fulfillment === 'PICKUP' ? 'active' : ''}
+                    onClick={() => setFulfillment('PICKUP')}
                   >
-                    {opt.label}
+                    <span>▣</span> Pickup from store
                   </button>
-                ))}
-              </div>
+                  <button
+                    type="button"
+                    className={fulfillment === 'DELIVERY' ? 'active' : ''}
+                    onClick={() => setFulfillment('DELIVERY')}
+                  >
+                    <span>♧</span> Home delivery
+                  </button>
+                </div>
 
-              <input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-[#c8e0c4] bg-[#f7fbf4] text-[#1a2e1c] placeholder:text-[#8aa890] text-sm"
-                placeholder="Notes? (optional)"
-              />
-
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="hidden sm:flex w-full py-3.5 rounded-2xl bg-[#2d8a4e] hover:bg-[#247a42] text-white font-bold text-lg disabled:opacity-50 items-center justify-center gap-2"
-              >
-                {submitting ? 'Booking…' : 'Confirm booking'}
-                {!submitting && estimated > 0 && (
-                  <span className="text-sm opacity-90">· ≈ ₹{Math.round(estimated)}</span>
+                {fulfillment === 'DELIVERY' && (
+                  <input
+                    className="k2-field"
+                    style={{ width: '100%', marginTop: 7 }}
+                    placeholder="Delivery address and landmark"
+                    autoComplete="street-address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    required
+                  />
                 )}
-              </button>
-            </section>
 
-            {/* Sticky mobile CTA */}
-            <div className="fixed bottom-0 inset-x-0 z-20 sm:hidden pointer-events-none">
-              <div className="mx-auto max-w-lg px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 bg-gradient-to-t from-[#f7fbf4] via-[#f7fbf4]/95 to-transparent pointer-events-auto">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-3.5 rounded-2xl bg-[#2d8a4e] text-white font-bold shadow-lg shadow-emerald-700/20 disabled:opacity-50 flex items-center justify-between px-5"
+                <label className="k2-field-label" htmlFor="k2-prep">
+                  Preparation preference{' '}
+                  <span style={{ fontWeight: 500, color: 'var(--muted)' }}>(optional)</span>
+                </label>
+                <select
+                  id="k2-prep"
+                  className="k2-field"
+                  style={{ width: '100%' }}
+                  value={prep}
+                  onChange={(e) => setPrep(e.target.value)}
                 >
-                  <span>{submitting ? 'Booking…' : 'Confirm booking'}</span>
-                  <span className="text-sm opacity-90">
-                    {lines.length === 0
-                      ? 'Add a cut'
-                      : estimated > 0
-                        ? `≈ ₹${Math.round(estimated)}`
-                        : `${lines.length} item${lines.length > 1 ? 's' : ''}`}
-                  </span>
+                  <option value="">Select if needed</option>
+                  <option>Regular curry cut</option>
+                  <option>Small curry cut</option>
+                  <option>Large curry cut</option>
+                  <option>Boneless preparation</option>
+                  <option>Minced / kheema</option>
+                  <option>Please call me to confirm</option>
+                </select>
+
+                <label className="k2-field-label" htmlFor="k2-notes">
+                  Additional notes{' '}
+                  <span style={{ fontWeight: 500, color: 'var(--muted)' }}>(optional)</span>
+                </label>
+                <textarea
+                  id="k2-notes"
+                  className="k2-field"
+                  style={{ width: '100%' }}
+                  placeholder="Any special instructions?"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+
+                {error && <div className="k2-error">{error}</div>}
+
+                <button className="k2-submit" type="submit" disabled={submitting}>
+                  {submitting ? 'Booking…' : 'Confirm booking'} <span aria-hidden="true">→</span>
                 </button>
-              </div>
+                <div className="k2-reassurance">
+                  <span style={{ color: 'var(--red)' }}>◆</span>
+                  <span>
+                    <b>No payment required now.</b>
+                    <br />
+                    We&apos;ll confirm your order shortly.
+                  </span>
+                </div>
+              </aside>
             </div>
           </form>
         )}
+
+        <section className="k2-trust-strip">
+          <div className="k2-trust">
+            <span className="k2-trust-icon">♧</span>
+            <div>
+              <strong>Freshly prepared</strong>
+              <small>Cut and cleaned as per your choice</small>
+            </div>
+          </div>
+          <div className="k2-trust">
+            <span className="k2-trust-icon">◷</span>
+            <div>
+              <strong>Choose your time</strong>
+              <small>Pickup or delivery at your convenience</small>
+            </div>
+          </div>
+          <div className="k2-trust">
+            <span className="k2-trust-icon">✓</span>
+            <div>
+              <strong>Quick confirmation</strong>
+              <small>Track live with your code</small>
+            </div>
+          </div>
+        </section>
+
+        <p
+          style={{
+            textAlign: 'center',
+            fontSize: 10,
+            color: '#8a7a76',
+            marginTop: 16,
+            lineHeight: 1.5,
+          }}
+        >
+          {BRAND.address}
+          <br />
+          Open 8:00 AM – 8:00 PM · {BRAND.phoneDisplay}
+        </p>
+      </main>
+
+      <div className="k2-mobile-bar">
+        <div className="k2-mobile-summary">
+          <strong>
+            {itemCountLabel} · {money(estimated)}
+          </strong>
+          <span>
+            {lines.length ? 'Tap to review your order' : 'Choose your cuts to get started'}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            bookingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
+          Review booking ↓
+        </button>
       </div>
-    </div>
+
+      <div className={`k2-toast${toast ? ' show' : ''}`} role="status" aria-live="polite">
+        {toast}
+      </div>
+
+      <div className={`k2-modal${done ? ' show' : ''}`} role="dialog" aria-modal="true">
+        <div className="k2-modal-card">
+          <div className="k2-check">✓</div>
+          <h2>Booking confirmed!</h2>
+          <p>
+            Thanks{done?.name ? `, ${done.name}` : ''}! We&apos;ll try our best near{' '}
+            {done
+              ? new Date(done.readyAt).toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : 'your time'}
+            . Save your tracking code for live updates.
+          </p>
+          {done?.trackingCode && (
+            <div className="k2-code-box">
+              <span>Your tracking code</span>
+              <strong>{done.trackingCode}</strong>
+            </div>
+          )}
+          <div className="k2-modal-actions">
+            <a href={trackHref}>Track order live →</a>
+            <button
+              type="button"
+              onClick={() => {
+                setDone(null);
+                setLines([]);
+                setNotes('');
+                setPrep('');
+                setAddress('');
+              }}
+            >
+              Book another
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
