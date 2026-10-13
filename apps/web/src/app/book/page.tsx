@@ -24,8 +24,7 @@ type CatalogProduct = {
 type FilterChip =
   | { key: 'All'; kind: 'all'; label: string }
   | { key: string; kind: 'category'; label: string }
-  | { key: 'Masale'; kind: 'masale-all'; label: string }
-  | { key: string; kind: 'masale'; label: string; productId: string };
+  | { key: 'Masale'; kind: 'masale'; label: string };
 
 function productIsMasale(p: CatalogProduct) {
   return isMasaleProduct(p.categoryName, p.name);
@@ -172,10 +171,10 @@ export default function BookPreOrderPage() {
 
   const filterChips = useMemo((): FilterChip[] => {
     const cutCats = new Set<string>();
-    const masale: CatalogProduct[] = [];
+    let hasMasale = false;
     for (const p of products) {
       if (productIsMasale(p)) {
-        masale.push(p);
+        hasMasale = true;
         continue;
       }
       if (p.categoryName) cutCats.add(p.categoryName);
@@ -184,17 +183,7 @@ export default function BookPreOrderPage() {
     for (const name of Array.from(cutCats).sort()) {
       chips.push({ key: `cat:${name}`, kind: 'category', label: name });
     }
-    if (masale.length) {
-      chips.push({ key: 'Masale', kind: 'masale-all', label: 'Masale' });
-      for (const p of masale.sort((a, b) => a.name.localeCompare(b.name))) {
-        chips.push({
-          key: `masale:${p.id}`,
-          kind: 'masale',
-          label: p.name,
-          productId: p.id,
-        });
-      }
-    }
+    if (hasMasale) chips.push({ key: 'Masale', kind: 'masale', label: 'Masale' });
     return chips;
   }, [products]);
 
@@ -213,10 +202,8 @@ export default function BookPreOrderPage() {
       let filterOk = true;
       if (activeFilter?.kind === 'category') {
         filterOk = !productIsMasale(p) && p.categoryName === activeFilter.label;
-      } else if (activeFilter?.kind === 'masale-all') {
-        filterOk = productIsMasale(p);
       } else if (activeFilter?.kind === 'masale') {
-        filterOk = p.id === activeFilter.productId;
+        filterOk = productIsMasale(p);
       }
       const searchOk = !q || p.name.toLowerCase().includes(q);
       return filterOk && searchOk;
@@ -526,11 +513,7 @@ export default function BookPreOrderPage() {
                 <div className="k2-categories" role="tablist" aria-label="Product filters">
                   {filterChips.map((c, i) => {
                     const prev = filterChips[i - 1];
-                    const showMasaleBreak =
-                      (c.kind === 'masale-all' || c.kind === 'masale') &&
-                      prev &&
-                      prev.kind !== 'masale-all' &&
-                      prev.kind !== 'masale';
+                    const showMasaleBreak = c.kind === 'masale' && prev && prev.kind !== 'masale';
                     return (
                       <span key={c.key} className="k2-cat-wrap">
                         {showMasaleBreak ? <span className="k2-cat-break" aria-hidden /> : null}
@@ -539,7 +522,7 @@ export default function BookPreOrderPage() {
                           role="tab"
                           aria-selected={filterKey === c.key}
                           className={`k2-cat${filterKey === c.key ? ' active' : ''}${
-                            c.kind === 'masale-all' || c.kind === 'masale' ? ' masale' : ''
+                            c.kind === 'masale' ? ' masale' : ''
                           }`}
                           onClick={() => setFilterKey(c.key)}
                         >
