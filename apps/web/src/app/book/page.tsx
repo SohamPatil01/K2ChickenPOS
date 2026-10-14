@@ -188,7 +188,8 @@ export default function BookPreOrderPage() {
       }
       if (p.categoryName) cutCats.add(p.categoryName);
     }
-    const chips: FilterChip[] = [{ key: 'All', kind: 'all', label: 'All' }];
+    // Default "All Cuts" = chicken only; masale only via its own chip
+    const chips: FilterChip[] = [{ key: 'All', kind: 'all', label: 'All Cuts' }];
     for (const name of Array.from(cutCats).sort()) {
       chips.push({ key: `cat:${name}`, kind: 'category', label: name });
     }
@@ -209,9 +210,12 @@ export default function BookPreOrderPage() {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
       let filterOk = true;
-      if (activeFilter?.kind === 'category') {
+      if (activeFilter?.kind === 'all' || !activeFilter) {
+        // Landing view: chicken cuts only — hide masale until that filter is tapped
+        filterOk = !productIsMasale(p);
+      } else if (activeFilter.kind === 'category') {
         filterOk = !productIsMasale(p) && p.categoryName === activeFilter.label;
-      } else if (activeFilter?.kind === 'masale') {
+      } else if (activeFilter.kind === 'masale') {
         filterOk = productIsMasale(p);
       }
       const searchOk = !q || p.name.toLowerCase().includes(q);
