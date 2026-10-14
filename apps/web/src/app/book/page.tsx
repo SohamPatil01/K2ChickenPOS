@@ -241,6 +241,14 @@ export default function BookPreOrderPage() {
   const maxAvailable = (p: CatalogProduct) =>
     p.unitType === 'KG' ? Number(p.stockQtyKg) || 0 : Number(p.stockQtyPcs) || 0;
 
+  const stockLimitMsg = (p: CatalogProduct, avail: number) =>
+    p.unitType === 'KG'
+      ? `Only ${avail} kg available for ${p.name}`
+      : `Only ${avail} pc${avail === 1 ? '' : 's'} available for ${p.name}`;
+
+  const formatQty = (unitType: 'KG' | 'PCS', n: number) =>
+    unitType === 'KG' ? String(Math.round(n * 1000) / 1000) : String(Math.round(n));
+
   const lineQty = (productId: string) =>
     lines.find((l) => l.productId === productId)?.qty || '';
 
@@ -258,16 +266,23 @@ export default function BookPreOrderPage() {
           p.unitType === 'KG'
             ? Math.round((Number(existing.qty) + step) * 1000) / 1000
             : Number(existing.qty) + 1;
-        if (avail > 0) next = Math.min(next, avail);
-        notify(`${p.name} updated`);
+        if (avail > 0 && next > avail) {
+          notify(stockLimitMsg(p, avail));
+          next = avail;
+        } else {
+          notify(`${p.name} updated`);
+        }
         return prev.map((l) =>
-          l.productId === p.id ? { ...l, qty: String(next) } : l
+          l.productId === p.id ? { ...l, qty: formatQty(p.unitType, next) } : l
         );
       }
-      let qty = p.unitType === 'KG' ? '0.500' : '1';
-      if (p.unitType === 'KG' && avail > 0) qty = String(Math.min(0.5, avail));
-      if (p.unitType === 'PCS' && avail > 0) qty = String(Math.min(1, avail));
-      notify(`${p.name} added to your booking`);
+      let qtyNum = p.unitType === 'KG' ? 0.5 : 1;
+      if (avail > 0 && qtyNum > avail) {
+        notify(stockLimitMsg(p, avail));
+        qtyNum = avail;
+      } else {
+        notify(`${p.name} added to your booking`);
+      }
       return [
         ...prev,
         {
@@ -275,7 +290,7 @@ export default function BookPreOrderPage() {
           productId: p.id,
           productName: p.name,
           unitType: p.unitType,
-          qty,
+          qty: formatQty(p.unitType, qtyNum),
           imageUrl: p.imageUrl,
         },
       ];
@@ -285,8 +300,16 @@ export default function BookPreOrderPage() {
   const setLineQty = (key: string, qty: string) => {
     const cleaned = qty.replace(/[^\d.]/g, '');
     const parts = cleaned.split('.');
-    const normalized =
+    let normalized =
       parts.length <= 1 ? cleaned : `${parts[0]}.${parts.slice(1).join('').slice(0, 3)}`;
+    const line = lines.find((x) => x.key === key);
+    const product = line ? products.find((p) => p.id === line.productId) : undefined;
+    const avail = product ? maxAvailable(product) : 0;
+    const num = Number(normalized);
+    if (product && avail > 0 && Number.isFinite(num) && num > avail) {
+      notify(stockLimitMsg(product, avail));
+      normalized = formatQty(product.unitType, avail);
+    }
     setLines((prev) => prev.map((x) => (x.key === key ? { ...x, qty: normalized } : x)));
   };
 
@@ -296,7 +319,10 @@ export default function BookPreOrderPage() {
     const product = products.find((p) => p.id === line.productId);
     const avail = product ? maxAvailable(product) : 0;
     let next = Math.max(min, Math.round((Number(line.qty) + dir * step) * 1000) / 1000);
-    if (dir > 0 && avail > 0) next = Math.min(next, avail);
+    if (dir > 0 && avail > 0 && next > avail) {
+      if (product) notify(stockLimitMsg(product, avail));
+      next = avail;
+    }
     if (dir < 0 && next < min) {
       setLines((prev) => prev.filter((x) => x.key !== line.key));
       return;
@@ -306,10 +332,7 @@ export default function BookPreOrderPage() {
         x.key === line.key
           ? {
               ...x,
-              qty:
-                line.unitType === 'KG'
-                  ? next.toFixed(3).replace(/\.?0+$/, '') || String(next)
-                  : String(next),
+              qty: formatQty(line.unitType, next),
             }
           : x
       )
@@ -361,6 +384,20 @@ export default function BookPreOrderPage() {
     }
     const bad = lines.find((l) => !(Number(l.qty) > 0));
     if (bad) return setError('Enter a valid weight/quantity for each item');
+
+    const overStock = lines.find((l) => {
+      const p = products.find((x) => x.id === l.productId);
+      if (!p) return false;
+      const avail = maxAvailable(p);
+      return avail > 0 && Number(l.qty) > avail;
+    });
+    if (overStock) {
+      const p = products.find((x) => x.id === overStock.productId)!;
+      const avail = maxAvailable(p);
+      notify(stockLimitMsg(p, avail));
+      setLineQty(overStock.key, formatQty(p.unitType, avail));
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -606,7 +643,7 @@ export default function BookPreOrderPage() {
                           <div className="k2-product-info">
                             <h3>{p.name}</h3>
                             <div className="k2-desc">
-                              {p.availableLabel || (p.unitType === 'KG' ? 'Sold by kg' : 'Sold by piece')}
+                              {p.unitType === 'KG' ? 'Sold by kg' : 'Sold by piece'}
                               {p.categoryName ? `  ·  ${p.categoryName}` : ''}
                             </div>
                             <div className="k2-product-bottom">
@@ -739,10 +776,7 @@ export default function BookPreOrderPage() {
                             </div>
                             {l.unitType === 'KG' && (
                               <div className="k2-weight-chips">
-                                {WEIGHT_PRESETS.filter((w) => {
-                                  const avail = p ? maxAvailable(p) : 0;
-                                  return avail <= 0 || Number(w) <= avail + 0.001;
-                                }).map((w) => (
+                                {WEIGHT_PRESETS.map((w) => (
                                   <button
                                     key={w}
                                     type="button"
