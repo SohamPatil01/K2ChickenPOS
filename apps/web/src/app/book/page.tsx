@@ -599,9 +599,9 @@ export default function BookPreOrderPage() {
                               <span className="k2-tag oos-tag">Out of stock</span>
                             ) : masale ? (
                               <span className="k2-tag masale-tag">Masale</span>
-                            ) : i < 3 ? (
+                            ) : (
                               <span className="k2-tag">★ Fresh</span>
-                            ) : null}
+                            )}
                           </div>
                           <div className="k2-product-info">
                             <h3>{p.name}</h3>
