@@ -110,8 +110,6 @@ export default function BookPreOrderPage() {
   const [slot, setSlot] = useState('1 hr');
   const [notes, setNotes] = useState('');
   const [prep, setPrep] = useState('');
-  const [fulfillment, setFulfillment] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
-  const [address, setAddress] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([]);
 
   const bookingRef = useRef<HTMLElement>(null);
@@ -379,9 +377,6 @@ export default function BookPreOrderPage() {
     if (!name.trim() || phone.replace(/\D/g, '').length < 10) {
       return setError('Enter your name and a valid 10-digit phone');
     }
-    if (fulfillment === 'DELIVERY' && !address.trim()) {
-      return setError('Please enter a delivery address');
-    }
     const bad = lines.find((l) => !(Number(l.qty) > 0));
     if (bad) return setError('Enter a valid weight/quantity for each item');
 
@@ -401,11 +396,7 @@ export default function BookPreOrderPage() {
 
     setSubmitting(true);
     try {
-      const noteParts = [
-        prep ? `Prep: ${prep}` : '',
-        fulfillment === 'DELIVERY' && address.trim() ? `Address: ${address.trim()}` : '',
-        notes.trim(),
-      ].filter(Boolean);
+      const noteParts = [prep ? `Prep: ${prep}` : '', notes.trim()].filter(Boolean);
 
       const items = lines.map((l) => ({
         productId: l.productId,
@@ -422,7 +413,7 @@ export default function BookPreOrderPage() {
           storeId,
           customerName: name.trim(),
           customerPhone: phone,
-          fulfillment,
+          fulfillment: 'PICKUP',
           readyAt,
           notes: noteParts.join(' · ') || null,
           source: 'WEB_FORM',
@@ -856,35 +847,13 @@ export default function BookPreOrderPage() {
                   onChange={(e) => setReadyAt(e.target.value)}
                 />
 
-                <label className="k2-field-label">♧ &nbsp; Pickup or delivery</label>
-                <div className="k2-fulfil">
-                  <button
-                    type="button"
-                    className={fulfillment === 'PICKUP' ? 'active' : ''}
-                    onClick={() => setFulfillment('PICKUP')}
-                  >
-                    <span>▣</span> Pickup from store
-                  </button>
-                  <button
-                    type="button"
-                    className={fulfillment === 'DELIVERY' ? 'active' : ''}
-                    onClick={() => setFulfillment('DELIVERY')}
-                  >
-                    <span>♧</span> Home delivery
-                  </button>
+                <div className="k2-pickup-note" role="status">
+                  <span aria-hidden>▣</span>
+                  <div>
+                    <strong>Store pickup only</strong>
+                    <small>Collect your order from K2 Chicken at your preferred time</small>
+                  </div>
                 </div>
-
-                {fulfillment === 'DELIVERY' && (
-                  <input
-                    className="k2-field"
-                    style={{ width: '100%', marginTop: 7 }}
-                    placeholder="Delivery address and landmark"
-                    autoComplete="street-address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    required
-                  />
-                )}
 
                 <label className="k2-field-label" htmlFor="k2-prep">
                   Preparation preference{' '}
@@ -949,7 +918,7 @@ export default function BookPreOrderPage() {
             <span className="k2-trust-icon">◷</span>
             <div>
               <strong>Choose your time</strong>
-              <small>Pickup or delivery at your convenience</small>
+              <small>Pickup from the store at your convenience</small>
             </div>
           </div>
           <div className="k2-trust">
@@ -1032,7 +1001,6 @@ export default function BookPreOrderPage() {
                 setLines([]);
                 setNotes('');
                 setPrep('');
-                setAddress('');
               }}
             >
               Book another

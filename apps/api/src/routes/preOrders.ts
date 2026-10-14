@@ -220,35 +220,48 @@ async function findOrCreateCustomer(
   const normalized = normalizePhone(phone);
   if (normalized.length < 10) return null;
 
+  // POS customer directory is scoped to the owner store (franchise resolves to parent)
   const ownerStoreId = await resolveOwnerStoreId(storeId);
   const customerStoreId = ownerStoreId || storeId;
+  const trimmedName = (name || '').trim() || 'Customer';
 
   const existing = await prisma.customer.findFirst({
     where: {
-      phone: { endsWith: normalized.slice(-10) },
+      storeId: customerStoreId,
       OR: [
-        { storeId: customerStoreId },
-        { storeId },
+        { phone: normalized },
+        { phone: { endsWith: normalized } },
       ],
     },
   });
+
   if (existing) {
-    if (name && existing.name !== name) {
-      return prisma.customer.update({
-        where: { id: existing.id },
-        data: { name },
-      });
+    const data: { name?: string; phone?: string } = {};
+    if (trimmedName && existing.name !== trimmedName) data.name = trimmedName;
+    if (existing.phone !== normalized) data.phone = normalized;
+    if (Object.keys(data).length) {
+      return prisma.customer.update({ where: { id: existing.id }, data });
     }
     return existing;
   }
 
-  return prisma.customer.create({
-    data: {
-      storeId: customerStoreId,
-      name: name.trim(),
-      phone: normalized,
-    },
-  });
+  try {
+    return await prisma.customer.create({
+      data: {
+        storeId: customerStoreId,
+        name: trimmedName,
+        phone: normalized,
+      },
+    });
+  } catch (err: any) {
+    // Race on unique (storeId, phone) — fetch the row another request created
+    if (err?.code === 'P2002') {
+      return prisma.customer.findUnique({
+        where: { storeId_phone: { storeId: customerStoreId, phone: normalized } },
+      });
+    }
+    throw err;
+  }
 }
 
 async function createPreOrderRecord(opts: {
@@ -602,6 +615,7 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
         ok: true,
         preOrder: serializePreOrder(preOrder),
         trackingCode: preOrder.trackingCode,
+        customerId: preOrder.customerId,
         message:
           'Booking received. We will try our best near your requested time, depending on shop rush — not an instant guarantee. Save your tracking code to follow live status.',
       });
