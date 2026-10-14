@@ -481,14 +481,18 @@
   transform: scale(1.05);
 }
 
+.k2-photo.placeholder {
+  background: linear-gradient(145deg, #fff8e8, #fde8c8);
+}
+
 .k2-photo-fallback {
   width: 100%;
   height: 100%;
   display: grid;
   place-items: center;
-  font-size: 28px;
-  color: var(--red);
-  opacity: 0.5;
+  font-size: 34px;
+  color: #b45309;
+  opacity: 0.85;
 }
 
 .k2-tag {
@@ -506,6 +510,10 @@
 
 .k2-tag.oos-tag {
   background: #5c4a3d;
+}
+
+.k2-tag.masale-tag {
+  background: #b45309;
 }
 
 .k2-product-info {

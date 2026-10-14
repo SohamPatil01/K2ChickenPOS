@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma, Prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { getUser, requireRole } from '../utils/auth.js';
-import { ymdInStoreTz, STORE_TZ_OFFSET } from '@azela-pos/shared';
+import { ymdInStoreTz, STORE_TZ_OFFSET, isMasaleProduct } from '@azela-pos/shared';
 
 /** On-hand qty for products at a physical store (same math as inventory summary). */
 async function stockByProductIds(
@@ -446,13 +446,15 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
     const mapped = priced.map((p) => {
       const stock = stockMap.get(p.id) || { qtyKg: 0, qtyPcs: 0 };
       const outOfStock = isOutOfStock(p.unitType, stock);
+      const categoryName = p.category?.name || null;
+      // Never expose masale photos on the public book catalog
       return {
         id: p.id,
         name: p.name,
         unitType: p.unitType,
         taxRate: p.taxRate,
-        imageUrl: p.imageUrl,
-        categoryName: p.category?.name || null,
+        imageUrl: isMasaleProduct(categoryName, p.name) ? null : p.imageUrl,
+        categoryName,
         pricePerUnit: p.storeProductPrices[0]?.pricePerUnit || 0,
         stockQtyKg: stock.qtyKg,
         stockQtyPcs: stock.qtyPcs,

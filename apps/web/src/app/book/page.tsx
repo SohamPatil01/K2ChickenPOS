@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { isMasaleProduct } from '@azela-pos/shared';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { BRAND } from '@/lib/customerDisplay/brand';
+import { resolveBookProductImage } from './productImages';
 
 type StoreOpt = { id: string; name: string };
 type CatalogProduct = {
@@ -40,7 +41,7 @@ type LineDraft = {
 };
 
 const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
-const FALLBACK_IMG = '/book/hero-chicken.jpg';
+const HERO_IMG = '/book/hero-chicken.jpg';
 
 function apiUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
@@ -70,8 +71,16 @@ function money(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
 
-function productImg(p: { imageUrl?: string | null; name?: string }) {
-  return p.imageUrl || FALLBACK_IMG;
+function productImg(p: {
+  imageUrl?: string | null;
+  name?: string;
+  categoryName?: string | null;
+}) {
+  return resolveBookProductImage({
+    name: p.name || '',
+    categoryName: p.categoryName,
+    imageUrl: p.imageUrl,
+  });
 }
 
 export default function BookPreOrderPage() {
@@ -454,7 +463,7 @@ export default function BookPreOrderPage() {
           </div>
           <div className="k2-hero-image">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={FALLBACK_IMG} alt="Fresh chicken prepared for K2 Chicken" />
+            <img src={HERO_IMG} alt="Fresh chicken prepared for K2 Chicken" />
             <div className="k2-image-note">
               Same great taste.
               <br />
@@ -543,24 +552,34 @@ export default function BookPreOrderPage() {
                       const q = lineQty(p.id);
                       const selected = Boolean(q);
                       const oos = Boolean(p.outOfStock);
+                      const img = productImg(p);
+                      const masale = productIsMasale(p);
                       return (
                         <article
                           key={p.id}
                           className={`k2-product${selected ? ' selected' : ''}${oos ? ' oos' : ''}`}
                           style={{ animationDelay: `${i * 35}ms` }}
                         >
-                          <div className="k2-photo">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={productImg(p)}
-                              alt={p.name}
-                              loading="lazy"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = FALLBACK_IMG;
-                              }}
-                            />
+                          <div className={`k2-photo${masale || !img ? ' placeholder' : ''}`}>
+                            {img ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={img}
+                                alt={p.name}
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = HERO_IMG;
+                                }}
+                              />
+                            ) : (
+                              <div className="k2-photo-fallback" aria-hidden>
+                                {masale ? '✦' : '♧'}
+                              </div>
+                            )}
                             {oos ? (
                               <span className="k2-tag oos-tag">Out of stock</span>
+                            ) : masale ? (
+                              <span className="k2-tag masale-tag">Masale</span>
                             ) : i < 3 ? (
                               <span className="k2-tag">★ Fresh</span>
                             ) : null}
@@ -651,14 +670,25 @@ export default function BookPreOrderPage() {
                     lines.map((l) => {
                       const p = products.find((x) => x.id === l.productId);
                       const lineTotal = (p?.pricePerUnit || 0) * (Number(l.qty) || 0);
+                      const cartImg = productImg({
+                        name: l.productName,
+                        categoryName: p?.categoryName,
+                        imageUrl: l.imageUrl || p?.imageUrl,
+                      });
+                      const masale = productIsMasale({
+                        name: l.productName,
+                        categoryName: p?.categoryName,
+                      } as CatalogProduct);
                       return (
                         <div key={l.key} className="k2-cart-row">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={productImg({ imageUrl: l.imageUrl || p?.imageUrl })}
-                            alt=""
-                            loading="lazy"
-                          />
+                          {cartImg ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={cartImg} alt="" loading="lazy" />
+                          ) : (
+                            <div className="k2-cart-thumb" aria-hidden>
+                              {masale ? '✦' : '♧'}
+                            </div>
+                          )}
                           <div>
                             <div className="k2-cart-name">{l.productName}</div>
                             <div className="k2-cart-sub">
