@@ -13,6 +13,15 @@
   ],
   "headers": [
     {
+      "source": "/api/v1/public/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "CDN-Cache-Control", "value": "private, no-store" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "private, no-store" },
+        { "key": "Vary", "value": "Origin" }
+      ]
+    },
+    {
       "source": "/health",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=60, s-maxage=600, stale-while-revalidate=1800" },
