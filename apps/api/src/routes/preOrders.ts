@@ -471,7 +471,9 @@ export async function publicPreOrderRoutes(fastify: FastifyInstance) {
     });
     mapped.sort((a, b) => Number(a.outOfStock) - Number(b.outOfStock) || a.name.localeCompare(b.name));
 
-    reply.header('Cache-Control', 'public, max-age=30, s-maxage=30, stale-while-revalidate=60');
+    // private — avoid CDN caching a single Access-Control-Allow-Origin across domains
+    reply.header('Cache-Control', 'private, max-age=30');
+    reply.header('Vary', 'Origin');
     return {
       store: { id: store.id, name: store.name },
       products: mapped,
