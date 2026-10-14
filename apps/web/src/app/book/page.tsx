@@ -125,18 +125,31 @@ export default function BookPreOrderPage() {
   const loadStores = useCallback(async () => {
     setLoading(true);
     setError('');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const res = await fetch(apiUrl('/api/v1/public/pre-orders/stores'));
+      const res = await fetch(apiUrl('/api/v1/public/pre-orders/stores'), {
+        signal: ctrl.signal,
+        cache: 'no-store',
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load stores');
       const list: StoreOpt[] = data.stores || [];
+      if (!list.length) throw new Error('No stores available for booking right now');
       setStores(list);
       const params = new URLSearchParams(window.location.search);
       const fromQuery = params.get('store') || params.get('storeId') || '';
       setStoreId(list.find((s) => s.id === fromQuery)?.id || list[0]?.id || '');
     } catch (e: any) {
-      setError(e.message || 'Could not load booking form');
+      const msg =
+        e?.name === 'AbortError'
+          ? 'Menu took too long to load. Please try again.'
+          : e.message || 'Could not load booking form';
+      setError(msg);
+      setStores([]);
+      setStoreId('');
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, []);
@@ -470,6 +483,17 @@ export default function BookPreOrderPage() {
         {loading ? (
           <div className="k2-panel" style={{ padding: 40, textAlign: 'center', color: '#73747a' }}>
             Loading fresh menu…
+          </div>
+        ) : error && !products.length ? (
+          <div className="k2-panel" style={{ padding: 40, textAlign: 'center' }}>
+            <p className="k2-error" style={{ display: 'inline-block', marginBottom: 14 }}>
+              {error}
+            </p>
+            <div>
+              <button type="button" className="k2-submit" style={{ maxWidth: 220, margin: '0 auto' }} onClick={loadStores}>
+                Retry loading menu
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={submit}>
