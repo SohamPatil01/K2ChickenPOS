@@ -42,6 +42,7 @@ type LineDraft = {
 
 const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
 const HERO_IMG = '/book/hero-chicken.jpg';
+const HERO_BANNER = '/book/hero-banner.jpg';
 
 function apiUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
@@ -425,55 +426,14 @@ export default function BookPreOrderPage() {
       </header>
 
       <main className="k2-page">
-        <section className="k2-hero">
-          <div className="k2-hero-copy">
-            <div className="k2-eyebrow">Premium fresh chicken</div>
-            <h1>
-              Book your cut
-              <br />
-              <span>in minutes.</span>
-            </h1>
-            <p>Choose your favourites. Pick a time. We&apos;ll take care of the rest.</p>
-            <div className="k2-benefits">
-              <div className="k2-benefit">
-                <i>♧</i>
-                <span>
-                  Hygienic &amp; fresh
-                  <br />
-                  every day
-                </span>
-              </div>
-              <div className="k2-benefit">
-                <i>✳</i>
-                <span>Locally sourced</span>
-              </div>
-              <div className="k2-benefit">
-                <i>♧</i>
-                <span>
-                  Clean handling
-                  <br />
-                  and packaging
-                </span>
-              </div>
-              <div className="k2-benefit">
-                <i>♡</i>
-                <span>
-                  Trusted in
-                  <br />
-                  Pimple Nilakh
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="k2-hero-image">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={HERO_IMG} alt="Fresh chicken prepared for K2 Chicken" />
-            <div className="k2-image-note">
-              Same great taste.
-              <br />
-              Freshness every day!
-            </div>
-          </div>
+        <section className="k2-hero" aria-label="Premium fresh chicken">
+          <h1 className="k2-sr-only">Book your cut in minutes</h1>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="k2-hero-banner"
+            src={HERO_BANNER}
+            alt="Premium fresh chicken — Book your cut in minutes. Hygienic & fresh everyday, trusted quality, clean handling and packaging, choose your pickup time."
+          />
         </section>
 
         {loading ? (
