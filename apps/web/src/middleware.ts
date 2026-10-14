@@ -14,8 +14,16 @@ export function middleware(request: NextRequest) {
       url.pathname = '/book';
       return NextResponse.redirect(url, 308);
     }
-    // Keep /book and /book/track on this host; send everything else to the form.
-    if (!pathname.startsWith('/book') && !pathname.startsWith('/_next') && pathname !== '/favicon.svg') {
+    // Static assets + book routes stay; everything else goes to the form.
+    const isStaticAsset =
+      pathname === '/favicon.svg' ||
+      pathname === '/favicon.ico' ||
+      /\.(?:png|jpe?g|webp|gif|svg|ico|woff2?|ttf|css|js|map|txt|xml)$/i.test(pathname);
+    if (
+      !pathname.startsWith('/book') &&
+      !pathname.startsWith('/_next') &&
+      !isStaticAsset
+    ) {
       const url = request.nextUrl.clone();
       url.pathname = '/book';
       url.search = search;

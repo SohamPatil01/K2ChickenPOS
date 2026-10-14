@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { isMasaleProduct } from '@azela-pos/shared';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
@@ -43,6 +42,8 @@ type LineDraft = {
 const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
 const HERO_IMG = '/book/hero-chicken.jpg';
 const HERO_BANNER = '/book/hero-banner.jpg';
+/** Served under /book so book.k2chicken.com always resolves the logo */
+const BOOK_LOGO = '/book/logo.png';
 
 function apiUrl(path: string) {
   return `${getApiBaseUrl()}${path}`;
@@ -404,7 +405,8 @@ export default function BookPreOrderPage() {
       <header className="k2-topbar">
         <a className="k2-brand" href="/book" aria-label="K2 Chicken pre-order">
           <span className="k2-brand-mark">
-            <Image src={BRAND.logoPath} alt="" fill className="object-contain p-0.5" sizes="42px" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={BOOK_LOGO} alt={`${BRAND.name} logo`} />
           </span>
           <span>
             <span className="k2-brand-name">{BRAND.name}</span>

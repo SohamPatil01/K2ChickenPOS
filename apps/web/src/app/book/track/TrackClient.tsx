@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import Link from 'next/link';
 import { getApiBaseUrl } from '@/lib/apiBaseUrl';
 import { BRAND } from '@/lib/customerDisplay/brand';
@@ -149,7 +148,8 @@ export default function BookTrackPage() {
       <header className="k2-topbar">
         <Link className="k2-brand" href="/book" aria-label="Back to book">
           <span className="k2-brand-mark">
-            <Image src={BRAND.logoPath} alt="" fill className="object-contain p-0.5" sizes="42px" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/book/logo.png" alt={`${BRAND.name} logo`} />
           </span>
           <span>
             <span className="k2-brand-name">{BRAND.name}</span>
