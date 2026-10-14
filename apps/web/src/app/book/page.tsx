@@ -41,7 +41,7 @@ type LineDraft = {
 
 const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
 const HERO_IMG = '/book/hero-chicken.jpg';
-const HERO_BANNER = '/book/hero-banner.jpg';
+const HERO_PHOTO = '/book/hero-photo.jpg';
 /** Served under /book so preorder.k2chicken.com always resolves the logo */
 const BOOK_LOGO = '/book/logo.png';
 
@@ -429,13 +429,42 @@ export default function BookPreOrderPage() {
 
       <main className="k2-page">
         <section className="k2-hero" aria-label="Premium fresh chicken">
-          <h1 className="k2-sr-only">Book your cut in minutes</h1>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            className="k2-hero-banner"
-            src={HERO_BANNER}
-            alt="Premium fresh chicken — Book your cut in minutes. Hygienic & fresh everyday, trusted quality, clean handling and packaging, choose your pickup time."
-          />
+          <div className="k2-hero-copy">
+            <div className="k2-eyebrow">
+              Premium fresh chicken <span className="k2-eyebrow-line" aria-hidden />
+            </div>
+            <h1>
+              Book your cut
+              <br />
+              in minutes.
+            </h1>
+            <p>Choose your favourite cuts. Pick a time. We&apos;ll have your order ready.</p>
+            <div className="k2-benefits">
+              <div className="k2-benefit">
+                <i className="k2-ico k2-ico-leaf" aria-hidden />
+                <span>Hygienic &amp; fresh everyday</span>
+              </div>
+              <div className="k2-benefit">
+                <i className="k2-ico k2-ico-seal" aria-hidden />
+                <span>Trusted quality</span>
+              </div>
+              <div className="k2-benefit">
+                <i className="k2-ico k2-ico-truck" aria-hidden />
+                <span>Clean handling and packaging</span>
+              </div>
+              <div className="k2-benefit">
+                <i className="k2-ico k2-ico-cal" aria-hidden />
+                <span>Choose your pickup time</span>
+              </div>
+            </div>
+          </div>
+          <div className="k2-hero-image">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={HERO_PHOTO}
+              alt="Fresh chicken cuts ready to book — breasts, drumsticks, and diced pieces"
+            />
+          </div>
         </section>
 
         {loading ? (
