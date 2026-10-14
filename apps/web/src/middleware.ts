@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const BOOK_HOSTS = new Set(['book.k2chicken.com', 'www.book.k2chicken.com']);
+const BOOK_HOSTS = new Set([
+  'preorder.k2chicken.com',
+  'www.preorder.k2chicken.com',
+  // Legacy alias — keep working until DNS is removed
+  'book.k2chicken.com',
+  'www.book.k2chicken.com',
+]);
 
 export function middleware(request: NextRequest) {
   const host = (request.headers.get('host') || '').split(':')[0].toLowerCase();

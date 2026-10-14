@@ -42,7 +42,7 @@ type LineDraft = {
 const WEIGHT_PRESETS = ['0.250', '0.300', '0.500', '0.750', '1', '1.5', '2'];
 const HERO_IMG = '/book/hero-chicken.jpg';
 const HERO_BANNER = '/book/hero-banner.jpg';
-/** Served under /book so book.k2chicken.com always resolves the logo */
+/** Served under /book so preorder.k2chicken.com always resolves the logo */
 const BOOK_LOGO = '/book/logo.png';
 
 function apiUrl(path: string) {

@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { LOYALTY } from '@/lib/customerDisplay/brand';
 
 function customerBookUrl(storeId?: string | null) {
-  const base = (LOYALTY.bookUrl || 'https://book.k2chicken.com').replace(/\/$/, '');
+  const base = (LOYALTY.bookUrl || 'https://preorder.k2chicken.com').replace(/\/$/, '');
   return storeId ? `${base}?store=${storeId}` : base;
 }
 
@@ -61,7 +61,7 @@ export default function StorePreOrdersPage() {
         <h2 className="font-semibold">Customer booking link</h2>
         <p className="text-sm text-gray-600">
           Share this K2 Chicken link on WhatsApp. It opens the pre-order form (and redirects to the
-          live booking page). Customers track status at book.k2chicken.com/book/track with phone + code.
+          live booking page). Customers track status at preorder.k2chicken.com/book/track with phone + code.
         </p>
         {bookUrl && (
           <div className="flex flex-wrap gap-2 items-center">

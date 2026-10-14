@@ -56,7 +56,7 @@ export const LOYALTY = {
   bookUrl:
     (typeof process !== "undefined" &&
       (process.env.NEXT_PUBLIC_BOOK_URL || "").trim()) ||
-    "https://book.k2chicken.com",
+    "https://preorder.k2chicken.com",
   tips: [
     "📱 Just your number",
     "🏪 Redeem in shop",
