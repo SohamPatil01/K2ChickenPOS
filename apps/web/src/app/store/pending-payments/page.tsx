@@ -147,8 +147,10 @@ export default function PendingPaymentsPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithPending | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  /** Editable due — corrects wrong system pending (single-bill) or caps apply amount (pay-all). */
+  /** Only used when editDueMode is on — corrects wrong system pending (single-bill). */
   const [adjustedDue, setAdjustedDue] = useState('');
+  /** Opt-in: editing due waives/increases pending. Off by default so partial pay never clears the bill. */
+  const [editDueMode, setEditDueMode] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   /** Surplus above due: hold on customer account (default) or return as cash change. */
   const [surplusMode, setSurplusMode] = useState<'store_credit' | 'change'>('store_credit');
@@ -382,33 +384,87 @@ export default function PendingPaymentsPage() {
     const due = systemDueForSelection(customer, orderId || null);
     setAdjustedDue(String(due));
     setPaymentAmount(String(due));
+    setEditDueMode(false);
     setPaymentMethod('UPI');
     setSurplusMode('store_credit');
     setShowPaymentModal(true);
+  };
+
+  /** Due correction only — never records a payment (avoids clearing the bill). */
+  const handleSaveDueCorrection = async () => {
+    if (!selectedCustomer || !selectedOrder || !editDueMode) return;
+    const systemDue = systemDueForSelection(selectedCustomer, selectedOrder);
+    const due = Math.round(Number(adjustedDue) || 0);
+    if (due < 0) {
+      showNotification('Due amount cannot be negative', 'error');
+      return;
+    }
+    if (due === systemDue) {
+      showNotification('Due is already ₹' + systemDue, 'error');
+      return;
+    }
+    const order = selectedCustomer.openOrders.find((o) => o.id === selectedOrder);
+    if (!order) {
+      showNotification('Order not found', 'error');
+      return;
+    }
+    const waiver = Math.max(0, systemDue - due);
+    setProcessing(true);
+    try {
+      await api.post(`/api/v1/sales/${selectedOrder}/adjust-pending`, {
+        newRemaining: due,
+        reason: waiver > 0
+          ? `Pending reduced by ₹${waiver} (manual correction)`
+          : `Pending increased to ₹${due} (manual correction)`,
+      });
+      const parts: string[] = [];
+      if (waiver > 0) parts.push(`due set to ₹${due} (−₹${waiver})`);
+      else parts.push(`due set to ₹${due} (+₹${due - systemDue})`);
+      if (due > 0) parts.push('bill still pending');
+      else parts.push('pending cleared (no payment recorded)');
+      showNotification(parts.join(' · '), 'success', 7000);
+      setShowPaymentModal(false);
+      setSelectedCustomer(null);
+      setSelectedOrder(null);
+      setPaymentAmount('');
+      setAdjustedDue('');
+      setEditDueMode(false);
+      await loadPendingPayments();
+    } catch (error: any) {
+      showNotification(
+        error.response?.data?.error || 'Failed to update due',
+        'error'
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleProcessPayment = async () => {
     if (!selectedCustomer) return;
 
     const received = Math.round(Number(paymentAmount) || 0);
-    const due = Math.round(Number(adjustedDue) || 0);
     const systemDue = systemDueForSelection(selectedCustomer, selectedOrder);
+    // Payment never rewrites bill total. Due correction is a separate action.
+    const due = systemDue;
 
-    if (due < 0) {
-      showNotification('Due amount cannot be negative', 'error');
-      return;
-    }
-    // Allow due-only correction (₹0 received) on a single bill.
-    if (received <= 0 && !(selectedOrder && due !== systemDue)) {
+    if (received <= 0) {
       showNotification('Please enter a valid amount received', 'error');
       return;
     }
 
     const applyToBills = Math.min(Math.max(0, received), due);
     const surplus = Math.max(0, received - due);
-    const waiver = Math.max(0, systemDue - due);
     const method = String(paymentMethod || 'CASH').toUpperCase();
     const isWalkIn = selectedCustomer.id === 'WALK_IN_CREDIT';
+
+    // Pay All with a large amount clears every bill — confirm first.
+    if (!selectedOrder && applyToBills >= due && selectedCustomer.orderCount > 1) {
+      const ok = window.confirm(
+        `This will clear all ${selectedCustomer.orderCount} pending bills for ${selectedCustomer.name} (₹${due}). Continue?`
+      );
+      if (!ok) return;
+    }
 
     setProcessing(true);
     try {
@@ -417,16 +473,6 @@ export default function PendingPaymentsPage() {
         if (!order) {
           showNotification('Order not found', 'error');
           return;
-        }
-
-        // Correct wrong pending on this bill before taking payment.
-        if (due !== systemDue) {
-          await api.post(`/api/v1/sales/${selectedOrder}/adjust-pending`, {
-            newRemaining: due,
-            reason: waiver > 0
-              ? `Pending reduced by ₹${waiver} (manual correction)`
-              : `Pending increased to ₹${due} (manual correction)`,
-          });
         }
 
         if (applyToBills > 0) {
@@ -445,7 +491,7 @@ export default function PendingPaymentsPage() {
         }
 
         setSuccessData({
-          amount: Math.max(received, applyToBills, waiver),
+          amount: Math.max(received, applyToBills),
           customerName: selectedCustomer.name,
           orderNo: order.saleNo,
         });
@@ -455,8 +501,6 @@ export default function PendingPaymentsPage() {
         if (applyToBills > 0) {
           parts.push(`₹${applyToBills} applied to ${order.saleNo} (${method})`);
         }
-        if (waiver > 0) parts.push(`due corrected −₹${waiver}`);
-        if (due > systemDue) parts.push(`due corrected +₹${due - systemDue}`);
         if (surplus > 0) {
           parts.push(
             surplusMode === 'store_credit' && !isWalkIn
@@ -470,11 +514,11 @@ export default function PendingPaymentsPage() {
         }
         showNotification(parts.join(' · ') || 'Pending updated', 'success', 7000);
       } else {
-        // Pay all — apply up to adjusted due via FIFO; remainder is surplus on account.
+        // Pay all — apply received amount via FIFO; leftover is surplus on account.
         const settleAmount =
           surplusMode === 'store_credit' && !isWalkIn ? received : applyToBills;
 
-        if (settleAmount <= 0 && due <= 0) {
+        if (settleAmount <= 0) {
           showNotification('Nothing to settle', 'error');
           return;
         }
@@ -482,7 +526,7 @@ export default function PendingPaymentsPage() {
         const res = await api.post(
           `/api/v1/customers/${selectedCustomer.id}/settle-pending`,
           {
-            amount: settleAmount > 0 ? settleAmount : applyToBills,
+            amount: settleAmount,
             method,
             creditSurplusToStore: surplusMode === 'store_credit' && !isWalkIn,
           }
@@ -532,6 +576,7 @@ export default function PendingPaymentsPage() {
       setSelectedOrder(null);
       setPaymentAmount('');
       setAdjustedDue('');
+      setEditDueMode(false);
 
       setTimeout(() => {
         loadPendingPayments();
@@ -597,9 +642,10 @@ export default function PendingPaymentsPage() {
           Collect dues, correct wrong pending amounts, and keep surplus on the customer account
         </p>
         <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-xs sm:text-sm text-amber-900 dark:text-amber-100">
-          Open <span className="font-semibold">Pay / Edit due</span> on a bill (or{' '}
-          <span className="font-semibold">Pay All</span>) to change the due amount or record extra
-          payment as store credit.
+          Open <span className="font-semibold">Pay</span> on a bill (or{' '}
+          <span className="font-semibold">Pay All</span>) and enter the amount received — a partial
+          amount leaves the rest pending. Use <span className="font-semibold">Correct due</span>{' '}
+          only when the listed pending figure itself is wrong.
         </div>
       </div>
 
@@ -887,7 +933,7 @@ export default function PendingPaymentsPage() {
                               onClick={() => handlePayPending(customer)}
                               className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 font-bold text-sm transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95"
                             >
-                              Pay All / Edit due
+                              Pay All
                             </button>
                           </div>
                         </div>
@@ -1001,14 +1047,6 @@ export default function PendingPaymentsPage() {
                                     <p className="text-xl font-bold text-red-600 dark:text-red-400">
                                       ₹{Math.round(remainingBalance)}
                                     </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => handlePayPending(customer, order.id)}
-                                      className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
-                                      title="Correct wrong pending amount or collect payment"
-                                    >
-                                      Edit due
-                                    </button>
                                   </div>
                                 </div>
                               </div>
@@ -1036,7 +1074,7 @@ export default function PendingPaymentsPage() {
                                   onClick={() => handlePayPending(customer, order.id)}
                                   className="flex-[1.4] px-3 py-2.5 text-sm font-semibold bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-lg hover:from-brand-600 hover:to-brand-700 transition-all duration-200 shadow-md hover:shadow-lg"
                                 >
-                                  Pay / Edit due ₹{Math.round(remainingBalance)}
+                                  Pay ₹{Math.round(remainingBalance)}
                                 </button>
                               </div>
                             </div>
@@ -1092,80 +1130,19 @@ export default function PendingPaymentsPage() {
                     <p className="font-medium dark:text-white">
                       {selectedCustomer.openOrders.find((o) => o.id === selectedOrder)?.saleNo}
                     </p>
-                    <p className="text-sm text-ink-muted">
-                      System pending: ₹
-                      {systemDueForSelection(selectedCustomer, selectedOrder)}
-                    </p>
                   </div>
-                ) : (
-                  <div>
-                    <p className="text-sm text-ink-secondary mb-1">Total pending (system)</p>
-                    <p className="text-lg font-semibold text-red-600 dark:text-red-400">
-                      ₹{systemDueForSelection(selectedCustomer, null)}
-                    </p>
-                  </div>
-                )}
+                ) : null}
 
-                <div>
-                  <label className="block text-sm font-semibold text-ink-secondary mb-2">
-                    {selectedOrder ? 'Correct due amount' : 'Apply toward bills (due)'}
-                    <span className="ml-2 font-normal text-ink-muted">
-                      edit if the pending figure is wrong
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={adjustedDue}
-                      onChange={(e) => {
-                        setAdjustedDue(e.target.value.replace(/[^\d.]/g, ''));
-                      }}
-                      onClick={() => setNumPadTarget('due')}
-                      className="w-full px-4 py-3 text-xl border-2 border-amber-300 dark:border-amber-700 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold cursor-pointer text-center"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const sys = systemDueForSelection(selectedCustomer, selectedOrder);
-                        setAdjustedDue(String(sys));
-                        setPaymentAmount(String(sys));
-                      }}
-                      className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
-                    >
-                      Reset to system ₹{systemDueForSelection(selectedCustomer, selectedOrder)}
-                    </button>
-                    {selectedOrder && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdjustedDue('0');
-                        }}
-                        className="text-xs font-semibold text-ink-muted hover:underline"
-                      >
-                        Clear due (₹0)
-                      </button>
-                    )}
-                  </div>
-                  {selectedOrder &&
-                    Math.round(Number(adjustedDue) || 0) !==
-                      systemDueForSelection(selectedCustomer, selectedOrder) && (
-                      <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                        {Math.round(Number(adjustedDue) || 0) <
-                        systemDueForSelection(selectedCustomer, selectedOrder)
-                          ? `Will reduce pending by ₹${
-                              systemDueForSelection(selectedCustomer, selectedOrder) -
-                              Math.round(Number(adjustedDue) || 0)
-                            }`
-                          : `Will increase pending by ₹${
-                              Math.round(Number(adjustedDue) || 0) -
-                              systemDueForSelection(selectedCustomer, selectedOrder)
-                            }`}
-                      </p>
-                    )}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
+                  <p className="text-sm text-ink-secondary mb-0.5">
+                    {selectedOrder ? 'Bill pending' : 'Total pending'}
+                  </p>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                    ₹{systemDueForSelection(selectedCustomer, selectedOrder)}
+                  </p>
+                  <p className="mt-1 text-xs text-ink-muted">
+                    Enter a smaller amount below to pay part — the rest stays pending
+                  </p>
                 </div>
 
                 <div>
@@ -1205,7 +1182,7 @@ export default function PendingPaymentsPage() {
                   <label className="block text-sm font-semibold text-ink-secondary mb-2">
                     Amount received
                     <span className="ml-2 font-normal text-ink-muted">
-                      can be more than due (surplus)
+                      partial OK · surplus goes on account
                     </span>
                   </label>
                   <div className="relative">
@@ -1217,8 +1194,9 @@ export default function PendingPaymentsPage() {
                         setPaymentAmount(e.target.value.replace(/[^\d.]/g, ''));
                       }}
                       onClick={() => setNumPadTarget('payment')}
-                      className="w-full px-4 py-4 text-2xl border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-bold cursor-pointer text-center"
+                      className="w-full px-4 py-4 text-2xl border-2 border-brand-400 dark:border-brand-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-bold cursor-pointer text-center"
                       placeholder="0.00"
+                      autoFocus
                     />
                     <button
                       type="button"
@@ -1232,20 +1210,60 @@ export default function PendingPaymentsPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setPaymentAmount(adjustedDue || '0')}
+                    onClick={() => {
+                      const sys = systemDueForSelection(selectedCustomer, selectedOrder);
+                      setPaymentAmount(String(sys));
+                    }}
                     className="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline"
                   >
-                    Match due ₹{Math.round(Number(adjustedDue) || 0)}
+                    Pay full ₹{systemDueForSelection(selectedCustomer, selectedOrder)}
                   </button>
                 </div>
 
+                {(() => {
+                  const sys = systemDueForSelection(selectedCustomer, selectedOrder);
+                  const effectiveDue = editDueMode
+                    ? Math.round(Number(adjustedDue) || 0)
+                    : sys;
+                  const received = Math.round(Number(paymentAmount) || 0);
+                  const applied = Math.min(Math.max(0, received), effectiveDue);
+                  const stillDue = Math.max(0, effectiveDue - applied);
+                  const surplusAmt = Math.max(0, received - effectiveDue);
+                  if (received <= 0 && !(editDueMode && effectiveDue !== sys)) return null;
+                  return (
+                    <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-3 py-2.5 text-sm space-y-1">
+                      <p className="font-semibold text-blue-900 dark:text-blue-100">
+                        ₹{applied} will be applied
+                        {stillDue > 0
+                          ? ` · ₹${stillDue} still due`
+                          : applied > 0
+                            ? ' · bill clears'
+                            : ''}
+                      </p>
+                      {surplusAmt > 0 && (
+                        <p className="text-xs text-blue-800 dark:text-blue-200">
+                          ₹{surplusAmt} surplus
+                          {surplusMode === 'store_credit' &&
+                          selectedCustomer.id !== 'WALK_IN_CREDIT'
+                            ? ' kept on account'
+                            : ' as change'}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {Math.round(Number(paymentAmount) || 0) >
-                  Math.round(Number(adjustedDue) || 0) && (
+                  (editDueMode
+                    ? Math.round(Number(adjustedDue) || 0)
+                    : systemDueForSelection(selectedCustomer, selectedOrder)) && (
                   <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3 space-y-2">
                     <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
                       Surplus ₹
                       {Math.round(Number(paymentAmount) || 0) -
-                        Math.round(Number(adjustedDue) || 0)}
+                        (editDueMode
+                          ? Math.round(Number(adjustedDue) || 0)
+                          : systemDueForSelection(selectedCustomer, selectedOrder))}
                     </p>
                     {selectedCustomer.id !== 'WALK_IN_CREDIT' ? (
                       <div className="grid grid-cols-2 gap-2">
@@ -1279,6 +1297,117 @@ export default function PendingPaymentsPage() {
                     )}
                   </div>
                 )}
+
+                {selectedOrder && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                    {!editDueMode ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditDueMode(true);
+                          setAdjustedDue(
+                            String(systemDueForSelection(selectedCustomer, selectedOrder))
+                          );
+                          // Do not leave a prefilled payment — correction must not pay/clear.
+                          setPaymentAmount('0');
+                          setNumPadTarget('due');
+                        }}
+                        className="text-xs font-semibold text-ink-muted hover:text-amber-700 dark:hover:text-amber-300 hover:underline"
+                      >
+                        Wrong pending amount? Correct due…
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="block text-sm font-semibold text-amber-800 dark:text-amber-200">
+                            Correct due amount
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditDueMode(false);
+                              const sys = systemDueForSelection(
+                                selectedCustomer,
+                                selectedOrder
+                              );
+                              setAdjustedDue(String(sys));
+                              setPaymentAmount(String(sys));
+                              setNumPadTarget(null);
+                            }}
+                            className="text-xs font-semibold text-ink-muted hover:underline"
+                          >
+                            Cancel correction
+                          </button>
+                        </div>
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Saves the new pending total only — does not take payment. Use{' '}
+                          <span className="font-semibold">Update due</span> below.
+                        </p>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={adjustedDue}
+                          onChange={(e) => {
+                            setAdjustedDue(e.target.value.replace(/[^\d.]/g, ''));
+                          }}
+                          onClick={() => setNumPadTarget('due')}
+                          className="w-full px-4 py-3 text-xl border-2 border-amber-300 dark:border-amber-700 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold cursor-pointer text-center"
+                          placeholder="0"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sys = systemDueForSelection(
+                                selectedCustomer,
+                                selectedOrder
+                              );
+                              setAdjustedDue(String(sys));
+                            }}
+                            className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                          >
+                            Reset to system ₹
+                            {systemDueForSelection(selectedCustomer, selectedOrder)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAdjustedDue('0')}
+                            className="text-xs font-semibold text-ink-muted hover:underline"
+                          >
+                            Clear due (₹0)
+                          </button>
+                        </div>
+                        {Math.round(Number(adjustedDue) || 0) !==
+                          systemDueForSelection(selectedCustomer, selectedOrder) && (
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            {Math.round(Number(adjustedDue) || 0) <
+                            systemDueForSelection(selectedCustomer, selectedOrder)
+                              ? `Will set pending to ₹${Math.round(Number(adjustedDue) || 0)} (write off ₹${
+                                  systemDueForSelection(selectedCustomer, selectedOrder) -
+                                  Math.round(Number(adjustedDue) || 0)
+                                })`
+                              : `Will set pending to ₹${Math.round(Number(adjustedDue) || 0)} (+₹${
+                                  Math.round(Number(adjustedDue) || 0) -
+                                  systemDueForSelection(selectedCustomer, selectedOrder)
+                                })`}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleSaveDueCorrection}
+                          disabled={
+                            processing ||
+                            Math.round(Number(adjustedDue) || 0) ===
+                              systemDueForSelection(selectedCustomer, selectedOrder)
+                          }
+                          className="w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm disabled:opacity-50"
+                        >
+                          {processing ? 'Saving…' : 'Update due (no payment)'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -1289,6 +1418,7 @@ export default function PendingPaymentsPage() {
                     setSelectedOrder(null);
                     setPaymentAmount('');
                     setAdjustedDue('');
+                    setEditDueMode(false);
                     setNumPadTarget(null);
                   }}
                   disabled={processing}
@@ -1298,15 +1428,7 @@ export default function PendingPaymentsPage() {
                 </button>
                 <button
                   onClick={handleProcessPayment}
-                  disabled={
-                    processing ||
-                    ((!(parseFloat(paymentAmount) > 0) &&
-                      !(
-                        selectedOrder &&
-                        Math.round(Number(adjustedDue) || 0) !==
-                          systemDueForSelection(selectedCustomer, selectedOrder)
-                      )) as boolean)
-                  }
+                  disabled={processing || !(parseFloat(paymentAmount) > 0)}
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl hover:from-brand-600 hover:to-brand-700 font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {processing ? (
