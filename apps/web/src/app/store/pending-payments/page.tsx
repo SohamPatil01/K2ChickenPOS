@@ -378,21 +378,29 @@ export default function PendingPaymentsPage() {
     return Math.round(Number(customer.totalPending) || 0);
   };
 
-  const handlePayPending = (customer: CustomerWithPending, orderId?: string) => {
+  const handlePayPending = (
+    customer: CustomerWithPending,
+    orderId?: string,
+    opts?: { editDue?: boolean }
+  ) => {
     setSelectedCustomer(customer);
     setSelectedOrder(orderId || null);
     const due = systemDueForSelection(customer, orderId || null);
     setAdjustedDue(String(due));
-    setPaymentAmount(String(due));
-    setEditDueMode(false);
+    const openEditDue = !!opts?.editDue;
+    setEditDueMode(openEditDue);
+    setPaymentAmount(openEditDue ? '0' : String(due));
     setPaymentMethod('UPI');
     setSurplusMode('store_credit');
     setShowPaymentModal(true);
   };
 
+  const orderRemaining = (order: PendingOrder) =>
+    Math.round(Number(order.remainingBalance ?? order.pending) || 0);
+
   /** Due correction only — never records a payment (avoids clearing the bill). */
   const handleSaveDueCorrection = async () => {
-    if (!selectedCustomer || !selectedOrder || !editDueMode) return;
+    if (!selectedCustomer || !editDueMode) return;
     const systemDue = systemDueForSelection(selectedCustomer, selectedOrder);
     const due = Math.round(Number(adjustedDue) || 0);
     if (due < 0) {
@@ -403,25 +411,75 @@ export default function PendingPaymentsPage() {
       showNotification('Due is already ₹' + systemDue, 'error');
       return;
     }
-    const order = selectedCustomer.openOrders.find((o) => o.id === selectedOrder);
-    if (!order) {
-      showNotification('Order not found', 'error');
-      return;
-    }
-    const waiver = Math.max(0, systemDue - due);
+
     setProcessing(true);
     try {
-      await api.post(`/api/v1/sales/${selectedOrder}/adjust-pending`, {
-        newRemaining: due,
-        reason: waiver > 0
-          ? `Pending reduced by ₹${waiver} (manual correction)`
-          : `Pending increased to ₹${due} (manual correction)`,
-      });
+      if (selectedOrder) {
+        const order = selectedCustomer.openOrders.find((o) => o.id === selectedOrder);
+        if (!order) {
+          showNotification('Order not found', 'error');
+          return;
+        }
+        const waiver = Math.max(0, systemDue - due);
+        await api.post(`/api/v1/sales/${selectedOrder}/adjust-pending`, {
+          newRemaining: due,
+          reason: waiver > 0
+            ? `Pending reduced by ₹${waiver} (manual correction)`
+            : `Pending increased to ₹${due} (manual correction)`,
+        });
+      } else {
+        // Pay All / total pending — adjust bills oldest-first to match the new total.
+        const orders = [...selectedCustomer.openOrders].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        if (orders.length === 0) {
+          showNotification('No pending bills to adjust', 'error');
+          return;
+        }
+
+        if (due === 0) {
+          const ok = window.confirm(
+            `Clear all pending for ${selectedCustomer.name} across ${orders.length} bill(s) with no payment?`
+          );
+          if (!ok) {
+            setProcessing(false);
+            return;
+          }
+        }
+
+        let remainingDelta = systemDue - due; // >0 write-off, <0 increase
+        if (remainingDelta > 0) {
+          for (const order of orders) {
+            if (remainingDelta <= 0) break;
+            const rem = orderRemaining(order);
+            if (rem <= 0) continue;
+            const cut = Math.min(rem, remainingDelta);
+            await api.post(`/api/v1/sales/${order.id}/adjust-pending`, {
+              newRemaining: rem - cut,
+              reason: `Pending reduced by ₹${cut} (total due correction)`,
+            });
+            remainingDelta -= cut;
+          }
+        } else {
+          const add = Math.abs(remainingDelta);
+          const target = orders[orders.length - 1];
+          const rem = orderRemaining(target);
+          await api.post(`/api/v1/sales/${target.id}/adjust-pending`, {
+            newRemaining: rem + add,
+            reason: `Pending increased by ₹${add} (total due correction)`,
+          });
+        }
+      }
+
+      const waiver = Math.max(0, systemDue - due);
       const parts: string[] = [];
       if (waiver > 0) parts.push(`due set to ₹${due} (−₹${waiver})`);
       else parts.push(`due set to ₹${due} (+₹${due - systemDue})`);
-      if (due > 0) parts.push('bill still pending');
-      else parts.push('pending cleared (no payment recorded)');
+      if (due > 0) {
+        parts.push(selectedOrder ? 'bill still pending' : 'still pending');
+      } else {
+        parts.push('pending cleared (no payment recorded)');
+      }
       showNotification(parts.join(' · '), 'success', 7000);
       setShowPaymentModal(false);
       setSelectedCustomer(null);
@@ -881,6 +939,14 @@ export default function PendingPaymentsPage() {
                             <span className="text-xl font-bold text-red-600 dark:text-red-400">
                               ₹{Math.round(customer.totalPending).toLocaleString()}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => handlePayPending(customer, undefined, { editDue: true })}
+                              className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                              title="Correct total pending across all bills (no payment)"
+                            >
+                              Correct due
+                            </button>
                           </div>
 
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1049,9 +1115,11 @@ export default function PendingPaymentsPage() {
                                     </p>
                                     <button
                                       type="button"
-                                      onClick={() => handlePayPending(customer, order.id)}
+                                      onClick={() =>
+                                        handlePayPending(customer, order.id, { editDue: true })
+                                      }
                                       className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
-                                      title="Open payment — then tap Correct due to change the pending amount"
+                                      title="Correct this bill’s pending amount (no payment)"
                                     >
                                       Correct due
                                     </button>
@@ -1154,7 +1222,7 @@ export default function PendingPaymentsPage() {
                         Enter a smaller amount below to pay part — the rest stays pending
                       </p>
                     </div>
-                    {selectedOrder && !editDueMode && (
+                    {!editDueMode && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1173,11 +1241,11 @@ export default function PendingPaymentsPage() {
                   </div>
                 </div>
 
-                {selectedOrder && editDueMode && (
+                {editDueMode && (
                   <div className="rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                        Correct due amount
+                        {selectedOrder ? 'Correct due amount' : 'Correct total due'}
                       </label>
                       <button
                         type="button"
@@ -1194,7 +1262,9 @@ export default function PendingPaymentsPage() {
                       </button>
                     </div>
                     <p className="text-xs text-amber-800 dark:text-amber-200">
-                      Changes the pending total only — does not take payment.
+                      {selectedOrder
+                        ? 'Changes this bill’s pending only — does not take payment.'
+                        : `Changes total pending across ${selectedCustomer.orderCount} bill(s) (oldest first) — does not take payment.`}
                     </p>
                     <input
                       type="text"
