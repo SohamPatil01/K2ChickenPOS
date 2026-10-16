@@ -1047,6 +1047,14 @@ export default function PendingPaymentsPage() {
                                     <p className="text-xl font-bold text-red-600 dark:text-red-400">
                                       ₹{Math.round(remainingBalance)}
                                     </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePayPending(customer, order.id)}
+                                      className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                                      title="Open payment — then tap Correct due to change the pending amount"
+                                    >
+                                      Correct due
+                                    </button>
                                   </div>
                                 </div>
                               </div>
@@ -1106,8 +1114,8 @@ export default function PendingPaymentsPage() {
       {/* Payment Modal */}
       {showPaymentModal && selectedCustomer && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="glass-panel-strong rounded-2xl w-full max-w-md animate-fade-in-up overflow-hidden">
-            <div className="p-6">
+          <div className="glass-panel-strong rounded-2xl w-full max-w-md animate-fade-in-up overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-6 overflow-y-auto">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
                   ₹
@@ -1134,16 +1142,121 @@ export default function PendingPaymentsPage() {
                 ) : null}
 
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
-                  <p className="text-sm text-ink-secondary mb-0.5">
-                    {selectedOrder ? 'Bill pending' : 'Total pending'}
-                  </p>
-                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                    ₹{systemDueForSelection(selectedCustomer, selectedOrder)}
-                  </p>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    Enter a smaller amount below to pay part — the rest stays pending
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm text-ink-secondary mb-0.5">
+                        {selectedOrder ? 'Bill pending' : 'Total pending'}
+                      </p>
+                      <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                        ₹{systemDueForSelection(selectedCustomer, selectedOrder)}
+                      </p>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        Enter a smaller amount below to pay part — the rest stays pending
+                      </p>
+                    </div>
+                    {selectedOrder && !editDueMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditDueMode(true);
+                          setAdjustedDue(
+                            String(systemDueForSelection(selectedCustomer, selectedOrder))
+                          );
+                          setPaymentAmount('0');
+                          setNumPadTarget(null);
+                        }}
+                        className="shrink-0 px-3 py-2 text-xs sm:text-sm font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm"
+                      >
+                        Correct due
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {selectedOrder && editDueMode && (
+                  <div className="rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-sm font-bold text-amber-900 dark:text-amber-100">
+                        Correct due amount
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditDueMode(false);
+                          const sys = systemDueForSelection(selectedCustomer, selectedOrder);
+                          setAdjustedDue(String(sys));
+                          setPaymentAmount(String(sys));
+                          setNumPadTarget(null);
+                        }}
+                        className="text-xs font-semibold text-ink-muted hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      Changes the pending total only — does not take payment.
+                    </p>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={adjustedDue}
+                      onChange={(e) => {
+                        setAdjustedDue(e.target.value.replace(/[^\d.]/g, ''));
+                      }}
+                      onClick={() => setNumPadTarget('due')}
+                      className="w-full px-4 py-3 text-xl border-2 border-amber-400 dark:border-amber-600 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold cursor-pointer text-center"
+                      placeholder="0"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustedDue(
+                            String(systemDueForSelection(selectedCustomer, selectedOrder))
+                          );
+                        }}
+                        className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                      >
+                        Reset to system ₹
+                        {systemDueForSelection(selectedCustomer, selectedOrder)}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdjustedDue('0')}
+                        className="text-xs font-semibold text-ink-muted hover:underline"
+                      >
+                        Clear due (₹0)
+                      </button>
+                    </div>
+                    {Math.round(Number(adjustedDue) || 0) !==
+                      systemDueForSelection(selectedCustomer, selectedOrder) && (
+                      <p className="text-xs text-amber-800 dark:text-amber-200">
+                        {Math.round(Number(adjustedDue) || 0) <
+                        systemDueForSelection(selectedCustomer, selectedOrder)
+                          ? `Will set pending to ₹${Math.round(Number(adjustedDue) || 0)} (write off ₹${
+                              systemDueForSelection(selectedCustomer, selectedOrder) -
+                              Math.round(Number(adjustedDue) || 0)
+                            })`
+                          : `Will set pending to ₹${Math.round(Number(adjustedDue) || 0)} (+₹${
+                              Math.round(Number(adjustedDue) || 0) -
+                              systemDueForSelection(selectedCustomer, selectedOrder)
+                            })`}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSaveDueCorrection}
+                      disabled={
+                        processing ||
+                        Math.round(Number(adjustedDue) || 0) ===
+                          systemDueForSelection(selectedCustomer, selectedOrder)
+                      }
+                      className="w-full px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold disabled:opacity-50"
+                    >
+                      {processing ? 'Saving…' : 'Update due (no payment)'}
+                    </button>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-ink-secondary mb-2">
@@ -1298,116 +1411,6 @@ export default function PendingPaymentsPage() {
                   </div>
                 )}
 
-                {selectedOrder && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-                    {!editDueMode ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditDueMode(true);
-                          setAdjustedDue(
-                            String(systemDueForSelection(selectedCustomer, selectedOrder))
-                          );
-                          // Do not leave a prefilled payment — correction must not pay/clear.
-                          setPaymentAmount('0');
-                          setNumPadTarget('due');
-                        }}
-                        className="text-xs font-semibold text-ink-muted hover:text-amber-700 dark:hover:text-amber-300 hover:underline"
-                      >
-                        Wrong pending amount? Correct due…
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <label className="block text-sm font-semibold text-amber-800 dark:text-amber-200">
-                            Correct due amount
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditDueMode(false);
-                              const sys = systemDueForSelection(
-                                selectedCustomer,
-                                selectedOrder
-                              );
-                              setAdjustedDue(String(sys));
-                              setPaymentAmount(String(sys));
-                              setNumPadTarget(null);
-                            }}
-                            className="text-xs font-semibold text-ink-muted hover:underline"
-                          >
-                            Cancel correction
-                          </button>
-                        </div>
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                          Saves the new pending total only — does not take payment. Use{' '}
-                          <span className="font-semibold">Update due</span> below.
-                        </p>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={adjustedDue}
-                          onChange={(e) => {
-                            setAdjustedDue(e.target.value.replace(/[^\d.]/g, ''));
-                          }}
-                          onClick={() => setNumPadTarget('due')}
-                          className="w-full px-4 py-3 text-xl border-2 border-amber-300 dark:border-amber-700 dark:bg-gray-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold cursor-pointer text-center"
-                          placeholder="0"
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const sys = systemDueForSelection(
-                                selectedCustomer,
-                                selectedOrder
-                              );
-                              setAdjustedDue(String(sys));
-                            }}
-                            className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline"
-                          >
-                            Reset to system ₹
-                            {systemDueForSelection(selectedCustomer, selectedOrder)}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAdjustedDue('0')}
-                            className="text-xs font-semibold text-ink-muted hover:underline"
-                          >
-                            Clear due (₹0)
-                          </button>
-                        </div>
-                        {Math.round(Number(adjustedDue) || 0) !==
-                          systemDueForSelection(selectedCustomer, selectedOrder) && (
-                          <p className="text-xs text-amber-700 dark:text-amber-300">
-                            {Math.round(Number(adjustedDue) || 0) <
-                            systemDueForSelection(selectedCustomer, selectedOrder)
-                              ? `Will set pending to ₹${Math.round(Number(adjustedDue) || 0)} (write off ₹${
-                                  systemDueForSelection(selectedCustomer, selectedOrder) -
-                                  Math.round(Number(adjustedDue) || 0)
-                                })`
-                              : `Will set pending to ₹${Math.round(Number(adjustedDue) || 0)} (+₹${
-                                  Math.round(Number(adjustedDue) || 0) -
-                                  systemDueForSelection(selectedCustomer, selectedOrder)
-                                })`}
-                          </p>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleSaveDueCorrection}
-                          disabled={
-                            processing ||
-                            Math.round(Number(adjustedDue) || 0) ===
-                              systemDueForSelection(selectedCustomer, selectedOrder)
-                          }
-                          className="w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm disabled:opacity-50"
-                        >
-                          {processing ? 'Saving…' : 'Update due (no payment)'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="flex gap-3 mt-6">
