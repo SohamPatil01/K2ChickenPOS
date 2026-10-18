@@ -113,7 +113,15 @@ export async function settlePendingSalesAfterCheckout(
   let pool = paymentPool.map((p) => ({ ...p }));
   const settledSaleNos: string[] = [];
   const selected = getSelectedPendingSettlements(lines);
+  const jobs: Array<{
+    saleId: string;
+    saleNo: string;
+    amount: number;
+    allocated: Array<{ method: string; amount: number }>;
+    allocatedTotal: number;
+  }> = [];
 
+  // Allocate from the pool first (must stay sequential), then pay in parallel.
   for (const line of selected) {
     const amount = Math.round(line.amount);
     const { allocated, remaining } = allocatePaymentsFromPool(pool, amount);
@@ -125,16 +133,26 @@ export async function settlePendingSalesAfterCheckout(
         `Could not pay previous credit bill #${line.saleNo}. Payment amount must cover today's items plus the selected credit.`
       );
     }
-
-    // Pay only what we actually allocated (never inflate via normalize to the full line amount).
-    await paySaleWithRecovery(api, line.saleId, allocated, allocatedTotal);
-    if (allocatedTotal >= amount - 1) {
-      settledSaleNos.push(line.saleNo);
-    } else {
+    if (allocatedTotal < amount - 1) {
       throw new Error(
         `Only ₹${allocatedTotal} of ₹${amount} could be applied to #${line.saleNo}. Increase the payment amount.`
       );
     }
+
+    jobs.push({
+      saleId: line.saleId,
+      saleNo: line.saleNo,
+      amount,
+      allocated,
+      allocatedTotal,
+    });
+  }
+
+  await Promise.all(
+    jobs.map((job) => paySaleWithRecovery(api, job.saleId, job.allocated, job.allocatedTotal))
+  );
+  for (const job of jobs) {
+    settledSaleNos.push(job.saleNo);
   }
 
   return { remainingPool: pool, settledSaleNos };

@@ -43,6 +43,8 @@ export type ApplyPaymentsInput = {
     status: string;
     grandTotal: number;
     storeId: string;
+    saleNo?: string;
+    customerId?: string | null;
     items: any[];
     payments?: any[];
   };
@@ -248,20 +250,30 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     saleStatus = 'OPEN';
   }
 
-  const updatedSale = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     if (paymentsToCreate.length > 0) {
       await tx.payment.createMany({ data: paymentsToCreate });
     }
-    return tx.sale.update({
+    await tx.sale.update({
       where: { id: saleId },
       data: { status: saleStatus },
-      include: {
-        items: { include: { product: true } },
-        payments: true,
-        customer: customerWithAreaInclude,
-      },
     });
   });
+
+  // Enrich outside the write txn so locks release ASAP.
+  const updatedSale = await prisma.sale.findUnique({
+    where: { id: saleId },
+    include: {
+      items: { include: { product: true } },
+      payments: true,
+      customer: customerWithAreaInclude,
+    },
+  });
+  if (!updatedSale) {
+    const err: any = new Error('Sale not found after payment');
+    err.statusCode = 404;
+    throw err;
+  }
 
   if (!skipInventorySync) {
     const unitMapPay = await loadProductUnitTypes(sale.items.map((i) => i.productId));

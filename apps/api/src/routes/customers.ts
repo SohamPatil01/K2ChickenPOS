@@ -1369,38 +1369,44 @@ export async function customerRoutes(fastify: FastifyInstance) {
         }
 
         const applied = allocations.reduce((s, a) => s + a.amount, 0);
+        const fullyPaidIds = allocations.filter((a) => a.fullyPaid).map((a) => a.saleId);
+        const stillOpenIds = allocations.filter((a) => !a.fullyPaid).map((a) => a.saleId);
 
         await prisma.$transaction(async (tx) => {
-          for (const a of allocations) {
-            await tx.payment.create({
-              data: {
-                saleId: a.saleId,
-                method: methodRaw,
-                amount: a.amount,
-              },
+          await tx.payment.createMany({
+            data: allocations.map((a) => ({
+              saleId: a.saleId,
+              method: methodRaw,
+              amount: a.amount,
+            })),
+          });
+          if (fullyPaidIds.length > 0) {
+            await tx.sale.updateMany({
+              where: { id: { in: fullyPaidIds } },
+              data: { status: 'PAID' },
             });
-            await tx.sale.update({
-              where: { id: a.saleId },
-              data: { status: a.fullyPaid ? 'PAID' : 'OPEN' },
+          }
+          if (stillOpenIds.length > 0) {
+            await tx.sale.updateMany({
+              where: { id: { in: stillOpenIds } },
+              data: { status: 'OPEN' },
             });
           }
         });
 
-        // Award loyalty for bills that just became fully paid (idempotent).
+        // Loyalty earn must not block the cashier — same as /pay.
         for (const a of allocations) {
           if (!a.fullyPaid) continue;
-          try {
-            await awardSaleLoyaltyEarn(prisma, {
-              saleId: a.saleId,
-              saleNo: a.saleNo,
-              customerId,
-              storeId: a.storeId,
-              grandTotal: a.grandTotal,
-              userId,
-            });
-          } catch (loyaltyErr) {
-            console.warn('[settle-pending] loyalty earn failed:', a.saleNo, loyaltyErr);
-          }
+          void awardSaleLoyaltyEarn(prisma, {
+            saleId: a.saleId,
+            saleNo: a.saleNo,
+            customerId,
+            storeId: a.storeId,
+            grandTotal: a.grandTotal,
+            userId,
+          }).catch((loyaltyErr) =>
+            console.warn('[settle-pending] loyalty earn failed:', a.saleNo, loyaltyErr)
+          );
         }
 
         const unallocated = Math.max(0, amount - applied);

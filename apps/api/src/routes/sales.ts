@@ -1474,10 +1474,11 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const authUser = getUser(request);
 
       // Single fetch: sale + items + payments + store scope for access check.
+      // Skip product join — inventory sync is not re-run on /pay.
       const sale = await prisma.sale.findUnique({
         where: { id },
         include: {
-          items: { include: { product: true } },
+          items: true,
           payments: true,
           store: {
             select: { id: true, type: true, parentOwnerStoreId: true },
@@ -1521,12 +1522,25 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       try {
+        // Inventory was already deducted when the sale was created — skip the
+        // expensive ledger re-scan on every /pay (biggest win for pending settle).
         const updatedSale = await applyPaymentsToSale({
           saleId: id,
           payments,
           actorUserId: userId,
           actorStoreId: storeId,
           paymentAttemptId: paymentAttemptId || null,
+          skipInventorySync: true,
+          existingSale: {
+            id: sale.id,
+            status: sale.status,
+            grandTotal: sale.grandTotal,
+            storeId: sale.storeId,
+            customerId: sale.customerId,
+            saleNo: sale.saleNo,
+            items: sale.items,
+            payments: sale.payments,
+          },
         });
         // Only create delivery when the client explicitly asked for DELIVERY
         // (never infer from rounding residuals on pickup bills).

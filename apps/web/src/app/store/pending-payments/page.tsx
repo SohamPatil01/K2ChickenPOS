@@ -638,7 +638,7 @@ export default function PendingPaymentsPage() {
 
       setTimeout(() => {
         loadPendingPayments();
-      }, 2800);
+      }, 600);
     } catch (error: any) {
       console.error('Failed to process payment:', error);
       showNotification(
