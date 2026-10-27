@@ -61,6 +61,19 @@ interface CustomerAddress {
   zip: string;
 }
 
+/** Prefer Home/Delivery, else first saved address (skip Area mirror rows). */
+function preferredAddressId(addresses: CustomerAddress[]): string {
+  const usable = (addresses || []).filter(
+    (a) => a?.id && a.label !== 'Area' && String(a.line1 || '').trim() && a.line1 !== '—'
+  );
+  if (!usable.length) return '';
+  const preferred = usable.find((a) => {
+    const label = String(a.label || '').toLowerCase();
+    return label === 'home' || label === 'delivery' || label.includes('home');
+  });
+  return (preferred || usable[0]).id;
+}
+
 const SIMPLE_COLUMNS = ['OPEN', 'DELIVERED', 'FAILED'] as const;
 
 type DatePreset = 'today' | 'yesterday' | 'last7' | 'thisWeek' | 'thisMonth' | 'all' | 'custom';
@@ -447,17 +460,23 @@ export default function StoreDeliveryPage() {
   };
 
   const onSelectSale = async (saleId: string) => {
-    setForm((f) => ({ ...f, saleId, addressId: '' }));
+    setCreateAddNewAddress(false);
     const sale = paidSales.find((s) => s.id === saleId);
     if (!sale?.customerId) {
       setAddresses([]);
+      setForm((f) => ({ ...f, saleId, addressId: '' }));
       return;
     }
     try {
       const res = await api.get(`/api/v1/customers/${sale.customerId}`);
-      setAddresses(res.data?.addresses || []);
+      const list: CustomerAddress[] = res.data?.addresses || [];
+      setAddresses(list);
+      const autoId = preferredAddressId(list);
+      // Auto-fill from customer profile when an address exists; else leave blank for manual entry.
+      setForm((f) => ({ ...f, saleId, addressId: autoId }));
     } catch {
       setAddresses([]);
+      setForm((f) => ({ ...f, saleId, addressId: '' }));
     }
   };
 
@@ -532,10 +551,11 @@ export default function StoreDeliveryPage() {
   const openDetailsModal = async (delivery: Delivery) => {
     setEditingDelivery(delivery);
     setDetailsError(null);
+    const existingAddressId = (delivery.address as { id?: string })?.id || '';
     setDetailsForm({
       customerName: delivery.sale.customer?.name || '',
       customerPhone: delivery.sale.customer?.phone || '',
-      addressId: (delivery.address as { id?: string })?.id || '',
+      addressId: existingAddressId,
       newAddress: { label: 'Home', line1: '', line2: '', city: '', state: '', zip: '' },
     });
     setAddNewAddress(false);
@@ -543,7 +563,21 @@ export default function StoreDeliveryPage() {
     if (customerId) {
       try {
         const res = await api.get(`/api/v1/customers/${customerId}`);
-        setDetailsAddresses(res.data?.addresses || []);
+        const list: CustomerAddress[] = res.data?.addresses || [];
+        setDetailsAddresses(list);
+        if (!existingAddressId) {
+          const autoId = preferredAddressId(list);
+          if (autoId) {
+            setDetailsForm((f) => ({ ...f, addressId: autoId }));
+            // Persist so the queue shows the address without a second save click.
+            try {
+              await api.patch(`/api/v1/delivery/${delivery.id}`, { addressId: autoId });
+              loadDeliveries();
+            } catch {
+              /* keep selected in form; user can save manually */
+            }
+          }
+        }
       } catch {
         setDetailsAddresses([]);
       }
@@ -1188,13 +1222,24 @@ export default function StoreDeliveryPage() {
                         onChange={(e) => setForm((f) => ({ ...f, addressId: e.target.value }))}
                         className="w-full px-3 py-3 rounded-xl border border-[color:var(--border-subtle)] bg-surface text-ink text-sm"
                       >
-                        <option value="">Select saved address</option>
+                        <option value="">
+                          {addresses.length ? 'Select saved address' : 'No saved address — add one'}
+                        </option>
                         {addresses.map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.label}: {a.line1}, {a.city}
                           </option>
                         ))}
                       </select>
+                      {form.addressId ? (
+                        <p className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+                          Filled from customer profile — change only if needed
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 text-xs text-ink-muted">
+                          No address on this customer yet — add one below
+                        </p>
+                      )}
                       <button
                         type="button"
                         onClick={() => setCreateAddNewAddress(true)}

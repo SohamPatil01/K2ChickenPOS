@@ -116,6 +116,14 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Auto-fetch saved customer address when none was chosen (POS / Delivery create).
+    if (data.type === 'DELIVERY' && !resolvedAddressId && sale.customerId) {
+      const { findPreferredCustomerAddressId } = await import(
+        '../services/ensureDeliveryForSale.js'
+      );
+      resolvedAddressId = await findPreferredCustomerAddressId(sale.customerId);
+    }
+
     // Address can be added later in Delivery section when type is DELIVERY
     if (data.type === 'DELIVERY' && resolvedAddressId) {
       const address = await prisma.customerAddress.findUnique({ where: { id: resolvedAddressId } });
@@ -264,6 +272,51 @@ export async function deliveryRoutes(fastify: FastifyInstance) {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Backfill missing delivery addresses from the customer's saved addresses.
+    const needingAddress = deliveries.filter(
+      (d) => d.type === 'DELIVERY' && !d.addressId && d.sale?.customerId
+    );
+    if (needingAddress.length > 0) {
+      const { findPreferredCustomerAddressId } = await import(
+        '../services/ensureDeliveryForSale.js'
+      );
+      const customerIds = [
+        ...new Set(needingAddress.map((d) => d.sale.customerId as string)),
+      ];
+      const addressByCustomer = new Map<string, string>();
+      await Promise.all(
+        customerIds.map(async (customerId) => {
+          const addressId = await findPreferredCustomerAddressId(customerId);
+          if (addressId) addressByCustomer.set(customerId, addressId);
+        })
+      );
+      const addressIds = [...new Set(addressByCustomer.values())];
+      const addressRows =
+        addressIds.length > 0
+          ? await prisma.customerAddress.findMany({
+              where: { id: { in: addressIds } },
+            })
+          : [];
+      const addressById = new Map(addressRows.map((a) => [a.id, a]));
+
+      await Promise.all(
+        needingAddress.map(async (d) => {
+          const addressId = addressByCustomer.get(d.sale.customerId as string);
+          if (!addressId) return;
+          try {
+            await prisma.deliveryOrder.update({
+              where: { id: d.id },
+              data: { addressId },
+            });
+            d.addressId = addressId;
+            d.address = addressById.get(addressId) || null;
+          } catch (err) {
+            console.warn('[delivery] address backfill failed:', d.id, err);
+          }
+        })
+      );
+    }
 
     return deliveries;
   });
