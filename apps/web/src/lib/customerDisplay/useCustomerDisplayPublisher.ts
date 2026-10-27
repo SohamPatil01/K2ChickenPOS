@@ -8,7 +8,8 @@ import { buildBillPayload } from "./publishHelpers";
 
 const DEBOUNCE_MS = 150;
 const HEARTBEAT_MS = 3000;
-const POST_SALE_GRACE_MS = 8000;
+/** Grace after success before a new cart may publish — keep short for next-bill scans. */
+const POST_SALE_GRACE_MS = 2500;
 const LEADER_KEY = "k2-cd-publisher-leader";
 const LEADER_TTL_MS = 4000;
 

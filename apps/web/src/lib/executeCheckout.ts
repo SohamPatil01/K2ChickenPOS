@@ -158,6 +158,12 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       useCartStore.getState().fulfillmentType,
       clientSaleId
     );
+    // [checkout-success] Empty cart before success UI — next scan is a new bill.
+    try {
+      await clearCart();
+    } catch (clearErr) {
+      console.error('[Checkout] clearCart after offline:', clearErr);
+    }
     onClosePaymentUi?.();
     onSuccess({
       saleNo: 'Queued (offline)',
@@ -166,11 +172,6 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       loyaltyPointsRedeemed: Number(saleData.loyaltyPointsRedeemed || 0),
       offline: true,
     });
-    try {
-      await clearCart();
-    } catch (clearErr) {
-      console.error('[Checkout] clearCart after offline:', clearErr);
-    }
     onNotify(message, 'success', 6500);
   };
 
@@ -285,7 +286,14 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       ...new Set([...(cartSnap.linkedPreOrderIds || []), ...fromMeta]),
     ];
 
-    // Success UI first — side effects (delivery, loyalty refresh, clearCart) run in background.
+    // [checkout-success] Clear the paid cart BEFORE the success UI so the next
+    // barcode/scan cannot merge into the previous bill.
+    try {
+      await clearCart();
+    } catch (clearErr) {
+      console.error('[Checkout] clearCart before success UI:', clearErr);
+    }
+
     onClosePaymentUi?.();
     onSuccess({
       saleNo: sale.saleNo || 'N/A',
@@ -306,8 +314,10 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       preOrderIds,
       skipCustomer,
       isHomeDelivery,
-      deliveryFee: cartSnap.getTotal().deliveryFee,
-      clearCart,
+      deliveryFee: 0,
+      clearCart: async () => {
+        /* already cleared above — keep cart empty for the next bill */
+      },
       onLoyaltyBalance,
       onDeliveryError: (message) => onNotify(message, 'info', 4000),
     });

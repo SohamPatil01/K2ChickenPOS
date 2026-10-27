@@ -2055,6 +2055,7 @@ export default function StoreCartPage() {
                     }
               }
               billUrl={completedSale.saleId ? `/bill/${completedSale.saleId}` : null}
+              autoDismissMs={2500}
               onComplete={() => {
                 setShowSuccessAnimation(false);
                 setCompletedSale(null);
@@ -2088,7 +2089,7 @@ export default function StoreCartPage() {
                 }}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-ink-secondary rounded-lg transition-colors"
               >
-                Continue
+                Next bill
               </button>
             </div>
           </div>

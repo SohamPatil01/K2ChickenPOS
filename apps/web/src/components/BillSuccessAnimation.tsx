@@ -8,9 +8,15 @@ interface BillSuccessAnimationProps {
   onComplete: () => void;
   /** Optional subtitle (e.g. "Order completed." on Orders page). Default: "Redirecting to POS..." */
   subtitle?: string;
-  /** When set, shows Print / digital bill actions and pauses auto-dismiss. */
+  /** When set, shows Print / digital bill actions. */
   onPrint?: () => void;
   billUrl?: string | null;
+  /**
+   * Auto-dismiss after this many ms so the cashier can start the next bill.
+   * Default keeps the overlay short (~2.5s); pass longer only when needed.
+   * [checkout-success] — do not raise this without checking POS scan-during-success.
+   */
+  autoDismissMs?: number;
 }
 
 export default function BillSuccessAnimation({
@@ -20,34 +26,55 @@ export default function BillSuccessAnimation({
   subtitle = 'Redirecting to POS...',
   onPrint,
   billUrl,
+  autoDismissMs,
 }: BillSuccessAnimationProps) {
   const [isAnimating, setIsAnimating] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const hasActions = Boolean(onPrint || billUrl);
+  // Short default so next bill / barcode can start quickly (was 8s with actions).
+  const dismissAfter = Math.max(
+    1200,
+    autoDismissMs ?? (hasActions ? 2500 : 2000)
+  );
 
   useEffect(() => {
     // Show checkmark first
     const timer1 = setTimeout(() => {
       setShowDetails(true);
-    }, 500);
+    }, 400);
 
-    // Auto-dismiss — longer when print/bill actions are available
     const timer2 = setTimeout(() => {
       setIsAnimating(false);
-      setTimeout(onComplete, 300);
-    }, hasActions ? 8000 : 3000);
+      setTimeout(onComplete, 200);
+    }, dismissAfter);
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
     };
-  }, [onComplete, hasActions]);
+  }, [onComplete, dismissAfter]);
 
   if (!isAnimating) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-md">
-      <div className="relative">
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 backdrop-blur-md pointer-events-none"
+      // pointer-events-none: hardware scanners keep typing into the POS barcode field.
+      role="status"
+      aria-live="polite"
+    >
+      <div className="relative pointer-events-auto">
+        <button
+          type="button"
+          onClick={() => {
+            setIsAnimating(false);
+            setTimeout(onComplete, 100);
+          }}
+          className="absolute -top-2 -right-2 z-10 h-9 w-9 rounded-full bg-white/90 text-ink font-bold shadow hover:bg-white"
+          aria-label="Close and start next bill"
+        >
+          ✕
+        </button>
         {/* Success Checkmark Animation */}
         <div className="flex flex-col items-center justify-center">
           {/* Animated Checkmark Circle */}

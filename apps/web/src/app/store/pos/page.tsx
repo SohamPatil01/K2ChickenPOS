@@ -263,6 +263,8 @@ export default function StorePOSPage() {
     saleId?: string | null;
   } | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  /** Mirrors success overlay — barcode handler must not wait on React state. */
+  const showSuccessAnimationRef = useRef(false);
   const [stockByProductId, setStockByProductId] = useState<
     Record<string, { kg: number; pcs: number }>
   >({});
@@ -593,6 +595,20 @@ export default function StorePOSPage() {
     }
   };
 
+  const dismissSuccessForNewBill = async () => {
+    // [checkout-success] Scan / new bill during success → start a fresh cart.
+    if (!showSuccessAnimationRef.current) return;
+    showSuccessAnimationRef.current = false;
+    setShowSuccessAnimation(false);
+    setCompletedSale(null);
+    releaseDisplaySuccessLatch();
+    try {
+      await useCartStore.getState().clearCart();
+    } catch (err) {
+      console.error("[POS] clearCart before next bill:", err);
+    }
+  };
+
   const handleBarcodeSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const raw =
@@ -614,6 +630,8 @@ export default function StorePOSPage() {
     lastBarcodeScanRef.current = { code: lookup, at: now };
 
     try {
+      // Next scan during success animation opens a NEW bill (never the paid cart).
+      await dismissSuccessForNewBill();
       const storeId = user?.storeId || user?.store?.id;
       if (!storeId) {
         showNotification(
@@ -1153,11 +1171,14 @@ export default function StorePOSPage() {
             grandTotal: checkoutGrandTotal,
             saleId,
           });
+          showSuccessAnimationRef.current = true;
           setShowSuccessAnimation(true);
           publishSuccessMode(checkoutGrandTotal, offline ? null : saleNo, saleId, {
             loyaltyPointsRedeemed,
             loyaltyPointsBalance: null,
           });
+          // Keep scanner ready so the next barcode jumps to a new bill.
+          requestAnimationFrame(() => barcodeInputRef.current?.focus());
         },
       });
     } catch (error: any) {
@@ -1898,8 +1919,9 @@ export default function StorePOSPage() {
           subtitle={
             completedSale.saleNo.includes("offline")
               ? "Saved offline — will sync when internet is back."
-              : "Tap print if needed, or wait to continue…"
+              : "Scan next item or tap ✕ for a new bill…"
           }
+          autoDismissMs={2500}
           onPrint={
             completedSale.saleNo.includes("offline")
               ? undefined
@@ -1915,12 +1937,14 @@ export default function StorePOSPage() {
               : null
           }
           onComplete={() => {
+            showSuccessAnimationRef.current = false;
             setShowSuccessAnimation(false);
             setCompletedSale(null);
             // Soft-reset publisher mode only — do not Ably-idle the display
             // while it is still running success → review.
             releaseDisplaySuccessLatch();
             void clearCart();
+            requestAnimationFrame(() => barcodeInputRef.current?.focus());
           }}
         />
       )}

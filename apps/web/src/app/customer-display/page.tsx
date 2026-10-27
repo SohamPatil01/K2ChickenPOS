@@ -116,9 +116,9 @@ const FIELD_TO_PROFILE_KEY: Record<DraftFieldKey, keyof CustomerInfoValues> = {
 type Phase = "init" | "pairing" | "connected";
 
 // Show "Payment Successful" briefly, then invite a review, then idle.
-const SUCCESS_HOLD_MS = 4000;
-/** Long enough to scan the review QR; was 120s and felt "stuck". */
-const REVIEW_HOLD_MS = 20000;
+const SUCCESS_HOLD_MS = 3000;
+/** Review QR hold — short so the next bill can take over the display. */
+const REVIEW_HOLD_MS = 8000;
 /**
  * Ignore stray mode.idle for a short window after a live bill. Empty POS tabs
  * (other browser profiles) can still publish idle over the shared Ably channel.

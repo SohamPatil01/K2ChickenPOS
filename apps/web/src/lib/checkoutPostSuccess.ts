@@ -41,6 +41,14 @@ export function runPostCheckoutSideEffects(options: {
   } = options;
 
   void (async () => {
+    // [checkout-success] Wipe cart FIRST so the next barcode/scan cannot land on
+    // the paid bill while the success animation is still on screen.
+    try {
+      await clearCart();
+    } catch (clearErr) {
+      console.error('[Checkout] clearCart after payment:', clearErr);
+    }
+
     // Mark matching pre-orders completed when this customer is billed.
     if (!skipCustomer && (loyaltyCustomerId || customerPhone || customerName || (preOrderIds && preOrderIds.length))) {
       try {
@@ -97,12 +105,6 @@ export function runPostCheckoutSideEffects(options: {
       } catch (loyaltyError) {
         console.error('[Checkout] Failed to refresh loyalty after payment:', loyaltyError);
       }
-    }
-
-    try {
-      await clearCart();
-    } catch (clearErr) {
-      console.error('[Checkout] clearCart after payment:', clearErr);
     }
 
     window.dispatchEvent(
