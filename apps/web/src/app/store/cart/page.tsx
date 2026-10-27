@@ -13,6 +13,7 @@ import BillSuccessAnimation from '@/components/BillSuccessAnimation';
 import { printReceipt, generateReceiptData } from '@/lib/printReceipt';
 import CartPaymentModal from '@/components/CartPaymentModal';
 import PendingCreditSettlement from '@/components/PendingCreditSettlement';
+import CustomerPreOrderBanner from '@/components/pre-orders/CustomerPreOrderBanner';
 import { executeCheckout } from '@/lib/executeCheckout';
 import { LOYALTY_POINT_VALUE } from '@azela-pos/shared';
 import CustomerDisplayButton from '@/components/customerDisplay/CustomerDisplayButton';
@@ -916,6 +917,9 @@ export default function StoreCartPage() {
                     Walk-in customer • No customer info will be saved
                   </div>
                 )}
+                {!skipCustomer && (customerId || customerPhone || customerName) && (
+                  <CustomerPreOrderBanner />
+                )}
                 {!skipCustomer && customerId && profileRewardPending && discountSource !== 'profile_reward' && (
                   <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-4 py-3">
                     <p className="flex-1 text-sm font-medium text-amber-900 dark:text-amber-100">
@@ -1494,6 +1498,7 @@ export default function StoreCartPage() {
                     {items.map((item: any, index: number) => {
                       if (!item) return null;
                       const isRemoving = removingId === item.id;
+                      const fromPreOrder = !!(item.metaJson?.fromPreOrder || item.metaJson?.preOrderId);
                       const displayName = item.productName || item.productId || 'Unknown Product';
                       const qtyDisplay = item.qtyKg ? `${item.qtyKg} kg` : item.qtyPcs ? `${item.qtyPcs} pcs` : '1 pcs';
                       const rate = item.rate || 0;
@@ -1501,10 +1506,17 @@ export default function StoreCartPage() {
                       return (
                         <div
                           key={item.id || `item-${index}-${item.productId || Date.now()}`}
-                          className={`group flex items-center gap-4 p-4 rounded-2xl hover:border-brand-300 dark:hover:border-brand-700 hover: transition-all duration-200 glass-panel/50 ${ isRemoving ? 'animate-slide-out-left' : '' }`}
+                          className={`group flex items-center gap-4 p-4 rounded-2xl hover:border-brand-300 dark:hover:border-brand-700 hover: transition-all duration-200 glass-panel/50 ${ isRemoving ? 'animate-slide-out-left' : '' } ${fromPreOrder ? 'border border-sky-200 dark:border-sky-800' : ''}`}
                         >
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-ink mb-2 text-lg">{displayName}</h3>
+                            <h3 className="font-semibold text-ink mb-2 text-lg">
+                              {displayName}
+                              {fromPreOrder && (
+                                <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/40 px-1.5 py-0.5 rounded">
+                                  Pre-order · edit weight
+                                </span>
+                              )}
+                            </h3>
                             <div className="flex items-center gap-3 flex-wrap">
                               <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                                 <button
@@ -1516,9 +1528,33 @@ export default function StoreCartPage() {
                                 >
                                   −
                                 </button>
-                                <span className="min-w-[64px] text-center text-sm font-medium text-ink-secondary px-1">
+                                <button
+                                  type="button"
+                                  title={fromPreOrder ? 'Tap to set exact weight' : undefined}
+                                  onClick={() => {
+                                    if (!fromPreOrder || !item?.id) return;
+                                    const isPcs = (item.qtyPcs ?? 0) > 0;
+                                    const current = isPcs ? item.qtyPcs || 0 : item.qtyKg || 0;
+                                    const raw = window.prompt(
+                                      isPcs ? 'Pieces' : 'Weight (kg)',
+                                      String(current)
+                                    );
+                                    if (raw == null) return;
+                                    const next = Math.round(Number(raw) * 100) / 100;
+                                    if (!(next > 0)) return;
+                                    const r = item.rate || 0;
+                                    const lt = Math.round(next * r * 100) / 100;
+                                    void updateItem(
+                                      item.id,
+                                      isPcs
+                                        ? { qtyPcs: next, lineTotal: lt }
+                                        : { qtyKg: next, lineTotal: lt }
+                                    );
+                                  }}
+                                  className="min-w-[64px] text-center text-sm font-medium text-ink-secondary px-1"
+                                >
                                   {qtyDisplay}
-                                </span>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => adjustItemQty(item, 1)}

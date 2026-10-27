@@ -29,6 +29,8 @@ function findMergeableCartLine(
     const exM = ex.metaJson || {};
     const inM = incoming.metaJson || {};
     if (exM.manualEntry || inM.manualEntry) return false;
+    // Keep pre-order lines separate so each booked weight stays editable on its own.
+    if (exM.fromPreOrder || inM.fromPreOrder || exM.preOrderId || inM.preOrderId) return false;
 
     const exKg = ex.qtyKg ?? 0;
     const exPcs = ex.qtyPcs ?? 0;
@@ -82,10 +84,14 @@ interface CartState {
   applyStoreCredit: boolean;
   /** Old credit bills the cashier chose to settle in this checkout. */
   pendingSettlements: PendingSettlementLine[];
+  /** Pre-order ids loaded into this cart — fulfilled on successful bill. */
+  linkedPreOrderIds: string[];
   loadCart: () => Promise<void>;
   addItem: (item: Omit<CartItem, 'id' | 'createdAt'>) => Promise<void>;
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
+  linkPreOrderId: (preOrderId: string) => void;
+  clearLinkedPreOrders: () => void;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
   setCustomerLoyaltyPoints: (points: number | null) => void;
   setCustomerStoreCredit: (amount: number | null) => void;
@@ -153,6 +159,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   discountPercentage: 0,
   fulfillmentType: 'PICKUP',
   deliveryFee: 0,
+  linkedPreOrderIds: [],
   couponCode: null,
   loyaltyRedeemPoints: 0,
   pendingSettlements: [],
@@ -232,6 +239,16 @@ export const useCartStore = create<CartState>((set, get) => ({
     await offlineDB.cart.update(id, updates);
     const items = await offlineDB.cart.toArray();
     set({ items });
+  },
+  linkPreOrderId: (preOrderId) => {
+    const id = String(preOrderId || '').trim();
+    if (!id) return;
+    const prev = get().linkedPreOrderIds || [];
+    if (prev.includes(id)) return;
+    set({ linkedPreOrderIds: [...prev, id] });
+  },
+  clearLinkedPreOrders: () => {
+    set({ linkedPreOrderIds: [] });
   },
   setCustomer: (customerId, customerPhone, customerName, customerArea) => {
     const name = customerName ? String(customerName) : null;
@@ -499,6 +516,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       pendingSettlements: [],
       referredByPhone: null,
       referredByCode: null,
+      linkedPreOrderIds: [],
     });
     try {
       await offlineDB.cart.clear();

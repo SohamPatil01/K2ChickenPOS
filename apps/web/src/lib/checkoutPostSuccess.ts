@@ -12,6 +12,10 @@ export function runPostCheckoutSideEffects(options: {
   payments: PaymentLine[];
   checkoutGrandTotal: number;
   loyaltyCustomerId?: string | null;
+  customerPhone?: string | null;
+  customerName?: string | null;
+  /** Pre-order ids loaded into this cart (and/or tagged on line items). */
+  preOrderIds?: string[];
   skipCustomer?: boolean;
   isHomeDelivery?: boolean;
   deliveryFee?: number;
@@ -25,6 +29,9 @@ export function runPostCheckoutSideEffects(options: {
     payments,
     checkoutGrandTotal,
     loyaltyCustomerId,
+    customerPhone,
+    customerName,
+    preOrderIds,
     skipCustomer,
     isHomeDelivery,
     deliveryFee,
@@ -34,6 +41,21 @@ export function runPostCheckoutSideEffects(options: {
   } = options;
 
   void (async () => {
+    // Mark matching pre-orders completed when this customer is billed.
+    if (!skipCustomer && (loyaltyCustomerId || customerPhone || customerName || (preOrderIds && preOrderIds.length))) {
+      try {
+        await api.post('/api/v1/pre-orders/fulfill-by-sale', {
+          saleId,
+          customerId: loyaltyCustomerId || undefined,
+          phone: customerPhone || undefined,
+          customerName: customerName || undefined,
+          preOrderIds: preOrderIds?.length ? preOrderIds : undefined,
+        });
+      } catch (poErr) {
+        console.warn('[Checkout] Pre-order fulfill failed (non-blocking):', poErr);
+      }
+    }
+
     if (isHomeDelivery) {
       try {
         await api.post('/api/v1/delivery', {

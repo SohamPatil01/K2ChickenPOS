@@ -272,10 +272,18 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       }
     }
 
-    const fulfillType = useCartStore.getState().fulfillmentType;
+    const cartSnap = useCartStore.getState();
+    const fulfillType = cartSnap.fulfillmentType;
     const isHomeDelivery = fulfillType === 'DELIVERY' && !!sale.customerId;
-    const loyaltyCustomerId = useCartStore.getState().customerId;
+    const loyaltyCustomerId = cartSnap.customerId;
     const loyaltyPointsRedeemed = Number(saleData.loyaltyPointsRedeemed || 0);
+    const fromMeta = (cartSnap.items || [])
+      .map((it: any) => it?.metaJson?.preOrderId)
+      .filter(Boolean)
+      .map(String);
+    const preOrderIds = [
+      ...new Set([...(cartSnap.linkedPreOrderIds || []), ...fromMeta]),
+    ];
 
     // Success UI first — side effects (delivery, loyalty refresh, clearCart) run in background.
     onClosePaymentUi?.();
@@ -293,9 +301,12 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       payments,
       checkoutGrandTotal,
       loyaltyCustomerId,
+      customerPhone: cartSnap.customerPhone,
+      customerName: cartSnap.customerName,
+      preOrderIds,
       skipCustomer,
       isHomeDelivery,
-      deliveryFee: useCartStore.getState().getTotal().deliveryFee,
+      deliveryFee: cartSnap.getTotal().deliveryFee,
       clearCart,
       onLoyaltyBalance,
       onDeliveryError: (message) => onNotify(message, 'info', 4000),

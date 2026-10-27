@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '@/lib/api';
 import { Button, Card } from '@/components/ui';
-import { useCartStore } from '@/store/cart';
 import { useNotificationStore } from '@/store/notification';
+import { loadPreOrderIntoCart } from '@/lib/loadPreOrderIntoCart';
 
 export type PreOrderRow = {
   id: string;
@@ -71,9 +71,6 @@ export default function PosPreOrders({
   }>;
 }) {
   const { showNotification } = useNotificationStore();
-  const addItem = useCartStore((s) => s.addItem);
-  const setCustomer = useCartStore((s) => s.setCustomer);
-  const loadCart = useCartStore((s) => s.loadCart);
 
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -128,46 +125,17 @@ export default function PosPreOrders({
   const loadToCart = async (po: PreOrderRow) => {
     setBusyId(po.id);
     try {
-      for (const it of po.items) {
-        const product = it.product || products.find((p) => p.id === it.productId);
-        const rate =
-          it.pricePerUnit ??
-          (product as any)?.pricePerUnit ??
-          products.find((p) => p.id === it.productId)?.pricePerUnit ??
-          0;
-        const taxRate = product?.taxRate ?? 0;
-        const unitType = (it.unitType || product?.unitType || 'KG') as 'KG' | 'PCS';
-        const qtyKg = unitType === 'KG' ? Number(it.qtyKg) || 0 : undefined;
-        const qtyPcs = unitType === 'PCS' ? Number(it.qtyPcs) || 0 : undefined;
-        const qty = unitType === 'KG' ? qtyKg || 0 : qtyPcs || 0;
-        if (!it.productId || qty <= 0) continue;
-        const lineTotal = Math.round(qty * rate * 100) / 100;
-        await addItem({
-          productId: it.productId,
-          productName: it.productName || product?.name || 'Item',
-          qtyKg,
-          qtyPcs,
-          rate,
-          taxRate,
-          lineTotal,
-          metaJson: {
-            preOrderId: po.id,
-            preOrderItemId: it.id,
-            unitType,
-            imageUrl: product?.imageUrl || null,
-          },
-        });
+      const { loadedCount } = await loadPreOrderIntoCart({
+        api,
+        preOrder: po,
+        products,
+        replaceCart: true,
+        markConfirmed: true,
+      });
+      if (loadedCount <= 0) {
+        showNotification('Pre-order has no billable items yet', 'warning');
+        return;
       }
-      if (po.customerId || po.customerPhone) {
-        setCustomer(
-          po.customerId || null,
-          po.customerPhone,
-          po.customerName,
-          null
-        );
-      }
-      await loadCart();
-      await api.patch(`/api/v1/pre-orders/${po.id}`, { status: 'CONFIRMED' });
       showNotification(
         `Loaded ${po.customerName}'s pre-order — adjust weight then bill`,
         'success',

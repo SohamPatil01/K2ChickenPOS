@@ -676,6 +676,147 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
     }
   );
 
+  /**
+   * Open pre-orders for a POS customer (by id, phone, or name).
+   * Used to offer “load into cart” when billing the same person.
+   */
+  fastify.get(
+    '/for-customer',
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    async (request: any) => {
+      const { storeId } = getUser(request) as any;
+      const q = request.query || {};
+      const customerId = q.customerId ? String(q.customerId).trim() : '';
+      const phoneDigits = normalizePhone(String(q.phone || ''));
+      const name = String(q.name || '').trim();
+      const day = q.date ? String(q.date).split('T')[0] : ymdInStoreTz();
+      const dayStart = new Date(`${day}T00:00:00.000${STORE_TZ_OFFSET}`);
+      const dayEnd = new Date(`${day}T23:59:59.999${STORE_TZ_OFFSET}`);
+
+      if (!customerId && phoneDigits.length < 8 && name.length < 2) {
+        return { date: day, items: [] };
+      }
+
+      const identityOr: any[] = [];
+      if (customerId) identityOr.push({ customerId });
+      if (phoneDigits.length >= 8) {
+        identityOr.push({ customerPhone: { contains: phoneDigits.slice(-10) } });
+      }
+      if (name.length >= 2) {
+        identityOr.push({
+          customerName: { equals: name, mode: 'insensitive' },
+        });
+      }
+
+      const items = await prisma.preOrder.findMany({
+        where: {
+          storeId,
+          status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
+          OR: [
+            { readyAt: { gte: dayStart, lte: dayEnd } },
+            { createdAt: { gte: dayStart, lte: dayEnd } },
+          ],
+          AND: [{ OR: identityOr }],
+        },
+        include: includeFull,
+        orderBy: [{ readyAt: 'asc' }, { createdAt: 'desc' }],
+        take: 20,
+      });
+
+      const priced = [];
+      for (const po of items) {
+        priced.push(await attachPrices(storeId, po));
+      }
+      return { date: day, items: priced };
+    }
+  );
+
+  /**
+   * Mark open pre-orders fulfilled after a POS bill for the same customer.
+   * Prefer explicit preOrderIds (loaded into cart); else match by customer/phone/name.
+   */
+  fastify.post(
+    '/fulfill-by-sale',
+    { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER', 'CASHIER')] },
+    async (request: any, reply: FastifyReply) => {
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const body = (request.body as any) || {};
+      const saleId = String(body.saleId || '').trim();
+      if (!saleId) {
+        reply.code(400).send({ error: 'saleId required' });
+        return;
+      }
+
+      const explicitIds = Array.isArray(body.preOrderIds)
+        ? body.preOrderIds.map((id: any) => String(id)).filter(Boolean)
+        : [];
+      const customerId = body.customerId ? String(body.customerId).trim() : '';
+      const phoneDigits = normalizePhone(String(body.phone || ''));
+      const name = String(body.customerName || body.name || '').trim();
+      const day = ymdInStoreTz();
+      const dayStart = new Date(`${day}T00:00:00.000${STORE_TZ_OFFSET}`);
+      const dayEnd = new Date(`${day}T23:59:59.999${STORE_TZ_OFFSET}`);
+
+      const openWhere: any = {
+        storeId,
+        status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
+        OR: [
+          { readyAt: { gte: dayStart, lte: dayEnd } },
+          { createdAt: { gte: dayStart, lte: dayEnd } },
+        ],
+      };
+
+      let candidates = [];
+      if (explicitIds.length > 0) {
+        candidates = await prisma.preOrder.findMany({
+          where: { ...openWhere, id: { in: explicitIds } },
+          select: { id: true, trackingCode: true, customerName: true },
+        });
+      } else {
+        const identityOr: any[] = [];
+        if (customerId) identityOr.push({ customerId });
+        if (phoneDigits.length >= 8) {
+          identityOr.push({ customerPhone: { contains: phoneDigits.slice(-10) } });
+        }
+        if (name.length >= 2) {
+          identityOr.push({ customerName: { equals: name, mode: 'insensitive' } });
+        }
+        if (identityOr.length === 0) {
+          return { ok: true, fulfilled: [] };
+        }
+        candidates = await prisma.preOrder.findMany({
+          where: { ...openWhere, AND: [{ OR: identityOr }] },
+          select: { id: true, trackingCode: true, customerName: true },
+          take: 10,
+        });
+      }
+
+      const fulfilled = [];
+      for (const po of candidates) {
+        await prisma.$transaction(async (tx) => {
+          await tx.preOrder.update({
+            where: { id: po.id },
+            data: { status: 'FULFILLED', saleId },
+          });
+          await tx.preOrderEvent.create({
+            data: {
+              preOrderId: po.id,
+              kind: 'STATUS',
+              status: 'FULFILLED',
+              message: `Completed — billed as sale (${saleId.slice(0, 8)}…)`,
+              visibleToCustomer: true,
+              createdByUserId: user.userId,
+            },
+          });
+        });
+        fulfilled.push({ id: po.id, trackingCode: po.trackingCode, customerName: po.customerName });
+      }
+
+      return { ok: true, fulfilled };
+    }
+  );
+
   // Staff create (phone / WhatsApp call)
   fastify.post(
     '/',
