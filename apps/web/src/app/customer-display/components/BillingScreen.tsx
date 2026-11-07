@@ -52,12 +52,12 @@ export default function BillingScreen({
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[#fffaf4] via-white to-[#fff1e6] text-slate-900">
       {/* [festival-promo] Your Padwa / Bhau Beej banner strip — auto-hides after 11 Nov */}
       {festivalOn && (
-        <div className="relative h-[88px] w-full shrink-0 overflow-hidden border-b border-[#e8d4b8] sm:h-[110px]">
+        <div className="relative h-[130px] w-full shrink-0 overflow-hidden border-b border-[#e8d4b8] bg-[#f3e6d4] sm:h-[168px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={FESTIVAL_PROMO.bannerPath}
             alt={FESTIVAL_PROMO.alt}
-            className="h-full w-full object-cover object-[center_28%]"
+            className="h-full w-full object-cover object-center"
             draggable={false}
           />
         </div>
