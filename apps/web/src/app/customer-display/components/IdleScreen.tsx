@@ -13,27 +13,33 @@ import QrCode from "@/components/customerDisplay/QrCode";
 import styles from "./IdleScreen.module.css";
 
 const SLIDE_MS = 9000;
-type SlideId = "festival5" | "festivalReg" | "loyalty" | "referral";
+const FESTIVAL_SLIDE_MS = 12000;
+type SlideId = "festival" | "loyalty" | "referral";
 
 function buildSlides(): SlideId[] {
-  // [festival-promo] Padwa / Bhau Beej slides lead the carousel until 11 Nov.
+  // [festival-promo] Your Padwa / Bhau Beej banner leads the carousel until 11 Nov.
   if (isFestivalPromoActive()) {
-    return ["festival5", "festivalReg", "loyalty", "referral"];
+    return ["festival", "loyalty", "referral"];
   }
   return ["loyalty", "referral"];
+}
+
+function slideDuration(id: SlideId): number {
+  return id === "festival" ? FESTIVAL_SLIDE_MS : SLIDE_MS;
 }
 
 export default function IdleScreen() {
   const [slides] = useState<SlideId[]>(() => buildSlides());
   const [slide, setSlide] = useState(0);
   const active = slides[slide] || slides[0];
+  const activeMs = slideDuration(active);
 
   useEffect(() => {
     const id = setTimeout(() => {
       setSlide((i) => (i + 1) % slides.length);
-    }, SLIDE_MS);
+    }, activeMs);
     return () => clearTimeout(id);
-  }, [slide, slides.length]);
+  }, [slide, slides.length, activeMs]);
 
   return (
     <div className={styles.root}>
@@ -61,20 +67,20 @@ export default function IdleScreen() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={active}
-              className={`${styles.slide} ${
-                active === "loyalty" || active === "festival5"
-                  ? styles.themeRewards
-                  : styles.themeReferral
-              }`}
+              className={
+                active === "festival"
+                  ? `${styles.slide} ${styles.slideBanner}`
+                  : `${styles.slide} ${
+                      active === "loyalty" ? styles.themeRewards : styles.themeReferral
+                    }`
+              }
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.45, ease: "easeOut" }}
             >
-              {active === "festival5" ? (
-                <FestivalEveryoneSlide />
-              ) : active === "festivalReg" ? (
-                <FestivalRegisterSlide />
+              {active === "festival" ? (
+                <FestivalBannerSlide />
               ) : active === "loyalty" ? (
                 <LoyaltySlide />
               ) : (
@@ -90,16 +96,14 @@ export default function IdleScreen() {
               key={id}
               type="button"
               aria-label={
-                id === "festival5"
-                  ? "Festive 5% off"
-                  : id === "festivalReg"
-                    ? "Register for extra 5%"
-                    : id === "loyalty"
-                      ? "Loyalty rewards"
-                      : "Referral bonus"
+                id === "festival"
+                  ? "Padwa Bhau Beej offer"
+                  : id === "loyalty"
+                    ? "Loyalty rewards"
+                    : "Referral bonus"
               }
               className={`${styles.dot} ${i === slide ? styles.dotActive : ""}`}
-              style={{ ["--dur" as string]: `${SLIDE_MS / 1000}s` }}
+              style={{ ["--dur" as string]: `${slideDuration(id) / 1000}s` }}
               onClick={() => setSlide(i)}
             >
               {i === slide && (
@@ -119,71 +123,15 @@ export default function IdleScreen() {
   );
 }
 
-function FestivalEveryoneSlide() {
+function FestivalBannerSlide() {
   return (
-    <>
-      <div className={styles.slideBody}>
-        <span className={styles.eyebrow}>{FESTIVAL_PROMO.title}</span>
-        <h1 className={styles.headline}>
-          <span className={styles.accent}>{FESTIVAL_PROMO.everyoneAccent}</span>
-          <span className={styles.headlineLead}> for everyone</span>
-        </h1>
-        <p className={styles.sub}>{FESTIVAL_PROMO.everyoneSub}</p>
-        <div className={styles.stats}>
-          <div className={styles.stat}>
-            <div className={styles.statBig}>5%</div>
-            <div className={styles.statCap}>festive discount</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statBig}>11</div>
-            <div className={styles.statCap}>Nov last day</div>
-          </div>
-        </div>
-        <div className={styles.chips}>
-          <span className={styles.chip}>{FESTIVAL_PROMO.everyoneChip}</span>
-          <span className={styles.chip}>{FESTIVAL_PROMO.validLabel}</span>
-        </div>
-      </div>
-      <QrPanel
-        url={LOYALTY.portalUrl}
-        hint="Ask the counter to apply your festive 5%"
-        host="Padwa · Bhau Beej"
-      />
-    </>
-  );
-}
-
-function FestivalRegisterSlide() {
-  return (
-    <>
-      <div className={styles.slideBody}>
-        <span className={styles.eyebrow}>{FESTIVAL_PROMO.title}</span>
-        <h1 className={styles.headline}>
-          <span className={styles.headlineLead}>Register &amp; save an </span>
-          <span className={styles.accent}>{FESTIVAL_PROMO.registerAccent}</span>
-        </h1>
-        <p className={styles.sub}>{FESTIVAL_PROMO.registerSub}</p>
-        <div className={styles.stats}>
-          <div className={styles.stat}>
-            <div className={styles.statBig}>5%+</div>
-            <div className={styles.statCap}>extra when you register</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statBig}>10%</div>
-            <div className={styles.statCap}>total for members</div>
-          </div>
-        </div>
-        <div className={styles.chips}>
-          <span className={styles.chip}>{FESTIVAL_PROMO.registerChip}</span>
-          <span className={styles.chip}>{FESTIVAL_PROMO.totalRegisteredLabel}</span>
-        </div>
-      </div>
-      <QrPanel
-        url={LOYALTY.portalUrl}
-        hint="Share your number at the counter to unlock"
-        host="Register · Extra 5%"
-      />
-    </>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className={styles.bannerImg}
+      src={FESTIVAL_PROMO.bannerPath}
+      alt={FESTIVAL_PROMO.alt}
+      draggable={false}
+    />
   );
 }
 

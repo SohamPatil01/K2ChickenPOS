@@ -41,7 +41,6 @@ export default function BillingScreen({
   const hasItems = bill.items.length > 0;
   const [panelOpen, setPanelOpen] = useState(false);
   const festivalOn = isFestivalPromoActive();
-  const hasCustomer = Boolean(bill.customerName || customerInfo.phone || customerInfo.name);
 
   // Someone (either side) started editing a field — surface the panel so
   // the context is visible, instead of leaving it collapsed underneath.
@@ -51,26 +50,16 @@ export default function BillingScreen({
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[#fffaf4] via-white to-[#fff1e6] text-slate-900">
-      {/* [festival-promo] Padwa / Bhau Beej ribbon — auto-hides after 11 Nov */}
+      {/* [festival-promo] Your Padwa / Bhau Beej banner strip — auto-hides after 11 Nov */}
       {festivalOn && (
-        <div className="bg-gradient-to-r from-[#a92e21] via-[#d0431a] to-[#f15a24] px-4 py-2 text-center text-white sm:px-6">
-          <p className="text-sm font-extrabold tracking-wide sm:text-base">
-            {FESTIVAL_PROMO.title}: {FESTIVAL_PROMO.everyoneHeadline}
-            {!hasCustomer ? (
-              <span className="font-semibold opacity-95">
-                {" "}
-                · Register for an {FESTIVAL_PROMO.registerAccent}
-              </span>
-            ) : (
-              <span className="font-semibold opacity-95">
-                {" "}
-                · Members: {FESTIVAL_PROMO.totalRegisteredLabel}
-              </span>
-            )}
-            <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider">
-              {FESTIVAL_PROMO.validLabel}
-            </span>
-          </p>
+        <div className="relative h-[88px] w-full shrink-0 overflow-hidden border-b border-[#e8d4b8] sm:h-[110px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={FESTIVAL_PROMO.bannerPath}
+            alt={FESTIVAL_PROMO.alt}
+            className="h-full w-full object-cover object-[center_28%]"
+            draggable={false}
+          />
         </div>
       )}
 

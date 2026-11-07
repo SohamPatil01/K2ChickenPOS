@@ -102,19 +102,11 @@ export const FESTIVAL_PROMO = {
   id: "padwa-bhau-beej-2026",
   /** Inclusive end date in Asia/Kolkata calendar day. */
   endsOnYmd: "2026-11-11",
+  /** Full creative used on the customer-display idle carousel + billing strip. */
+  bannerPath: "/padwa-bhau-beej-banner.jpg",
   title: "Padwa · Bhau Beej",
-  everyoneHeadline: "5% off for everyone",
-  everyoneAccent: "5% off",
-  everyoneSub:
-    "Celebrate Padwa & Bhau Beej with us — festive discount on your bill till 11 Nov.",
-  registerHeadline: "Register & save an extra 5%",
-  registerAccent: "extra 5%",
-  registerSub:
-    "Share your mobile number at the counter — get 5% more off on top of the festive offer.",
-  everyoneChip: "All customers",
-  registerChip: "New & loyalty members",
+  alt: "Padwa & Bhau Beej Special — Flat 5% discount, register & get extra 5%",
   validLabel: "Offer till 11 Nov",
-  totalRegisteredLabel: "Up to 10% off",
 } as const;
 
 /** True while the Padwa / Bhau Beej ads should show (IST calendar day). */
