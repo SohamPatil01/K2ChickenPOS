@@ -41,7 +41,7 @@ export default function BillingScreen({
   const hasItems = bill.items.length > 0;
   const [panelOpen, setPanelOpen] = useState(false);
   const festivalOn = isFestivalPromoActive();
-  const hasCustomer = Boolean(bill.customerName || bill.customerPhone || customerInfo.phone);
+  const hasCustomer = Boolean(bill.customerName || customerInfo.phone || customerInfo.name);
 
   // Someone (either side) started editing a field — surface the panel so
   // the context is visible, instead of leaving it collapsed underneath.
