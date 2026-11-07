@@ -2,12 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  FESTIVAL_PROMO,
-  formatINR,
-  formatINR2,
-  isFestivalPromoActive,
-} from "@/lib/customerDisplay/brand";
+import { formatINR, formatINR2 } from "@/lib/customerDisplay/brand";
 import BrandMark from "@/components/customerDisplay/BrandMark";
 import type { BillUpdatePayload, DisplayLineItem, DraftFieldKey } from "@/lib/customerDisplay/types";
 import CustomerInfoPanel, { type CustomerInfoValues } from "./CustomerInfoPanel";
@@ -40,7 +35,6 @@ export default function BillingScreen({
 }) {
   const hasItems = bill.items.length > 0;
   const [panelOpen, setPanelOpen] = useState(false);
-  const festivalOn = isFestivalPromoActive();
 
   // Someone (either side) started editing a field — surface the panel so
   // the context is visible, instead of leaving it collapsed underneath.
@@ -50,19 +44,6 @@ export default function BillingScreen({
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[#fffaf4] via-white to-[#fff1e6] text-slate-900">
-      {/* [festival-promo] Your Padwa / Bhau Beej banner strip — auto-hides after 11 Nov */}
-      {festivalOn && (
-        <div className="relative h-[130px] w-full shrink-0 overflow-hidden border-b border-[#e8d4b8] bg-[#f3e6d4] sm:h-[168px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={FESTIVAL_PROMO.bannerPath}
-            alt={FESTIVAL_PROMO.alt}
-            className="h-full w-full object-cover object-center"
-            draggable={false}
-          />
-        </div>
-      )}
-
       {/* Header */}
       <div className="border-b border-orange-100 bg-white/75 px-8 py-4 backdrop-blur sm:px-10 sm:py-5">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
