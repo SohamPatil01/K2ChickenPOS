@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatINR, formatINR2 } from "@/lib/customerDisplay/brand";
+import {
+  FESTIVAL_PROMO,
+  formatINR,
+  formatINR2,
+  isFestivalPromoActive,
+} from "@/lib/customerDisplay/brand";
 import BrandMark from "@/components/customerDisplay/BrandMark";
 import type { BillUpdatePayload, DisplayLineItem, DraftFieldKey } from "@/lib/customerDisplay/types";
 import CustomerInfoPanel, { type CustomerInfoValues } from "./CustomerInfoPanel";
@@ -35,6 +40,8 @@ export default function BillingScreen({
 }) {
   const hasItems = bill.items.length > 0;
   const [panelOpen, setPanelOpen] = useState(false);
+  const festivalOn = isFestivalPromoActive();
+  const hasCustomer = Boolean(bill.customerName || bill.customerPhone || customerInfo.phone);
 
   // Someone (either side) started editing a field — surface the panel so
   // the context is visible, instead of leaving it collapsed underneath.
@@ -44,6 +51,29 @@ export default function BillingScreen({
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[#fffaf4] via-white to-[#fff1e6] text-slate-900">
+      {/* [festival-promo] Padwa / Bhau Beej ribbon — auto-hides after 11 Nov */}
+      {festivalOn && (
+        <div className="bg-gradient-to-r from-[#a92e21] via-[#d0431a] to-[#f15a24] px-4 py-2 text-center text-white sm:px-6">
+          <p className="text-sm font-extrabold tracking-wide sm:text-base">
+            {FESTIVAL_PROMO.title}: {FESTIVAL_PROMO.everyoneHeadline}
+            {!hasCustomer ? (
+              <span className="font-semibold opacity-95">
+                {" "}
+                · Register for an {FESTIVAL_PROMO.registerAccent}
+              </span>
+            ) : (
+              <span className="font-semibold opacity-95">
+                {" "}
+                · Members: {FESTIVAL_PROMO.totalRegisteredLabel}
+              </span>
+            )}
+            <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider">
+              {FESTIVAL_PROMO.validLabel}
+            </span>
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b border-orange-100 bg-white/75 px-8 py-4 backdrop-blur sm:px-10 sm:py-5">
         <div className="mx-auto flex max-w-6xl items-center justify-between">

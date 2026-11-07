@@ -1635,7 +1635,7 @@ export default function StoreCartPage() {
                       disabled={discountLocked}
                     />
                     <p className="text-[10px] text-ink-muted mt-1">
-                      Built-in: K2CHICKEN10 (10%), WELCOME5 (5%) when no other discount is set.
+                      Built-in: PADWA5 (5%), PADWA10 (10% registered), K2CHICKEN10, WELCOME5.
                     </p>
                   </div>
 

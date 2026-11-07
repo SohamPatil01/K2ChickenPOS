@@ -95,6 +95,44 @@ export const REFERRAL = {
 } as const;
 
 /**
+ * Padwa / Bhau Beej festive offer on the customer display.
+ * [festival-promo] — valid through end of day 11 Nov 2026 (IST). Auto-hides after.
+ */
+export const FESTIVAL_PROMO = {
+  id: "padwa-bhau-beej-2026",
+  /** Inclusive end date in Asia/Kolkata calendar day. */
+  endsOnYmd: "2026-11-11",
+  title: "Padwa · Bhau Beej",
+  everyoneHeadline: "5% off for everyone",
+  everyoneAccent: "5% off",
+  everyoneSub:
+    "Celebrate Padwa & Bhau Beej with us — festive discount on your bill till 11 Nov.",
+  registerHeadline: "Register & save an extra 5%",
+  registerAccent: "extra 5%",
+  registerSub:
+    "Share your mobile number at the counter — get 5% more off on top of the festive offer.",
+  everyoneChip: "All customers",
+  registerChip: "New & loyalty members",
+  validLabel: "Offer till 11 Nov",
+  totalRegisteredLabel: "Up to 10% off",
+} as const;
+
+/** True while the Padwa / Bhau Beej ads should show (IST calendar day). */
+export function isFestivalPromoActive(now: Date = new Date()): boolean {
+  try {
+    const ymd = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+    return ymd <= FESTIVAL_PROMO.endsOnYmd;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Post-payment "leave us a review" poster shown on the customer display.
  * The URL can be overridden per deployment with NEXT_PUBLIC_REVIEW_URL.
  */
