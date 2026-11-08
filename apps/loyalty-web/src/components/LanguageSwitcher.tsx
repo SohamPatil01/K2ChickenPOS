@@ -10,15 +10,15 @@ export function LanguageSwitcher({
   onChange: (l: Locale) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 text-[0.7rem] tracking-[0.12em] uppercase">
+    <div className="flex items-center text-[12px] text-ink-mute">
       {LOCALES.map((l, i) => (
-        <span key={l.id} className="flex items-center gap-3">
-          {i > 0 && <span className="text-ink-mute">/</span>}
+        <span key={l.id} className="flex items-center">
+          {i > 0 && <span className="px-0.5">/</span>}
           <button
             type="button"
             onClick={() => onChange(l.id)}
-            className={`transition-colors duration-200 ${
-              locale === l.id ? 'text-flame font-semibold' : 'text-ink-mute hover:text-ink'
+            className={`bg-transparent border-none h-auto px-1.5 py-0.5 cursor-pointer text-[12px] transition-colors ${
+              locale === l.id ? 'text-flame-ink font-medium' : 'text-ink-mute hover:text-ink'
             }`}
           >
             {l.label}

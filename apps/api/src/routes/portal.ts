@@ -58,6 +58,7 @@ function customerPublic(c: {
   phone: string;
   loyaltyPoints: number;
   loyaltyTier: string;
+  totalSpent?: number | null;
   referralCode?: string | null;
 }) {
   return {
@@ -66,6 +67,7 @@ function customerPublic(c: {
     phone: c.phone,
     loyaltyPoints: Math.round(c.loyaltyPoints || 0),
     loyaltyTier: c.loyaltyTier || 'BRONZE',
+    totalSpent: Math.round(Number(c.totalSpent) || 0),
     referralCode: c.referralCode || null,
   };
 }

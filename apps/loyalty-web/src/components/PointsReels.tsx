@@ -104,7 +104,7 @@ export function PointsReels({ value, loadingDigits = 3 }: PointsReelsProps) {
   return (
     <p
       key={key}
-      className="mt-3 font-display text-[5.5rem] sm:text-[6.5rem] font-extrabold leading-none tracking-tight tabular-nums text-ink flex justify-start"
+      className="mt-1 font-display text-[4.75rem] sm:text-[76px] font-medium leading-none tracking-[-0.04em] tabular-nums text-ink flex justify-start"
       aria-label={value === null ? 'Loading points' : `${value} points`}
       aria-live="polite"
     >

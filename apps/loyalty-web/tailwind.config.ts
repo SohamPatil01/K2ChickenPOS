@@ -6,20 +6,30 @@ const config: Config = {
     extend: {
       colors: {
         ink: {
-          DEFAULT: '#14110f',
-          soft: '#3d342c',
-          mute: '#8a8078',
+          DEFAULT: '#2a1a12',
+          soft: '#6b5848',
+          mute: '#8a7766',
         },
         paper: {
-          DEFAULT: '#faf8f5',
+          DEFAULT: '#faf6ec',
           raised: '#ffffff',
+          warm: '#f3e9d2',
         },
         flame: {
-          DEFAULT: '#ff4d1a',
-          deep: '#e03d0e',
-          soft: 'rgba(255, 77, 26, 0.1)',
+          DEFAULT: '#e8481c',
+          deep: '#c93a12',
+          ink: '#b33a12',
+          soft: 'rgba(232, 72, 28, 0.1)',
         },
-        line: 'rgba(20, 17, 15, 0.1)',
+        line: {
+          DEFAULT: '#e4dac4',
+          soft: '#efe6d2',
+          strong: '#cdbfa3',
+        },
+        pill: {
+          DEFAULT: '#f6d9a8',
+          ink: '#633806',
+        },
       },
       fontFamily: {
         display: ['var(--font-sans)', 'system-ui', 'sans-serif'],

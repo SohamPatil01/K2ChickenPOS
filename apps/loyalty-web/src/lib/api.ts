@@ -8,6 +8,8 @@ export type PortalCustomer = {
   phone: string;
   loyaltyPoints: number;
   loyaltyTier: string;
+  /** Lifetime spend used for next-tier progress (INR). */
+  totalSpent?: number;
   referralCode?: string | null;
   area?: string | null;
 };
