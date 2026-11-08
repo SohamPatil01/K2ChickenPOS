@@ -6,7 +6,7 @@ import { getUser, requireRole } from '../utils/auth.js';
 import { ymdInStoreTz, STORE_TZ_OFFSET, isMasaleProduct } from '@azela-pos/shared';
 
 /** On-hand qty for products at a physical store (same math as inventory summary). */
-async function stockByProductIds(
+export async function stockByProductIds(
   storeId: string,
   productIds: string[]
 ): Promise<Map<string, { qtyKg: number; qtyPcs: number }>> {
