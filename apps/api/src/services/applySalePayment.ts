@@ -295,15 +295,21 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     sale.status !== 'PAID' &&
     existingSums.actual < Math.round(sale.grandTotal) - 0.5;
 
+  // Must await — fire-and-forget was dropping EARN rows when the serverless
+  // isolate froze after the /pay response (hundreds of PAID bills with 0 points).
   if (sale.customerId && becameSettled) {
-    void awardSaleLoyaltyEarn(prisma, {
-      saleId,
-      saleNo: sale.saleNo,
-      customerId: sale.customerId,
-      storeId: sale.storeId,
-      grandTotal: sale.grandTotal,
-      userId: actorUserId,
-    }).catch((err) => console.warn('[Payment] Loyalty award failed (non-critical):', err));
+    try {
+      await awardSaleLoyaltyEarn(prisma, {
+        saleId,
+        saleNo: sale.saleNo,
+        customerId: sale.customerId,
+        storeId: sale.storeId,
+        grandTotal: sale.grandTotal,
+        userId: actorUserId,
+      });
+    } catch (err) {
+      console.warn('[Payment] Loyalty award failed:', err);
+    }
   }
 
   void prisma.auditLog

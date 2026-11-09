@@ -8,7 +8,7 @@ import {
   upsertCustomerArea,
   withCustomerArea,
 } from '../utils/customerArea.js';
-import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
+import { awardSaleLoyaltyEarn, repairMissingSaleLoyaltyEarns } from '../lib/loyalty.js';
 import {
   getProfileRewardState,
   grantProfileRewardIfEligible,
@@ -1394,19 +1394,21 @@ export async function customerRoutes(fastify: FastifyInstance) {
           }
         });
 
-        // Loyalty earn must not block the cashier — same as /pay.
+        // Await earns so serverless freeze cannot drop points after settle.
         for (const a of allocations) {
           if (!a.fullyPaid) continue;
-          void awardSaleLoyaltyEarn(prisma, {
-            saleId: a.saleId,
-            saleNo: a.saleNo,
-            customerId,
-            storeId: a.storeId,
-            grandTotal: a.grandTotal,
-            userId,
-          }).catch((loyaltyErr) =>
-            console.warn('[settle-pending] loyalty earn failed:', a.saleNo, loyaltyErr)
-          );
+          try {
+            await awardSaleLoyaltyEarn(prisma, {
+              saleId: a.saleId,
+              saleNo: a.saleNo,
+              customerId,
+              storeId: a.storeId,
+              grandTotal: a.grandTotal,
+              userId,
+            });
+          } catch (loyaltyErr) {
+            console.warn('[settle-pending] loyalty earn failed:', a.saleNo, loyaltyErr);
+          }
         }
 
         const unallocated = Math.max(0, amount - applied);
@@ -1732,12 +1734,46 @@ export async function customerRoutes(fastify: FastifyInstance) {
   });
 
   // ------------------------------------------------------------------
+  // Repair PAID sales that never got an EARN row (fire-and-forget pay bug).
+  // OWNER-only. Safe to re-run — awardSaleLoyaltyEarn is idempotent per sale.
+  // ------------------------------------------------------------------
+  fastify.post('/loyalty/repair-missing-earns', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply): Promise<any> => {
+    try {
+      const body = (request.body as any) || {};
+      const userId = (getUser(request) as any).userId;
+      const result = await repairMissingSaleLoyaltyEarns(prisma, {
+        userId,
+        limit: Number(body.limit) || 2000,
+      });
+      try {
+        const actorStoreId = (getUser(request) as any).storeId;
+        await prisma.auditLog.create({
+          data: {
+            storeId: actorStoreId,
+            actorUserId: userId,
+            action: 'LOYALTY_REPAIR_MISSING_EARNS',
+            entityType: 'Customer',
+            entityId: 'ALL',
+            metaJson: result,
+          },
+        });
+      } catch (auditErr) {
+        console.warn('[Loyalty Repair] audit log failed (non-critical):', auditErr);
+      }
+      return { ok: true, ...result };
+    } catch (error: any) {
+      console.error('Failed to repair missing loyalty earns:', error);
+      reply.code(500).send({ error: 'Failed to repair missing loyalty earns', details: error?.message });
+    }
+  });
+
   // One-time maintenance: recompute every customer's loyalty balance from
   // their purchase history at the current 1.25% rate, net of points already
   // redeemed. OWNER-only. Dry-run by default (preview), apply with dryRun:false.
   //
   // Rules (chosen by the operator):
-  //   earned   = floor( sum(grandTotal of all NON-VOID sales) * 0.0125 )
+  //   earned   = sum over NON-VOID sales of floor(grandTotal * 0.0125)
+  //              (same as live awardSaleLoyaltyEarn / computeLoyaltyEarnPoints)
   //   redeemed = sum(|REDEEM points|) excluding redemptions tied to VOID sales
   //              (those were already restored by the void flow)
   //   balance  = max(0, earned - redeemed)
@@ -1760,15 +1796,24 @@ export async function customerRoutes(fastify: FastifyInstance) {
         return 'BRONZE';
       };
 
-      // Aggregate non-void sales per customer (earning + spend base).
-      const salesAgg = await prisma.sale.groupBy({
-        by: ['customerId'],
-        where: { customerId: { not: null }, status: { not: 'VOID' } },
-        _sum: { grandTotal: true },
-      });
+      // Per-bill floor earn (matches live) + spend base per customer.
+      const salesRows = await prisma.$queryRaw<
+        Array<{ customerId: string; salesSum: number; earned: number }>
+      >`
+        SELECT
+          s."customerId" AS "customerId",
+          COALESCE(SUM(s."grandTotal"), 0)::float AS "salesSum",
+          COALESCE(SUM(FLOOR(s."grandTotal" * ${POINTS_RATE})), 0)::float AS earned
+        FROM "Sale" s
+        WHERE s."customerId" IS NOT NULL AND s.status <> 'VOID'
+        GROUP BY s."customerId"
+      `;
       const salesByCustomer = new Map<string, number>();
-      for (const row of salesAgg as any[]) {
-        if (row.customerId) salesByCustomer.set(row.customerId, row._sum?.grandTotal || 0);
+      const earnedByCustomer = new Map<string, number>();
+      for (const row of salesRows) {
+        if (!row.customerId) continue;
+        salesByCustomer.set(row.customerId, Number(row.salesSum) || 0);
+        earnedByCustomer.set(row.customerId, Math.floor(Number(row.earned) || 0));
       }
 
       // All redeemed points per customer (stored negative).
@@ -1833,7 +1878,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
 
       for (const c of customers) {
         const salesSum = salesByCustomer.get(c.id) || 0;
-        const earned = Math.floor(salesSum * POINTS_RATE);
+        const earned = earnedByCustomer.get(c.id) || 0;
         const totalRedeem = redeemByCustomer.get(c.id) || 0;
         const voidRedeem = voidRedeemByCustomer.get(c.id) || 0;
         const redeemedActive = Math.max(0, totalRedeem - voidRedeem);

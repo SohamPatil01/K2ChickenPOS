@@ -18,6 +18,10 @@ export type AwardLoyaltyArgs = {
 /**
  * Idempotent earn on first actual settlement of a sale.
  * Safe to call from /pay, settle-pending, and offline sync.
+ *
+ * Must be awaited — fire-and-forget drops earns on serverless freeze.
+ * Uses a transaction + unique (saleId where type=EARN) so concurrent pays
+ * cannot double-credit.
  */
 export async function awardSaleLoyaltyEarn(
   db: Db,
@@ -36,64 +40,135 @@ export async function awardSaleLoyaltyEarn(
   let pointsEarned = 0;
 
   try {
-    const alreadyEarned = await db.loyaltyTransaction.findFirst({
-      where: { saleId, type: 'EARN' },
-      select: { id: true },
-    });
-    if (!alreadyEarned) {
-      pointsEarned = computeLoyaltyEarnPoints(grandTotal);
-      if (pointsEarned > 0) {
-        const customer = await db.customer.findFirst({
-          where: { id: customerId },
-          select: { loyaltyPoints: true, totalSpent: true },
-        });
-        if (customer) {
-          const newBalance = (customer.loyaltyPoints || 0) + pointsEarned;
-          const newTotalSpent = (customer.totalSpent || 0) + Number(grandTotal);
-          await db.customer.update({
-            where: { id: customerId },
-            data: {
-              loyaltyPoints: newBalance,
-              totalSpent: newTotalSpent,
-            },
-          });
-          try {
-            await db.loyaltyTransaction.create({
-              data: {
-                customerId,
-                storeId,
-                type: 'EARN',
-                points: pointsEarned,
-                balance: newBalance,
-                description: `Earned ${pointsEarned} points from purchase ${saleNo}`,
-                saleId,
-                createdBy: userId || null,
-              },
-            });
-          } catch (loyaltyErr) {
-            console.warn('[loyalty] Could not create EARN transaction:', loyaltyErr);
-          }
-        }
-      }
-    }
+    pointsEarned = await db.$transaction(async (tx) => {
+      const alreadyEarned = await tx.loyaltyTransaction.findFirst({
+        where: { saleId, type: 'EARN' },
+        select: { id: true },
+      });
+      if (alreadyEarned) return 0;
 
-    if (awardReferral) {
+      const pts = computeLoyaltyEarnPoints(grandTotal);
+      if (pts <= 0) return 0;
+
+      const customer = await tx.customer.findFirst({
+        where: { id: customerId },
+        select: { loyaltyPoints: true, totalSpent: true },
+      });
+      if (!customer) return 0;
+
+      const newBalance = (customer.loyaltyPoints || 0) + pts;
+      const newTotalSpent = (customer.totalSpent || 0) + Number(grandTotal);
+
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          loyaltyPoints: newBalance,
+          totalSpent: newTotalSpent,
+        },
+      });
+
       try {
-        await maybeAwardReferralBonus(db, {
-          customerId,
-          storeId,
-          saleId,
-          userId: userId || undefined,
+        await tx.loyaltyTransaction.create({
+          data: {
+            customerId,
+            storeId,
+            type: 'EARN',
+            points: pts,
+            balance: newBalance,
+            description: `Earned ${pts} points from purchase ${saleNo}`,
+            saleId,
+            createdBy: userId || null,
+          },
         });
-      } catch (refErr) {
-        console.warn('[loyalty] Could not process referral bonus:', refErr);
+      } catch (createErr: any) {
+        // Unique index race: another request already wrote EARN for this sale.
+        if (createErr?.code === 'P2002') {
+          // Roll back the customer bump we just applied in this txn by aborting.
+          throw Object.assign(new Error('LOYALTY_EARN_RACE'), { code: 'LOYALTY_EARN_RACE' });
+        }
+        throw createErr;
       }
+
+      return pts;
+    });
+  } catch (err: any) {
+    if (err?.code === 'LOYALTY_EARN_RACE' || err?.message === 'LOYALTY_EARN_RACE') {
+      return { pointsEarned: 0 };
     }
-  } catch (err) {
+    // Unique violation bubbling from Prisma outside our wrapper
+    if (err?.code === 'P2002') {
+      return { pointsEarned: 0 };
+    }
     console.warn('[loyalty] awardSaleLoyaltyEarn failed:', err);
   }
 
+  if (awardReferral) {
+    try {
+      await maybeAwardReferralBonus(db, {
+        customerId,
+        storeId,
+        saleId,
+        userId: userId || undefined,
+      });
+    } catch (refErr) {
+      console.warn('[loyalty] Could not process referral bonus:', refErr);
+    }
+  }
+
   return { pointsEarned };
+}
+
+/**
+ * Credit any PAID (non-void) sale that never got an EARN row.
+ * Idempotent via awardSaleLoyaltyEarn. Use after fixing fire-and-forget pays.
+ */
+export async function repairMissingSaleLoyaltyEarns(
+  db: Db,
+  opts: { userId?: string | null; limit?: number } = {}
+): Promise<{ scanned: number; repaired: number; pointsAdded: number }> {
+  const limit = Math.max(1, Math.min(opts.limit || 2000, 5000));
+
+  const missing = await db.$queryRaw<
+    Array<{
+      id: string;
+      saleNo: string;
+      customerId: string;
+      storeId: string;
+      grandTotal: number;
+    }>
+  >`
+    SELECT s.id, s."saleNo", s."customerId", s."storeId", s."grandTotal"
+    FROM "Sale" s
+    WHERE s."customerId" IS NOT NULL
+      AND s.status = 'PAID'
+      AND NOT EXISTS (
+        SELECT 1 FROM "LoyaltyTransaction" lt
+        WHERE lt."saleId" = s.id AND lt.type = 'EARN'
+      )
+    ORDER BY s."createdAt" ASC
+    LIMIT ${limit}
+  `;
+
+  let repaired = 0;
+  let pointsAdded = 0;
+  for (const sale of missing) {
+    const { pointsEarned } = await awardSaleLoyaltyEarn(db, {
+      saleId: sale.id,
+      saleNo: sale.saleNo,
+      customerId: sale.customerId,
+      storeId: sale.storeId,
+      grandTotal: Number(sale.grandTotal) || 0,
+      userId: opts.userId,
+      // Referral already may have fired from another path; keep on for first settle.
+      awardReferral: true,
+    });
+    if (pointsEarned > 0) {
+      repaired += 1;
+      pointsAdded += pointsEarned;
+    }
+  }
+
+  return { scanned: missing.length, repaired, pointsAdded };
 }
 
 /**
@@ -142,10 +217,6 @@ export async function reverseSaleLoyaltyEarn(
     if (!cust) return { pointsReversed: 0 };
 
     const newBalance = Math.max(0, (cust.loyaltyPoints || 0) - points);
-    // totalSpent was increased by sale grandTotal at earn time — reduce by same points' sale
-    // We don't store grandTotal on the txn; use description or leave totalSpent as-is?
-    // Better: read sale grandTotal from earn context — pass grandTotal optional.
-    // For now reverse points only; also try to reduce totalSpent by looking up sale.
     const sale = await db.sale.findUnique({
       where: { id: saleId },
       select: { grandTotal: true },
