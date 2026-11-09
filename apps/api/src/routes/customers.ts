@@ -1772,11 +1772,12 @@ export async function customerRoutes(fastify: FastifyInstance) {
   // redeemed. OWNER-only. Dry-run by default (preview), apply with dryRun:false.
   //
   // Rules (chosen by the operator):
-  //   earned   = sum over NON-VOID sales of floor(grandTotal * 0.0125)
-  //              (same as live awardSaleLoyaltyEarn / computeLoyaltyEarnPoints)
-  //   redeemed = sum(|REDEEM points|) excluding redemptions tied to VOID sales
-  //              (those were already restored by the void flow)
-  //   balance  = max(0, earned - redeemed)
+  //   earned    = sum over NON-VOID sales of floor(grandTotal * 0.0125)
+  //               (same as live awardSaleLoyaltyEarn / computeLoyaltyEarnPoints)
+  //   referral  = sum(REFERRAL points) — must be kept; never strip bonuses
+  //   redeemed  = sum(|REDEEM points|) excluding redemptions tied to VOID sales
+  //               (those were already restored by the void flow)
+  //   balance   = max(0, earned + referral - redeemed)
   //   totalSpent / tier are recomputed from the same NON-VOID sales total.
   //
   // No schema changes: only loyaltyPoints / totalSpent / loyaltyTier are
@@ -1825,6 +1826,17 @@ export async function customerRoutes(fastify: FastifyInstance) {
       const redeemByCustomer = new Map<string, number>();
       for (const row of redeemAgg as any[]) {
         redeemByCustomer.set(row.customerId, Math.abs(row._sum?.points || 0));
+      }
+
+      // Referral bonuses must be preserved by Recalc.
+      const referralAgg = await prisma.loyaltyTransaction.groupBy({
+        by: ['customerId'],
+        where: { type: 'REFERRAL' },
+        _sum: { points: true },
+      });
+      const referralByCustomer = new Map<string, number>();
+      for (const row of referralAgg as any[]) {
+        referralByCustomer.set(row.customerId, Math.max(0, Number(row._sum?.points) || 0));
       }
 
       // Redemptions tied to VOID sales — exclude, since the void already
@@ -1879,10 +1891,11 @@ export async function customerRoutes(fastify: FastifyInstance) {
       for (const c of customers) {
         const salesSum = salesByCustomer.get(c.id) || 0;
         const earned = earnedByCustomer.get(c.id) || 0;
+        const referral = referralByCustomer.get(c.id) || 0;
         const totalRedeem = redeemByCustomer.get(c.id) || 0;
         const voidRedeem = voidRedeemByCustomer.get(c.id) || 0;
         const redeemedActive = Math.max(0, totalRedeem - voidRedeem);
-        const newPoints = Math.max(0, earned - redeemedActive);
+        const newPoints = Math.max(0, earned + referral - redeemedActive);
         const newTotalSpent = Math.round(salesSum);
         const newTier = tierFor(newTotalSpent);
 

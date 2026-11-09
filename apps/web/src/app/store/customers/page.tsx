@@ -408,7 +408,7 @@ export default function StoreCustomersPage() {
         `Recalculate loyalty points across ${d.totalCustomers} customers?\n\n` +
           `${d.changedCount} customer(s) will change.\n` +
           `Total points: ${d.totals.oldPointsSum} → ${d.totals.newPointsSum} (net ${sign}${d.totals.deltaSum}).\n\n` +
-          `Each balance becomes the sum of per-bill 1.25% earns (same as live), minus points already redeemed. Continue?`
+          `Each balance becomes per-bill 1.25% earns + referral bonuses − redeems (same as live). Continue?`
       );
       if (!ok) return;
       const res = await api.post('/api/v1/customers/loyalty/backfill', { dryRun: false });
