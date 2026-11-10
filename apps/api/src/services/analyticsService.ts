@@ -7,6 +7,12 @@ import {
   ymdDaysAgoInStoreTz,
 } from '@azela-pos/shared';
 import { getReceivedPurchaseValueInRange } from '../utils/poValue.js';
+import {
+  buildPredictiveInsights,
+  detectRevenueAnomalies,
+  forecastProductDemand,
+  forecastRevenueSeries,
+} from './mlPredict.js';
 
 // Date utility functions (replacing date-fns to avoid dependency)
 function startOfDay(date: Date): Date {
@@ -2803,6 +2809,175 @@ export class AnalyticsService {
       paymentMix: money.paymentMix,
       segmentCounts: segments.counts,
       demographicsSummary: demographics.summary || null,
+    };
+  }
+
+  /**
+   * Full-history predictive model for Advanced Analytics (revenue + SKU demand + insights).
+   * shortcut: in-process seasonal/trend ML, upgrade when ANALYTICS_FORECAST_PROVIDER=ml is wired.
+   */
+  async getMlPredictions(
+    storeId: string,
+    options: {
+      forecastDays?: number;
+      historyDays?: number;
+      franchiseStoreId?: string | null;
+    } = {}
+  ): Promise<any> {
+    const forecastDays = Math.min(30, Math.max(7, Number(options.forecastDays) || 14));
+    const historyDays = Math.min(365, Math.max(30, Number(options.historyDays) || 365));
+    const { storeIds } = await this.resolveAnalyticsStoreIds(
+      storeId,
+      options.franchiseStoreId ?? null
+    );
+
+    const startDate = startOfDay(subDays(new Date(), historyDays));
+    const endDate = endOfDay(new Date());
+    const storeFilter = storeIds.length > 1 ? { in: storeIds } : storeIds[0];
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        storeId: storeFilter,
+        status: 'PAID',
+        OR: [
+          { createdAt: { gte: subDays(startDate, 2), lte: addDays(endDate, 2) } },
+          { businessDate: { gte: subDays(startDate, 2), lte: addDays(endDate, 2) } },
+        ],
+      },
+      select: {
+        grandTotal: true,
+        createdAt: true,
+        businessDate: true,
+        items: {
+          select: {
+            productId: true,
+            qtyKg: true,
+            qtyPcs: true,
+            lineTotal: true,
+            product: { select: { name: true } },
+          },
+        },
+        payments: { select: { method: true, amount: true } },
+      },
+    });
+
+    const histStartStr = format(startDate, 'yyyy-MM-dd');
+    const histEndStr = format(endDate, 'yyyy-MM-dd');
+    const filtered = sales.filter((s) => {
+      const k = saleBucketDateKey(s);
+      return k >= histStartStr && k <= histEndStr;
+    });
+
+    const salesByDate: Record<string, number> = {};
+    const productMeta: Record<string, { name: string; revenue: number }> = {};
+    const productQtyByDate: Record<string, Record<string, number>> = {};
+    const payRecent: Record<string, number> = {};
+    const payPrior: Record<string, number> = {};
+    const midYmd = format(subDays(new Date(), Math.floor(historyDays / 2)), 'yyyy-MM-dd');
+
+    filtered.forEach((sale) => {
+      const date = saleBucketDateKey(sale);
+      salesByDate[date] = (salesByDate[date] || 0) + (sale.grandTotal || 0);
+
+      const payBucket = date >= midYmd ? payRecent : payPrior;
+      (sale.payments || []).forEach((p) => {
+        const m = p.method || 'OTHER';
+        payBucket[m] = (payBucket[m] || 0) + (p.amount || 0);
+      });
+
+      sale.items.forEach((item) => {
+        const pid = item.productId;
+        if (!productMeta[pid]) {
+          productMeta[pid] = { name: item.product?.name || 'Unknown', revenue: 0 };
+        }
+        productMeta[pid]!.revenue += item.lineTotal || 0;
+        if (!productQtyByDate[pid]) productQtyByDate[pid] = {};
+        const qty = item.qtyKg || item.qtyPcs || 0;
+        productQtyByDate[pid]![date] = (productQtyByDate[pid]![date] || 0) + qty;
+      });
+    });
+
+    const dates: string[] = [];
+    const values: number[] = [];
+    for (let i = historyDays - 1; i >= 0; i--) {
+      const date = format(subDays(new Date(), i), 'yyyy-MM-dd');
+      dates.push(date);
+      values.push(salesByDate[date] || 0);
+    }
+
+    const revenue = forecastRevenueSeries(dates, values, forecastDays);
+    const anomalies = detectRevenueAnomalies(dates, values);
+
+    const topProductIds = Object.entries(productMeta)
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 15)
+      .map(([id]) => id);
+
+    const productForecasts = forecastProductDemand(
+      topProductIds.map((productId) => ({
+        productId,
+        productName: productMeta[productId]?.name || 'Unknown',
+        dailyQty: dates.map((d) => productQtyByDate[productId]?.[d] || 0),
+      }))
+    );
+
+    const toMix = (bucket: Record<string, number>) => {
+      const total = Object.values(bucket).reduce((a, b) => a + b, 0);
+      if (total <= 0) return [] as { method: string; sharePct: number }[];
+      return Object.entries(bucket)
+        .map(([method, amount]) => ({
+          method,
+          sharePct: round2((amount / total) * 100),
+        }))
+        .sort((a, b) => b.sharePct - a.sharePct);
+    };
+
+    const paymentMixRecent = toMix(payRecent);
+    const paymentMixPrior = toMix(payPrior);
+    const insights = buildPredictiveInsights({
+      trend: revenue.trend,
+      forecast: revenue.forecast,
+      avgDailySales: revenue.avgDailySales,
+      modelMapePct: revenue.modelMapePct,
+      productForecasts,
+      anomalies,
+      paymentMixRecent,
+      paymentMixPrior,
+    });
+
+    const next7Total = revenue.forecast
+      .slice(0, 7)
+      .reduce((s, f) => s + f.predicted, 0);
+
+    const minDaysRecommended = 14;
+    return {
+      method: 'seasonal_trend_blend',
+      methodNote:
+        'In-process ML: day-of-week seasonality + linear trend on full paid sales history, with SKU demand and anomaly detection. Not an external Prophet/LightGBM job.',
+      historyDays,
+      forecastDays,
+      insufficientHistory: revenue.daysWithPositiveSales < minDaysRecommended,
+      minDaysRecommended,
+      daysWithPositiveSales: revenue.daysWithPositiveSales,
+      summary: {
+        trend: revenue.trend,
+        avgDailySales: revenue.avgDailySales,
+        predictedNext7Total: round2(next7Total),
+        modelMapePct: revenue.modelMapePct,
+        topRisingSku: productForecasts.find((p) => p.trend === 'up')?.productName ?? null,
+        anomalyCount: anomalies.length,
+      },
+      historical: revenue.historical,
+      forecast: revenue.forecast,
+      productForecasts,
+      anomalies,
+      insights,
+      paymentMix: {
+        recent: paymentMixRecent,
+        prior: paymentMixPrior,
+      },
+      franchiseStoreId: options.franchiseStoreId || null,
+      storeIds,
     };
   }
 }

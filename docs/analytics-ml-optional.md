@@ -2,6 +2,8 @@
 
 The default Advanced Analytics stack uses **rule-based and statistical** methods (moving averages, linear trend, day-of-week blending, ABC classification, EOQ with env-tuned costs). No migration is required.
 
+**Shipped in-app predictive model:** `GET /api/v1/analytics/ml-predictions` (UI tab **ML Predictions**) runs an in-process seasonal+trend blend over up to 365 days of paid sales, plus SKU demand forecasts, anomaly flags, and forward-looking insights. Same stack — no Python/Prophet required.
+
 When stores have **high volume** and need **stronger forecast accuracy**, consider:
 
 1. **Feature export**  

@@ -142,6 +142,48 @@ interface InsightsPayload {
   storeIds?: string[];
 }
 
+interface MlPredictionsPayload {
+  method: string;
+  methodNote?: string;
+  historyDays: number;
+  forecastDays: number;
+  insufficientHistory?: boolean;
+  minDaysRecommended?: number;
+  daysWithPositiveSales?: number;
+  summary: {
+    trend: string;
+    avgDailySales: number;
+    predictedNext7Total: number;
+    modelMapePct: number | null;
+    topRisingSku: string | null;
+    anomalyCount: number;
+  };
+  historical: Array<{ date: string; actual: number; ma7: number; ma30: number }>;
+  forecast: Array<{
+    date: string;
+    predicted: number;
+    predictedLow?: number;
+    predictedHigh?: number;
+    confidence: string;
+  }>;
+  productForecasts: Array<{
+    productId: string;
+    productName: string;
+    recentAvgDaily: number;
+    predictedNext7: number;
+    trend: "up" | "down" | "stable";
+    changePct: number | null;
+  }>;
+  anomalies: Array<{
+    date: string;
+    actual: number;
+    expected: number;
+    zScore: number;
+    direction: "spike" | "drop";
+  }>;
+  insights: InsightItem[];
+}
+
 interface ProfitMarginProduct {
   productId: string;
   productName: string;
@@ -250,6 +292,7 @@ export default function AdvancedAnalyticsPage() {
   );
   const [salesOverview, setSalesOverview] = useState<SalesOverview | null>(null);
   const [insights, setInsights] = useState<InsightsPayload | null>(null);
+  const [mlPredictions, setMlPredictions] = useState<MlPredictionsPayload | null>(null);
   const [{ startDateStr, endDateStr }, setDateRange] = useState(defaultDateRange);
   const [franchiseStoreId, setFranchiseStoreId] = useState<string>("");
   const [franchiseOptions, setFranchiseOptions] = useState<
@@ -259,6 +302,7 @@ export default function AdvancedAnalyticsPage() {
   const [analyticsErrors, setAnalyticsErrors] = useState<string[]>([]);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [mlError, setMlError] = useState<string | null>(null);
   const [profitMargin, setProfitMargin] = useState<ProfitMarginPayload | null>(null);
   const [profitMarginError, setProfitMarginError] = useState<string | null>(null);
   const [demographics, setDemographics] = useState<CustomerDemographicsPayload | null>(null);
@@ -270,6 +314,7 @@ export default function AdvancedAnalyticsPage() {
     | "demand"
     | "inventory"
     | "insights"
+    | "ml-predictions"
     | "demographics"
   >("sales-overview");
 
@@ -306,6 +351,7 @@ export default function AdvancedAnalyticsPage() {
     loadAnalytics();
     loadSalesOverview();
     loadInsights();
+    loadMlPredictions();
     loadProfitMargin();
     loadDemographics();
   }, [user, startDateStr, endDateStr, franchiseStoreId, demandByStore]);
@@ -463,6 +509,29 @@ export default function AdvancedAnalyticsPage() {
     }
   };
 
+  const loadMlPredictions = async () => {
+    if (!user?.storeId) return;
+    setMlError(null);
+    try {
+      const res = await api.get("/api/v1/analytics/ml-predictions", {
+        params: {
+          ...scopeParams(),
+          days: 14,
+          historyDays: 365,
+        },
+      });
+      setMlPredictions(res.data || null);
+    } catch (e: any) {
+      const msg =
+        e.response?.data?.message ||
+        e.response?.data?.error ||
+        e.message ||
+        "Failed to load ML predictions";
+      setMlPredictions(null);
+      setMlError(msg);
+    }
+  };
+
   const loadSalesFallback = async (tab: "forecast" | "demand") => {
     setLoading(true);
     try {
@@ -616,6 +685,11 @@ export default function AdvancedAnalyticsPage() {
                     data: insights.insights,
                     filename: `analytics_insights_${tag}.csv`,
                   });
+                } else if (activeTab === "ml-predictions" && mlPredictions) {
+                  exportToCSV({
+                    data: mlPredictions.forecast,
+                    filename: `ml_predictions_${tag}.csv`,
+                  });
                 } else if (activeTab === "profit-margin" && profitMargin) {
                   exportToCSV({
                     data: profitMargin.products.map((p) => ({
@@ -665,6 +739,7 @@ export default function AdvancedAnalyticsPage() {
                 loadAnalytics();
                 loadSalesOverview();
                 loadInsights();
+                loadMlPredictions();
                 loadProfitMargin();
                 loadDemographics();
               }}
@@ -736,10 +811,11 @@ export default function AdvancedAnalyticsPage() {
           )}
         </div>
 
-        {(analyticsErrors.length > 0 || overviewError || insightsError || profitMarginError || demographicsError) && (
+        {(analyticsErrors.length > 0 || overviewError || insightsError || mlError || profitMarginError || demographicsError) && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100 space-y-1">
             {overviewError && <p>Overview: {overviewError}</p>}
             {insightsError && <p>Insights: {insightsError}</p>}
+            {mlError && <p>ML predictions: {mlError}</p>}
             {profitMarginError && <p>Profit margin: {profitMarginError}</p>}
             {demographicsError && <p>Demographics: {demographicsError}</p>}
             {analyticsErrors.map((e, i) => (
@@ -804,6 +880,16 @@ export default function AdvancedAnalyticsPage() {
           }`}
         >
           💡 Insights
+        </button>
+        <button
+          onClick={() => setActiveTab("ml-predictions")}
+          className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
+            activeTab === "ml-predictions"
+              ? "border-blue-600 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+          }`}
+        >
+          ML Predictions
         </button>
         <button
           onClick={() => setActiveTab("demographics")}
@@ -1915,6 +2001,220 @@ export default function AdvancedAnalyticsPage() {
               Compared current {insights.period.start}–{insights.period.end} vs prior{" "}
               {insights.period.priorStart}–{insights.period.priorEnd}.
             </p>
+          )}
+        </div>
+      )}
+
+      {activeTab === "ml-predictions" && (
+        <div className="space-y-6">
+          {mlPredictions ? (
+            <>
+              {mlPredictions.insufficientHistory && (
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-900 dark:text-blue-100">
+                  Low history: {mlPredictions.daysWithPositiveSales ?? 0} day(s) with sales.
+                  {mlPredictions.minDaysRecommended != null &&
+                    ` ${mlPredictions.minDaysRecommended}+ days recommended for steadier predictions.`}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-subtle bg-surface p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Predictive model
+                </p>
+                <h2 className="mt-1 text-lg font-bold text-ink">
+                  Full sales history → next {mlPredictions.forecastDays} days
+                </h2>
+                <p className="mt-2 text-sm text-ink-secondary max-w-3xl">
+                  {mlPredictions.methodNote ||
+                    "Trained on paid POS sales, line items, and payment mix for this store scope."}
+                </p>
+                <p className="mt-1 text-xs text-ink-muted">
+                  History window: {mlPredictions.historyDays} days · Method: {mlPredictions.method}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5">
+                  <h3 className="text-sm font-medium text-emerald-800 dark:text-emerald-200 mb-1">
+                    Predicted next 7 days
+                  </h3>
+                  <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+                    {formatINR(mlPredictions.summary.predictedNext7Total)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-subtle bg-surface p-5">
+                  <h3 className="text-sm font-medium text-ink-secondary mb-1">Trend</h3>
+                  <p className="text-2xl font-bold text-ink capitalize">
+                    {mlPredictions.summary.trend}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-subtle bg-surface p-5">
+                  <h3 className="text-sm font-medium text-ink-secondary mb-1">
+                    Model error (MAPE)
+                  </h3>
+                  <p className="text-2xl font-bold text-ink">
+                    {mlPredictions.summary.modelMapePct != null
+                      ? `${mlPredictions.summary.modelMapePct}%`
+                      : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-subtle bg-surface p-5">
+                  <h3 className="text-sm font-medium text-ink-secondary mb-1">
+                    Rising SKU
+                  </h3>
+                  <p className="text-lg font-bold text-ink truncate">
+                    {mlPredictions.summary.topRisingSku || "None flagged"}
+                  </p>
+                </div>
+              </div>
+
+              {mlPredictions.insights.length > 0 && (
+                <div className="grid gap-3">
+                  {mlPredictions.insights.map((ins, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-lg border px-4 py-3 ${
+                        ins.severity === "high"
+                          ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
+                          : ins.severity === "medium"
+                            ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
+                            : "border-subtle bg-surface"
+                      }`}
+                    >
+                      <p className="font-semibold text-ink">{ins.title}</p>
+                      <p className="text-sm text-ink-secondary mt-1">{ins.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {mlPredictions.forecast.length > 0 && mlPredictions.historical.length > 0 && (
+                <div className="bg-surface rounded-lg border border-subtle p-6">
+                  <h3 className="text-lg font-semibold text-ink mb-4">
+                    History + forward forecast
+                  </h3>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart
+                      data={[
+                        ...mlPredictions.historical.slice(-30).map((h) => ({
+                          date: formatForecastDate(h.date),
+                          actual: h.actual,
+                          predicted: undefined as number | undefined,
+                        })),
+                        ...mlPredictions.forecast.map((f) => ({
+                          date: formatForecastDate(f.date),
+                          actual: undefined as number | undefined,
+                          predicted: f.predicted,
+                        })),
+                      ]}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="actual"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        name="Actual"
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="predicted"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        name="Predicted"
+                        dot={{ r: 3 }}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              <div className="bg-surface rounded-lg border border-subtle overflow-hidden">
+                <div className="px-4 py-3 border-b border-subtle">
+                  <h3 className="font-semibold text-ink">SKU demand next 7 days</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-surface-2/60">
+                      <tr>
+                        <th className="text-left px-4 py-2 font-medium text-ink-secondary">Product</th>
+                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Avg / day</th>
+                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Pred. 7d</th>
+                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Change</th>
+                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Trend</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mlPredictions.productForecasts.length > 0 ? (
+                        mlPredictions.productForecasts.map((p) => (
+                          <tr key={p.productId} className="border-t border-subtle">
+                            <td className="px-4 py-2 text-ink">{p.productName}</td>
+                            <td className="px-4 py-2 text-right text-ink">
+                              {p.recentAvgDaily.toLocaleString("en-IN", { maximumFractionDigits: 1 })}
+                            </td>
+                            <td className="px-4 py-2 text-right text-ink">
+                              {p.predictedNext7.toLocaleString("en-IN", { maximumFractionDigits: 1 })}
+                            </td>
+                            <td className="px-4 py-2 text-right text-ink">
+                              {p.changePct != null ? `${p.changePct}%` : "—"}
+                            </td>
+                            <td className="px-4 py-2 text-right capitalize text-ink">{p.trend}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-ink-secondary">
+                            No product history yet
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {mlPredictions.anomalies.length > 0 && (
+                <div className="bg-surface rounded-lg border border-subtle overflow-hidden">
+                  <div className="px-4 py-3 border-b border-subtle">
+                    <h3 className="font-semibold text-ink">Unusual days in history</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-surface-2/60">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-medium text-ink-secondary">Date</th>
+                          <th className="text-right px-4 py-2 font-medium text-ink-secondary">Actual</th>
+                          <th className="text-right px-4 py-2 font-medium text-ink-secondary">Expected</th>
+                          <th className="text-right px-4 py-2 font-medium text-ink-secondary">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mlPredictions.anomalies.map((a) => (
+                          <tr key={a.date} className="border-t border-subtle">
+                            <td className="px-4 py-2 text-ink">{formatForecastDate(a.date)}</td>
+                            <td className="px-4 py-2 text-right text-ink">{formatINR(a.actual)}</td>
+                            <td className="px-4 py-2 text-right text-ink">{formatINR(a.expected)}</td>
+                            <td className="px-4 py-2 text-right capitalize text-ink">{a.direction}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-8 text-center text-ink-secondary">
+              {mlError || "Load failed or no data. Use Refresh or check errors above."}
+            </div>
           )}
         </div>
       )}

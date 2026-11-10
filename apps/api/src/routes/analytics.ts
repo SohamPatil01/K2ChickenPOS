@@ -187,6 +187,51 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     },
   });
 
+  // ML predictions — full history revenue + SKU demand + predictive insights
+  fastify.get('/ml-predictions', {
+    preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
+    handler: async (request: any, reply) => {
+      try {
+        const storeId = (getUser(request) as any).storeId;
+        const q = request.query as Record<string, unknown>;
+        const franchiseStoreId = parseFranchiseStoreId(q);
+        const rawDays = q.days;
+        const forecastDays =
+          rawDays != null
+            ? Math.min(30, Math.max(7, parseInt(String(rawDays), 10) || 14))
+            : 14;
+        const rawHist = q.historyDays;
+        const historyDays =
+          rawHist != null
+            ? Math.min(365, Math.max(30, parseInt(String(rawHist), 10) || 365))
+            : 365;
+
+        if (!storeId) {
+          return reply.status(400).send({
+            error: 'Store ID is required',
+            message: 'User must be associated with a store',
+          });
+        }
+
+        const predictions = await analyticsService.getMlPredictions(storeId, {
+          forecastDays,
+          historyDays,
+          franchiseStoreId: franchiseStoreId ?? null,
+        });
+        return reply.send(predictions);
+      } catch (error: any) {
+        if (isBadScopeError(error.message)) {
+          return reply.status(400).send({ error: 'Invalid scope', message: error.message });
+        }
+        request.log.error(error, 'Failed to generate ML predictions');
+        return reply.status(500).send({
+          error: 'Failed to generate ML predictions',
+          message: error.message,
+        });
+      }
+    },
+  });
+
   // Inventory Recommendations
   fastify.get('/inventory-recommendations', {
     preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')],
