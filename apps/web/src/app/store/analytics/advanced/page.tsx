@@ -17,12 +17,15 @@ import {
   PieChart,
   Pie,
   Cell,
+  Area,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceDot,
 } from "recharts";
 import Skeleton from "@/components/ui/Skeleton";
 import { exportToCSV } from "@/lib/exportCSV";
@@ -2011,113 +2014,146 @@ export default function AdvancedAnalyticsPage() {
             <>
               {mlPredictions.insufficientHistory && (
                 <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 text-sm text-blue-900 dark:text-blue-100">
-                  Low history: {mlPredictions.daysWithPositiveSales ?? 0} day(s) with sales.
-                  {mlPredictions.minDaysRecommended != null &&
-                    ` ${mlPredictions.minDaysRecommended}+ days recommended for steadier predictions.`}
+                  Need more sales days for a clearer picture ({mlPredictions.daysWithPositiveSales ?? 0} so far).
                 </div>
               )}
 
-              <div className="rounded-xl border border-subtle bg-surface p-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  Predictive model
-                </p>
-                <h2 className="mt-1 text-lg font-bold text-ink">
-                  Full sales history → next {mlPredictions.forecastDays} days
-                </h2>
-                <p className="mt-2 text-sm text-ink-secondary max-w-3xl">
-                  {mlPredictions.methodNote ||
-                    "Trained on paid POS sales, line items, and payment mix for this store scope."}
-                </p>
-                <p className="mt-1 text-xs text-ink-muted">
-                  History window: {mlPredictions.historyDays} days · Method: {mlPredictions.method}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-5">
-                  <h3 className="text-sm font-medium text-emerald-800 dark:text-emerald-200 mb-1">
-                    Predicted next 7 days
-                  </h3>
-                  <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300">Next 7 days</p>
+                  <p className="text-2xl font-black text-emerald-900 dark:text-emerald-100 mt-1">
                     {formatINR(mlPredictions.summary.predictedNext7Total)}
                   </p>
                 </div>
-                <div className="rounded-lg border border-subtle bg-surface p-5">
-                  <h3 className="text-sm font-medium text-ink-secondary mb-1">Trend</h3>
-                  <p className="text-2xl font-bold text-ink capitalize">
-                    {mlPredictions.summary.trend}
+                <div className="rounded-xl border border-subtle bg-surface p-4">
+                  <p className="text-xs text-ink-secondary">Direction</p>
+                  <p className="text-2xl font-black text-ink mt-1 flex items-center gap-2 capitalize">
+                    <span
+                      className={`inline-block w-3 h-3 rounded-full ${
+                        mlPredictions.summary.trend === "upward"
+                          ? "bg-emerald-500"
+                          : mlPredictions.summary.trend === "downward"
+                            ? "bg-red-500"
+                            : "bg-amber-400"
+                      }`}
+                    />
+                    {mlPredictions.summary.trend === "upward"
+                      ? "Up"
+                      : mlPredictions.summary.trend === "downward"
+                        ? "Down"
+                        : "Flat"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-subtle bg-surface p-5">
-                  <h3 className="text-sm font-medium text-ink-secondary mb-1">
-                    Model error (MAPE)
-                  </h3>
-                  <p className="text-2xl font-bold text-ink">
-                    {mlPredictions.summary.modelMapePct != null
-                      ? `${mlPredictions.summary.modelMapePct}%`
-                      : "—"}
+                <div className="rounded-xl border border-subtle bg-surface p-4">
+                  <p className="text-xs text-ink-secondary">Confidence</p>
+                  <p className="text-2xl font-black text-ink mt-1">
+                    {mlPredictions.summary.modelMapePct == null
+                      ? "—"
+                      : mlPredictions.summary.modelMapePct <= 20
+                        ? "High"
+                        : mlPredictions.summary.modelMapePct <= 35
+                          ? "Medium"
+                          : "Low"}
                   </p>
+                  <div className="mt-2 h-2 rounded-full bg-surface-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        mlPredictions.summary.modelMapePct == null
+                          ? "bg-gray-300 w-1/3"
+                          : mlPredictions.summary.modelMapePct <= 20
+                            ? "bg-emerald-500 w-[85%]"
+                            : mlPredictions.summary.modelMapePct <= 35
+                              ? "bg-amber-400 w-[55%]"
+                              : "bg-red-400 w-[30%]"
+                      }`}
+                    />
+                  </div>
                 </div>
-                <div className="rounded-lg border border-subtle bg-surface p-5">
-                  <h3 className="text-sm font-medium text-ink-secondary mb-1">
-                    Rising SKU
-                  </h3>
-                  <p className="text-lg font-bold text-ink truncate">
-                    {mlPredictions.summary.topRisingSku || "None flagged"}
+                <div className="rounded-xl border border-subtle bg-surface p-4">
+                  <p className="text-xs text-ink-secondary">Hottest product</p>
+                  <p className="text-lg font-black text-ink mt-1 truncate">
+                    {mlPredictions.summary.topRisingSku || "—"}
                   </p>
                 </div>
               </div>
 
-              {mlPredictions.insights.length > 0 && (
-                <div className="grid gap-3">
-                  {mlPredictions.insights.map((ins, i) => (
-                    <div
-                      key={i}
-                      className={`rounded-lg border px-4 py-3 ${
-                        ins.severity === "high"
-                          ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
-                          : ins.severity === "medium"
-                            ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
-                            : "border-subtle bg-surface"
-                      }`}
-                    >
-                      <p className="font-semibold text-ink">{ins.title}</p>
-                      <p className="text-sm text-ink-secondary mt-1">{ins.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {mlPredictions.forecast.length > 0 && mlPredictions.historical.length > 0 && (
-                <div className="bg-surface rounded-lg border border-subtle p-6">
-                  <h3 className="text-lg font-semibold text-ink mb-4">
-                    History + forward forecast
-                  </h3>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <LineChart
+                <div className="bg-surface rounded-xl border border-subtle p-4 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink mb-1">Sales so far → sales ahead</h3>
+                  <p className="text-xs text-ink-muted mb-4">
+                    Blue = what happened · Green band = predicted range · Dots = unusual days
+                  </p>
+                  <ResponsiveContainer width="100%" height={340}>
+                    <ComposedChart
                       data={[
-                        ...mlPredictions.historical.slice(-30).map((h) => ({
-                          date: formatForecastDate(h.date),
+                        ...mlPredictions.historical.slice(-21).map((h) => ({
+                          key: h.date,
+                          label: formatForecastDate(h.date),
                           actual: h.actual,
-                          predicted: undefined as number | undefined,
+                          predicted: null as number | null,
+                          bandLow: null as number | null,
+                          bandHigh: null as number | null,
                         })),
                         ...mlPredictions.forecast.map((f) => ({
-                          date: formatForecastDate(f.date),
-                          actual: undefined as number | undefined,
+                          key: f.date,
+                          label: formatForecastDate(f.date),
+                          actual: null as number | null,
                           predicted: f.predicted,
+                          bandLow: f.predictedLow ?? f.predicted,
+                          bandHigh: f.predictedHigh ?? f.predicted,
                         })),
                       ]}
                     >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) =>
+                          v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)
+                        }
+                      />
+                      <Tooltip
+                        formatter={(value: number, name: string) => {
+                          const label =
+                            name === "actual"
+                              ? "Actual"
+                              : name === "predicted"
+                                ? "Predicted"
+                                : name === "bandHigh"
+                                  ? "High"
+                                  : name === "bandLow"
+                                    ? "Low"
+                                    : name;
+                          return [formatINR(value), label];
+                        }}
+                      />
                       <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="bandHigh"
+                        stroke="#6ee7b7"
+                        strokeWidth={1}
+                        fill="#10b981"
+                        fillOpacity={0.18}
+                        name="High"
+                        connectNulls
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="bandLow"
+                        stroke="#6ee7b7"
+                        strokeWidth={1}
+                        strokeDasharray="2 2"
+                        name="Low"
+                        connectNulls
+                        dot={false}
+                      />
                       <Line
                         type="monotone"
                         dataKey="actual"
                         stroke="#3b82f6"
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                         name="Actual"
                         dot={false}
                         connectNulls
@@ -2125,89 +2161,189 @@ export default function AdvancedAnalyticsPage() {
                       <Line
                         type="monotone"
                         dataKey="predicted"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
+                        stroke="#059669"
+                        strokeWidth={2.5}
+                        strokeDasharray="6 4"
                         name="Predicted"
-                        dot={{ r: 3 }}
+                        dot={{ r: 4, fill: "#059669" }}
                         connectNulls
                       />
-                    </LineChart>
+                      {mlPredictions.anomalies.slice(-5).map((a) => (
+                        <ReferenceDot
+                          key={a.date}
+                          x={formatForecastDate(a.date)}
+                          y={a.actual}
+                          r={6}
+                          fill={a.direction === "spike" ? "#f59e0b" : "#ef4444"}
+                          stroke="#fff"
+                          strokeWidth={2}
+                          ifOverflow="extendDomain"
+                        />
+                      ))}
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               )}
 
-              <div className="bg-surface rounded-lg border border-subtle overflow-hidden">
-                <div className="px-4 py-3 border-b border-subtle">
-                  <h3 className="font-semibold text-ink">SKU demand next 7 days</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-surface rounded-xl border border-subtle p-4 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink mb-1">Each day next week</h3>
+                  <p className="text-xs text-ink-muted mb-4">Taller bar = more expected sales</p>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={mlPredictions.forecast.slice(0, 7).map((f) => ({
+                        day: formatForecastDate(f.date),
+                        predicted: f.predicted,
+                        confidence: f.confidence,
+                      }))}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.35} />
+                      <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) =>
+                          v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)
+                        }
+                      />
+                      <Tooltip formatter={(v: number) => [formatINR(v), "Predicted"]} />
+                      <Bar dataKey="predicted" radius={[6, 6, 0, 0]}>
+                        {mlPredictions.forecast.slice(0, 7).map((f, i) => (
+                          <Cell
+                            key={i}
+                            fill={
+                              f.confidence === "high"
+                                ? "#059669"
+                                : f.confidence === "medium"
+                                  ? "#34d399"
+                                  : "#a7f3d0"
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="flex gap-3 mt-2 text-xs text-ink-muted">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-600" /> Sure
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" /> Medium
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200" /> Guessy
+                    </span>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-surface-2/60">
-                      <tr>
-                        <th className="text-left px-4 py-2 font-medium text-ink-secondary">Product</th>
-                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Avg / day</th>
-                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Pred. 7d</th>
-                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Change</th>
-                        <th className="text-right px-4 py-2 font-medium text-ink-secondary">Trend</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mlPredictions.productForecasts.length > 0 ? (
-                        mlPredictions.productForecasts.map((p) => (
-                          <tr key={p.productId} className="border-t border-subtle">
-                            <td className="px-4 py-2 text-ink">{p.productName}</td>
-                            <td className="px-4 py-2 text-right text-ink">
-                              {p.recentAvgDaily.toLocaleString("en-IN", { maximumFractionDigits: 1 })}
-                            </td>
-                            <td className="px-4 py-2 text-right text-ink">
-                              {p.predictedNext7.toLocaleString("en-IN", { maximumFractionDigits: 1 })}
-                            </td>
-                            <td className="px-4 py-2 text-right text-ink">
-                              {p.changePct != null ? `${p.changePct}%` : "—"}
-                            </td>
-                            <td className="px-4 py-2 text-right capitalize text-ink">{p.trend}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-ink-secondary">
-                            No product history yet
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+
+                <div className="bg-surface rounded-xl border border-subtle p-4 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink mb-1">What to stock more of</h3>
+                  <p className="text-xs text-ink-muted mb-4">
+                    Green rising · Amber flat · Red cooling
+                  </p>
+                  {mlPredictions.productForecasts.length > 0 ? (
+                    <ResponsiveContainer
+                      width="100%"
+                      height={Math.max(220, mlPredictions.productForecasts.slice(0, 8).length * 36)}
+                    >
+                      <BarChart
+                        layout="vertical"
+                        data={mlPredictions.productForecasts.slice(0, 8).map((p) => ({
+                          name:
+                            p.productName.length > 18
+                              ? `${p.productName.slice(0, 16)}…`
+                              : p.productName,
+                          qty: p.predictedNext7,
+                          trend: p.trend,
+                        }))}
+                        margin={{ left: 8, right: 12 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.35} horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
+                        <Tooltip
+                          formatter={(v: number) => [
+                            v.toLocaleString("en-IN", { maximumFractionDigits: 1 }),
+                            "Next 7 days",
+                          ]}
+                        />
+                        <Bar dataKey="qty" radius={[0, 6, 6, 0]}>
+                          {mlPredictions.productForecasts.slice(0, 8).map((p, i) => (
+                            <Cell
+                              key={i}
+                              fill={
+                                p.trend === "up"
+                                  ? "#059669"
+                                  : p.trend === "down"
+                                    ? "#ef4444"
+                                    : "#f59e0b"
+                              }
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-sm text-ink-secondary py-10 text-center">No product history yet</p>
+                  )}
                 </div>
               </div>
 
               {mlPredictions.anomalies.length > 0 && (
-                <div className="bg-surface rounded-lg border border-subtle overflow-hidden">
-                  <div className="px-4 py-3 border-b border-subtle">
-                    <h3 className="font-semibold text-ink">Unusual days in history</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-surface-2/60">
-                        <tr>
-                          <th className="text-left px-4 py-2 font-medium text-ink-secondary">Date</th>
-                          <th className="text-right px-4 py-2 font-medium text-ink-secondary">Actual</th>
-                          <th className="text-right px-4 py-2 font-medium text-ink-secondary">Expected</th>
-                          <th className="text-right px-4 py-2 font-medium text-ink-secondary">Type</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {mlPredictions.anomalies.map((a) => (
-                          <tr key={a.date} className="border-t border-subtle">
-                            <td className="px-4 py-2 text-ink">{formatForecastDate(a.date)}</td>
-                            <td className="px-4 py-2 text-right text-ink">{formatINR(a.actual)}</td>
-                            <td className="px-4 py-2 text-right text-ink">{formatINR(a.expected)}</td>
-                            <td className="px-4 py-2 text-right capitalize text-ink">{a.direction}</td>
-                          </tr>
+                <div className="bg-surface rounded-xl border border-subtle p-4 sm:p-6">
+                  <h3 className="text-base font-semibold text-ink mb-1">Weird days vs normal</h3>
+                  <p className="text-xs text-ink-muted mb-4">
+                    Orange = spike · Red = drop · Gray = what we expected
+                  </p>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart
+                      data={mlPredictions.anomalies.map((a) => ({
+                        day: formatForecastDate(a.date),
+                        actual: a.actual,
+                        expected: a.expected,
+                        direction: a.direction,
+                      }))}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.35} />
+                      <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                      <YAxis
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) =>
+                          v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)
+                        }
+                      />
+                      <Tooltip formatter={(v: number) => formatINR(v)} />
+                      <Legend />
+                      <Bar dataKey="expected" name="Expected" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="actual" name="Actual" radius={[4, 4, 0, 0]}>
+                        {mlPredictions.anomalies.map((a, i) => (
+                          <Cell
+                            key={i}
+                            fill={a.direction === "spike" ? "#f59e0b" : "#ef4444"}
+                          />
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {mlPredictions.insights.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {mlPredictions.insights.slice(0, 6).map((ins, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                        ins.severity === "high"
+                          ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+                          : ins.severity === "medium"
+                            ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+                            : "border-subtle bg-surface-2 text-ink-secondary"
+                      }`}
+                      title={ins.detail}
+                    >
+                      {ins.title}
+                    </div>
+                  ))}
                 </div>
               )}
             </>
