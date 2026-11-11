@@ -151,6 +151,7 @@ import { backupRoutes } from '../src/routes/backup.js';
 import { customerDisplayRoutes } from '../src/routes/customerDisplay.js';
 import { publicBillRoutes } from '../src/routes/publicBill.js';
 import { portalRoutes } from '../src/routes/portal.js';
+import { mobileRoutes } from '../src/mobile/index.js';
 
 let app: any = null;
 
@@ -335,6 +336,8 @@ async function build() {
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(publicBillRoutes, { prefix: '/api/v1/public' });
   await fastify.register(portalRoutes, { prefix: '/api/v1/portal' });
+  // K2 Chicken customer mobile app (additive; see src/mobile/README.md)
+  await fastify.register(mobileRoutes, { prefix: '/api/v1/mobile' });
 
   // 404 handler for undefined routes
   fastify.setNotFoundHandler(async (request: any, reply: FastifyReply) => {
