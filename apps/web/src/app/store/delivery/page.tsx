@@ -2,6 +2,24 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  RefreshCw,
+  SlidersHorizontal,
+  Plus,
+  Search,
+  X,
+  MapPin,
+  Phone,
+  MessageCircle,
+  Clock,
+  Bike,
+  CheckCircle2,
+  XCircle,
+  Navigation,
+  PackageSearch,
+  ClipboardList,
+  Pencil,
+} from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -173,6 +191,30 @@ function formatStatusLabel(status: string) {
     default:
       return status;
   }
+}
+
+function initials(name?: string | null) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+}
+
+function statusDotClass(status: string): string {
+  if (status === 'DELIVERED') return 'bg-emerald-500';
+  if (status === 'FAILED' || status === 'RETURNED') return 'bg-red-500';
+  if (status === 'OUT_FOR_DELIVERY') return 'bg-sky-500';
+  if (status === 'ASSIGNED') return 'bg-violet-500';
+  if (status === 'READY') return 'bg-amber-500';
+  return 'bg-brand-500';
+}
+
+function statusAvatarClass(status: string): string {
+  if (status === 'DELIVERED') return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300';
+  if (status === 'FAILED' || status === 'RETURNED') return 'bg-red-500/15 text-red-700 dark:text-red-300';
+  if (status === 'OUT_FOR_DELIVERY') return 'bg-sky-500/15 text-sky-700 dark:text-sky-300';
+  if (status === 'ASSIGNED') return 'bg-violet-500/15 text-violet-700 dark:text-violet-300';
+  if (status === 'READY') return 'bg-amber-500/15 text-amber-700 dark:text-amber-300';
+  return 'bg-brand-500/15 text-brand-700 dark:text-brand-300';
 }
 
 function phoneDigits(phone?: string | null) {
@@ -723,62 +765,91 @@ export default function StoreDeliveryPage() {
         <div className={`absolute inset-y-0 left-0 w-1 ${statusAccentClass(delivery.status)}`} aria-hidden />
         <div className="p-4 pl-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <h3 className="text-[15px] font-bold tracking-tight text-ink">{delivery.sale.saleNo}</h3>
-                <span
-                  className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md ${statusBadgeClass(delivery.status)}`}
-                >
-                  {formatStatusLabel(delivery.status)}
-                </span>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-surface-2 text-ink-secondary">
-                  {delivery.type === 'DELIVERY' ? 'Home' : 'Pickup'}
-                </span>
-                <span
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${paymentBadgeClass(pay.tone)}`}
-                  title={pay.detail}
-                >
-                  {pay.label}
-                </span>
+            <div className="flex min-w-0 flex-1 gap-3">
+              <div
+                className={`relative hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold ${statusAvatarClass(delivery.status)}`}
+              >
+                {initials(delivery.sale.customer?.name)}
+                {onTheWay && (
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-sky-500 border-2 border-surface animate-pulse"
+                    aria-hidden
+                  />
+                )}
               </div>
 
-              <div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="text-[15px] font-bold tracking-tight text-ink">{delivery.sale.saleNo}</h3>
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-md ${statusBadgeClass(delivery.status)}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(delivery.status)}`} aria-hidden />
+                    {formatStatusLabel(delivery.status)}
+                  </span>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-surface-2 text-ink-secondary">
+                    {delivery.type === 'DELIVERY' ? 'Home' : 'Pickup'}
+                  </span>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${paymentBadgeClass(pay.tone)}`}
+                    title={pay.detail}
+                  >
+                    {pay.label}
+                  </span>
+                </div>
+
                 <p className="text-sm font-semibold text-ink leading-snug">
                   {delivery.sale.customer?.name || 'Walk-in customer'}
                 </p>
-                <p className="text-xs text-ink-muted mt-0.5">
-                  {formatOrderTime(delivery.createdAt)}
-                  {phone.length >= 10 ? ` · ${phone.slice(-10)}` : ''}
-                  {!isDriver && delivery.assignedDriver
-                    ? ` · ${delivery.assignedDriver.name}`
-                    : ''}
-                </p>
-              </div>
 
-              {delivery.address ? (
-                mapLink ? (
-                  <a
-                    href={mapLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-start gap-1.5 text-[13px] font-medium text-brand-700 dark:text-brand-400 hover:underline line-clamp-2"
-                  >
-                    <span className="mt-1.5 shrink-0 h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
-                    <span>{dest}</span>
-                  </a>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" strokeWidth={2.25} />
+                    {formatOrderTime(delivery.createdAt)}
+                  </span>
+                  {phone.length >= 10 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Phone className="h-3 w-3" strokeWidth={2.25} />
+                      {phone.slice(-10)}
+                    </span>
+                  )}
+                  {!isDriver && delivery.assignedDriver && (
+                    <span className="inline-flex items-center gap-1">
+                      <Bike className="h-3 w-3" strokeWidth={2.25} />
+                      {delivery.assignedDriver.name}
+                    </span>
+                  )}
+                </div>
+
+                {delivery.address ? (
+                  mapLink ? (
+                    <a
+                      href={mapLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-start gap-1.5 text-[13px] font-medium text-brand-700 dark:text-brand-400 hover:underline line-clamp-2"
+                    >
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+                      <span>{dest}</span>
+                    </a>
+                  ) : (
+                    <p className="inline-flex items-start gap-1.5 text-[13px] text-ink-secondary line-clamp-2">
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" strokeWidth={2.25} />
+                      <span>{dest}</span>
+                    </p>
+                  )
+                ) : delivery.type === 'DELIVERY' ? (
+                  <p className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-amber-700 dark:text-amber-400">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+                    Address missing — add before dispatch
+                  </p>
                 ) : (
-                  <p className="text-[13px] text-ink-secondary line-clamp-2">{dest}</p>
-                )
-              ) : delivery.type === 'DELIVERY' ? (
-                <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-400">
-                  Address missing — add before dispatch
-                </p>
-              ) : (
-                <p className="text-[13px] text-ink-muted">Counter pickup</p>
-              )}
+                  <p className="text-[13px] text-ink-muted">Counter pickup</p>
+                )}
+              </div>
             </div>
 
-            <div className="shrink-0 sm:text-right">
+            <div className="shrink-0 rounded-xl bg-surface-2/60 px-3 py-2 sm:text-right">
               <p className="text-xl sm:text-2xl font-black tabular-nums text-ink tracking-tight">
                 ₹{Math.round(delivery.sale.grandTotal).toLocaleString('en-IN')}
               </p>
@@ -797,8 +868,9 @@ export default function StoreDeliveryPage() {
                 type="button"
                 disabled={busy}
                 onClick={() => updateStatus(delivery.id, 'DELIVERED')}
-                className="min-h-11 flex-1 sm:flex-none px-4 rounded-xl bg-emerald-600 text-white text-sm font-bold shadow-sm hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 transition"
+                className="min-h-11 flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 rounded-xl bg-emerald-600 text-white text-sm font-bold shadow-sm hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 transition"
               >
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2.25} />
                 {busy ? 'Saving…' : 'Mark delivered'}
               </button>
             )}
@@ -807,12 +879,13 @@ export default function StoreDeliveryPage() {
                 href={mapLink}
                 target="_blank"
                 rel="noreferrer"
-                className={`min-h-11 inline-flex items-center justify-center px-4 rounded-xl text-sm font-bold active:scale-[0.98] transition ${
+                className={`min-h-11 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl text-sm font-bold active:scale-[0.98] transition ${
                   isDriver
                     ? 'bg-gradient-brand text-white shadow-glow-brand'
                     : 'border border-[color:var(--border-strong)] text-ink hover:bg-surface-2'
                 }`}
               >
+                <Navigation className="h-4 w-4" strokeWidth={2.25} />
                 Maps
               </a>
             )}
@@ -821,16 +894,18 @@ export default function StoreDeliveryPage() {
                 type="button"
                 disabled={busy}
                 onClick={() => updateStatus(delivery.id, 'OUT_FOR_DELIVERY')}
-                className="min-h-11 px-4 rounded-xl border border-brand-500/40 bg-brand-500/10 text-brand-800 dark:text-brand-200 text-sm font-bold hover:bg-brand-500/20 disabled:opacity-50 transition"
+                className="min-h-11 inline-flex items-center gap-1.5 px-4 rounded-xl border border-brand-500/40 bg-brand-500/10 text-brand-800 dark:text-brand-200 text-sm font-bold hover:bg-brand-500/20 disabled:opacity-50 transition"
               >
+                <Bike className="h-4 w-4" strokeWidth={2.25} />
                 Start run
               </button>
             )}
             {phone.length >= 10 && (
               <a
                 href={`tel:${phone}`}
-                className="min-h-10 inline-flex items-center px-3 rounded-xl border border-[color:var(--border-subtle)] text-sm font-semibold text-ink hover:bg-surface-2 transition"
+                className="min-h-10 inline-flex items-center gap-1.5 px-3 rounded-xl border border-[color:var(--border-subtle)] text-sm font-semibold text-ink hover:bg-surface-2 transition"
               >
+                <Phone className="h-3.5 w-3.5" strokeWidth={2.25} />
                 Call
               </a>
             )}
@@ -839,8 +914,9 @@ export default function StoreDeliveryPage() {
                 href={`https://wa.me/91${phone.slice(-10)}`}
                 target="_blank"
                 rel="noreferrer"
-                className="min-h-10 inline-flex items-center px-3 rounded-xl border border-[color:var(--border-subtle)] text-sm font-semibold text-ink hover:bg-surface-2 transition"
+                className="min-h-10 inline-flex items-center gap-1.5 px-3 rounded-xl border border-[color:var(--border-subtle)] text-sm font-semibold text-ink hover:bg-surface-2 transition"
               >
+                <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.25} />
                 WhatsApp
               </a>
             )}
@@ -848,8 +924,9 @@ export default function StoreDeliveryPage() {
               <button
                 type="button"
                 onClick={() => openDetailsModal(delivery)}
-                className="min-h-10 px-3 rounded-xl border border-[color:var(--border-subtle)] text-sm font-medium text-ink-secondary hover:text-ink hover:bg-surface-2 transition"
+                className="min-h-10 inline-flex items-center gap-1.5 px-3 rounded-xl border border-[color:var(--border-subtle)] text-sm font-medium text-ink-secondary hover:text-ink hover:bg-surface-2 transition"
               >
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2.25} />
                 {delivery.address ? 'Edit' : 'Add address'}
               </button>
             )}
@@ -858,8 +935,9 @@ export default function StoreDeliveryPage() {
                 type="button"
                 disabled={busy}
                 onClick={() => updateStatus(delivery.id, 'FAILED')}
-                className="min-h-10 px-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition"
+                className="min-h-10 inline-flex items-center gap-1.5 px-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-50 transition"
               >
+                <XCircle className="h-3.5 w-3.5" strokeWidth={2.25} />
                 Failed
               </button>
             )}
@@ -927,30 +1005,45 @@ export default function StoreDeliveryPage() {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: easeOutSoft }}
-        className="rounded-2xl border border-[color:var(--border-subtle)] bg-surface px-4 py-4 sm:px-5 sm:py-4.5 shadow-card"
+        className="relative overflow-hidden rounded-2xl border border-[color:var(--border-subtle)] bg-surface px-4 py-4 sm:px-5 sm:py-4.5 shadow-card"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
-              {isDriver ? 'Driver' : 'Dispatch'}
-            </p>
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink mt-0.5">
-              {isDriver ? 'My deliveries' : 'Delivery desk'}
-            </h1>
-            <p className="text-xs text-ink-muted mt-1">
-              {periodLabel}
-              <span className="mx-1.5 text-[color:var(--border-strong)]">·</span>
-              {queueTab === 'active' ? `${queueCounts.active} open` : `${queueCounts.done} completed`}
-              {search.trim() ? (
-                <>
-                  <span className="mx-1.5 text-[color:var(--border-strong)]">·</span>
-                  filtered
-                </>
-              ) : null}
-            </p>
+        <div
+          className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-gradient-brand opacity-[0.08] blur-2xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-brand shadow-glow-brand">
+              <Bike className="h-5 w-5 text-white" strokeWidth={2.25} />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                {isDriver ? 'Driver' : 'Dispatch'}
+              </p>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink mt-0.5">
+                {isDriver ? 'My deliveries' : 'Delivery desk'}
+              </h1>
+              <p className="text-xs text-ink-muted mt-1">
+                {periodLabel}
+                <span className="mx-1.5 text-[color:var(--border-strong)]">·</span>
+                {queueTab === 'active' ? `${queueCounts.active} open` : `${queueCounts.done} completed`}
+                {search.trim() ? (
+                  <>
+                    <span className="mx-1.5 text-[color:var(--border-strong)]">·</span>
+                    filtered
+                  </>
+                ) : null}
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            <button type="button" onClick={() => loadDeliveries()} disabled={loading} className={btnSecondary}>
+            <button
+              type="button"
+              onClick={() => loadDeliveries()}
+              disabled={loading}
+              className={`${btnSecondary} inline-flex items-center gap-1.5`}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} strokeWidth={2.25} />
               {loading ? 'Refreshing…' : 'Refresh'}
             </button>
             {!isDriver && (
@@ -958,11 +1051,13 @@ export default function StoreDeliveryPage() {
                 <button
                   type="button"
                   onClick={() => setFiltersOpen((v) => !v)}
-                  className={`${btnSecondary} ${filtersOpen ? 'ring-2 ring-brand-500/25 border-brand-500/40' : ''}`}
+                  className={`${btnSecondary} inline-flex items-center gap-1.5 ${filtersOpen ? 'ring-2 ring-brand-500/25 border-brand-500/40' : ''}`}
                 >
+                  <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={2.25} />
                   Filters
                 </button>
-                <button type="button" onClick={openCreateModal} className={btnPrimary}>
+                <button type="button" onClick={openCreateModal} className={`${btnPrimary} inline-flex items-center gap-1.5`}>
+                  <Plus className="h-4 w-4" strokeWidth={2.5} />
                   New delivery
                 </button>
               </>
@@ -980,11 +1075,26 @@ export default function StoreDeliveryPage() {
       >
         {(
           [
-            { id: 'active' as const, label: 'Open queue', count: queueCounts.active, hint: 'Needs action' },
-            { id: 'done' as const, label: 'Completed', count: queueCounts.done, hint: 'In this period' },
+            {
+              id: 'active' as const,
+              label: 'Open queue',
+              count: queueCounts.active,
+              hint: 'Needs action',
+              icon: ClipboardList,
+            },
+            {
+              id: 'done' as const,
+              label: 'Completed',
+              count: queueCounts.done,
+              hint: 'In this period',
+              icon: CheckCircle2,
+            },
           ] as const
         ).map((tab) => {
           const active = queueTab === tab.id;
+          const total = Math.max(queueCounts.active + queueCounts.done, 1);
+          const pct = Math.round((tab.count / total) * 100);
+          const Icon = tab.icon;
           return (
             <button
               key={tab.id}
@@ -999,17 +1109,34 @@ export default function StoreDeliveryPage() {
                   : 'border-[color:var(--border-subtle)] bg-surface hover:bg-surface-2'
               }`}
             >
-              <span
-                className={`block text-2xl font-black tabular-nums leading-none ${
-                  active ? 'text-brand-700 dark:text-brand-300' : 'text-ink'
-                }`}
-              >
-                {tab.count}
-              </span>
-              <span className={`block text-xs font-bold mt-1.5 ${active ? 'text-brand-800 dark:text-brand-200' : 'text-ink'}`}>
-                {tab.label}
-              </span>
-              <span className="block text-[11px] text-ink-muted mt-0.5">{tab.hint}</span>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span
+                    className={`block text-2xl font-black tabular-nums leading-none ${
+                      active ? 'text-brand-700 dark:text-brand-300' : 'text-ink'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                  <span className={`block text-xs font-bold mt-1.5 ${active ? 'text-brand-800 dark:text-brand-200' : 'text-ink'}`}>
+                    {tab.label}
+                  </span>
+                  <span className="block text-[11px] text-ink-muted mt-0.5">{tab.hint}</span>
+                </div>
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                    active ? 'bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'bg-surface-2 text-ink-muted'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" strokeWidth={2.25} />
+                </div>
+              </div>
+              <div className="mt-3 h-1 rounded-full bg-surface-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${active ? 'bg-gradient-brand' : 'bg-ink-muted/40'}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
             </button>
           );
         })}
@@ -1023,21 +1150,22 @@ export default function StoreDeliveryPage() {
         className="rounded-2xl border border-[color:var(--border-subtle)] bg-surface p-3 sm:p-4 space-y-3"
       >
         <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted" strokeWidth={2.25} />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone, sale #, area…"
-            className="w-full min-h-11 pl-4 pr-10 rounded-xl border border-[color:var(--border-subtle)] bg-surface-2/60 text-ink text-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+            className="w-full min-h-11 pl-10 pr-10 rounded-xl border border-[color:var(--border-subtle)] bg-surface-2/60 text-ink text-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-brand-500/30"
           />
           {search.trim() && (
             <button
               type="button"
               onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg text-ink-muted hover:bg-surface hover:text-ink text-sm"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-lg text-ink-muted hover:bg-surface hover:text-ink"
               aria-label="Clear search"
             >
-              ✕
+              <X className="h-4 w-4" strokeWidth={2.25} />
             </button>
           )}
         </div>
@@ -1050,12 +1178,20 @@ export default function StoreDeliveryPage() {
                 key={chip.id}
                 type="button"
                 onClick={() => setStageFilter(chip.id)}
-                className={`shrink-0 min-h-9 px-3 rounded-full text-xs font-semibold transition active:scale-[0.98] ${
+                className={`shrink-0 inline-flex items-center min-h-9 px-3 rounded-full text-xs font-semibold transition active:scale-[0.98] ${
                   active
                     ? 'bg-ink text-white dark:bg-white dark:text-ink'
                     : 'bg-surface-2 text-ink-secondary hover:text-ink'
                 }`}
               >
+                {chip.id !== 'ALL_ACTIVE' && (
+                  <span
+                    className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                      active ? 'bg-white dark:bg-ink' : statusDotClass(chip.id === 'FAILED' ? 'FAILED' : chip.id)
+                    }`}
+                    aria-hidden
+                  />
+                )}
                 {chip.label}
                 <span className={`ml-1.5 tabular-nums ${active ? 'opacity-80' : 'text-ink-muted'}`}>
                   {chip.count}
@@ -1141,13 +1277,15 @@ export default function StoreDeliveryPage() {
 
       <div className="flex-1 min-h-0">
         {loading ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-28 rounded-2xl bg-surface-2 animate-pulse border border-[color:var(--border-subtle)]"
+                className="h-28 rounded-2xl bg-surface border border-[color:var(--border-subtle)] overflow-hidden relative"
                 style={{ animationDelay: `${i * 80}ms` }}
-              />
+              >
+                <div className="absolute inset-0 bg-surface-2 animate-pulse" />
+              </div>
             ))}
           </div>
         ) : filteredDeliveries.length === 0 ? (
@@ -1157,8 +1295,8 @@ export default function StoreDeliveryPage() {
             transition={{ duration: 0.3, ease: easeOutSoft }}
             className="rounded-2xl border border-dashed border-[color:var(--border-strong)] bg-surface/70 px-6 py-14 text-center"
           >
-            <div className="mx-auto mb-3 h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
-              <span className="h-2 w-2 rounded-full bg-brand-500" aria-hidden />
+            <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-brand-500/10 flex items-center justify-center">
+              <PackageSearch className="h-6 w-6 text-brand-600 dark:text-brand-400" strokeWidth={2} />
             </div>
             <p className="text-base font-bold text-ink">
               {queueTab === 'active' && queueCounts.done > 0
