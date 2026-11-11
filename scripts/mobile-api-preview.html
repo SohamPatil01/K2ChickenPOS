@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>K2 Chicken · Mobile API</title>
+  <style>
+    :root {
+      --bg: #1a120c;
+      --paper: #fff8f1;
+      --ink: #2a1a12;
+      --muted: #7a5c4a;
+      --accent: #c45c26;
+      --line: #ead9c8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, #3a2418 0%, transparent 40%),
+        radial-gradient(circle at 80% 90%, #5a2e16 0%, transparent 35%),
+        var(--bg);
+      color: var(--ink);
+      padding: 24px;
+    }
+    .phone {
+      width: min(390px, 100%);
+      height: min(780px, 92vh);
+      background: var(--paper);
+      border-radius: 36px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.08);
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 28px 20px 14px;
+      background: linear-gradient(180deg, #2b1810, #3d2418);
+      color: #fff8f1;
+    }
+    header .brand { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
+    header h1 { margin: 6px 0 0; font-size: 26px; font-weight: 700; }
+    header p { margin: 8px 0 0; font-size: 13px; opacity: .8; }
+    .tabs {
+      display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line);
+      background: #fffaf4;
+    }
+    .tabs button {
+      border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 600;
+      padding: 8px 12px; border-radius: 999px; cursor: pointer;
+    }
+    .tabs button.active { background: #f3e2d2; color: var(--ink); }
+    main { flex: 1; overflow: auto; padding: 16px; }
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: 16px;
+      padding: 14px; margin-bottom: 12px;
+    }
+    .card h3 { margin: 0 0 4px; font-size: 16px; }
+    .card .meta { color: var(--muted); font-size: 12px; }
+    .price { color: var(--accent); font-weight: 700; margin-top: 8px; }
+    .pill {
+      display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 999px;
+      background: #efe0d2; color: var(--muted); margin-top: 8px;
+    }
+    .err { color: #9b1c1c; background: #fde8e8; padding: 12px; border-radius: 12px; }
+    .loading { color: var(--muted); padding: 24px 8px; text-align: center; }
+    footer {
+      padding: 10px 16px 18px; font-size: 11px; color: var(--muted);
+      border-top: 1px solid var(--line); background: #fffaf4;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <header>
+      <div class="brand">K2 Chicken</div>
+      <h1>Mobile API</h1>
+      <p id="status">Connecting to production…</p>
+    </header>
+    <div class="tabs">
+      <button class="active" data-tab="stores">Stores</button>
+      <button data-tab="catalog">Catalog</button>
+      <button data-tab="config">Config</button>
+    </div>
+    <main id="view"><div class="loading">Loading…</div></main>
+    <footer id="foot">Live: k2-chicken-pos-api.vercel.app/api/v1/mobile</footer>
+  </div>
+  <script>
+    const API = 'https://k2-chicken-pos-api.vercel.app/api/v1/mobile';
+    const view = document.getElementById('view');
+    const status = document.getElementById('status');
+    let cache = { stores: null, catalog: null, config: null, storeId: null };
+
+    async function get(path) {
+      const r = await fetch(API + path);
+      if (!r.ok) throw new Error(path + ' → HTTP ' + r.status);
+      return r.json();
+    }
+
+    function money(paise) {
+      if (paise == null) return '—';
+      return '₹' + (paise / 100).toFixed(paise % 100 ? 2 : 0);
+    }
+
+    async function load() {
+      try {
+        const [config, stores] = await Promise.all([get('/config'), get('/stores')]);
+        cache.config = config;
+        cache.stores = stores.stores || [];
+        cache.storeId = cache.stores[0]?.id || null;
+        status.textContent = cache.stores.length
+          ? cache.stores[0].name + ' · connected'
+          : 'API up · no stores';
+        if (cache.storeId) {
+          const cat = await get('/stores/' + cache.storeId + '/catalog');
+          cache.catalog = cat;
+        }
+        show('stores');
+      } catch (e) {
+        status.textContent = 'Connection failed';
+        view.innerHTML = '<div class="err">' + e.message + '</div>';
+      }
+    }
+
+    function show(tab) {
+      document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+      if (tab === 'stores') {
+        if (!cache.stores?.length) { view.innerHTML = '<div class="loading">No stores</div>'; return; }
+        view.innerHTML = cache.stores.map((s) => `
+          <div class="card">
+            <h3>${s.name}</h3>
+            <div class="meta">${s.id}</div>
+            <span class="pill">${s.deliveryEnabled ? 'Delivery on' : 'Pickup only'}</span>
+          </div>`).join('');
+      } else if (tab === 'catalog') {
+        const products = cache.catalog?.products || cache.catalog?.items || [];
+        const cats = cache.catalog?.categories;
+        if (!products.length && !cats) {
+          view.innerHTML = '<pre class="card" style="overflow:auto;font-size:11px">' +
+            JSON.stringify(cache.catalog, null, 2) + '</pre>';
+          return;
+        }
+        const list = products.length ? products : (cats || []).flatMap((c) => (c.products || []).map((p) => ({ ...p, category: c.name })));
+        view.innerHTML = list.map((p) => `
+          <div class="card">
+            <h3>${p.name || p.title || 'Product'}</h3>
+            <div class="meta">${p.categoryName || p.category || p.unitLabel || ''}${p.inStock === false ? ' · out of stock' : ''}</div>
+            <div class="price">${money(p.pricePaise ?? p.priceInPaise ?? p.unitPricePaise)}</div>
+          </div>`).join('') || '<div class="loading">Empty catalog</div>';
+      } else {
+        view.innerHTML = `
+          <div class="card">
+            <h3>App config</h3>
+            <div class="meta">API v${cache.config?.apiVersion ?? '—'}</div>
+            <p style="margin:10px 0 0;font-size:13px;line-height:1.5;color:var(--muted)">
+              OTP: ${cache.config?.auth?.otpAvailable ? 'on' : 'off'} ·
+              Portal PIN: ${cache.config?.auth?.portalPinLogin ? 'on' : 'off'}<br/>
+              Min weight: ${cache.config?.weightRules?.minGrams ?? '—'}g ·
+              Step: ${cache.config?.weightRules?.stepGrams ?? '—'}g
+            </p>
+            <span class="pill">${(cache.config?.paymentMethods || []).map((m) => m.id).join(' · ') || 'payments'}</span>
+          </div>`;
+      }
+    }
+
+    document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
+    load();
+  </script>
+</body>
+</html>
