@@ -49,6 +49,7 @@ import { portalRoutes } from './routes/portal.js';
 import { shiftRoutes } from './routes/shifts.js';
 import { publicPreOrderRoutes, preOrderRoutes } from './routes/preOrders.js';
 import { heldCartRoutes } from './routes/heldCarts.js';
+import { mobileRoutes } from './mobile/index.js';
 
 const fastify = Fastify({
   logger: true,
@@ -146,6 +147,8 @@ async function build() {
   await fastify.register(customerDisplayRoutes, { prefix: '/api/v1/customer-display' });
   await fastify.register(portalRoutes, { prefix: '/api/v1/portal' });
   await fastify.register(cronRoutes);
+  // K2 Chicken customer mobile app (additive; see src/mobile/README.md)
+  await fastify.register(mobileRoutes, { prefix: '/api/v1/mobile' });
 
   return fastify;
 }

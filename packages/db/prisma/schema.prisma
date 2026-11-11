@@ -549,6 +549,8 @@ enum PreOrderSource {
   PHONE_CALL
   WHATSAPP
   WALK_IN
+  /// K2 Chicken native customer app (additive — see apps/api/src/mobile)
+  MOBILE_APP
 }
 
 model PreOrder {
@@ -1449,3 +1451,322 @@ model StoreCreditTransaction {
   @@index([type])
 }
 
+// ============================================
+// K2 CUSTOMER MOBILE APP EXTENSION (additive)
+// Owned by apps/api/src/mobile. No FKs to existing POS tables on purpose:
+// existing POS deletes/cascades keep working unchanged; integrity is enforced
+// in the mobile service layer. POS tables remain the system of record for
+// products, prices, stock, sales, payments and fulfilment.
+// ============================================
+
+/// A verified human (phone proven via OTP or an existing portal PIN).
+model CustomerIdentity {
+  id                  String    @id @default(cuid())
+  /// Normalised 10-digit Indian mobile number (no +91).
+  phone               String    @unique
+  verifiedAt          DateTime
+  verificationMethod  String // OTP | PORTAL_PIN
+  /// POS Customer row used for new app orders, addresses and loyalty.
+  primaryCustomerId   String?
+  deletionRequestedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  links        CustomerIdentityLink[]
+  sessions     CustomerSession[]
+  pushDevices  PushDevice[]
+  consents     CommunicationConsent[]
+  weeklyPlans  WeeklyPlan[]
+  mobileOrders MobileOrder[]
+}
+
+/// POS Customer rows proven to belong to an identity (same verified phone).
+model CustomerIdentityLink {
+  id         String           @id @default(cuid())
+  identityId String
+  identity   CustomerIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  customerId String           @unique
+  linkedVia  String // VERIFIED_PHONE
+  linkedAt   DateTime         @default(now())
+
+  @@index([identityId])
+}
+
+model OtpChallenge {
+  id          String    @id @default(cuid())
+  phone       String
+  codeHash    String
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  ipHash      String?
+  createdAt   DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model CustomerSession {
+  id               String           @id @default(cuid())
+  identityId       String
+  identity         CustomerIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  refreshTokenHash String           @unique
+  platform         String?
+  appVersion       String?
+  createdAt        DateTime         @default(now())
+  lastUsedAt       DateTime         @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  revokedReason    String?
+
+  @@index([identityId])
+}
+
+model PushDevice {
+  id            String           @id @default(cuid())
+  identityId    String
+  identity      CustomerIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  sessionId     String?
+  token         String           @unique
+  provider      String           @default("EXPO")
+  platform      String
+  appVersion    String?
+  lastSeenAt    DateTime         @default(now())
+  invalidatedAt DateTime?
+  invalidReason String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([identityId])
+}
+
+model NotificationPreference {
+  identityId          String   @id
+  orderUpdates        Boolean  @default(true)
+  planReminders       Boolean  @default(true)
+  rewardUpdates       Boolean  @default(true)
+  reorderReminders    Boolean  @default(true)
+  /// Minutes after midnight Asia/Kolkata. Quiet window may wrap midnight.
+  quietStartMinutes   Int      @default(1290) // 21:30
+  quietEndMinutes     Int      @default(480) // 08:00
+  maxMarketingPerWeek Int      @default(2)
+  updatedAt           DateTime @updatedAt
+}
+
+/// Append-only consent audit log. Current state = latest row per (channel, purpose).
+model CommunicationConsent {
+  id            String           @id @default(cuid())
+  identityId    String
+  identity      CustomerIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  channel       String // PUSH | WHATSAPP
+  purpose       String // MARKETING | TRANSACTIONAL
+  granted       Boolean
+  source        String // APP_SETTINGS | APP_ONBOARDING | WHATSAPP_STOP | STAFF
+  policyVersion String
+  createdAt     DateTime         @default(now())
+
+  @@index([identityId, channel, purpose, createdAt])
+}
+
+/// App-side envelope around a POS PreOrder (the order staff actually fulfil).
+model MobileOrder {
+  id                  String           @id @default(cuid())
+  preOrderId          String           @unique
+  identityId          String
+  identity            CustomerIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  customerId          String
+  storeId             String
+  idempotencyKey      String
+  requestHash         String
+  /// Authoritative quote snapshot at placement (integer paise / grams).
+  quoteJson           Json
+  estimatedTotalPaise Int
+  fulfillment         String // PICKUP | DELIVERY
+  addressId           String?
+  addressSnapshot     Json?
+  slotStart           DateTime
+  slotEnd             DateTime
+  paymentMethod       String // PAY_AT_PICKUP | PAY_ON_DELIVERY
+  loyaltyPointsHeld   Int              @default(0)
+  /// NONE | HELD | APPLIED | RELEASED
+  loyaltyHoldStatus   String           @default("NONE")
+  source              String           @default("CART") // CART | REORDER | WEEKLY_PLAN
+  sourceRef           String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([identityId, idempotencyKey])
+  @@index([identityId, createdAt])
+  @@index([customerId])
+  @@index([loyaltyHoldStatus])
+}
+
+model WeeklyPlan {
+  id              String           @id @default(cuid())
+  identityId      String
+  identity        CustomerIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  storeId         String
+  name            String
+  /// [{productId, unitType, grams?, pieces?, cutOptionId?, notes?}]
+  itemsJson       Json
+  /// 0=Sunday … 6=Saturday (Asia/Kolkata)
+  dayOfWeek       Int
+  reminderMinutes Int // minutes after midnight IST
+  fulfillment     String           @default("PICKUP")
+  addressId       String?
+  slotPreference  String? // e.g. "08:00"
+  status          String           @default("ACTIVE") // ACTIVE | PAUSED
+  skipDates       String[]         @default([])
+  nextReminderAt  DateTime?
+  lastReminderAt  DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  reminders WeeklyPlanReminder[]
+
+  @@index([identityId])
+  @@index([status, nextReminderAt])
+}
+
+model WeeklyPlanReminder {
+  id           String     @id @default(cuid())
+  planId       String
+  plan         WeeklyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  forDate      String // yyyy-MM-dd (IST) of the plan day
+  scheduledFor DateTime
+  status       String // SENT | SKIPPED | SUPPRESSED | FAILED
+  reason       String?
+  createdAt    DateTime   @default(now())
+
+  @@unique([planId, forDate])
+  @@index([planId, createdAt])
+}
+
+/// Every customer notification attempt (push / WhatsApp). dedupeKey prevents repeats.
+model NotificationLog {
+  id          String   @id @default(cuid())
+  identityId  String
+  kind        String // ORDER_STATUS | PLAN_REMINDER | REWARD | REORDER_REMINDER | PROMO
+  channel     String // PUSH | WHATSAPP
+  isMarketing Boolean  @default(false)
+  dedupeKey   String   @unique
+  status      String // SENT | SUPPRESSED | FAILED | NO_DEVICE | PROVIDER_NOT_CONFIGURED
+  reason      String?
+  title       String?
+  deepLink    String?
+  providerRef String?
+  campaignKey String?
+  createdAt   DateTime @default(now())
+
+  @@index([identityId, createdAt])
+  @@index([kind, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Durable work queue for side effects (notifications, reconciliation).
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  type          String
+  version       Int       @default(1)
+  aggregateType String
+  aggregateId   String
+  payload       Json
+  dedupeKey     String    @unique
+  status        String    @default("PENDING") // PENDING | DONE | FAILED | DEAD
+  attempts      Int       @default(0)
+  availableAt   DateTime  @default(now())
+  processedAt   DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([status, availableAt])
+  @@index([type, createdAt])
+}
+
+/// Inbox cursors for reading POS-side changes without touching POS write paths.
+model IntegrationCursor {
+  name      String   @id
+  cursorAt  DateTime
+  cursorId  String?
+  updatedAt DateTime @updatedAt
+}
+
+model ReorderPrediction {
+  id                  String    @id @default(cuid())
+  identityId          String    @unique
+  ruleVersion         String
+  computedAt          DateTime
+  eligible            Boolean
+  rationale           String
+  purchaseCount       Int
+  medianIntervalDays  Float?
+  usualWeekday        Int?
+  avgOrderGrams       Int?
+  lastPurchaseAt      DateTime?
+  nextExpectedAt      DateTime?
+  preferredProductIds String[]  @default([])
+  confidence          Float     @default(0)
+  updatedAt           DateTime  @updatedAt
+
+  @@index([eligible, nextExpectedAt])
+}
+
+model ExperimentAssignment {
+  id            String   @id @default(cuid())
+  identityId    String
+  experimentKey String
+  variant       String // HOLDOUT | TREATMENT
+  assignedAt    DateTime @default(now())
+
+  @@unique([identityId, experimentKey])
+  @@index([experimentKey, variant])
+}
+
+model AppAnalyticsEvent {
+  id          String   @id @default(cuid())
+  name        String
+  identityId  String?
+  anonymousId String
+  properties  Json?
+  platform    String?
+  appVersion  String?
+  occurredAt  DateTime
+  receivedAt  DateTime @default(now())
+
+  @@index([name, occurredAt])
+  @@index([identityId, occurredAt])
+}
+
+model DataRightsRequest {
+  id          String    @id @default(cuid())
+  identityId  String
+  type        String // DELETE | EXPORT
+  status      String    @default("REQUESTED") // REQUESTED | COMPLETED | REJECTED
+  note        String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([status, createdAt])
+}
+
+/// Per-store app commerce settings. Missing row = safe defaults (pickup only).
+model MobileStoreConfig {
+  storeId                String   @id
+  appOrderingEnabled     Boolean  @default(true)
+  deliveryEnabled        Boolean  @default(false)
+  serviceablePincodes    String[] @default([])
+  deliveryFeePaise       Int      @default(0)
+  freeDeliveryAbovePaise Int?
+  minOrderPaise          Int      @default(0)
+  slotMinutes            Int      @default(60)
+  leadTimeMinutes        Int      @default(60)
+  maxDaysAhead           Int      @default(3)
+  /// {"0":[480,1200], "1":null, ...} minutes after midnight IST; null = closed
+  hoursJson              Json?
+  /// [{id,label}] cut/piece-size options offered for KG products
+  cutOptionsJson         Json?
+  customerCancelWindow   String   @default("PENDING_ONLY") // PENDING_ONLY | NONE
+  supportPhone           String?
+  updatedAt              DateTime @updatedAt
+}
