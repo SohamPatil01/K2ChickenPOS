@@ -44,6 +44,20 @@ export const pinLoginSchema = z.object({
   platform: z.enum(['ios', 'android', 'web']).optional(),
   appVersion: z.string().max(32).optional(),
 });
+/** Lookup whether this POS phone already has a loyalty PIN (same field as points.k2chicken.com). */
+export const pinLookupSchema = z.object({ phone: z.string().min(10).max(16) });
+/**
+ * First-time PIN set for a POS number that has no portalPinHash yet (or a brand-new customer).
+ * Same hash field as the loyalty portal — one PIN for both surfaces.
+ */
+export const pinClaimSchema = z.object({
+  phone: z.string().min(10).max(16),
+  pin: z.string().regex(/^\d{4,6}$/),
+  name: z.string().trim().min(2).max(80).optional(),
+  referralCode: z.string().trim().max(12).optional(),
+  platform: z.enum(['ios', 'android', 'web']).optional(),
+  appVersion: z.string().max(32).optional(),
+});
 export const refreshSchema = z.object({ refreshToken: z.string().min(20).max(200) });
 
 export const addressSchema = z.object({

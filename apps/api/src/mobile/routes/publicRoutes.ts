@@ -36,7 +36,8 @@ export async function mobilePublicRoutes(app: FastifyInstance) {
   });
 
   app.get('/stores', async (_req, reply) => {
-    reply.header('Cache-Control', 'public, max-age=300');
+    // private/no-store: public CDN cache can pin a single Access-Control-Allow-Origin
+    reply.header('Cache-Control', 'private, no-store');
     return { stores: await listStores() };
   });
 

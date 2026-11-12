@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@azela-pos/db';
-import { otpRequestSchema, otpVerifySchema, pinLoginSchema, refreshSchema } from '../contracts.js';
+import { otpRequestSchema, otpVerifySchema, pinClaimSchema, pinLoginSchema, pinLookupSchema, refreshSchema } from '../contracts.js';
 import {
   generateOtp,
   hashIp,
@@ -16,7 +16,7 @@ import { normalizeIndianMobile, posPhoneVariants, toE164India } from '../domain/
 import { HttpError } from '../errors.js';
 import { otpEchoEnabled, resolveOtpSender } from '../providers/otpSender.js';
 import { ctxOf, requireCustomer } from '../auth.js';
-import { establishIdentity } from '../services/identity.js';
+import { establishIdentity, resolveDefaultOwnerStoreId } from '../services/identity.js';
 import { createSession, refreshSession, revokeSession } from '../services/session.js';
 
 let dummy: string | null = null;
@@ -109,18 +109,100 @@ export async function mobileAuthRoutes(app: FastifyInstance) {
     if (process.env.MOBILE_ALLOW_PORTAL_PIN_LOGIN === 'false') throw new HttpError(404, 'NOT_FOUND', 'Not found');
     const body = pinLoginSchema.parse(request.body);
     const phone = phoneOrThrow(body.phone);
-    const candidates = await prisma.customer.findMany({
-      where: { phone: { in: posPhoneVariants(phone) }, portalPinHash: { not: null } },
+    // Same branching as the loyalty portal: unknown number / no PIN yet / wrong PIN.
+    const customers = await prisma.customer.findMany({
+      where: { phone: { in: posPhoneVariants(phone) } },
       select: { portalPinHash: true },
     });
+    if (!customers.length) {
+      await bcrypt.compare(body.pin, dummyHash());
+      throw new HttpError(404, 'NOT_FOUND', 'No account found. Please register.');
+    }
+    const candidates = customers.filter((c) => c.portalPinHash);
+    if (!candidates.length) {
+      await bcrypt.compare(body.pin, dummyHash());
+      throw new HttpError(404, 'NO_PIN', 'Set a PIN first (register or claim this number).');
+    }
     let ok = false;
     for (const c of candidates) if (c.portalPinHash && (await bcrypt.compare(body.pin, c.portalPinHash))) ok = true;
-    if (!ok) {
-      if (!candidates.length) await bcrypt.compare(body.pin, dummyHash()); // equalise timing for unknown numbers
-      throw new HttpError(401, 'PIN_INCORRECT', 'Phone number or PIN is incorrect');
-    }
+    if (!ok) throw new HttpError(401, 'PIN_INCORRECT', 'Incorrect PIN');
     const { identityId } = await establishIdentity({ phone, method: 'PORTAL_PIN' });
     return { ...(await createSession(app, identityId, { platform: body.platform, appVersion: body.appVersion })), isNewCustomer: false };
+  });
+
+  /** Same trust model as the loyalty portal lookup — used to branch login vs first-time PIN set. */
+  app.post('/auth/pin/lookup', strict(20), async (request) => {
+    if (process.env.MOBILE_ALLOW_PORTAL_PIN_LOGIN === 'false') throw new HttpError(404, 'NOT_FOUND', 'Not found');
+    const body = pinLookupSchema.parse(request.body);
+    const phone = phoneOrThrow(body.phone);
+    const customers = await prisma.customer.findMany({
+      where: { phone: { in: posPhoneVariants(phone) } },
+      select: { name: true, portalPinHash: true, loyaltyPoints: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!customers.length) return { exists: false, hasPin: false, name: null as string | null };
+    const withPin = customers.find((c) => c.portalPinHash);
+    const pick = withPin ?? [...customers].sort((a, b) => (b.loyaltyPoints || 0) - (a.loyaltyPoints || 0))[0]!;
+    return { exists: true, hasPin: Boolean(pick.portalPinHash), name: pick.name || null };
+  });
+
+  /**
+   * First-time set of the shared loyalty PIN (Customer.portalPinHash), then open an app session.
+   * Refuses if a PIN already exists — those users must use /auth/pin/login.
+   */
+  app.post('/auth/pin/claim', strict(5), async (request) => {
+    if (process.env.MOBILE_ALLOW_PORTAL_PIN_LOGIN === 'false') throw new HttpError(404, 'NOT_FOUND', 'Not found');
+    const body = pinClaimSchema.parse(request.body);
+    const phone = phoneOrThrow(body.phone);
+    const customers = await prisma.customer.findMany({
+      where: { phone: { in: posPhoneVariants(phone) } },
+      select: { id: true, name: true, portalPinHash: true, loyaltyPoints: true, storeId: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const withPin = customers.find((c) => c.portalPinHash);
+    if (withPin) throw new HttpError(409, 'ALREADY_REGISTERED', 'This phone already has a PIN. Please sign in.');
+
+    const ownerStoreId = await resolveDefaultOwnerStoreId();
+    const ranked = [...customers].sort(
+      (a, b) => Number(b.storeId === ownerStoreId) - Number(a.storeId === ownerStoreId) || (b.loyaltyPoints || 0) - (a.loyaltyPoints || 0)
+    );
+    const existing = ranked[0] ?? null;
+    const name = (body.name?.trim() || existing?.name || '').trim();
+    if (!existing && name.length < 2) throw new HttpError(400, 'NAME_REQUIRED', 'Enter your name to create an account');
+
+    const pinHash = await bcrypt.hash(body.pin, 10);
+    const now = new Date();
+    if (existing) {
+      await prisma.customer.update({
+        where: { id: existing.id },
+        data: { portalPinHash: pinHash, portalRegisteredAt: now, ...(name && !existing.name ? { name } : {}) },
+      });
+    } else {
+      if (!ownerStoreId) throw new HttpError(503, 'STORE_NOT_CONFIGURED', 'Store is not configured');
+      await prisma.customer.create({
+        data: {
+          storeId: ownerStoreId,
+          name,
+          phone,
+          loyaltyPoints: 0,
+          loyaltyTier: 'BRONZE',
+          totalSpent: 0,
+          portalPinHash: pinHash,
+          portalRegisteredAt: now,
+        },
+      });
+    }
+
+    const { identityId, isNewCustomer } = await establishIdentity({
+      phone,
+      method: 'PORTAL_PIN',
+      name: name || undefined,
+      referralCode: body.referralCode,
+    });
+    return {
+      ...(await createSession(app, identityId, { platform: body.platform, appVersion: body.appVersion })),
+      isNewCustomer: isNewCustomer || !existing,
+    };
   });
 
   app.post('/auth/refresh', strict(30), async (request) => {

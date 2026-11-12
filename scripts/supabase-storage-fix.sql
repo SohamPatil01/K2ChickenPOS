@@ -43,7 +43,7 @@ WHERE "createdAt" < NOW() - INTERVAL '90 days';
 -- Strip any remaining base64 product images
 UPDATE "Product"
 SET "imageUrl" = NULL, "updatedAt" = NOW()
-WHERE "imageUrl" LIKE 'data:%';
+WHERE "imageUrl" LIKE 'data:%'; 
 
 -- ========== 3) RECLAIM SPACE ==========
 -- Must run outside a transaction (SQL editor is fine)
