@@ -7,4 +7,5 @@ export * from './saleDeliveryFee.js';
 export * from './storeDay.js';
 export * from './paymentTally.js';
 export * from './appBrand.js';
+export * from './coupons.js';
 

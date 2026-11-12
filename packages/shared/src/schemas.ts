@@ -227,6 +227,8 @@ export const syncEventSchema = z.object({
   clientCreatedAt: z.string().datetime(),
   /** Dexie queuedEvents.id — echoed back as ackedQueueIds for client-side ack */
   clientQueueId: z.number().int().optional(),
+  /** Stable client id for DB-level sync idempotency */
+  clientEventId: z.string().max(128).optional(),
 });
 
 export const syncEventsSchema = z.object({

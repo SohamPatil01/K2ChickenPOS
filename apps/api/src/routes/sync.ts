@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { prisma } from '@azela-pos/db';
+import { prisma, Prisma } from '@azela-pos/db';
 import { getUser } from '../utils/auth.js';
 import { syncEventsSchema } from '@azela-pos/shared';
 import { applyOfflineCheckoutFromSync } from '../services/offlineCheckoutSync.js';
@@ -18,37 +18,82 @@ export async function syncRoutes(fastify: FastifyInstance) {
     const ackedIds: string[] = [];
     /** Dexie queuedEvents.id values — client clears queue rows by these. */
     const ackedQueueIds: number[] = [];
+    const deadLetter: Array<{ clientQueueId?: number; error: string }> = [];
 
     for (const event of data.events) {
-      try {
-        // Create sync event record
-        const syncEvent = await prisma.syncEvent.create({
-          data: {
-            storeId,
-            deviceId: data.deviceId,
-            eventType: event.eventType,
-            payloadJson: event.payloadJson,
-            clientCreatedAt: new Date(event.clientCreatedAt),
-            serverReceivedAt: new Date(),
-          },
-        });
+      const clientEventId =
+        (typeof event.clientEventId === 'string' && event.clientEventId.trim()) ||
+        (typeof event.clientQueueId === 'number'
+          ? `q:${event.clientQueueId}:${event.eventType}:${event.clientCreatedAt}`
+          : `h:${event.eventType}:${event.clientCreatedAt}:${JSON.stringify(event.payloadJson).slice(0, 120)}`);
 
-        // Process event based on type
+      try {
+        let syncEvent;
+        try {
+          syncEvent = await prisma.syncEvent.create({
+            data: {
+              storeId,
+              deviceId: data.deviceId,
+              clientEventId,
+              eventType: event.eventType,
+              payloadJson: event.payloadJson,
+              clientCreatedAt: new Date(event.clientCreatedAt),
+              serverReceivedAt: new Date(),
+              status: 'PENDING',
+            },
+          });
+        } catch (err: any) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            // Duplicate client event — acknowledge without reprocessing if already done
+            const existing = await prisma.syncEvent.findFirst({
+              where: { storeId, deviceId: data.deviceId, clientEventId },
+            });
+            if (existing?.ackedAt || existing?.status === 'PROCESSED') {
+              ackedIds.push(existing.id);
+              if (typeof event.clientQueueId === 'number') {
+                ackedQueueIds.push(event.clientQueueId);
+              }
+              continue;
+            }
+            syncEvent = existing;
+            if (!syncEvent) throw err;
+          } else {
+            throw err;
+          }
+        }
+
+        // Process only after the SyncEvent row exists; ack only after success
         await processSyncEvent(event.eventType, event.payloadJson, storeId, userId);
 
-        // Mark as acked
         await prisma.syncEvent.update({
           where: { id: syncEvent.id },
-          data: { ackedAt: new Date() },
+          data: { ackedAt: new Date(), status: 'PROCESSED', processingError: null },
         });
 
         ackedIds.push(syncEvent.id);
         if (typeof event.clientQueueId === 'number' && Number.isFinite(event.clientQueueId)) {
           ackedQueueIds.push(event.clientQueueId);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error processing sync event:', error);
-        // Continue processing other events
+        const msg = error?.message || 'sync failed';
+        if (typeof event.clientQueueId === 'number') {
+          deadLetter.push({ clientQueueId: event.clientQueueId, error: msg });
+        }
+        // Persist failure when we can identify the row
+        try {
+          await prisma.syncEvent.updateMany({
+            where: {
+              storeId,
+              deviceId: data.deviceId,
+              clientEventId,
+              ackedAt: null,
+            },
+            data: { status: 'FAILED', processingError: msg.slice(0, 500) },
+          });
+        } catch {
+          /* ignore */
+        }
       }
     }
 
@@ -58,12 +103,13 @@ export async function syncRoutes(fastify: FastifyInstance) {
         where: {
           storeId,
           ackedAt: { not: null },
+          status: 'PROCESSED',
           serverReceivedAt: { lt: syncRetentionCutoff },
         },
       })
       .catch((err) => console.warn('[Sync] Failed to prune old SyncEvent rows:', err));
 
-    return { ackedIds, ackedQueueIds, success: true };
+    return { ackedIds, ackedQueueIds, deadLetter, success: true };
   });
 
   fastify.get('/bootstrap', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -85,7 +131,6 @@ export async function syncRoutes(fastify: FastifyInstance) {
       return;
     }
 
-    // Get products with prices
     const products = await prisma.product.findMany({
       where: {
         ownerStoreId,
@@ -106,7 +151,6 @@ export async function syncRoutes(fastify: FastifyInstance) {
 
     const scaleScopeIds = scaleBarcodeConfigScopeIdsFromStore(store) ?? [storeId];
 
-    // Get scale configs (franchise till + parent owner / HQ)
     const scaleConfigs = await prisma.scaleBarcodeConfig.findMany({
       where: {
         storeId: { in: scaleScopeIds },
@@ -116,11 +160,10 @@ export async function syncRoutes(fastify: FastifyInstance) {
 
     const customerStoreFilter = await resolveStoreIdFilter(storeId, (getUser(request) as any).role);
 
-    // Get customers
     const customers = await prisma.customer.findMany({
       where: { storeId: customerStoreFilter },
       include: { addresses: true },
-      take: 200, // Offline bootstrap only — keep DB egress low
+      take: 200,
     });
 
     reply.header('Cache-Control', 'private, max-age=300, stale-while-revalidate=600');
@@ -173,4 +216,3 @@ async function processSyncEvent(
       console.log(`Unhandled event type: ${eventType}`);
   }
 }
-

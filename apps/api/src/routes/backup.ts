@@ -2,6 +2,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { buildFullDatabaseBackup } from '../services/fullDatabaseBackup.js';
+import { requireBackupAuth } from '../lib/securityConfig.js';
 
 const RLS_PUBLIC_TABLES = [
   'Store', 'User', 'Customer', 'CustomerAddress', 'Product', 'Category',
@@ -30,31 +31,19 @@ function backupTxnSince(): { since: Date; days: number } {
 }
 
 function isBackupAdminRequest(request: any): boolean {
-  const backupSecret = process.env.BACKUP_SECRET;
-  const providedSecret =
-    (request.headers['x-backup-secret'] as string) || (request.query as any).secret;
-  const vercelCronHeader =
-    request.headers['x-vercel-cron'] ||
-    request.headers['X-Vercel-Cron'] ||
-    request.headers['X-VERCEL-CRON'];
-  const isVercelCron =
-    vercelCronHeader === '1' ||
-    vercelCronHeader === 'true' ||
-    vercelCronHeader === 'True' ||
-    !!vercelCronHeader;
-  const userAgent = (
-    request.headers['user-agent'] ||
-    request.headers['User-Agent'] ||
-    ''
-  ).toLowerCase();
-  const isVercelUserAgent =
-    userAgent.includes('vercel') || userAgent.includes('vercel-cron');
-  return (
-    isVercelCron ||
-    isVercelUserAgent ||
-    (backupSecret && providedSecret === backupSecret) ||
-    !backupSecret
-  );
+  return requireBackupAuth(request).ok;
+}
+
+function denyUnlessBackupAuth(request: any, reply: any): boolean {
+  const auth = requireBackupAuth(request);
+  if (auth.ok) return true;
+  reply.status(auth.status);
+  reply.send({
+    success: false,
+    message: auth.error,
+    timestamp: new Date().toISOString(),
+  });
+  return false;
 }
 
 interface BackupResponse {
@@ -80,34 +69,26 @@ export async function backupRoutes(fastify: FastifyInstance) {
    * This endpoint logs all headers to help diagnose cron job issues
    */
   fastify.get('/test-cron', async (request, reply) => {
-    const allHeaders = Object.keys(request.headers).reduce((acc, key) => {
-      acc[key] = request.headers[key];
-      return acc;
-    }, {} as Record<string, any>);
-    
-    const vercelCronHeader = request.headers['x-vercel-cron'] || 
-                            request.headers['X-Vercel-Cron'] ||
-                            request.headers['X-VERCEL-CRON'];
-    const userAgent = (request.headers['user-agent'] || request.headers['User-Agent'] || '').toLowerCase();
-    
+    if (!denyUnlessBackupAuth(request, reply)) return;
+    const vercelCronHeader =
+      request.headers['x-vercel-cron'] ||
+      request.headers['X-Vercel-Cron'] ||
+      request.headers['X-VERCEL-CRON'];
     return {
       success: true,
       message: 'Cron test endpoint',
       timestamp: new Date().toISOString(),
-      headers: allHeaders,
       cronDetection: {
         hasVercelCronHeader: !!vercelCronHeader,
-        vercelCronHeaderValue: vercelCronHeader,
-        userAgent: userAgent,
-        isVercelCron: vercelCronHeader === '1' || vercelCronHeader === 'true' || !!vercelCronHeader,
-        isVercelUserAgent: userAgent.includes('vercel'),
+        isVercelCron:
+          vercelCronHeader === '1' || vercelCronHeader === 'true' || vercelCronHeader === 'True',
         environment: {
           hasBackupSecret: !!process.env.BACKUP_SECRET,
           backupStorageMethod: process.env.BACKUP_STORAGE_METHOD || 'vercel-blob',
           hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
-          hasDatabaseUrl: !!process.env.DATABASE_URL
-        }
-      }
+          hasDatabaseUrl: !!process.env.DATABASE_URL,
+        },
+      },
     };
   });
 
@@ -166,73 +147,18 @@ export async function backupRoutes(fastify: FastifyInstance) {
     const startTime = Date.now();
     
     try {
-      // Log all request headers for debugging (in production, this helps diagnose cron issues)
-      const allHeaders = Object.keys(request.headers).reduce((acc, key) => {
-        acc[key] = request.headers[key];
-        return acc;
-      }, {} as Record<string, any>);
-      
-      fastify.log.info(`[Backup] Request received - ID: ${requestId}, Method: ${request.method}, URL: ${request.url}`);
-      fastify.log.info(`[Backup] Headers: ${JSON.stringify(allHeaders, null, 2)}`);
-      
-      // Verify backup secret for security
-      // If BACKUP_SECRET is not set, allow access (for initial setup)
-      // SECURITY: Set BACKUP_SECRET in production environment variables
-      const backupSecret = process.env.BACKUP_SECRET;
-      const providedSecret = (request.headers['x-backup-secret'] as string) || 
-                            (request.headers['x-backup-secret'] as string) ||
-                            (request.query as any).secret;
-      
-      // Allow Vercel Cron Jobs to authenticate
-      // Vercel sends x-vercel-cron header (value can be '1' or just present)
-      const vercelCronHeader = request.headers['x-vercel-cron'] || 
-                              request.headers['X-Vercel-Cron'] ||
-                              request.headers['X-VERCEL-CRON'];
-      const isVercelCron = vercelCronHeader === '1' || 
-                          vercelCronHeader === 'true' || 
-                          vercelCronHeader === 'True' ||
-                          !!vercelCronHeader;
-      
-      // Also check for Vercel's user-agent or other indicators
-      const userAgent = (request.headers['user-agent'] || request.headers['User-Agent'] || '').toLowerCase();
-      const isVercelUserAgent = userAgent.includes('vercel') || userAgent.includes('vercel-cron');
-      
-      // Check for Vercel's cron indicator in various forms
-      const hasVercelCronIndicator = isVercelCron || isVercelUserAgent;
-      
-      // Log authentication attempt for debugging
-      fastify.log.info(`[Backup] Auth check - RequestID: ${requestId}`);
-      fastify.log.info(`[Backup]   - VercelCron Header: ${vercelCronHeader} (exists: ${!!vercelCronHeader})`);
-      fastify.log.info(`[Backup]   - IsVercelCron: ${isVercelCron}`);
-      fastify.log.info(`[Backup]   - UserAgent: ${userAgent.substring(0, 100)}`);
-      fastify.log.info(`[Backup]   - IsVercelUserAgent: ${isVercelUserAgent}`);
-      fastify.log.info(`[Backup]   - HasVercelCronIndicator: ${hasVercelCronIndicator}`);
-      fastify.log.info(`[Backup]   - BACKUP_SECRET set: ${!!backupSecret}`);
-      fastify.log.info(`[Backup]   - ProvidedSecret: ${!!providedSecret}`);
-      
-      // Authenticate: Vercel Cron job OR valid secret OR no secret configured (for initial setup)
-      // Be more permissive for cron jobs - if it looks like a Vercel cron, allow it
-      const isAuthenticated = hasVercelCronIndicator || 
-                             (backupSecret && providedSecret === backupSecret) ||
-                             (!backupSecret);
-
-      if (!isAuthenticated) {
-        fastify.log.warn(`[Backup] Authentication failed - RequestID: ${requestId}`);
-        fastify.log.warn(`[Backup]   - VercelCron: ${isVercelCron}, HasSecret: ${!!backupSecret}, ProvidedSecret: ${!!providedSecret}`);
-        reply.status(401);
+      fastify.log.info(`[Backup] Request received - ID: ${requestId}, Method: ${request.method}`);
+      const auth = requireBackupAuth(request);
+      if (!auth.ok) {
+        fastify.log.warn(`[Backup] Authentication failed - RequestID: ${requestId}: ${auth.error}`);
+        reply.status(auth.status);
         return {
           success: false,
-          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job',
-          timestamp: new Date().toISOString()
+          message: auth.error,
+          timestamp: new Date().toISOString(),
         };
       }
-
-      // Log warning if BACKUP_SECRET is not set (for production security)
-      if (!backupSecret && !hasVercelCronIndicator) {
-        fastify.log.warn(`[Backup] BACKUP_SECRET not set - allowing backup without authentication (not recommended for production) - RequestID: ${requestId}`);
-      }
-      
-      fastify.log.info(`[Backup] Authentication successful - RequestID: ${requestId}, Source: ${hasVercelCronIndicator ? 'Vercel Cron' : 'Manual'}`);
+      fastify.log.info(`[Backup] Authentication successful - RequestID: ${requestId}, via: ${auth.via}`);
 
       const timestamp = new Date().toISOString();
       const { since: txnSince, days: txnDays } = backupTxnSince();
@@ -512,21 +438,12 @@ export async function backupRoutes(fastify: FastifyInstance) {
    */
   fastify.get('/list', async (request, reply) => {
     try {
-      const backupSecret = process.env.BACKUP_SECRET;
-      const providedSecret = (request.headers['x-backup-secret'] as string) || 
-                            (request.query as any).secret;
-      
-      // Allow Vercel Cron Jobs to authenticate (they send x-vercel-cron header)
-      const isVercelCron = request.headers['x-vercel-cron'] === '1';
-      
-      // Authenticate: either valid secret OR Vercel Cron job
-      const isAuthenticated = isVercelCron || (backupSecret && providedSecret === backupSecret);
-
-      if (!isAuthenticated) {
-        reply.status(401);
+      const auth = requireBackupAuth(request);
+      if (!auth.ok) {
+        reply.status(auth.status);
         return {
           success: false,
-          message: 'Unauthorized: Invalid backup secret or not a Vercel Cron job'
+          message: auth.error,
         };
       }
 

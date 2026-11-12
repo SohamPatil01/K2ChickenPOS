@@ -192,6 +192,7 @@ model Store {
   storeProductPrices StoreProductPrice[]
   inventoryLedgers InventoryLedger[]
   sales            Sale[]
+  refunds          Refund[]
   shifts           Shift[]
   cashMovements    CashMovement[]
   preOrders        PreOrder[]
@@ -260,9 +261,29 @@ model User {
   discountApprovals     DiscountOverride[] @relation("DiscountApprover")
   dailyClosings         DailyClosing[] @relation("DailyCloser")
   replenishmentApprovals ReplenishmentRequest[] @relation("ReplenishmentApprover")
+  staffSessions         StaffSession[]
+  refundsProcessed      Refund[]
 
   @@index([storeId])
   @@index([phone])
+}
+
+/// Server-tracked POS staff refresh sessions (hashed opaque tokens, rotation + reuse detection).
+model StaffSession {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash  String    @unique
+  /// Previous hash after rotation — presenting it triggers full revoke (reuse detection).
+  previousTokenHash String?
+  createdAt         DateTime  @default(now())
+  lastUsedAt        DateTime  @default(now())
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  revokedReason     String?
+
+  @@index([userId])
+  @@index([previousTokenHash])
 }
 
 enum CashMovementType {
@@ -443,6 +464,7 @@ model Sale {
 
   items         SaleItem[]
   payments      Payment[]
+  refunds       Refund[]
   deliveryOrder DeliveryOrder?
   discountOverride DiscountOverride?
   loyaltyTransactions LoyaltyTransaction[]
@@ -487,6 +509,34 @@ model Payment {
   createdAt DateTime      @default(now())
 
   @@index([saleId])
+  /// Idempotent pay retries share attempt:${key}:METHOD as txnRef
+  @@unique([saleId, txnRef])
+}
+
+enum RefundStatus {
+  COMPLETED
+  REVERSED
+}
+
+model Refund {
+  id              String        @id @default(cuid())
+  saleId          String
+  sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  storeId         String
+  store           Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  amount          Float
+  method          PaymentMethod
+  reason          String?
+  reference       String?
+  processedByUserId String
+  processedBy     User          @relation(fields: [processedByUserId], references: [id])
+  idempotencyKey  String?
+  status          RefundStatus  @default(COMPLETED)
+  createdAt       DateTime      @default(now())
+
+  @@unique([storeId, idempotencyKey])
+  @@index([saleId])
+  @@index([storeId, createdAt])
 }
 
 model Shift {
@@ -790,14 +840,20 @@ model SyncEvent {
   storeId         String
   store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   deviceId        String
+  /// Client-generated id for idempotent sync (unique per store+device).
+  clientEventId   String?
   eventType       String   // "SALE_CREATED", "SALE_PAID", etc.
   payloadJson     Json
   clientCreatedAt DateTime
   serverReceivedAt DateTime? @default(now())
   ackedAt         DateTime?
+  processingError String?
+  status          String   @default("PENDING") // PENDING | PROCESSED | FAILED | DEAD
 
+  @@unique([storeId, deviceId, clientEventId])
   @@index([storeId, deviceId, ackedAt])
   @@index([storeId, serverReceivedAt])
+  @@index([status])
 }
 
 // ============================================

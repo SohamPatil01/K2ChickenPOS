@@ -7,7 +7,7 @@ import {
   parseScaleBarcode,
   scaleBarcodeConfigScopeIdsFromStore,
 } from '../utils/barcode.js';
-import { getUser } from '../utils/auth.js';
+import { getUser, requireRole } from '../utils/auth.js';
 
 export async function scaleRoutes(fastify: FastifyInstance) {
 
@@ -39,7 +39,7 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     return configs;
   });
 
-  fastify.post('/config', { preHandler: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/config', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const data = scaleBarcodeConfigSchema.parse(request.body as any);
       const storeId = (getUser(request) as any).storeId;
@@ -80,7 +80,7 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.put('/config/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+  fastify.put('/config/:id', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
     const data = scaleBarcodeConfigSchema.parse(request.body as any);
     const storeId = (getUser(request) as any).storeId;
@@ -103,7 +103,7 @@ export async function scaleRoutes(fastify: FastifyInstance) {
     return config;
   });
 
-  fastify.delete('/config/:id', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
+  fastify.delete('/config/:id', { preHandler: [fastify.authenticate, requireRole('OWNER', 'MANAGER')] }, async (request: any, reply: FastifyReply) => {
     const { id } = (request.params as any);
     const storeId = (getUser(request) as any).storeId;
 

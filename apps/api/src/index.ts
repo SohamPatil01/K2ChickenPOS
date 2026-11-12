@@ -50,6 +50,7 @@ import { shiftRoutes } from './routes/shifts.js';
 import { publicPreOrderRoutes, preOrderRoutes } from './routes/preOrders.js';
 import { heldCartRoutes } from './routes/heldCarts.js';
 import { mobileRoutes } from './mobile/index.js';
+import { isAllowedCorsOrigin, resolveJwtSecret, shouldSkipGlobalRateLimit } from './lib/securityConfig.js';
 
 const fastify = Fastify({
   logger: true,
@@ -57,7 +58,11 @@ const fastify = Fastify({
 
 async function build() {
   await fastify.register(cors, {
-    origin: true,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true);
+      if (!isAllowedCorsOrigin(origin)) return cb(null, false);
+      return cb(null, origin);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'Pragma', 'If-Modified-Since', 'Expires'],
@@ -70,16 +75,11 @@ async function build() {
           max: process.env.NODE_ENV === 'production' ? 2000 : 10000,
           timeWindow: '1 minute',
           skipOnError: true,
-          // Skip health, auth bootstrap, and CORS preflight (OPTIONS must not burn the budget).
+          // Skip health + CORS preflight only. Auth routes use tighter route-level limits.
           skip: ((request: any): boolean => {
-            if ((request as any).method === 'OPTIONS') return true;
-            const u = String((request as any).url || '').split('?')[0];
-            return (
-              u === '/health' ||
-              u === '/' ||
-              u === '/api/v1/auth/login' ||
-              u === '/api/v1/auth/profiles' ||
-              u === '/api/v1/auth/refresh'
+            return shouldSkipGlobalRateLimit(
+              String((request as any).url || ''),
+              String((request as any).method || '')
             );
           }) as any,
           addHeaders: {
@@ -90,7 +90,7 @@ async function build() {
         } as any);
 
   await fastify.register(jwt, {
-    secret: process.env.JWT_SECRET || 'your-secret-key',
+    secret: resolveJwtSecret(),
   });
 
   // Register authenticate decorator

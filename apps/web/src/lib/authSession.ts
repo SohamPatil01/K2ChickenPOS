@@ -46,6 +46,10 @@ export async function refreshAccessToken(): Promise<string | null> {
       const accessToken = data?.accessToken;
       if (!accessToken || typeof accessToken !== 'string') return null;
       localStorage.setItem('accessToken', accessToken);
+      // Server rotates refresh tokens; persist the new one when present
+      if (typeof data?.refreshToken === 'string' && data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
       useAuthStore.setState({ accessToken });
       return accessToken;
     } catch {
