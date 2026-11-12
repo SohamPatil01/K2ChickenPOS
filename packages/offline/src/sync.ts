@@ -1,9 +1,18 @@
 import { offlineDB, QueuedEvent } from './db';
 
+const MAX_RETRIES = 8;
+
 export interface SyncResult {
   success: boolean;
   ackedIds: number[];
   errors: Array<{ id: number; error: string }>;
+}
+
+function newClientEventId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `evt_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export async function queueEvent(
@@ -11,10 +20,12 @@ export async function queueEvent(
   payload: Record<string, any>
 ): Promise<number> {
   const event: Omit<QueuedEvent, 'id'> = {
+    clientEventId: newClientEventId(),
     eventType,
     payloadJson: payload,
     clientCreatedAt: new Date().toISOString(),
     retryCount: 0,
+    syncStatus: 'pending',
   };
   return await offlineDB.queuedEvents.add(event);
 }
@@ -26,12 +37,32 @@ export async function getPendingEvents(): Promise<QueuedEvent[]> {
       if (event.ackedAt !== undefined && event.ackedAt !== null) {
         return false;
       }
+      if (event.deadLetter || event.syncStatus === 'dead') {
+        return false;
+      }
       if (!event.nextRetryAt) {
         return true;
       }
       return new Date(event.nextRetryAt).getTime() <= now;
     })
     .toArray();
+}
+
+/** Manager-visible permanently failed queue rows (never auto-deleted). */
+export async function getDeadLetterEvents(): Promise<QueuedEvent[]> {
+  return offlineDB.queuedEvents
+    .filter((e) => !!e.deadLetter || e.syncStatus === 'dead')
+    .toArray();
+}
+
+export async function retryDeadLetterEvent(eventId: number): Promise<void> {
+  await offlineDB.queuedEvents.update(eventId, {
+    deadLetter: false,
+    syncStatus: 'pending',
+    retryCount: 0,
+    lastError: undefined,
+    nextRetryAt: undefined,
+  });
 }
 
 export async function markEventsAcked(eventIds: number[]): Promise<void> {
@@ -48,12 +79,24 @@ export async function markEventError(
 ): Promise<void> {
   const row = await offlineDB.queuedEvents.get(eventId);
   const nextRetryCount = (row?.retryCount ?? 0) + 1;
+  if (nextRetryCount >= MAX_RETRIES) {
+    await offlineDB.queuedEvents.update(eventId, {
+      lastError: error,
+      retryCount: nextRetryCount,
+      lastAttemptAt: new Date().toISOString(),
+      deadLetter: true,
+      syncStatus: 'dead',
+      nextRetryAt: undefined,
+    });
+    return;
+  }
   const delayMs = getRetryDelayMs(nextRetryCount);
   await offlineDB.queuedEvents.update(eventId, {
     lastError: error,
     retryCount: nextRetryCount,
     lastAttemptAt: new Date().toISOString(),
     nextRetryAt: new Date(Date.now() + delayMs).toISOString(),
+    syncStatus: 'failed',
   });
 }
 
@@ -80,6 +123,7 @@ export function buildSyncEventsPayload(
       payloadJson: e.payloadJson,
       clientCreatedAt: e.clientCreatedAt,
       clientQueueId: e.id,
+      clientEventId: e.clientEventId || `q:${e.id}:${e.eventType}:${e.clientCreatedAt}`,
     })),
   };
 }
