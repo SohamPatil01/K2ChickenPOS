@@ -1,15 +1,9 @@
 // @ts-nocheck
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
 import { resolveStoreDateRange, salesInDateRangeWhere, tallyPaymentsFromSales, ymdInStoreTz, ymdDaysAgoInStoreTz } from '@azela-pos/shared';
-import { requireRole } from '../utils/auth.js';
-import { getUser } from '../utils/auth.js';
-
-interface QueryParams {
-  startDate?: string;
-  endDate?: string;
-  franchiseId?: string;
-}
+import { requireRole, getUser } from '../utils/auth.js';
+import { canAccessStoreResource } from '../utils/storeScope.js';
 
 function getDateRange(startDate?: string, endDate?: string) {
   if (startDate && endDate) {
@@ -31,58 +25,68 @@ function saleRangeWhere(storeId: string | { in: string[] }, dateFilter: { gte: D
   };
 }
 
+async function requireOwnerStore(request: any, reply: FastifyReply): Promise<string | null> {
+  const user = getUser(request);
+  if ((user as any).role !== 'OWNER') {
+    reply.code(403).send({ error: 'Forbidden' });
+    return null;
+  }
+  const ownerStoreId = (user as any).storeId;
+  const ownerStore = await prisma.store.findUnique({
+    where: { id: ownerStoreId },
+    select: { id: true, name: true, type: true },
+  });
+  if (!ownerStore || ownerStore.type !== 'OWNER') {
+    reply.code(403).send({ error: 'Access denied. Owner store not found.' });
+    return null;
+  }
+  return ownerStoreId;
+}
+
+/** Resolve franchise filter to store ids owned by this HQ owner. */
+async function resolveHqStoreIds(
+  ownerStoreId: string,
+  franchiseId: string | undefined,
+  reply: FastifyReply
+): Promise<string[] | null> {
+  if (franchiseId && franchiseId !== 'all') {
+    const allowed = await canAccessStoreResource(ownerStoreId, 'OWNER', franchiseId);
+    if (!allowed && franchiseId !== ownerStoreId) {
+      reply.code(403).send({ error: 'Franchise not owned by this account' });
+      return null;
+    }
+    return [franchiseId];
+  }
+  const franchises = await prisma.store.findMany({
+    where: { type: 'FRANCHISE', parentOwnerStoreId: ownerStoreId },
+    select: { id: true },
+  });
+  return [ownerStoreId, ...franchises.map((f) => f.id)];
+}
+
+const hqAuth = { preHandler: [] as any[] };
+
 export async function franchiseHQRoutes(fastify: FastifyInstance) {
-  // Get overall HQ dashboard summary
-  fastify.get('/dashboard', async (request: any, reply: FastifyReply) => {
+  hqAuth.preHandler = [fastify.authenticate, requireRole('OWNER')];
+
+  fastify.get('/dashboard', hqAuth, async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
-
-      // Try to get ownerStoreId from authenticated user, fallback to default store
-      let ownerStoreId = '';
-
-      try {
-        const user = getUser(request);
-        ownerStoreId = (user as any).storeId || '';
-      } catch (error) {
-        // Not authenticated, use oldest OWNER store as fallback
-        console.log('[HQ Dashboard] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({
-          where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-        });
-        ownerStoreId = defaultStore?.id || '';
-      }
-
-      if (!ownerStoreId) {
-        reply.code(400).send({ error: 'Owner store not found' });
-        return;
-      }
+      const ownerStoreId = await requireOwnerStore(request, reply);
+      if (!ownerStoreId) return;
 
       const ownerStore = await prisma.store.findUnique({
         where: { id: ownerStoreId },
-        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+        select: { id: true, name: true, type: true },
       });
-      if (!ownerStore || ownerStore.type !== 'OWNER') {
-        reply.code(403).send({ error: 'Access denied. Owner store not found.' });
-        return;
-      }
 
-      // Get all franchises
       const franchises = await prisma.store.findMany({
-        where: {
-          type: 'FRANCHISE',
-          parentOwnerStoreId: ownerStoreId,
-        },
+        where: { type: 'FRANCHISE', parentOwnerStoreId: ownerStoreId },
       });
-
-      const franchiseIds = franchises.map(f => f.id);
-
-      // Include owner store in the store IDs for aggregate data
+      const franchiseIds = franchises.map((f) => f.id);
       const allStoreIds = [ownerStoreId, ...franchiseIds];
 
-      // Aggregate sales data - include owner store and all franchises
       const [totalSales, totalRevenue, totalCustomers, franchiseSales, saleItems] = await Promise.all([
         prisma.sale.count({
           where: {
@@ -121,37 +125,21 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
         }),
       ]);
 
-      // Calculate total product sales (sum of lineTotal from all sale items)
-      const totalProductSales = Math.round(saleItems.reduce((sum: any, item: any) => sum + (item.lineTotal || 0), 0) * 100) / 100;
+      const totalProductSales =
+        Math.round(saleItems.reduce((sum: any, item: any) => sum + (item.lineTotal || 0), 0) * 100) / 100;
 
-      // Get store-wise breakdown (owner store + all franchises)
       const storeBreakdown = await Promise.all(
         [
-          // Include owner store first
-          {
-            id: ownerStoreId,
-            name: ownerStore.name,
-            type: 'OWNER',
-          },
-          // Then all franchises
-          ...franchises.map((f: any) => ({
-            id: f.id,
-            name: f.name,
-            type: 'FRANCHISE',
-          })),
+          { id: ownerStoreId, name: ownerStore!.name, type: 'OWNER' },
+          ...franchises.map((f: any) => ({ id: f.id, name: f.name, type: 'FRANCHISE' })),
         ].map(async (store: any) => {
           const sales = await prisma.sale.findMany({
             where: saleRangeWhere(store.id, dateFilter),
           });
-
           const revenue = Math.round(sales.reduce((sum: any, s: any) => sum + (s.grandTotal || 0), 0) * 100) / 100;
           const customers = await prisma.customer.count({
-            where: {
-              storeId: store.id,
-              createdAt: dateFilter,
-            },
+            where: { storeId: store.id, createdAt: dateFilter },
           });
-
           return {
             franchiseId: store.id,
             franchiseName: store.name,
@@ -167,11 +155,14 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       return {
         summary: {
           totalFranchises: franchises.length,
-          totalSales: totalSales,
+          totalSales,
           totalRevenue: Math.round((totalRevenue._sum.grandTotal || 0) * 100) / 100,
-          totalProductSales: totalProductSales, // Sum of lineTotal (before discounts/taxes)
-          totalCustomers: totalCustomers,
-          avgRevenuePerFranchise: franchises.length > 0 ? Math.round(((totalRevenue._sum.grandTotal || 0) / franchises.length) * 100) / 100 : 0,
+          totalProductSales,
+          totalCustomers,
+          avgRevenuePerFranchise:
+            franchises.length > 0
+              ? Math.round(((totalRevenue._sum.grandTotal || 0) / franchises.length) * 100) / 100
+              : 0,
         },
         franchiseBreakdown: storeBreakdown.sort((a: any, b: any) => b.revenue - a.revenue),
         period: {
@@ -181,12 +172,6 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
       };
     } catch (error: any) {
       console.error('Failed to load HQ dashboard:', error);
-      console.error('Error stack:', error.stack);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        meta: error.meta,
-      });
       reply.code(500).send({
         error: 'Failed to load HQ dashboard',
         details: error.message || 'Unknown error',
@@ -194,53 +179,31 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get sales monitoring across all franchises
-  fastify.get('/sales-monitoring', async (request: any, reply: FastifyReply) => {
+  fastify.get('/sales-monitoring', hqAuth, async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate, franchiseId } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
+      const ownerStoreId = await requireOwnerStore(request, reply);
+      if (!ownerStoreId) return;
 
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-      if (!ownerStore) {
-        reply.code(404).send({ error: 'Owner store not found' });
-        return;
-      }
-
-      let storeIds: string[] = [];
-      if (franchiseId && franchiseId !== 'all') {
-        storeIds = [franchiseId];
-      } else {
-        const franchises = await prisma.store.findMany({
-          where: {
-            type: 'FRANCHISE',
-            parentOwnerStoreId: ownerStore.id,
-          },
-        });
-        storeIds = [ownerStore.id, ...franchises.map((f) => f.id)];
-      }
+      const storeIds = await resolveHqStoreIds(ownerStoreId, franchiseId, reply);
+      if (!storeIds) return;
 
       const sales = await prisma.sale.findMany({
         where: saleRangeWhere({ in: storeIds }, dateFilter),
         include: {
-          store: {
-            select: { id: true, name: true },
-          },
-          customer: {
-            select: { name: true, phone: true },
-          },
+          store: { select: { id: true, name: true } },
+          customer: { select: { name: true, phone: true } },
           items: {
             include: {
-              product: {
-                select: { name: true, sku: true },
-              },
+              product: { select: { name: true, sku: true } },
             },
           },
         },
         orderBy: { createdAt: 'desc' },
-        take: 100, // Limit to recent 100 sales
+        take: 100,
       });
 
-      // Daily sales trend
       const dailySales = await prisma.sale.groupBy({
         by: ['storeId', 'createdAt'],
         where: saleRangeWhere({ in: storeIds }, dateFilter),
@@ -259,65 +222,34 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get inventory monitoring across franchises
-  fastify.get('/inventory-monitoring', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply) => {
+  fastify.get('/inventory-monitoring', hqAuth, async (request: any, reply: FastifyReply) => {
     try {
       const { franchiseId } = (request.query as any) || {};
-      const ownerStoreId = (getUser(request) as any).storeId;
+      const ownerStoreId = await requireOwnerStore(request, reply);
+      if (!ownerStoreId) return;
 
-      const ownerStore = await prisma.store.findUnique({
-        where: { id: ownerStoreId },
-        select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-      });
-      if (!ownerStore || ownerStore.type !== 'OWNER') {
-        reply.code(403).send({ error: 'Access denied. Owner store not found.' });
-        return;
-      }
+      const storeIds = await resolveHqStoreIds(ownerStoreId, franchiseId, reply);
+      if (!storeIds) return;
 
-      let storeIds: string[] = [];
-      if (franchiseId && franchiseId !== 'all') {
-        storeIds = [franchiseId];
-      } else {
-        const franchises = await prisma.store.findMany({
-          where: {
-            type: 'FRANCHISE',
-            parentOwnerStoreId: ownerStoreId,
-          },
-        });
-        storeIds = [ownerStoreId, ...franchises.map((f) => f.id)];
-      }
-
-      // Get all products from owner store
       const products = await prisma.product.findMany({
-        where: {
-          ownerStoreId: ownerStoreId,
-          isActive: true,
-        },
-        include: {
-          category: true,
-        },
+        where: { ownerStoreId, isActive: true },
+        include: { category: true },
       });
 
-      // Get inventory for each franchise
       const inventoryData = await Promise.all(
         storeIds.map(async (storeId) => {
           const store = await prisma.store.findUnique({
             where: { id: storeId },
-            select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+            select: { id: true, name: true },
           });
           const inventory = await Promise.all(
             products.map(async (product) => {
               const ledgers = await prisma.inventoryLedger.findMany({
-                where: {
-                  productId: product.id,
-                  storeId: storeId,
-                },
+                where: { productId: product.id, storeId },
               });
 
-              // Calculate kg and pcs separately (don't combine different units!)
               let totalQtyKg = 0;
               let totalQtyPcs = 0;
-
               for (const ledger of ledgers) {
                 if (ledger.type === 'IN') {
                   totalQtyKg = Math.round((totalQtyKg + (ledger.qtyKg || 0)) * 100) / 100;
@@ -328,18 +260,16 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
                 }
               }
 
-              // Ensure non-negative values
-              totalQtyKg = Math.max(0, Math.round(totalQtyKg * 100) / 100);
-              totalQtyPcs = Math.max(0, Math.round(totalQtyPcs));
-
+              // Raw ledger totals — do not clamp negatives (INV reconciliation)
               return {
                 productId: product.id,
                 productName: product.name,
                 sku: product.sku,
                 category: product.category?.name || 'Uncategorized',
-                currentQtyKg: totalQtyKg,
-                currentQtyPcs: totalQtyPcs,
+                currentQtyKg: Math.round(totalQtyKg * 100) / 100,
+                currentQtyPcs: Math.round(totalQtyPcs),
                 unitType: product.unitType,
+                negativeStock: totalQtyKg < -0.001 || totalQtyPcs < 0,
               };
             })
           );
@@ -359,105 +289,61 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Get compliance status
-  fastify.get('/compliance', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.get('/compliance', hqAuth, async (request: any, reply: FastifyReply) => {
     try {
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-      if (!ownerStore) {
-        reply.code(404).send({ error: 'Owner store not found' });
-        return;
-      }
+      const ownerStoreId = await requireOwnerStore(request, reply);
+      if (!ownerStoreId) return;
 
       const franchises = await prisma.store.findMany({
-        where: {
-          type: 'FRANCHISE',
-          parentOwnerStoreId: ownerStore.id,
-        },
+        where: { type: 'FRANCHISE', parentOwnerStoreId: ownerStoreId },
         include: {
-          users: {
-            where: { isActive: true },
-          },
-          _count: {
-            select: {
-              sales: true,
-              customers: true,
-            },
-          },
+          users: { where: { isActive: true } },
+          _count: { select: { sales: true, customers: true } },
         },
       });
 
-      const complianceData = franchises.map((franchise) => {
-        // Basic compliance checks
+      return franchises.map((franchise) => {
         const hasUsers = franchise.users.length > 0;
         const hasSales = franchise._count.sales > 0;
         const hasCustomers = franchise._count.customers > 0;
-        const hasManager = franchise.users.some(u => u.role === 'MANAGER');
-        const hasCashier = franchise.users.some(u => u.role === 'CASHIER');
-
-        const complianceScore = [
-          hasUsers,
-          hasManager,
-          hasCashier,
-          hasSales,
-          hasCustomers,
-        ].filter(Boolean).length * 20; // 0-100 score
+        const hasManager = franchise.users.some((u) => u.role === 'MANAGER');
+        const hasCashier = franchise.users.some((u) => u.role === 'CASHIER');
+        const complianceScore =
+          [hasUsers, hasManager, hasCashier, hasSales, hasCustomers].filter(Boolean).length * 20;
 
         return {
           franchiseId: franchise.id,
           franchiseName: franchise.name,
           complianceScore,
-          status: complianceScore >= 80 ? 'COMPLIANT' : complianceScore >= 60 ? 'WARNING' : 'NON_COMPLIANT',
-          checks: {
-            hasUsers,
-            hasManager,
-            hasCashier,
-            hasSales,
-            hasCustomers,
-          },
+          status:
+            complianceScore >= 80 ? 'COMPLIANT' : complianceScore >= 60 ? 'WARNING' : 'NON_COMPLIANT',
+          checks: { hasUsers, hasManager, hasCashier, hasSales, hasCustomers },
           userCount: franchise.users.length,
         };
       });
-
-      return complianceData;
     } catch (error: any) {
       console.error('Failed to load compliance data:', error);
       reply.code(500).send({ error: 'Failed to load compliance data' });
     }
   });
 
-  // Get payments and commissions
-  fastify.get('/payments-commissions', async (request: any, reply: FastifyReply) => {
+  fastify.get('/payments-commissions', hqAuth, async (request: any, reply: FastifyReply) => {
     try {
       const { startDate, endDate, franchiseId } = (request.query as any) || {};
       const dateFilter = getDateRange(startDate, endDate);
+      const ownerStoreId = await requireOwnerStore(request, reply);
+      if (!ownerStoreId) return;
 
-      const ownerStore = await prisma.store.findFirst({ where: { type: 'OWNER' }, select: { id: true, name: true, type: true, parentOwnerStoreId: true } });
-      if (!ownerStore) {
-        reply.code(404).send({ error: 'Owner store not found' });
-        return;
-      }
+      const storeIds = await resolveHqStoreIds(ownerStoreId, franchiseId, reply);
+      if (!storeIds) return;
 
-      let storeIds: string[] = [];
-      if (franchiseId && franchiseId !== 'all') {
-        storeIds = [franchiseId];
-      } else {
-        const franchises = await prisma.store.findMany({
-          where: {
-            type: 'FRANCHISE',
-            parentOwnerStoreId: ownerStore.id,
-          },
-        });
-        storeIds = [ownerStoreId, ...franchises.map((f) => f.id)];
-      }
-
-      // Calculate commissions/royalties (example: 5% of revenue)
-      const COMMISSION_RATE = 0.05; // 5%
+      const COMMISSION_RATE = 0.05;
 
       const franchisePayments = await Promise.all(
         storeIds.map(async (storeId) => {
           const store = await prisma.store.findUnique({
             where: { id: storeId },
-            select: { id: true, name: true, type: true, parentOwnerStoreId: true }
+            select: { id: true, name: true },
           });
           const sales = await prisma.sale.findMany({
             where: {
@@ -466,20 +352,13 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
               ...salesInDateRangeWhere(dateFilter.gte, dateFilter.lte),
             },
             include: {
-              payments: {
-                select: {
-                  method: true,
-                  amount: true,
-                },
-              },
+              payments: { select: { method: true, amount: true } },
             },
           });
 
           const totalRevenue = sales.reduce((sum: any, s: any) => sum + Number(s.grandTotal ?? 0), 0);
           const commission = totalRevenue * COMMISSION_RATE;
           const netPayment = totalRevenue - commission;
-
-          // Payment method breakdown (ONLINE rolled into UPI)
           const paymentTotals = tallyPaymentsFromSales(sales);
           const paymentBreakdown: Record<string, number> = {
             CASH: paymentTotals.cash,
@@ -523,4 +402,3 @@ export async function franchiseHQRoutes(fastify: FastifyInstance) {
     }
   });
 }
-

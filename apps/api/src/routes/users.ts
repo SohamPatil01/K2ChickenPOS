@@ -180,6 +180,12 @@ export async function userRoutes(fastify: FastifyInstance) {
       select: staffSelect(),
     });
 
+    // Revoke refresh sessions when credentials change or account is disabled
+    if (data.password || data.isActive === false) {
+      const { revokeAllStaffSessions } = await import('../services/staffSession.js');
+      await revokeAllStaffSessions(id, data.isActive === false ? 'USER_DISABLED' : 'PASSWORD_CHANGED');
+    }
+
     return mapStaff(user);
   });
 

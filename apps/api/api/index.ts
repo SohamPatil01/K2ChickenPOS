@@ -21,32 +21,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 
-const ALLOWED_ORIGINS = [
-  'https://k2-chicken-pos-web.vercel.app',
-  'https://k2-chicken-pos-hq-web.vercel.app',
-  'https://pos.azeelaai.com',
-  'https://hq.azeelaai.com',
-  'https://points.k2chicken.com',
-  'https://loyalty.k2chicken.com',
-  'https://preorder.k2chicken.com',
-  'https://www.preorder.k2chicken.com',
-  'https://book.k2chicken.com',
-  'https://www.book.k2chicken.com',
-  'https://www.k2chicken.com',
-  'https://k2chicken.com',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:3004',
-];
-
-function isAllowedCorsOrigin(origin?: string | null): boolean {
-  if (!origin) return true;
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (origin.endsWith('.k2chicken.com') || origin === 'https://k2chicken.com') return true;
-  if (origin.includes('.vercel.app') || origin.includes('localhost')) return true;
-  return true; // permissive for POS clients; still reflect the request Origin
-}
+import { isAllowedCorsOrigin, resolveJwtSecret, shouldSkipGlobalRateLimit } from '../src/lib/securityConfig.js';
 
 function requestOrigin(req: any): string | undefined {
   const raw = req?.headers?.origin || req?.headers?.Origin;
@@ -54,12 +29,13 @@ function requestOrigin(req: any): string | undefined {
 }
 
 function applyCorsHeaders(res: any, origin?: string | null) {
-  if (origin) {
+  if (origin && isAllowedCorsOrigin(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } else {
+  } else if (!origin) {
     res.setHeader('Access-Control-Allow-Origin', '*');
   }
+  // Disallowed origins get no ACAO header (browser blocks)
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
   res.setHeader(
@@ -183,16 +159,11 @@ async function build() {
     max: 2000,
     timeWindow: '1 minute',
     skipOnError: true,
-    // Skip health, auth bootstrap, and CORS preflight (OPTIONS must not burn the budget).
+    // Skip health + CORS preflight only. Auth routes use tighter route-level limits.
     skip: ((request: any): boolean => {
-      if ((request as any).method === 'OPTIONS') return true;
-      const u = String((request as any).url || '').split('?')[0];
-      return (
-        u === '/health' ||
-        u === '/' ||
-        u === '/api/v1/auth/login' ||
-        u === '/api/v1/auth/profiles' ||
-        u === '/api/v1/auth/refresh'
+      return shouldSkipGlobalRateLimit(
+        String((request as any).url || ''),
+        String((request as any).method || '')
       );
     }) as any,
     addHeaders: {
@@ -203,7 +174,7 @@ async function build() {
   } as any);
 
   await fastify.register(jwt, {
-    secret: process.env.JWT_SECRET || 'your-secret-key',
+    secret: resolveJwtSecret(),
   });
 
   // Add content-type parser for empty JSON bodies to prevent 415 errors

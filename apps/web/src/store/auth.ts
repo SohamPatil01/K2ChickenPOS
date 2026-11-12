@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { bindOfflineStore, clearSensitiveOfflineData } from '@azela-pos/offline';
 
 interface User {
   id: string;
@@ -38,11 +39,14 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, accessToken, refreshToken) => {
         localStorage.setItem('accessToken', accessToken);
         localStorage.setItem('refreshToken', refreshToken);
+        bindOfflineStore(user.storeId);
         set({ user, accessToken, refreshToken });
       },
       logout: () => {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        void clearSensitiveOfflineData().catch(() => undefined);
+        bindOfflineStore(null);
         set({ user: null, accessToken: null, refreshToken: null });
       },
       isAuthenticated: () => {
@@ -73,6 +77,9 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
       }),
       onRehydrateStorage: () => (state) => {
+        if (state?.user?.storeId) {
+          bindOfflineStore(state.user.storeId);
+        }
         state?.setHasHydrated(true);
       },
     }
