@@ -411,6 +411,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     const cleaned = code ? String(code).trim().toUpperCase().slice(0, 32) : null;
     // Built-in percent coupons — apply on the client so Pay totals stay in sync.
     // [festival-promo] PADWA5 / PADWA10 valid through 11 Nov 2026 — cashiers may still set % manually.
+    // Keep in sync with packages/shared/src/coupons.ts (server authoritative)
     const builtin: Record<string, number> = {
       K2CHICKEN10: 10,
       WELCOME5: 5,

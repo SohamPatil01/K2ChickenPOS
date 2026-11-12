@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma, PaymentMethod, Prisma } from '@azela-pos/db';
-import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales } from '@azela-pos/shared';
+import { createSaleSchema, paySaleSchema, enrichSaleWithDeliveryFee, resolveSaleDeliveryFee, LOYALTY_POINT_VALUE, businessDateForNow, parseStoreDateRange, salesInDateRangeWhere, ymdInStoreTz, ymdDaysAgoInStoreTz, tallyPaymentsFromSales, expectedDiscountForCoupon } from '@azela-pos/shared';
 import { linkReferredByCode, linkReferredByPhone } from '../lib/referral.js';
-import { awardSaleLoyaltyEarn, reverseSaleLoyaltyEarn } from '../lib/loyalty.js';
+import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
 import { requireRole } from '../utils/auth.js';
 import { getUser } from '../utils/auth.js';
 import { quantitiesForInventoryDeduction, ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -17,12 +17,13 @@ import { generateSaleNo } from '../utils/saleNo.js';
 import { applyPaymentsToSale } from '../services/applySalePayment.js';
 import { ensureDeliveryForSale } from '../services/ensureDeliveryForSale.js';
 import { applyStoreCredit } from '../services/storeCredit.js';
-import { canAccessCustomerStore, canAccessStoreResource } from '../utils/storeScope.js';
+import { canAccessCustomerStore, canAccessStoreResource, resolveStoreIdFilter } from '../utils/storeScope.js';
 import {
   PROFILE_REWARD_PERCENT,
   redeemProfileReward,
 } from '../lib/profileReward.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from '../services/shiftService.js';
+import { voidSaleAtomic, refundSaleAtomic } from '../services/saleVoidRefund.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -217,7 +218,7 @@ function withSaleItemCount(sale: any) {
 export async function saleRoutes(fastify: FastifyInstance) {
 
   // Get sales list
-  fastify.get('/', async (request: any, reply: FastifyReply) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request: any, reply: FastifyReply) => {
     try {
       const limit = Math.min(Math.max(parseInt((request.query as any).limit || '50', 10) || 50, 1), 500);
       const status = (request.query as any).status;
@@ -228,35 +229,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const paymentMethod = (request.query as any).paymentMethod;
       const includeItems = truthyQueryFlag((request.query as any).includeItems);
 
-      // Try to get storeId from authenticated user, fallback to default store
-      let storeId = '';
-      let userId = '';
-      let userRole = '';
-      let storeIds: string[] = [];
-
-      try {
-        const user = getUser(request);
-        storeId = (user as any).storeId;
-        userId = (user as any).userId;
-        userRole = (user as any).role;
-      } catch (error) {
-        // Not authenticated, use oldest OWNER store as fallback
-        console.log('[Sales API] User not authenticated, using fallback store');
-        const defaultStore = await prisma.store.findFirst({
-          where: { type: 'OWNER' },
-          orderBy: { createdAt: 'asc' },
-          select: { id: true, name: true, type: true, parentOwnerStoreId: true }
-        });
-        storeId = defaultStore?.id || '';
-        userRole = 'OWNER';
-      }
+      const user = getUser(request);
+      const storeId = (user as any).storeId;
+      const userRole = (user as any).role;
 
       if (!storeId) {
         reply.code(400).send({ error: 'Store ID is required' });
         return;
       }
 
-      // Get user's store to check if owner
       const userStore = await prisma.store.findUnique({
         where: { id: storeId },
         select: { id: true, name: true, type: true, parentOwnerStoreId: true }
@@ -267,24 +248,8 @@ export async function saleRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // For OWNER role, get sales from all franchise stores + owner store
-      storeIds = [storeId];
-      if (userRole === 'OWNER' && userStore.type === 'OWNER') {
-        // Get all franchise stores under this owner
-        const franchises = await prisma.store.findMany({
-          where: {
-            type: 'FRANCHISE',
-            parentOwnerStoreId: storeId,
-          },
-          select: { id: true },
-        });
-        storeIds = [storeId, ...franchises.map(f => f.id)];
-      }
-
       const where: any = {
-        storeId: userRole === 'OWNER' && userStore.type === 'OWNER'
-          ? { in: storeIds }
-          : storeId
+        storeId: await resolveStoreIdFilter(storeId, userRole),
       };
 
       if (status) {
@@ -845,9 +810,20 @@ export async function saleRoutes(fastify: FastifyInstance) {
       taxTotal = Math.round(taxTotal * 100) / 100;
       const deliveryFee = Math.max(0, data.deliveryFee ?? 0);
 
-      // Coupons are applied on the client (discountTotal already in the payload).
-      // Server only records couponCode on the audit log — never mutates discount here,
-      // or inline payments would no longer match the payable total.
+      // Server-authoritative coupon recalculation when a builtin code is present.
+      const couponExpected = expectedDiscountForCoupon((data as any).couponCode, subTotal);
+      if (couponExpected) {
+        const clientDiscount = Math.round(Number(data.discountTotal) || 0);
+        if (Math.abs(clientDiscount - couponExpected.amount) > 1) {
+          reply.code(400).send({
+            error: 'Coupon discount mismatch',
+            expectedDiscount: couponExpected.amount,
+            couponCode: couponExpected.code,
+          });
+          return;
+        }
+        data.discountTotal = couponExpected.amount;
+      }
 
       // Check discount limit and lock status
       if (config?.isDiscountLocked) {
@@ -1598,307 +1574,80 @@ export async function saleRoutes(fastify: FastifyInstance) {
     try {
       const { id } = (request.params as any);
       const { reason } = (request.body as any) || {};
-      const storeId = (getUser(request) as any).storeId;
-      const userId = (getUser(request) as any).userId;
-
-      console.log('[Void API] Processing void for sale:', id, 'Store ID:', storeId, 'User ID:', userId);
+      const authUser = getUser(request) as any;
+      const storeId = authUser.storeId;
+      const userId = authUser.userId;
 
       if (!storeId || !userId) {
-        console.error('[Void API] Missing storeId or userId. StoreId:', storeId, 'UserId:', userId);
         reply.code(400).send({ error: 'Store ID and User ID are required' });
         return;
       }
 
-      // First check if sale exists (without storeId filter to get better error message)
       const saleExists = await prisma.sale.findUnique({
         where: { id },
-        select: { id: true, storeId: true, saleNo: true, status: true },
+        select: { id: true, storeId: true, status: true },
       });
-
       if (!saleExists) {
-        console.error('[Void API] Sale not found:', id);
         reply.code(404).send({ error: 'Sale not found', saleId: id });
         return;
       }
-
-      // Get user's role and store to check access
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          store: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            }
-          }
-        },
-      });
-
-      if (!user) {
-        console.error('[Void API] User not found:', userId);
-        reply.code(401).send({ error: 'User not found' });
+      if (!(await canAccessStoreResource(storeId, authUser.role, saleExists.storeId))) {
+        reply.code(403).send({ error: 'You do not have permission to void this sale' });
         return;
       }
 
-      // Check if user has access to this sale's store
-      let hasAccess = false;
-
-      if (saleExists.storeId === storeId) {
-        // Direct match - user's store matches sale's store
-        hasAccess = true;
-      } else if (user.role === 'OWNER' && user.store?.type === 'OWNER') {
-        // OWNER users can access sales from their franchise stores
-        const saleStore = await prisma.store.findUnique({
-          where: { id: saleExists.storeId },
-          select: { id: true, type: true, parentOwnerStoreId: true },
-        });
-
-        if (saleStore && saleStore.type === 'FRANCHISE' && saleStore.parentOwnerStoreId === storeId) {
-          // Sale belongs to a franchise store owned by this user
-          hasAccess = true;
-        }
-      }
-
-      if (!hasAccess) {
-        console.error('[Void API] User does not have access to sale. Sale storeId:', saleExists.storeId, 'User storeId:', storeId, 'User role:', user.role);
-        reply.code(403).send({
-          error: 'You do not have permission to void this sale',
-          saleId: id,
-          saleStoreId: saleExists.storeId,
-          userStoreId: storeId,
-          userRole: user.role,
-        });
-        return;
-      }
-
-      // Fetch full sale data with items
-      const sale = await prisma.sale.findUnique({
-        where: { id },
-        include: {
-          items: true,
-        },
+      const updatedSale = await voidSaleAtomic({
+        saleId: id,
+        userId,
+        reason,
+        userStoreId: storeId,
       });
-
-      if (!sale) {
-        console.error('[Void API] Sale not found after access check:', id);
-        reply.code(404).send({ error: 'Sale not found' });
-        return;
-      }
-
-      if (sale.status === 'VOID') {
-        reply.code(400).send({ error: 'Sale already voided' });
-        return;
-      }
-
-      // Allow voiding both PAID and OPEN sales
-      if (sale.status !== 'PAID' && sale.status !== 'OPEN') {
-        reply.code(400).send({ error: 'Only paid or open sales can be voided' });
-        return;
-      }
-
-      // Restore inventory when voiding a sale.
-      // Reverse the NET ledger impact of this sale across ALL rows tied to it
-      // (SALE OUT deductions + any ADJUSTMENT IN/OUT rows written by prior edits),
-      // so an edited-then-voided bill does not over-restore stock.
-      const saleLedgers = await prisma.inventoryLedger.findMany({
-        where: {
-          refId: id,
-          storeId: sale.storeId,
-        },
-      });
-
-      // Net stock change still attributable to this sale, per product.
-      // Negative => stock is still deducted and must be restored on void.
-      const netByProduct = new Map<string, { kg: number; pcs: number }>();
-      for (const ledger of saleLedgers) {
-        const sign = ledger.type === 'OUT' ? -1 : 1;
-        const cur = netByProduct.get(ledger.productId) || { kg: 0, pcs: 0 };
-        cur.kg = Math.round((cur.kg + sign * (ledger.qtyKg || 0)) * 1000) / 1000;
-        cur.pcs += sign * (ledger.qtyPcs || 0);
-        netByProduct.set(ledger.productId, cur);
-      }
-
-      console.log(`[Void API] Found ${saleLedgers.length} inventory ledger entries for sale ${id}; reversing net impact for ${netByProduct.size} product(s)`);
-
-      let restoredCount = 0;
-      for (const [productId, net] of netByProduct) {
-        const restoreKg = net.kg < -0.001 ? Math.round(Math.abs(net.kg) * 1000) / 1000 : null;
-        const restorePcs = net.pcs < 0 ? Math.abs(Math.round(net.pcs)) : null;
-
-        if ((restoreKg && restoreKg > 0) || (restorePcs && restorePcs > 0)) {
-          await prisma.inventoryLedger.create({
-            data: {
-              storeId: sale.storeId,
-              productId,
-              type: 'IN', // Restore the net-deducted quantity
-              qtyKg: restoreKg && restoreKg > 0 ? restoreKg : null,
-              qtyPcs: restorePcs && restorePcs > 0 ? restorePcs : null,
-              reason: 'ADJUSTMENT', // Adjusting inventory back for a voided sale
-              refId: id,
-            },
-          });
-          restoredCount += 1;
-          console.log(`[Void API] Restored net inventory for product ${productId}: ${restoreKg || 0} kg, ${restorePcs || 0} pcs`);
-        }
-      }
-
-      // Restore any loyalty points the customer redeemed against this sale, so a
-      // voided bill doesn't cost them their points. Guarded against double-restore.
-      let pointsRestored = 0;
-      let pointsReversed = 0;
-      if (sale.customerId) {
-        try {
-          const redeemTxns = await prisma.loyaltyTransaction.findMany({
-            where: { saleId: id, type: 'REDEEM' },
-          });
-          const redeemedPoints = redeemTxns.reduce(
-            (sum, t) => sum + Math.abs(t.points || 0),
-            0
-          );
-          if (redeemedPoints > 0) {
-            const alreadyRestored = await prisma.loyaltyTransaction.findFirst({
-              where: { saleId: id, type: 'ADJUST', points: { gt: 0 } },
-            });
-            if (!alreadyRestored) {
-              const cust = await prisma.customer.findUnique({
-                where: { id: sale.customerId },
-                select: { loyaltyPoints: true },
-              });
-              const newBalance = (cust?.loyaltyPoints || 0) + redeemedPoints;
-              await prisma.customer.update({
-                where: { id: sale.customerId },
-                data: { loyaltyPoints: newBalance },
-              });
-              await prisma.loyaltyTransaction.create({
-                data: {
-                  customerId: sale.customerId,
-                  storeId: sale.storeId,
-                  type: 'ADJUST',
-                  points: redeemedPoints,
-                  balance: newBalance,
-                  description: `Restored ${redeemedPoints} redeemed points from voided ${sale.saleNo}`,
-                  saleId: id,
-                  createdBy: userId,
-                },
-              });
-              pointsRestored = redeemedPoints;
-            }
-          }
-        } catch (loyaltyErr) {
-          console.warn('[Void API] Could not restore redeemed loyalty points:', loyaltyErr);
-        }
-
-        // Claw back points earned on this bill (paid then voided).
-        try {
-          const rev = await reverseSaleLoyaltyEarn(prisma, {
-            saleId: id,
-            saleNo: sale.saleNo,
-            customerId: sale.customerId,
-            storeId: sale.storeId,
-            userId,
-          });
-          pointsReversed = rev.pointsReversed;
-        } catch (loyaltyErr) {
-          console.warn('[Void API] Could not reverse earned loyalty points:', loyaltyErr);
-        }
-      }
-
-      const updatedSale = await prisma.sale.update({
-        where: { id },
-        data: { status: 'VOID' },
-      });
-
-      // Use sale's storeId for audit log to track which store the sale belongs to
-      await prisma.auditLog.create({
-        data: {
-          storeId: sale.storeId, // Use sale's storeId, not user's storeId
-          actorUserId: userId,
-          action: 'SALE_VOIDED',
-          entityType: 'Sale',
-          entityId: id,
-          metaJson: {
-            reason: reason || 'No reason provided',
-            userStoreId: storeId,
-            inventoryRestored: restoredCount,
-            loyaltyPointsRestored: pointsRestored,
-            loyaltyPointsReversed: pointsReversed,
-          }, // Include user's storeId in metadata
-        },
-      });
-
       return enrichSaleResponse(updatedSale);
     } catch (error: any) {
+      const code = error?.statusCode || 500;
       console.error('Failed to void sale:', error);
-      reply.code(500).send({ error: 'Failed to void sale', details: error.message });
+      reply.code(code).send({ error: error.message || 'Failed to void sale' });
     }
   });
 
   fastify.post('/:id/refund', { preHandler: [fastify.authenticate, requireRole('MANAGER', 'OWNER')] }, async (request: any, reply: FastifyReply) => {
-    const { id } = (request.params as any);
-    const user = getUser(request) as any;
-    const storeId = user.storeId;
-    const userId = user.userId;
-    const { amount, reason } = (request.body as any) || {};
+    try {
+      const { id } = (request.params as any);
+      const user = getUser(request) as any;
+      const storeId = user.storeId;
+      const userId = user.userId;
+      const { amount, reason, method, reference, idempotencyKey } = (request.body as any) || {};
 
-    const sale = await prisma.sale.findUnique({
-      where: { id },
-      include: { items: { include: { product: true } } },
-    });
+      const sale = await prisma.sale.findUnique({
+        where: { id },
+        select: { id: true, storeId: true },
+      });
 
-    if (
-      !sale ||
-      !(await canAccessStoreResource(storeId, user.role, sale.storeId))
-    ) {
-      reply.code(404).send({ error: 'Sale not found' });
-      return;
-    }
-
-    if (sale.status !== 'PAID') {
-      reply.code(400).send({ error: 'Sale must be paid to refund' });
-      return;
-    }
-
-    const refundAmount = amount || sale.grandTotal;
-
-    const updatedSale = await prisma.sale.update({
-      where: { id },
-      data: { status: 'REFUNDED' },
-    });
-
-    // Reverse inventory if full refund
-    if (!amount || amount >= sale.grandTotal) {
-      for (const item of sale.items) {
-        const ut = item.product?.unitType || 'KG';
-        const { qtyKg, qtyPcs } = quantitiesForInventoryDeduction(item, ut);
-        if ((qtyKg != null && qtyKg > 0) || (qtyPcs != null && qtyPcs > 0)) {
-          await prisma.inventoryLedger.create({
-            data: {
-              storeId: sale.storeId,
-              productId: item.productId,
-              type: 'IN',
-              qtyKg,
-              qtyPcs,
-              reason: 'ADJUSTMENT',
-              refId: id,
-            },
-          });
-        }
+      if (!sale || !(await canAccessStoreResource(storeId, user.role, sale.storeId))) {
+        reply.code(404).send({ error: 'Sale not found' });
+        return;
       }
-    }
 
-    await prisma.auditLog.create({
-      data: {
+      const result = await refundSaleAtomic({
+        saleId: id,
+        userId,
         storeId: sale.storeId,
-        actorUserId: userId,
-        action: 'SALE_REFUNDED',
-        entityType: 'Sale',
-        entityId: id,
-        metaJson: { reason, refundAmount },
-      },
-    });
-
-    return enrichSaleResponse(updatedSale);
+        amount,
+        reason,
+        method,
+        reference,
+        idempotencyKey,
+      });
+      return {
+        ...enrichSaleResponse(result.sale),
+        refund: result.refund,
+        idempotent: result.idempotent,
+      };
+    } catch (error: any) {
+      const code = error?.statusCode || 500;
+      console.error('Failed to refund sale:', error);
+      reply.code(code).send({ error: error.message || 'Failed to refund sale' });
+    }
   });
 
   // Update sale (for editing orders)
@@ -1939,6 +1688,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
         !(await canAccessStoreResource(storeId, authUser.role, existingSale.storeId))
       ) {
         reply.code(404).send({ error: 'Sale not found' });
+        return;
+      }
+
+      // Paid / partially paid / refunded / voided sales cannot be edited in place
+      const hasPayments = (existingSale.payments || []).length > 0;
+      if (existingSale.status !== 'OPEN' || hasPayments) {
+        reply.code(400).send({
+          error: 'Only unpaid OPEN sales can be edited. Void and re-create, or use refund for paid bills.',
+          status: existingSale.status,
+          hasPayments,
+        });
         return;
       }
 

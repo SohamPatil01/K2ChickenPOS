@@ -16,9 +16,10 @@ export function quantitiesForInventoryDeduction(
       return { qtyKg: Number(kg), qtyPcs: null };
     }
     if (item.qtyPcs != null && Number(item.qtyPcs) > 0) {
-      console.warn(
-        '[inventory] KG product line missing qtyKg; received qtyPcs instead — skipping deduction to avoid unit corruption'
-      );
+      const err: any = new Error('KG product requires qtyKg; qtyPcs is not accepted');
+      err.statusCode = 400;
+      err.code = 'UNIT_MISMATCH';
+      throw err;
     }
     return { qtyKg: null, qtyPcs: null };
   }
@@ -28,9 +29,10 @@ export function quantitiesForInventoryDeduction(
     return { qtyKg: null, qtyPcs: Math.round(Number(pcs)) };
   }
   if (item.qtyKg != null && Number(item.qtyKg) > 0) {
-    console.warn(
-      '[inventory] PCS product line missing qtyPcs; received qtyKg instead — skipping deduction to avoid unit corruption'
-    );
+    const err: any = new Error('PCS product requires qtyPcs; qtyKg is not accepted');
+    err.statusCode = 400;
+    err.code = 'UNIT_MISMATCH';
+    throw err;
   }
   return { qtyKg: null, qtyPcs: null };
 }
@@ -55,14 +57,11 @@ type LedgerDb = {
     create: (args: any) => Promise<unknown>;
     createMany: (args: any) => Promise<unknown>;
   };
+  $executeRaw?: (query: TemplateStringsArray, ...values: any[]) => Promise<unknown>;
+  $transaction?: (fn: (tx: any) => Promise<void>) => Promise<void>;
 };
 
-/**
- * Idempotent sale inventory sync: compares net ledger impact for this sale
- * (SALE OUT minus any ADJUSTMENT/restore IN on the same refId) to sale lines
- * and writes OUT (or IN adjustment) for any missing/excess quantity.
- */
-export async function ensureInventoryDeductedForSale(
+async function syncInventoryWithClient(
   db: LedgerDb,
   saleId: string,
   storeId: string,
@@ -74,14 +73,12 @@ export async function ensureInventoryDeductedForSale(
   }>,
   unitTypeByProductId: Map<string, 'KG' | 'PCS'>
 ): Promise<void> {
-  // Net ALL ledger rows for this sale — edits/voids restore via ADJUSTMENT IN
-  // on the same refId. Counting only SALE OUT caused repeated restores and
-  // made stock reconciliation look like over-deduction.
+  if (typeof db.$executeRaw === 'function') {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`inv:${saleId}`}))`;
+  }
+
   const existing = await db.inventoryLedger.findMany({
-    where: {
-      refId: saleId,
-      storeId,
-    },
+    where: { refId: saleId, storeId },
     select: { productId: true, qtyKg: true, qtyPcs: true, type: true },
   });
 
@@ -164,4 +161,32 @@ export async function ensureInventoryDeductedForSale(
   if (ledgerRows.length > 0) {
     await db.inventoryLedger.createMany({ data: ledgerRows });
   }
+}
+
+/**
+ * Idempotent sale inventory sync: compares net ledger impact for this sale
+ * (SALE OUT minus any ADJUSTMENT/restore IN on the same refId) to sale lines
+ * and writes OUT (or IN adjustment) for any missing/excess quantity.
+ */
+export async function ensureInventoryDeductedForSale(
+  db: LedgerDb,
+  saleId: string,
+  storeId: string,
+  items: Array<{
+    productId: string;
+    qtyKg?: number | null;
+    qtyPcs?: number | null;
+    metaJson?: { manualLine?: boolean; manualEntry?: boolean } | null;
+  }>,
+  unitTypeByProductId: Map<string, 'KG' | 'PCS'>
+): Promise<void> {
+  // Root prisma client: wrap in a transaction so advisory_xact_lock holds.
+  // Transaction client: lock joins the caller's transaction.
+  if (typeof db.$transaction === 'function') {
+    await db.$transaction(async (tx) => {
+      await syncInventoryWithClient(tx, saleId, storeId, items, unitTypeByProductId);
+    });
+    return;
+  }
+  await syncInventoryWithClient(db, saleId, storeId, items, unitTypeByProductId);
 }

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { prisma, PaymentMethod } from '@azela-pos/db';
+import { prisma, PaymentMethod, Prisma } from '@azela-pos/db';
 import { awardSaleLoyaltyEarn } from '../lib/loyalty.js';
 import { customerWithAreaInclude } from '../utils/customerArea.js';
 import { ensureInventoryDeductedForSale } from '../utils/saleItemLedger.js';
@@ -28,6 +28,17 @@ function sumPaymentAmounts(paymentList: Array<{ method?: string; amount?: number
   return { actual: Math.round(actual), credit: Math.round(credit) };
 }
 
+async function loadSaleFull(saleId: string) {
+  return prisma.sale.findUnique({
+    where: { id: saleId },
+    include: {
+      items: { include: { product: true } },
+      payments: true,
+      customer: customerWithAreaInclude,
+    },
+  });
+}
+
 export type ApplyPaymentsInput = {
   saleId: string;
   payments: Array<{ method: string; amount: number; txnRef?: string | null }>;
@@ -54,7 +65,8 @@ export type ApplyPaymentsInput = {
 
 /**
  * Record payments on an OPEN (or credit) sale and return the updated row.
- * Shared by POST /sales/:id/pay and inline checkout on POST /sales.
+ * Locks the sale row inside a transaction, rechecks outstanding, and uses
+ * unique (saleId, txnRef) for attempt idempotency.
  */
 export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
   const {
@@ -63,73 +75,17 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     actorUserId,
     actorStoreId,
     skipInventorySync,
-    existingSale,
     paymentAttemptId,
     skipDiscountOverrideCheck,
   } = input;
 
   const attemptKey = paymentAttemptId ? String(paymentAttemptId).trim().slice(0, 64) : '';
 
-  if (attemptKey) {
-    const already = await prisma.payment.findFirst({
-      where: {
-        saleId,
-        txnRef: { startsWith: `attempt:${attemptKey}` },
-      },
-      select: { id: true },
-    });
-    if (already) {
-      return prisma.sale.findUnique({
-        where: { id: saleId },
-        include: {
-          items: { include: { product: true } },
-          payments: true,
-          customer: customerWithAreaInclude,
-        },
-      });
-    }
-  }
-
-  const sale =
-    existingSale && existingSale.id === saleId
-      ? {
-          ...existingSale,
-          payments: existingSale.payments || [],
-        }
-      : await prisma.sale.findUnique({
-          where: { id: saleId },
-          include: {
-            items: true,
-            payments: true,
-          },
-        });
-
-  if (!sale) {
-    const err: any = new Error('Sale not found');
-    err.statusCode = 404;
-    throw err;
-  }
-
-  if (sale.status === 'VOID' || sale.status === 'REFUNDED') {
-    const err: any = new Error('Sale is cancelled and cannot accept payments');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const existingPayments = sale.payments || [];
-  const hasCreditPayment = existingPayments.some((p) => p.method === 'CREDIT');
-
-  if (sale.status !== 'OPEN' && !hasCreditPayment) {
-    const err: any = new Error('Sale is not open and cannot accept additional payments');
-    err.statusCode = 400;
-    throw err;
-  }
-
   if (!skipDiscountOverrideCheck) {
     try {
-      const discountOverride = await (prisma as any).discountOverride?.findFirst({
-        where: { saleId },
-      }).catch(() => null);
+      const discountOverride = await (prisma as any).discountOverride
+        ?.findFirst({ where: { saleId } })
+        .catch(() => null);
       if (discountOverride?.status === 'PENDING') {
         const err: any = new Error(
           'Discount override is pending approval. Please wait for manager approval before processing payment.'
@@ -143,76 +99,7 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     }
   }
 
-  const existingSums = sumPaymentAmounts(existingPayments);
-  const incomingSums = sumPaymentAmounts(payments);
-  const roundedGrandTotal = Math.round(sale.grandTotal);
-  const newActualTotal = existingSums.actual + incomingSums.actual;
-  const newCreditTotal = existingSums.credit + incomingSums.credit;
-  const newPaymentsTotal = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const hasNewCreditPayment = payments.some((p) => String(p.method).toUpperCase() === 'CREDIT');
-  const hasAnyCreditPayment = hasCreditPayment || hasNewCreditPayment;
-
-  if (sale.status === 'OPEN' || hasAnyCreditPayment) {
-    if (newActualTotal > roundedGrandTotal + 0.5) {
-      const idempotent =
-        incomingSums.actual > 0 && existingSums.actual >= roundedGrandTotal - 0.5;
-      if (idempotent) {
-        return prisma.sale.findUnique({
-          where: { id: saleId },
-          include: {
-            items: { include: { product: true } },
-            payments: true,
-            customer: customerWithAreaInclude,
-          },
-        });
-      }
-      const err: any = new Error('Payment amount exceeds remaining balance');
-      err.statusCode = 400;
-      throw err;
-    }
-    if (
-      incomingSums.credit > 0 &&
-      incomingSums.actual === 0 &&
-      existingSums.credit >= roundedGrandTotal - 0.5
-    ) {
-      return prisma.sale.findUnique({
-        where: { id: saleId },
-        include: {
-          items: { include: { product: true } },
-          payments: true,
-          customer: customerWithAreaInclude,
-        },
-      });
-    }
-    if (newCreditTotal > roundedGrandTotal + 0.5) {
-      if (existingSums.credit >= roundedGrandTotal - 0.5) {
-        return prisma.sale.findUnique({
-          where: { id: saleId },
-          include: {
-            items: { include: { product: true } },
-            payments: true,
-            customer: customerWithAreaInclude,
-          },
-        });
-      }
-      const err: any = new Error('Credit amount exceeds bill total');
-      err.statusCode = 400;
-      throw err;
-    }
-  } else if (Math.abs(newPaymentsTotal - roundedGrandTotal) > 0.5) {
-    const err: any = new Error('Payment amount mismatch');
-    err.statusCode = 400;
-    throw err;
-  }
-
   const validPaymentMethods: PaymentMethod[] = ['CASH', 'CARD', 'UPI', 'CREDIT', 'ONLINE'];
-  const paymentData: Array<{
-    saleId: string;
-    method: PaymentMethod;
-    amount: number;
-    txnRef: string | null;
-  }> = [];
-
   for (const p of payments) {
     const methodStr = String(p.method || '').toUpperCase().trim();
     if (!validPaymentMethods.includes(methodStr as PaymentMethod)) {
@@ -221,90 +108,197 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
       throw err;
     }
     const amount = Number(p.amount);
-    if (Number.isNaN(amount) || !Number.isFinite(amount)) {
+    if (Number.isNaN(amount) || !Number.isFinite(amount) || amount < 0) {
       const err: any = new Error('Invalid payment amount');
       err.statusCode = 400;
       throw err;
     }
-    paymentData.push({
-      saleId,
-      method: methodStr as PaymentMethod,
-      amount,
-      txnRef:
-        p.txnRef ||
-        (attemptKey ? `attempt:${attemptKey}:${methodStr}` : null),
+  }
+
+  let becameSettled = false;
+  let saleMeta: {
+    storeId: string;
+    saleNo?: string;
+    customerId?: string | null;
+    grandTotal: number;
+    items: any[];
+    priorStatus: string;
+    priorActual: number;
+  } | null = null;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Row lock — serializes concurrent /pay against the same sale
+      await tx.$queryRaw`SELECT id FROM "Sale" WHERE id = ${saleId} FOR UPDATE`;
+
+      if (attemptKey) {
+        const already = await tx.payment.findFirst({
+          where: {
+            saleId,
+            txnRef: { startsWith: `attempt:${attemptKey}` },
+          },
+          select: { id: true },
+        });
+        if (already) {
+          return; // idempotent hit — caller loads full sale after txn
+        }
+      }
+
+      const sale = await tx.sale.findUnique({
+        where: { id: saleId },
+        include: { items: true, payments: true },
+      });
+
+      if (!sale) {
+        const err: any = new Error('Sale not found');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (sale.status === 'VOID' || sale.status === 'REFUNDED') {
+        const err: any = new Error('Sale is cancelled and cannot accept payments');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const existingPayments = sale.payments || [];
+      const hasCreditPayment = existingPayments.some((p) => p.method === 'CREDIT');
+
+      if (sale.status !== 'OPEN' && !hasCreditPayment) {
+        const err: any = new Error('Sale is not open and cannot accept additional payments');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const existingSums = sumPaymentAmounts(existingPayments);
+      const incomingSums = sumPaymentAmounts(payments);
+      const roundedGrandTotal = Math.round(sale.grandTotal);
+      const newActualTotal = existingSums.actual + incomingSums.actual;
+      const newCreditTotal = existingSums.credit + incomingSums.credit;
+      const newPaymentsTotal = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const hasNewCreditPayment = payments.some((p) => String(p.method).toUpperCase() === 'CREDIT');
+      const hasAnyCreditPayment = hasCreditPayment || hasNewCreditPayment;
+
+      if (sale.status === 'OPEN' || hasAnyCreditPayment) {
+        if (newActualTotal > roundedGrandTotal + 0.5) {
+          const idempotent =
+            incomingSums.actual > 0 && existingSums.actual >= roundedGrandTotal - 0.5;
+          if (idempotent) return;
+          const err: any = new Error('Payment amount exceeds remaining balance');
+          err.statusCode = 400;
+          throw err;
+        }
+        if (
+          incomingSums.credit > 0 &&
+          incomingSums.actual === 0 &&
+          existingSums.credit >= roundedGrandTotal - 0.5
+        ) {
+          return;
+        }
+        if (newCreditTotal > roundedGrandTotal + 0.5) {
+          if (existingSums.credit >= roundedGrandTotal - 0.5) return;
+          const err: any = new Error('Credit amount exceeds bill total');
+          err.statusCode = 400;
+          throw err;
+        }
+      } else if (Math.abs(newPaymentsTotal - roundedGrandTotal) > 0.5) {
+        const err: any = new Error('Payment amount mismatch');
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const paymentData = payments.map((p) => {
+        const methodStr = String(p.method || '').toUpperCase().trim() as PaymentMethod;
+        return {
+          saleId,
+          method: methodStr,
+          amount: Number(p.amount),
+          txnRef: p.txnRef || (attemptKey ? `attempt:${attemptKey}:${methodStr}` : null),
+        };
+      });
+
+      const paymentsToCreate = paymentData.filter((p) => p.amount > 0);
+      const isSettledWithActual = newActualTotal >= roundedGrandTotal - 0.5;
+      const isCreditOnlyBooked =
+        hasAnyCreditPayment &&
+        newActualTotal < roundedGrandTotal - 0.5 &&
+        newCreditTotal >= roundedGrandTotal - 0.5;
+
+      let saleStatus = sale.status;
+      if (isSettledWithActual) {
+        saleStatus = 'PAID';
+      } else if (isCreditOnlyBooked || sale.status === 'OPEN') {
+        saleStatus = 'OPEN';
+      }
+
+      if (paymentsToCreate.length > 0) {
+        await tx.payment.createMany({ data: paymentsToCreate });
+      }
+      await tx.sale.update({
+        where: { id: saleId },
+        data: { status: saleStatus },
+      });
+
+      becameSettled =
+        isSettledWithActual &&
+        sale.status !== 'PAID' &&
+        existingSums.actual < Math.round(sale.grandTotal) - 0.5;
+
+      saleMeta = {
+        storeId: sale.storeId,
+        saleNo: sale.saleNo,
+        customerId: sale.customerId,
+        grandTotal: sale.grandTotal,
+        items: sale.items,
+        priorStatus: sale.status,
+        priorActual: existingSums.actual,
+      };
     });
-  }
-
-  const paymentsToCreate = paymentData.filter((p) => p.amount > 0);
-  const isSettledWithActual = newActualTotal >= roundedGrandTotal - 0.5;
-  const isCreditOnlyBooked =
-    hasAnyCreditPayment &&
-    newActualTotal < roundedGrandTotal - 0.5 &&
-    newCreditTotal >= roundedGrandTotal - 0.5;
-
-  let saleStatus = sale.status;
-  if (isSettledWithActual) {
-    saleStatus = 'PAID';
-  } else if (isCreditOnlyBooked || sale.status === 'OPEN') {
-    saleStatus = 'OPEN';
-  }
-
-  await prisma.$transaction(async (tx) => {
-    if (paymentsToCreate.length > 0) {
-      await tx.payment.createMany({ data: paymentsToCreate });
+  } catch (err: any) {
+    // Unique (saleId, txnRef) — concurrent retry with same attempt key
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002' && attemptKey) {
+      const existing = await loadSaleFull(saleId);
+      if (existing) return existing;
     }
-    await tx.sale.update({
-      where: { id: saleId },
-      data: { status: saleStatus },
-    });
-  });
+    throw err;
+  }
 
-  // Enrich outside the write txn so locks release ASAP.
-  const updatedSale = await prisma.sale.findUnique({
-    where: { id: saleId },
-    include: {
-      items: { include: { product: true } },
-      payments: true,
-      customer: customerWithAreaInclude,
-    },
-  });
+  const updatedSale = await loadSaleFull(saleId);
   if (!updatedSale) {
     const err: any = new Error('Sale not found after payment');
     err.statusCode = 404;
     throw err;
   }
 
+  // Idempotent hit with no new writes still returns the current sale
+  if (!saleMeta) {
+    return updatedSale;
+  }
+
   if (!skipInventorySync) {
-    const unitMapPay = await loadProductUnitTypes(sale.items.map((i) => i.productId));
+    const unitMapPay = await loadProductUnitTypes(saleMeta.items.map((i) => i.productId));
     try {
       await ensureInventoryDeductedForSale(
         prisma,
         saleId,
-        sale.storeId,
-        sale.items,
+        saleMeta.storeId,
+        saleMeta.items,
         unitMapPay
       );
     } catch (inventoryError: any) {
       console.error('[Payment] Inventory sync failed for sale:', saleId, inventoryError);
+      throw inventoryError;
     }
   }
 
-  const becameSettled =
-    isSettledWithActual &&
-    sale.status !== 'PAID' &&
-    existingSums.actual < Math.round(sale.grandTotal) - 0.5;
-
-  // Must await — fire-and-forget was dropping EARN rows when the serverless
-  // isolate froze after the /pay response (hundreds of PAID bills with 0 points).
-  if (sale.customerId && becameSettled) {
+  if (saleMeta.customerId && becameSettled) {
     try {
       await awardSaleLoyaltyEarn(prisma, {
         saleId,
-        saleNo: sale.saleNo,
-        customerId: sale.customerId,
-        storeId: sale.storeId,
-        grandTotal: sale.grandTotal,
+        saleNo: saleMeta.saleNo,
+        customerId: saleMeta.customerId,
+        storeId: saleMeta.storeId,
+        grandTotal: saleMeta.grandTotal,
         userId: actorUserId,
       });
     } catch (err) {
@@ -315,7 +309,7 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
   void prisma.auditLog
     .create({
       data: {
-        storeId: sale.storeId,
+        storeId: saleMeta.storeId,
         actorUserId,
         action: 'SALE_PAID',
         entityType: 'Sale',
