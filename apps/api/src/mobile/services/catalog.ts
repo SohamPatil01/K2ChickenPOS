@@ -3,6 +3,7 @@ import { isMasaleProduct } from '@azela-pos/shared';
 import { stockByProductIds } from '../../routes/preOrders.js';
 import { kgToGrams, rupeesToPaise, type UnitType } from '../domain/money.js';
 import type { ProductSnapshot } from '../domain/quote.js';
+import { resolveTodaysSpecialProductId } from '../domain/todaysSpecial.js';
 import { HttpError } from '../errors.js';
 
 export function resolveImageUrl(url: string | null | undefined): string | null {
@@ -92,7 +93,23 @@ export async function getCatalog(storeId: string) {
   }
   const categories = [...catMap.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   items.sort((a, b) => Number(b.inStock) - Number(a.inStock) || a.name.localeCompare(b.name));
-  return { store: { id: store.id, name: store.name }, categories, products: items, generatedAt: new Date().toISOString() };
+  const cfg = await prisma.mobileStoreConfig.findUnique({
+    where: { storeId },
+    select: { todaysSpecialProductId: true },
+  });
+  const special = resolveTodaysSpecialProductId({
+    storeId,
+    inStockProductIds: items.filter((p) => p.inStock).map((p) => p.id),
+    manualProductId: cfg?.todaysSpecialProductId ?? null,
+  });
+  return {
+    store: { id: store.id, name: store.name },
+    categories,
+    products: items,
+    todaysSpecialProductId: special.productId,
+    todaysSpecialMode: special.mode,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 /** Pricing/stock snapshots for quoting (always fresh — no cache). */

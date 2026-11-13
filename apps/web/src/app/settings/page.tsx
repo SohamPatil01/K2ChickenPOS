@@ -13,8 +13,9 @@ import StaffManagement from './components/StaffManagement';
 import BarcodeSettings from './components/BarcodeSettings';
 import ThemeSettings from './components/ThemeSettings';
 import ReportSettings from './components/ReportSettings';
+import TodaysSpecialSettings from './components/TodaysSpecialSettings';
 
-type SettingsTab = 'barcode' | 'theme' | 'staff' | 'reports';
+type SettingsTab = 'barcode' | 'theme' | 'staff' | 'reports' | 'app';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,9 +25,9 @@ export default function SettingsPage() {
 
   // Define which tabs are available for each role (before conditional return)
   const availableTabs: SettingsTab[] = user?.role === 'OWNER' 
-    ? ['barcode', 'theme', 'staff', 'reports']
+    ? ['barcode', 'theme', 'staff', 'reports', 'app']
     : user?.role === 'MANAGER'
-    ? ['theme', 'reports']
+    ? ['theme', 'reports', 'app']
     : [];
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function SettingsPage() {
     { id: 'theme' as SettingsTab, label: 'Theme', icon: '🎨', roles: ['OWNER', 'MANAGER'] },
     { id: 'staff' as SettingsTab, label: 'Staff', icon: '👥', roles: ['OWNER'] },
     { id: 'reports' as SettingsTab, label: 'Reports', icon: '📈', roles: ['OWNER', 'MANAGER'] },
+    { id: 'app' as SettingsTab, label: "Today's Special", icon: '🏷️', roles: ['OWNER', 'MANAGER'] },
   ].filter(tab => tab.roles.includes(user.role));
 
   return (
@@ -101,6 +103,7 @@ export default function SettingsPage() {
           {activeTab === 'theme' && <ThemeSettings />}
           {activeTab === 'staff' && <StaffManagement />}
           {activeTab === 'reports' && <ReportSettings />}
+          {activeTab === 'app' && <TodaysSpecialSettings />}
         </div>
       </div>
     </Layout>

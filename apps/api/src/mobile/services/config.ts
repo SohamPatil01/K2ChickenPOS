@@ -30,6 +30,8 @@ export type StoreCommerceConfig = {
   cutOptions: CutOption[];
   customerCancelWindow: 'PENDING_ONLY' | 'NONE';
   supportPhone: string | null;
+  /** Null = daily random in-stock pick on the customer app. */
+  todaysSpecialProductId: string | null;
 };
 
 function parseCuts(raw: unknown): CutOption[] {
@@ -57,6 +59,7 @@ export async function getStoreConfig(storeId: string): Promise<StoreCommerceConf
     cutOptions: row?.cutOptionsJson ? parseCuts(row.cutOptionsJson) : DEFAULT_CUT_OPTIONS,
     customerCancelWindow: row?.customerCancelWindow === 'NONE' ? 'NONE' : 'PENDING_ONLY',
     supportPhone: row?.supportPhone ?? process.env.MOBILE_SUPPORT_PHONE ?? null,
+    todaysSpecialProductId: row?.todaysSpecialProductId ?? null,
   };
 }
 

@@ -295,3 +295,37 @@ describe('analytics & otp', () => {
     expect(otpMatches(h, '9876543211', code, 'c1')).toBe(false);
   });
 });
+
+import { dailySpecialIndex, resolveTodaysSpecialProductId } from './todaysSpecial.js';
+
+describe('todaysSpecial', () => {
+  it('is stable for the same store+day and changes with the day', () => {
+    const a = dailySpecialIndex('store1', '2026-11-13', 10);
+    const b = dailySpecialIndex('store1', '2026-11-13', 10);
+    const c = dailySpecialIndex('store1', '2026-11-14', 10);
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+  });
+  it('prefers a manual POS pick when that product is in stock', () => {
+    const r = resolveTodaysSpecialProductId({
+      storeId: 's1',
+      inStockProductIds: ['a', 'b', 'c'],
+      manualProductId: 'b',
+      now: new Date('2026-11-13T10:00:00+05:30'),
+    });
+    expect(r).toEqual({ productId: 'b', mode: 'MANUAL' });
+  });
+  it('falls back to daily random when manual pick is out of stock', () => {
+    const r = resolveTodaysSpecialProductId({
+      storeId: 's1',
+      inStockProductIds: ['a', 'c'],
+      manualProductId: 'b',
+      now: new Date('2026-11-13T10:00:00+05:30'),
+    });
+    expect(r.mode).toBe('RANDOM');
+    expect(['a', 'c']).toContain(r.productId);
+  });
+  it('returns NONE when nothing is in stock', () => {
+    expect(resolveTodaysSpecialProductId({ storeId: 's1', inStockProductIds: [], manualProductId: 'x' }).mode).toBe('NONE');
+  });
+});

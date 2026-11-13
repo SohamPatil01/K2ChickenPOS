@@ -1768,5 +1768,7 @@ model MobileStoreConfig {
   cutOptionsJson         Json?
   customerCancelWindow   String   @default("PENDING_ONLY") // PENDING_ONLY | NONE
   supportPhone           String?
+  /// When set, mobile Home "Today's Specials" uses this product; otherwise a daily random in-stock pick.
+  todaysSpecialProductId String?
   updatedAt              DateTime @updatedAt
 }

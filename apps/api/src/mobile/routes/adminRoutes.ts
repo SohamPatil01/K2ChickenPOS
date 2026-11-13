@@ -22,6 +22,7 @@ const configSchema = z.object({
   cutOptions: z.array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,32}$/), label: z.string().min(1).max(60) })).max(12),
   customerCancelWindow: z.enum(['PENDING_ONLY', 'NONE']),
   supportPhone: z.string().regex(/^\+?\d{10,13}$/).nullable(),
+  todaysSpecialProductId: z.string().min(1).max(64).nullable(),
 });
 
 /** Staff-only (existing POS JWT + role). Customer tokens are rejected by fastify.authenticate. */
@@ -73,7 +74,12 @@ export async function mobileAdminRoutes(app: FastifyInstance) {
       cutOptionsJson: c.cutOptions as Prisma.InputJsonValue,
       customerCancelWindow: c.customerCancelWindow,
       supportPhone: c.supportPhone,
+      todaysSpecialProductId: c.todaysSpecialProductId,
     };
+    if (c.todaysSpecialProductId) {
+      const product = await prisma.product.findFirst({ where: { id: c.todaysSpecialProductId, isActive: true }, select: { id: true } });
+      if (!product) throw new HttpError(400, 'INVALID_SPECIAL', 'Selected product is not an active catalogue item');
+    }
     await prisma.mobileStoreConfig.upsert({ where: { storeId }, create: { storeId, ...data }, update: data });
     await prisma.auditLog.create({
       data: { storeId, actorUserId: user.userId, action: 'MOBILE_STORE_CONFIG_UPDATED', entityType: 'MobileStoreConfig', entityId: storeId, metaJson: data as Prisma.InputJsonValue },
