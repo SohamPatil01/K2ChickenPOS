@@ -101,6 +101,8 @@ export async function applyOfflineCheckoutFromSync(
         status: existing.status,
         grandTotal: existing.grandTotal,
         storeId,
+        customerId: existing.customerId,
+        saleNo: existing.saleNo,
         items: existing.items || [],
         payments: existing.payments,
       },

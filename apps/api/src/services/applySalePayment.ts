@@ -297,18 +297,31 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
 
   // Must await — fire-and-forget was dropping EARN rows when the serverless
   // isolate froze after the /pay response (hundreds of PAID bills with 0 points).
-  if (sale.customerId && becameSettled) {
-    try {
-      await awardSaleLoyaltyEarn(prisma, {
-        saleId,
-        saleNo: sale.saleNo,
-        customerId: sale.customerId,
-        storeId: sale.storeId,
-        grandTotal: sale.grandTotal,
-        userId: actorUserId,
+  // existingSale callers sometimes omit customerId/saleNo — load them if missing.
+  if (becameSettled) {
+    let customerId = sale.customerId ?? null;
+    let saleNo = sale.saleNo;
+    if (!customerId || !saleNo) {
+      const row = await prisma.sale.findUnique({
+        where: { id: saleId },
+        select: { customerId: true, saleNo: true },
       });
-    } catch (err) {
-      console.warn('[Payment] Loyalty award failed:', err);
+      customerId = customerId || row?.customerId || null;
+      saleNo = saleNo || row?.saleNo;
+    }
+    if (customerId) {
+      try {
+        await awardSaleLoyaltyEarn(prisma, {
+          saleId,
+          saleNo: saleNo || saleId,
+          customerId,
+          storeId: sale.storeId,
+          grandTotal: sale.grandTotal,
+          userId: actorUserId,
+        });
+      } catch (err) {
+        console.warn('[Payment] Loyalty award failed:', err);
+      }
     }
   }
 

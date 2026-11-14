@@ -1247,6 +1247,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
             status: sale.status,
             grandTotal: sale.grandTotal,
             storeId: sale.storeId,
+            // Without these, applyPaymentsToSale skips EARN (pay-at-create path).
+            customerId: sale.customerId,
+            saleNo: sale.saleNo,
             items: sale.items,
             payments: [],
           },
