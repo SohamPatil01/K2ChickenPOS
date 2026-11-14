@@ -290,33 +290,21 @@ export async function applyPaymentsToSale(input: ApplyPaymentsInput) {
     }
   }
 
-  const becameSettled =
-    isSettledWithActual &&
-    sale.status !== 'PAID' &&
-    existingSums.actual < Math.round(sale.grandTotal) - 0.5;
-
-  // Must await — fire-and-forget was dropping EARN rows when the serverless
-  // isolate froze after the /pay response (hundreds of PAID bills with 0 points).
-  // existingSale callers sometimes omit customerId/saleNo — load them if missing.
-  if (becameSettled) {
-    let customerId = sale.customerId ?? null;
-    let saleNo = sale.saleNo;
-    if (!customerId || !saleNo) {
-      const row = await prisma.sale.findUnique({
-        where: { id: saleId },
-        select: { customerId: true, saleNo: true },
-      });
-      customerId = customerId || row?.customerId || null;
-      saleNo = saleNo || row?.saleNo;
-    }
+  // Award whenever this pay leaves the sale PAID. Idempotent via EARN unique —
+  // safer than becameSettled flags (missed customerId / Decimal edge cases).
+  // CREDIT-only bookings stay OPEN and earn later on real settlement.
+  if (updatedSale.status === 'PAID') {
+    const customerId =
+      updatedSale.customerId || sale.customerId || null;
+    const saleNo = updatedSale.saleNo || sale.saleNo || saleId;
     if (customerId) {
       try {
         await awardSaleLoyaltyEarn(prisma, {
           saleId,
-          saleNo: saleNo || saleId,
+          saleNo,
           customerId,
           storeId: sale.storeId,
-          grandTotal: sale.grandTotal,
+          grandTotal: Number(updatedSale.grandTotal ?? sale.grandTotal) || 0,
           userId: actorUserId,
         });
       } catch (err) {

@@ -233,7 +233,11 @@ export async function buildCustomerBillHtml(
         ? "#c2410c"
         : "#15803d";
 
-  const pointsEarned = loyaltyPointsForBill(sale.grandTotal);
+  // Points credit only after real settlement (not CREDIT/pending).
+  const pointsEarned =
+    !isPending && String(sale.status).toUpperCase() === "PAID"
+      ? loyaltyPointsForBill(sale.grandTotal)
+      : 0;
   const upiCfg = getUpiConfig();
 
   const itemRows = sale.items
