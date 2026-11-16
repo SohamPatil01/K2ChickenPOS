@@ -79,6 +79,8 @@ export type QuoteInput = {
     requestedPoints: number;
     availablePoints: number | null; // null = guest
     config: RewardsConfig;
+    /** K2 Family tier key; the earn estimate uses its rate (guest/unknown = base 1.25%). */
+    tierKey?: string | null;
   };
 };
 
@@ -258,7 +260,7 @@ export function buildQuote(input: QuoteInput): Quote {
     loyalty: { availablePoints: available, maxRedeemablePoints: maxPoints, appliedPoints, discountPaise },
     roundOffPaise,
     totalPaise,
-    estimatedEarnPoints: estimateEarnPoints(totalPaise),
+    estimatedEarnPoints: estimateEarnPoints(totalPaise, input.loyalty.tierKey),
     issues,
     canCheckout: issues.length === 0 && orderable.length > 0,
     hasPriceChanges: lines.some((l) => l.status === 'PRICE_CHANGED'),

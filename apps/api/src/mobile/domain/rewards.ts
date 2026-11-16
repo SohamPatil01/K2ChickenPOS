@@ -1,4 +1,4 @@
-import { LOYALTY_EARN_RATE, LOYALTY_POINT_VALUE, REFERRAL_BONUS_POINTS, computeLoyaltyEarnPoints } from '@azela-pos/shared';
+import { LOYALTY_EARN_RATE, LOYALTY_POINT_VALUE, REFERRAL_BONUS_POINTS, computeTierEarnPoints } from '@azela-pos/shared';
 
 /**
  * K2 Rewards rules as seen by the app.
@@ -41,8 +41,9 @@ export function getRewardsConfig(): RewardsConfig {
   };
 }
 
-export function estimateEarnPoints(grandTotalPaise: number): number {
-  return computeLoyaltyEarnPoints(grandTotalPaise / 100);
+/** Points a bill of this size would earn at the customer's K2 Family tier (base rate if unknown). */
+export function estimateEarnPoints(grandTotalPaise: number, tierKey?: string | null): number {
+  return computeTierEarnPoints(grandTotalPaise / 100, tierKey);
 }
 
 /**

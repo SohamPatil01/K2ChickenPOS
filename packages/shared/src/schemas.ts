@@ -110,10 +110,16 @@ export const createSaleSchema = z.object({
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */
 export const LOYALTY_POINT_VALUE = 1;
 
-/** Fraction of settled grand total earned as loyalty points (1.25%). */
+/**
+ * Base earn rate (1.25%) — the Member tier. Higher tiers earn more; see loyaltyTiers.ts.
+ * Kept for callers that only need the base rate.
+ */
 export const LOYALTY_EARN_RATE = 0.0125;
 
-/** Points earned for a settled bill: floor(grandTotal × LOYALTY_EARN_RATE). */
+/**
+ * Points earned for a settled bill at the BASE rate: floor(grandTotal × 1.25%).
+ * For a real customer use computeTierEarnPoints(grandTotal, customer.loyaltyTier).
+ */
 export function computeLoyaltyEarnPoints(grandTotal: number): number {
   return Math.floor(Math.max(0, Number(grandTotal) || 0) * LOYALTY_EARN_RATE);
 }

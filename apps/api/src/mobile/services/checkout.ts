@@ -11,7 +11,7 @@ import { HttpError } from '../errors.js';
 import { getProductSnapshots } from './catalog.js';
 import { getStoreConfig, isPincodeServiceable, type StoreCommerceConfig } from './config.js';
 import type { IdentityContext } from './identity.js';
-import { availablePoints, lockAndCheckAvailable } from './loyalty.js';
+import { appTier, availablePoints, lockAndCheckAvailable } from './loyalty.js';
 import { enqueueOutbox } from './outbox.js';
 
 type QuoteRequest = z.infer<typeof quoteRequestSchema>;
@@ -46,7 +46,7 @@ export async function computeQuote(
     },
     minOrderPaise: config.minOrderPaise,
     cutOptions: config.cutOptions,
-    loyalty: { requestedPoints: req.redeemPoints, availablePoints: loyalty?.available ?? null, config: getRewardsConfig() },
+    loyalty: { requestedPoints: req.redeemPoints, availablePoints: loyalty?.available ?? null, config: getRewardsConfig(), tierKey: ctx ? (await appTier(ctx.primaryCustomerId)).progress.tier.key : null },
   });
   return { quote, config, address };
 }

@@ -1,4 +1,6 @@
 import { prisma, Prisma } from '@azela-pos/db';
+import { LOYALTY_EARN_RATE, LOYALTY_TIERS, formatEarnRate, loyaltyProgress } from '@azela-pos/shared';
+import { countCustomerVisits, loyaltyTiersScope } from '../../lib/loyalty.js';
 import { getRewardsConfig, milestoneProgress } from '../domain/rewards.js';
 import type { IdentityContext } from './identity.js';
 
@@ -25,6 +27,18 @@ export async function availablePoints(customerId: string): Promise<{ balance: nu
   return { balance, held, available: Math.max(0, balance - held) };
 }
 
+/**
+ * K2 Family tier for this customer: from VISITS (paid days, counter + app), never from spend.
+ * While tiers are mobile-only the POS's stored tier is the old spend tier and is ignored here;
+ * once LOYALTY_TIERS_SCOPE=all the stored (never-downgraded) tier is honoured too.
+ */
+export async function appTier(customerId: string): Promise<{ progress: ReturnType<typeof loyaltyProgress>; storedTier: string | null }> {
+  const c = await prisma.customer.findUnique({ where: { id: customerId }, select: { loyaltyTier: true } });
+  const visits = await countCustomerVisits(prisma, customerId);
+  const stored = loyaltyTiersScope() === 'all' ? c?.loyaltyTier ?? null : null;
+  return { progress: loyaltyProgress(stored, visits), storedTier: c?.loyaltyTier ?? null };
+}
+
 /** Row-locks the customer so concurrent checkouts cannot over-commit points. Call inside a transaction. */
 export async function lockAndCheckAvailable(tx: Tx, customerId: string): Promise<number> {
   const rows = await tx.$queryRaw<Array<{ loyaltyPoints: number }>>`
@@ -35,10 +49,6 @@ export async function lockAndCheckAvailable(tx: Tx, customerId: string): Promise
 
 export async function getWallet(ctx: IdentityContext) {
   const cfg = getRewardsConfig();
-  const customer = await prisma.customer.findUnique({
-    where: { id: ctx.primaryCustomerId },
-    select: { loyaltyPoints: true, loyaltyTier: true, totalSpent: true, referralCode: true },
-  });
   const { balance, held, available } = await availablePoints(ctx.primaryCustomerId);
   const otherRows = await prisma.customer.findMany({
     where: { id: { in: ctx.customerIds.filter((id) => id !== ctx.primaryCustomerId) }, loyaltyPoints: { gt: 0 } },
@@ -51,18 +61,38 @@ export async function getWallet(ctx: IdentityContext) {
     select: { id: true, type: true, points: true, balance: true, description: true, createdAt: true, saleId: true },
   });
   const paidSales = await prisma.sale.count({ where: { customerId: { in: ctx.customerIds }, status: 'PAID' } });
+  // K2 Family: tier progress by visits on the primary customer (the row whose tier is promoted).
+  const { progress } = await appTier(ctx.primaryCustomerId);
+  const scope = loyaltyTiersScope();
   return {
     balance,
     heldPoints: held,
     availablePoints: available,
     pointValuePaise: cfg.pointValuePaise,
-    tier: customer?.loyaltyTier ?? 'BRONZE',
-    lifetimeSpendPaise: Math.round((customer?.totalSpent || 0) * 100),
+    tier: progress.tier.key,
+    // Deprecated: spend is no longer shown to customers (K2 Family rewards visits). Always 0.
+    lifetimeSpendPaise: 0,
+    loyalty: {
+      /** 'app': tier rates apply to orders placed in the app (counter bills earn the base rate). 'all': every bill. */
+      appliesTo: scope,
+      tierName: progress.tier.name,
+      earnRate: progress.tier.earnRate,
+      visits: progress.visits,
+      nextTierName: progress.next?.name ?? null,
+      nextTierEarnRate: progress.next?.earnRate ?? null,
+      nextTierVisits: progress.next?.minVisits ?? null,
+      visitsToNext: progress.visitsToNext,
+      progress: progress.progress,
+      tiers: LOYALTY_TIERS.map((t) => ({ key: t.key, name: t.name, minVisits: t.minVisits, earnRate: t.earnRate })),
+    },
     otherStoreBalances: otherRows.map((r) => ({ storeName: r.store?.name ?? 'Store', points: Math.floor(r.loyaltyPoints) })),
     milestone: milestoneProgress(paidSales, cfg),
     rules: {
-      earnDescription: `Earn ${+(cfg.earnRate * 100).toFixed(2)} points for every ₹100 on settled bills (points credited after payment).`,
-      earnRatePerRupee: cfg.earnRate,
+      earnDescription:
+        scope === 'all'
+          ? `As a ${progress.tier.name} you earn ${formatEarnRate(progress.tier.earnRate)} of every paid bill as points, at the counter or in the app.`
+          : `As a ${progress.tier.name} you earn ${formatEarnRate(progress.tier.earnRate)} back in points on every order you place in the app. Bills at the counter earn ${formatEarnRate(LOYALTY_EARN_RATE)}.`,
+      earnRatePerRupee: progress.tier.earnRate,
       redeemDescription: `Use points on app orders: up to ${cfg.maxRedeemPercent}% of the item value, minimum ${cfg.minPointsToRedeem} points. 1 point = ₹${cfg.pointValuePaise / 100}.`,
       maxRedeemPercent: cfg.maxRedeemPercent,
       minPointsToRedeem: cfg.minPointsToRedeem,
