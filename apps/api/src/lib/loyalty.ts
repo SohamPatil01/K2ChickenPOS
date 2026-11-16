@@ -41,14 +41,34 @@ export async function countCustomerVisits(db: Tx, customerId: string, includeSal
  * either link (the PreOrder.saleId link covers repairs that run later).
  */
 export async function isAppOrderSale(db: Tx, saleId: string): Promise<boolean> {
+  // Starts from this sale (indexed on saleId) and only then looks up the app order, so the cost
+  // does not grow with the number of app orders.
   const rows = await db.$queryRaw<Array<{ one: number }>>`
-    SELECT 1 AS one
-    FROM "MobileOrder" mo
-    WHERE EXISTS (SELECT 1 FROM "PreOrder" po WHERE po.id = mo."preOrderId" AND po."saleId" = ${saleId})
-       OR EXISTS (SELECT 1 FROM "SaleItem" si WHERE si."saleId" = ${saleId} AND si."metaJson"->>'preOrderId' = mo."preOrderId")
+    SELECT 1 AS one FROM "PreOrder" po
+      JOIN "MobileOrder" mo ON mo."preOrderId" = po.id
+      WHERE po."saleId" = ${saleId}
+    UNION ALL
+    SELECT 1 AS one FROM "SaleItem" si
+      JOIN "MobileOrder" mo ON mo."preOrderId" = si."metaJson"->>'preOrderId'
+      WHERE si."saleId" = ${saleId}
     LIMIT 1
   `;
   return rows.length > 0;
+}
+
+/**
+ * Fail-safe wrapper used when earning points: if the check cannot run for any reason (for example
+ * the app tables are not in this database), treat the bill as a counter bill and earn the base rate.
+ * Points at the counter must never depend on the app's tables. Runs outside the earn transaction
+ * on purpose, because a failed query would otherwise abort that whole transaction.
+ */
+async function isAppOrderSaleSafe(db: Tx, saleId: string): Promise<boolean> {
+  try {
+    return await isAppOrderSale(db, saleId);
+  } catch (err) {
+    console.warn('[loyalty] app-order check failed, earning at the base rate:', err);
+    return false;
+  }
 }
 
 export type AwardLoyaltyArgs = {
@@ -86,6 +106,10 @@ export async function awardSaleLoyaltyEarn(
 
   let pointsEarned = 0;
 
+  // Decided before the transaction (see isAppOrderSaleSafe).
+  const scope = loyaltyTiersScope();
+  const tierBill = scope === 'all' || (await isAppOrderSaleSafe(db, saleId));
+
   try {
     pointsEarned = await db.$transaction(async (tx) => {
       const alreadyEarned = await tx.loyaltyTransaction.findFirst({
@@ -103,8 +127,6 @@ export async function awardSaleLoyaltyEarn(
       // K2 Family: in 'app' scope only app-order bills get the tier rate; counter bills stay at the
       // base rate and the stored tier is left alone. A bill earns at the tier held BEFORE it
       // (visits excluding this bill), so an upgrade applies from the next bill.
-      const scope = loyaltyTiersScope();
-      const tierBill = scope === 'all' || (await isAppOrderSale(tx, saleId));
       const visitsBefore = tierBill ? await countCustomerVisits(tx, customerId, undefined, saleId) : 0;
       const tierAtBill = tierBill ? promoteTier(scope === 'all' ? customer.loyaltyTier : null, visitsBefore) : loyaltyTier('BRONZE');
       const pts = computeTierEarnPoints(grandTotal, tierAtBill.key);

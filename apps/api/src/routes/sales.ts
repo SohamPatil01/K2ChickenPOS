@@ -66,7 +66,9 @@ async function fetchSaleForPayResponse(saleId: string) {
   if (!sale) return null;
   const { loyaltyTransactions, ...rest } = sale;
   const loyaltyEarned = loyaltyTransactions.reduce((sum, t) => sum + Math.max(0, t.points || 0), 0);
-  return { ...enrichSaleResponse(rest), loyaltyEarned };
+  // Only when points were really credited. Otherwise (walk-in, credit sale, not yet earned) the field
+  // is left out and the printed bill behaves exactly as it always did.
+  return { ...enrichSaleResponse(rest), ...(loyaltyEarned > 0 ? { loyaltyEarned } : {}) };
 }
 
 function enrichSaleResponse(sale: any) {
