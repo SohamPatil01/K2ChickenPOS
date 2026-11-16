@@ -57,8 +57,6 @@ interface CartState {
   customerArea: string | null;
   /** Cached balance shared by the cashier cart and customer display bridge. */
   customerLoyaltyPoints: number | null;
-  /** Stored K2 Family tier key (BRONZE..PLATINUM) for tier-rate earn estimates on the display. */
-  customerLoyaltyTier: string | null;
   customerAddressLine1: string | null;
   customerAddressLine2: string | null;
   customerAddressCity: string | null;
@@ -96,7 +94,6 @@ interface CartState {
   clearLinkedPreOrders: () => void;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
   setCustomerLoyaltyPoints: (points: number | null) => void;
-  setCustomerLoyaltyTier: (tier: string | null) => void;
   setCustomerStoreCredit: (amount: number | null) => void;
   setApplyStoreCredit: (apply: boolean) => void;
   setCustomerAddress: (
@@ -147,7 +144,6 @@ export const useCartStore = create<CartState>((set, get) => ({
   customerName: null,
   customerArea: null,
   customerLoyaltyPoints: null,
-  customerLoyaltyTier: null,
   customerStoreCredit: null,
   applyStoreCredit: true,
   customerAddressLine1: null,
@@ -270,7 +266,6 @@ export const useCartStore = create<CartState>((set, get) => ({
         customerName: name,
         ...areaUpdate,
         customerLoyaltyPoints: null,
-        customerLoyaltyTier: null,
         customerStoreCredit: null,
         applyStoreCredit: true,
         customerAddressLine1: null,
@@ -304,7 +299,6 @@ export const useCartStore = create<CartState>((set, get) => ({
             referredByCode: null,
             loyaltyRedeemPoints: 0,
             customerLoyaltyPoints: null,
-            customerLoyaltyTier: null,
             customerStoreCredit: null,
             applyStoreCredit: true,
             customerAddressLine1: null,
@@ -317,7 +311,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     });
     if (customerChanged) get().clearProfileReward();
   },
-  setCustomerLoyaltyTier: (tier) => set({ customerLoyaltyTier: tier || null }),
   setCustomerLoyaltyPoints: (points) => {
     const safe = points == null ? null : Math.max(0, Math.floor(Number(points) || 0));
     set({ customerLoyaltyPoints: safe });
@@ -508,7 +501,6 @@ export const useCartStore = create<CartState>((set, get) => ({
       customerName: null,
       customerArea: null,
       customerLoyaltyPoints: null,
-      customerLoyaltyTier: null,
       customerStoreCredit: null,
       applyStoreCredit: true,
       customerAddressLine1: null,

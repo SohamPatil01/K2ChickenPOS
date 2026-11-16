@@ -6,18 +6,49 @@ type Db = PrismaClient;
 type Tx = Pick<PrismaClient, '$queryRaw'>;
 
 /**
- * K2 Family "visits": distinct IST calendar days with at least one PAID bill for this customer
- * (counter or app). `includeSaleId` always counts that sale's day, even if its status write
- * hasn't landed yet. Bill size never matters.
+ * Where the K2 Family tier rates apply.
+ *  - 'app' (default, the mobile-first rollout): only bills for orders placed in the mobile app earn
+ *    at the customer's tier rate. Counter bills earn the base 1.25% exactly as before, and the stored
+ *    Customer.loyaltyTier (used by POS, staff screens and the points website) is never touched.
+ *  - 'all' (the later POS move): every paid bill earns at the tier rate and the stored tier is
+ *    promoted by visits. Switch with the env var LOYALTY_TIERS_SCOPE=all, then run
+ *    POST /customers/loyalty/tiers/place once.
  */
-export async function countCustomerVisits(db: Tx, customerId: string, includeSaleId?: string): Promise<number> {
+export type LoyaltyTiersScope = 'app' | 'all';
+export function loyaltyTiersScope(): LoyaltyTiersScope {
+  return process.env.LOYALTY_TIERS_SCOPE === 'all' ? 'all' : 'app';
+}
+
+/**
+ * K2 Family "visits": distinct IST calendar days with at least one PAID bill for this customer
+ * (counter or app). `includeSaleId` always counts that sale's day even if its status write hasn't
+ * landed yet; `excludeSaleId` leaves one sale out (the tier held BEFORE a bill). Bill size never matters.
+ */
+export async function countCustomerVisits(db: Tx, customerId: string, includeSaleId?: string, excludeSaleId?: string): Promise<number> {
   const rows = await db.$queryRaw<Array<{ visits: bigint | number }>>`
     SELECT COUNT(DISTINCT ((s."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date) AS visits
     FROM "Sale" s
     WHERE s."customerId" = ${customerId}
       AND (s.status = 'PAID' OR s.id = ${includeSaleId ?? ''})
+      AND s.id <> ${excludeSaleId ?? ''}
   `;
   return Number(rows[0]?.visits ?? 0);
+}
+
+/**
+ * True when this sale settles an order placed in the mobile app. At pay time the pre-order is not
+ * linked to the sale yet, but the cashier's cart items carry its id in their metaJson, so we match
+ * either link (the PreOrder.saleId link covers repairs that run later).
+ */
+export async function isAppOrderSale(db: Tx, saleId: string): Promise<boolean> {
+  const rows = await db.$queryRaw<Array<{ one: number }>>`
+    SELECT 1 AS one
+    FROM "MobileOrder" mo
+    WHERE EXISTS (SELECT 1 FROM "PreOrder" po WHERE po.id = mo."preOrderId" AND po."saleId" = ${saleId})
+       OR EXISTS (SELECT 1 FROM "SaleItem" si WHERE si."saleId" = ${saleId} AND si."metaJson"->>'preOrderId' = mo."preOrderId")
+    LIMIT 1
+  `;
+  return rows.length > 0;
 }
 
 export type AwardLoyaltyArgs = {
@@ -69,18 +100,26 @@ export async function awardSaleLoyaltyEarn(
       });
       if (!customer) return 0;
 
-      // Rate = the tier held when this bill is paid; an upgrade applies from the next bill.
-      const tierAtBill = loyaltyTier(customer.loyaltyTier);
+      // K2 Family: in 'app' scope only app-order bills get the tier rate; counter bills stay at the
+      // base rate and the stored tier is left alone. A bill earns at the tier held BEFORE it
+      // (visits excluding this bill), so an upgrade applies from the next bill.
+      const scope = loyaltyTiersScope();
+      const tierBill = scope === 'all' || (await isAppOrderSale(tx, saleId));
+      const visitsBefore = tierBill ? await countCustomerVisits(tx, customerId, undefined, saleId) : 0;
+      const tierAtBill = tierBill ? promoteTier(scope === 'all' ? customer.loyaltyTier : null, visitsBefore) : loyaltyTier('BRONZE');
       const pts = computeTierEarnPoints(grandTotal, tierAtBill.key);
-      // This bill is a visit even when it earns 0 points; promote (never demote) on visits.
-      const visits = await countCustomerVisits(tx, customerId, saleId);
-      const promoted = promoteTier(customer.loyaltyTier, visits);
-      const tierChanged = promoted.key !== (customer.loyaltyTier || 'BRONZE');
+
+      // Stored tier (POS / staff / points site) only moves once tiers apply everywhere.
+      let tierUpdate: { loyaltyTier?: string } = {};
+      if (scope === 'all') {
+        const visitsAfter = await countCustomerVisits(tx, customerId, saleId);
+        const promoted = promoteTier(customer.loyaltyTier, visitsAfter);
+        if (promoted.key !== (customer.loyaltyTier || 'BRONZE')) tierUpdate = { loyaltyTier: promoted.key };
+      }
 
       if (pts <= 0) {
-        if (tierChanged) {
-          await tx.customer.update({ where: { id: customerId }, data: { loyaltyTier: promoted.key } });
-        }
+        // A bill that earns 0 points is still a visit, so the tier can move.
+        if (tierUpdate.loyaltyTier) await tx.customer.update({ where: { id: customerId }, data: tierUpdate });
         return 0;
       }
 
@@ -92,7 +131,7 @@ export async function awardSaleLoyaltyEarn(
         data: {
           loyaltyPoints: newBalance,
           totalSpent: newTotalSpent,
-          ...(tierChanged ? { loyaltyTier: promoted.key } : {}),
+          ...tierUpdate,
         },
       });
 
@@ -104,7 +143,10 @@ export async function awardSaleLoyaltyEarn(
             type: 'EARN',
             points: pts,
             balance: newBalance,
-            description: `Earned ${pts} points from purchase ${saleNo} (${tierAtBill.name}, ${formatEarnRate(tierAtBill.earnRate)})`,
+            // Counter bills keep the original wording; tier bills say which tier paid the rate.
+            description: tierBill
+              ? `Earned ${pts} points from purchase ${saleNo} (${tierAtBill.name}, ${formatEarnRate(tierAtBill.earnRate)})`
+              : `Earned ${pts} points from purchase ${saleNo}`,
             saleId,
             createdBy: userId || null,
           },

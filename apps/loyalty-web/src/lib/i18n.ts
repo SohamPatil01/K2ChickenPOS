@@ -78,8 +78,9 @@ const dict = {
     cashierClose: 'Close',
     nextTier: 'Next tier',
     tierMax: 'You are at the top tier',
-    visitsToNextTier: '{n} more visits to reach {tier} and earn {rate} back on every bill.',
-    youEarnRate: 'You earn {rate} back in points on every bill.',
+    spendMorePrefix: 'Spend',
+    spendMoreSuffix: 'more to reach',
+    andEarnMore: 'and earn more on every bill.',
     planRedeem: 'Plan your redeem',
     ifBillIs: 'If your bill is',
     pointsUsed: 'Points used',
@@ -160,8 +161,9 @@ const dict = {
     cashierClose: 'बंद करें',
     nextTier: 'अगला टियर',
     tierMax: 'आप टॉप टियर पर हैं',
-    visitsToNextTier: '{tier} तक पहुँचने के लिए बस {n} और विज़िट — फिर हर बिल पर {rate} पॉइंट्स वापस।',
-    youEarnRate: 'आपको हर बिल पर {rate} पॉइंट्स के रूप में वापस मिलता है।',
+    spendMorePrefix: 'और खर्च करें',
+    spendMoreSuffix: 'पहुँचने के लिए',
+    andEarnMore: 'और हर बिल पर ज़्यादा कमाएँ।',
     planRedeem: 'रिडीम प्लान करें',
     ifBillIs: 'अगर बिल है',
     pointsUsed: 'पॉइंट्स इस्तेमाल',
@@ -243,8 +245,9 @@ const dict = {
     cashierClose: 'बंद करा',
     nextTier: 'पुढील टियर',
     tierMax: 'तुम्ही टॉप टियरवर आहात',
-    visitsToNextTier: '{tier} पर्यंत पोहोचण्यासाठी आणखी {n} भेटी — मग प्रत्येक बिलावर {rate} पॉइंट्स परत.',
-    youEarnRate: 'तुम्हाला प्रत्येक बिलावर {rate} पॉइंट्स म्हणून परत मिळतात.',
+    spendMorePrefix: 'आणखी खर्च करा',
+    spendMoreSuffix: 'पोहोचण्यासाठी',
+    andEarnMore: 'आणि प्रत्येक बिलावर अधिक मिळवा.',
     planRedeem: 'रिडीम प्लान करा',
     ifBillIs: 'जर बिल असेल',
     pointsUsed: 'पॉइंट्स वापरले',
@@ -259,9 +262,8 @@ const dict = {
 
 export type MessageKey = keyof typeof dict.en;
 
-export function t(locale: Locale, key: MessageKey, vars?: Record<string, string | number>): string {
-  const raw = dict[locale][key] || dict.en[key];
-  return vars ? raw.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : raw;
+export function t(locale: Locale, key: MessageKey): string {
+  return dict[locale][key] || dict.en[key];
 }
 
 const STORAGE_KEY = 'k2-loyalty-locale';

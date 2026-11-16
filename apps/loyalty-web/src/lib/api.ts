@@ -8,17 +8,8 @@ export type PortalCustomer = {
   phone: string;
   loyaltyPoints: number;
   loyaltyTier: string;
-  /** K2 Family tier — progress is in visits; spend is never sent to customers. */
-  tierName?: string;
-  /** Fraction of each bill earned as points, e.g. 0.0175. */
-  earnRate?: number;
-  /** Distinct days with a paid bill. */
-  visits?: number;
-  nextTierName?: string | null;
-  nextTierEarnRate?: number | null;
-  visitsToNext?: number;
-  /** 0..1 progress toward the next tier. */
-  tierProgress?: number;
+  /** Lifetime spend used for next-tier progress (INR). */
+  totalSpent?: number;
   referralCode?: string | null;
   area?: string | null;
 };

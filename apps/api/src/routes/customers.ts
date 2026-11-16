@@ -1,14 +1,14 @@
 // @ts-nocheck
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '@azela-pos/db';
-import { customerSchema, customerAddressSchema, LOYALTY_EARN_RATE, loyaltyProgress, tierForVisits, promoteTier } from '@azela-pos/shared';
+import { customerSchema, customerAddressSchema, LOYALTY_EARN_RATE, tierForVisits } from '@azela-pos/shared';
 import { requireRole, getUser } from '../utils/auth.js';
 import {
   customerDeliveryAddressInclude,
   upsertCustomerArea,
   withCustomerArea,
 } from '../utils/customerArea.js';
-import { awardSaleLoyaltyEarn, countCustomerVisits, repairMissingSaleLoyaltyEarns } from '../lib/loyalty.js';
+import { awardSaleLoyaltyEarn, loyaltyTiersScope, repairMissingSaleLoyaltyEarns } from '../lib/loyalty.js';
 import {
   getProfileRewardState,
   grantProfileRewardIfEligible,
@@ -1527,13 +1527,26 @@ export async function customerRoutes(fastify: FastifyInstance) {
         take: 20,
       });
 
-      // K2 Family tier: by visits (paid days), never downgraded. Spend is staff-only info.
-      const totalSpent = customer.totalSpent || 0;
-      const visits = await countCustomerVisits(prisma, customerId);
-      const progress = loyaltyProgress(customer.loyaltyTier, visits);
-      const calculatedTier = progress.tier.key;
+      // Calculate tier based on total spent (handle null/undefined)
+      const tierThresholds = {
+        BRONZE: 0,
+        SILVER: 5000,
+        GOLD: 20000,
+        PLATINUM: 50000,
+      };
 
-      if ((customer.loyaltyTier || 'BRONZE') !== calculatedTier) {
+      const totalSpent = customer.totalSpent || 0;
+      let calculatedTier = 'BRONZE';
+      if (totalSpent >= tierThresholds.PLATINUM) {
+        calculatedTier = 'PLATINUM';
+      } else if (totalSpent >= tierThresholds.GOLD) {
+        calculatedTier = 'GOLD';
+      } else if (totalSpent >= tierThresholds.SILVER) {
+        calculatedTier = 'SILVER';
+      }
+
+      // Update tier if changed
+      if (customer.loyaltyTier !== calculatedTier) {
         await prisma.customer.update({
           where: { id: customerId },
           data: { loyaltyTier: calculatedTier },
@@ -1547,13 +1560,6 @@ export async function customerRoutes(fastify: FastifyInstance) {
           loyaltyPoints: customer.loyaltyPoints || 0,
           totalSpent: totalSpent,
           loyaltyTier: calculatedTier,
-        },
-        tierInfo: {
-          name: progress.tier.name,
-          earnRate: progress.tier.earnRate,
-          visits: progress.visits,
-          nextTierName: progress.next?.name ?? null,
-          visitsToNext: progress.visitsToNext,
         },
         transactions,
       };
@@ -1762,14 +1768,13 @@ export async function customerRoutes(fastify: FastifyInstance) {
   });
 
   // One-time maintenance: recompute every customer's loyalty balance from
-  // their purchase history, net of points already redeemed. OWNER-only.
-  // Dry-run by default (preview), apply with dryRun:false.
+  // their purchase history at the current 1.25% rate, net of points already
+  // redeemed. OWNER-only. Dry-run by default (preview), apply with dryRun:false.
   //
   // Rules (chosen by the operator):
-  //   earned    = sum over NON-VOID sales of the EARN actually recorded for that sale
-  //               (so K2 Family tier rates are kept); a sale with no EARN row is valued
-  //               at the base rate floor(grandTotal * 0.0125)
-  //   tier      = K2 Family tier from visits (paid days), never downgraded
+  //   earned    = sum over NON-VOID sales of the EARN actually recorded for that sale (so the
+  //               K2 Family tier rate paid on app orders is kept); a sale with no EARN row is
+  //               valued at the base rate floor(grandTotal * 0.0125)
   //   referral  = sum(REFERRAL points) — must be kept; never strip bonuses
   //   redeemed  = sum(|REDEEM points|) excluding redemptions tied to VOID sales
   //               (those were already restored by the void flow)
@@ -1787,17 +1792,21 @@ export async function customerRoutes(fastify: FastifyInstance) {
       // Base rate, only for sales that never got an EARN row.
       const POINTS_RATE = LOYALTY_EARN_RATE;
 
-      // Per-bill earn: the EARN actually recorded (keeps tier rates), else base rate.
-      // Visits: distinct IST days with a PAID sale (K2 Family tiers).
+      const tierFor = (totalSpent: number): string => {
+        if (totalSpent >= 50000) return 'PLATINUM';
+        if (totalSpent >= 20000) return 'GOLD';
+        if (totalSpent >= 5000) return 'SILVER';
+        return 'BRONZE';
+      };
+
+      // Per-bill earn: the EARN actually recorded (keeps app-order tier rates), else base rate.
       const salesRows = await prisma.$queryRaw<
-        Array<{ customerId: string; salesSum: number; earned: number; visits: number }>
+        Array<{ customerId: string; salesSum: number; earned: number }>
       >`
         SELECT
           s."customerId" AS "customerId",
           COALESCE(SUM(s."grandTotal"), 0)::float AS "salesSum",
-          COALESCE(SUM(COALESCE(e.points, FLOOR(s."grandTotal" * ${POINTS_RATE}))), 0)::float AS earned,
-          COUNT(DISTINCT CASE WHEN s.status = 'PAID'
-            THEN ((s."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date END)::int AS visits
+          COALESCE(SUM(COALESCE(e.points, FLOOR(s."grandTotal" * ${POINTS_RATE}))), 0)::float AS earned
         FROM "Sale" s
         LEFT JOIN (
           SELECT lt."saleId", SUM(lt.points) AS points
@@ -1810,12 +1819,10 @@ export async function customerRoutes(fastify: FastifyInstance) {
       `;
       const salesByCustomer = new Map<string, number>();
       const earnedByCustomer = new Map<string, number>();
-      const visitsByCustomer = new Map<string, number>();
       for (const row of salesRows) {
         if (!row.customerId) continue;
         salesByCustomer.set(row.customerId, Number(row.salesSum) || 0);
         earnedByCustomer.set(row.customerId, Math.floor(Number(row.earned) || 0));
-        visitsByCustomer.set(row.customerId, Number(row.visits) || 0);
       }
 
       // All redeemed points per customer (stored negative).
@@ -1898,7 +1905,7 @@ export async function customerRoutes(fastify: FastifyInstance) {
         const redeemedActive = Math.max(0, totalRedeem - voidRedeem);
         const newPoints = Math.max(0, earned + referral - redeemedActive);
         const newTotalSpent = Math.round(salesSum);
-        const newTier = promoteTier(c.loyaltyTier, visitsByCustomer.get(c.id) || 0).key;
+        const newTier = tierFor(newTotalSpent);
 
         const oldPoints = Math.round(c.loyaltyPoints || 0);
         const oldTotalSpent = Math.round(c.totalSpent || 0);
@@ -2009,16 +2016,23 @@ export async function customerRoutes(fastify: FastifyInstance) {
   });
 
   // ------------------------------------------------------------------
-  // K2 Family launch: place every customer in the tier their past VISITS earn
+  // K2 Family, POS rollout (later): place every customer in the tier their past VISITS earn
   // (distinct IST days with a PAID sale). OWNER-only, dry-run by default.
   //
-  // Run once when switching from the old spend-based tiers. Unlike live earning
-  // (which never downgrades), this sets the tier exactly from visits, because the
-  // old tiers measured spend. Only Customer.loyaltyTier is written — points are
-  // never touched. One audit log for the run.
+  // Disabled while K2 Family tiers are mobile-only: the stored Customer.loyaltyTier is still the
+  // spend-based tier that POS, staff screens and the points website rely on. Set
+  // LOYALTY_TIERS_SCOPE=all (and deploy) first; then run this once. It writes only
+  // Customer.loyaltyTier, never points, plus one audit log row.
   // ------------------------------------------------------------------
   fastify.post('/loyalty/tiers/place', { preHandler: [fastify.authenticate, requireRole('OWNER')] }, async (request: any, reply: FastifyReply): Promise<any> => {
     try {
+      if (loyaltyTiersScope() !== 'all') {
+        reply.code(409).send({
+          error: 'K2 Family tiers are mobile-only for now',
+          details: 'Set LOYALTY_TIERS_SCOPE=all to extend tiers to the POS, then run this once.',
+        });
+        return;
+      }
       const body = (request.body as any) || {};
       const dryRun = body.dryRun !== false;
       const userId = (getUser(request) as any).userId;

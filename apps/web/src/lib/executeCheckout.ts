@@ -28,8 +28,6 @@ export type ExecuteCheckoutOptions = {
     checkoutGrandTotal: number;
     loyaltyPointsRedeemed: number;
     offline: boolean;
-    /** Customer's K2 Family tier at checkout (cart is cleared before onSuccess). */
-    loyaltyTier: string | null;
   }) => void;
   onDiscountApproval: (saleNo: string) => void | Promise<void>;
   onNotify: (
@@ -148,7 +146,6 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     }
   }
 
-  const loyaltyTier = !skipCustomer && state0.customerId ? state0.customerLoyaltyTier : null;
   const clientSaleId = newClientSaleId(skipCustomer ? 'cart' : 'pos');
   const saleData = buildSalePayload(clientSaleId, skipCustomer);
 
@@ -174,7 +171,6 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       checkoutGrandTotal: Math.round(grandTotal),
       loyaltyPointsRedeemed: Number(saleData.loyaltyPointsRedeemed || 0),
       offline: true,
-      loyaltyTier,
     });
     onNotify(message, 'success', 6500);
   };
@@ -305,7 +301,6 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       checkoutGrandTotal,
       loyaltyPointsRedeemed,
       offline: false,
-      loyaltyTier,
     });
 
     runPostCheckoutSideEffects({
