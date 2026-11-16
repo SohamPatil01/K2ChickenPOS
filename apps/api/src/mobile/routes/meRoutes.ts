@@ -125,7 +125,7 @@ export async function mobileMeRoutes(app: FastifyInstance) {
     const recs = await recommendations(ctx.identityId, new Set(catalog?.products.filter((p) => p.inStock).map((p) => p.id) ?? []));
     return {
       lastOrder: last,
-      rewards: { availablePoints: wallet.availablePoints, heldPoints: wallet.heldPoints, tier: wallet.tier, milestone: wallet.milestone },
+      rewards: { availablePoints: wallet.availablePoints, heldPoints: wallet.heldPoints, tier: wallet.tier, milestone: wallet.milestone, loyalty: wallet.loyalty },
       activePlans: plans.filter((p) => p.status === 'ACTIVE'),
       openOrders: open.orders.filter((o) => ['PLACED', 'ACCEPTED', 'READY', 'OUT_FOR_DELIVERY'].includes(o.status)),
       recommendedProductIds: recs.productIds,

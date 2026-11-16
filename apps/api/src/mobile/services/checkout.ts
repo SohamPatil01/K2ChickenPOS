@@ -46,7 +46,7 @@ export async function computeQuote(
     },
     minOrderPaise: config.minOrderPaise,
     cutOptions: config.cutOptions,
-    loyalty: { requestedPoints: req.redeemPoints, availablePoints: loyalty?.available ?? null, config: getRewardsConfig() },
+    loyalty: { requestedPoints: req.redeemPoints, availablePoints: loyalty?.available ?? null, config: getRewardsConfig(), tierKey: loyalty?.tier ?? null },
   });
   return { quote, config, address };
 }

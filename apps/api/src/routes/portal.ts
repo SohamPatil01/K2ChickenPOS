@@ -6,7 +6,8 @@ import {
   ensureReferralCode,
   linkReferredByCode,
 } from '../lib/referral.js';
-import { portalProfileSchema } from '@azela-pos/shared';
+import { loyaltyProgress, portalProfileSchema } from '@azela-pos/shared';
+import { countCustomerVisits } from '../lib/loyalty.js';
 import {
   evaluateProfileCompletion,
   getProfileRewardState,
@@ -52,22 +53,35 @@ function pickCustomerForPortal(customers: Awaited<ReturnType<typeof findCustomer
   return [...customers].sort((a, b) => (b.loyaltyPoints || 0) - (a.loyaltyPoints || 0))[0];
 }
 
-function customerPublic(c: {
-  id: string;
-  name: string;
-  phone: string;
-  loyaltyPoints: number;
-  loyaltyTier: string;
-  totalSpent?: number | null;
-  referralCode?: string | null;
-}) {
+/**
+ * Customer-facing payload. K2 Family tiers reward visits, so lifetime spend is NOT sent to the
+ * customer (it used to drive a spend-based progress bar). Tier progress is in visits only.
+ */
+function customerPublic(
+  c: {
+    id: string;
+    name: string;
+    phone: string;
+    loyaltyPoints: number;
+    loyaltyTier: string;
+    referralCode?: string | null;
+  },
+  visits: number
+) {
+  const p = loyaltyProgress(c.loyaltyTier, visits);
   return {
     id: c.id,
     name: c.name,
     phone: c.phone,
     loyaltyPoints: Math.round(c.loyaltyPoints || 0),
-    loyaltyTier: c.loyaltyTier || 'BRONZE',
-    totalSpent: Math.round(Number(c.totalSpent) || 0),
+    loyaltyTier: p.tier.key,
+    tierName: p.tier.name,
+    earnRate: p.tier.earnRate,
+    visits: p.visits,
+    nextTierName: p.next?.name ?? null,
+    nextTierEarnRate: p.next?.earnRate ?? null,
+    visitsToNext: p.visitsToNext,
+    tierProgress: p.progress,
     referralCode: c.referralCode || null,
   };
 }
@@ -81,7 +95,8 @@ async function withReferralCode(customer: {
   referralCode?: string | null;
 }) {
   const code = customer.referralCode || (await ensureReferralCode(prisma, customer.id));
-  return customerPublic({ ...customer, referralCode: code });
+  const visits = await countCustomerVisits(prisma, customer.id);
+  return customerPublic({ ...customer, referralCode: code }, visits);
 }
 
 function pickPrimaryAddress(addresses: Array<{

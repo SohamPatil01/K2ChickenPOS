@@ -1,4 +1,6 @@
 import { prisma, Prisma } from '@azela-pos/db';
+import { LOYALTY_TIERS, formatEarnRate, loyaltyProgress } from '@azela-pos/shared';
+import { countCustomerVisits } from '../../lib/loyalty.js';
 import { getRewardsConfig, milestoneProgress } from '../domain/rewards.js';
 import type { IdentityContext } from './identity.js';
 
@@ -18,11 +20,11 @@ export async function heldPoints(db: Tx | typeof prisma, customerId: string): Pr
   return agg._sum.loyaltyPointsHeld ?? 0;
 }
 
-export async function availablePoints(customerId: string): Promise<{ balance: number; held: number; available: number }> {
-  const c = await prisma.customer.findUnique({ where: { id: customerId }, select: { loyaltyPoints: true } });
+export async function availablePoints(customerId: string): Promise<{ balance: number; held: number; available: number; tier: string }> {
+  const c = await prisma.customer.findUnique({ where: { id: customerId }, select: { loyaltyPoints: true, loyaltyTier: true } });
   const balance = Math.floor(c?.loyaltyPoints || 0);
   const held = await heldPoints(prisma, customerId);
-  return { balance, held, available: Math.max(0, balance - held) };
+  return { balance, held, available: Math.max(0, balance - held), tier: c?.loyaltyTier || 'BRONZE' };
 }
 
 /** Row-locks the customer so concurrent checkouts cannot over-commit points. Call inside a transaction. */
@@ -37,7 +39,7 @@ export async function getWallet(ctx: IdentityContext) {
   const cfg = getRewardsConfig();
   const customer = await prisma.customer.findUnique({
     where: { id: ctx.primaryCustomerId },
-    select: { loyaltyPoints: true, loyaltyTier: true, totalSpent: true, referralCode: true },
+    select: { loyaltyPoints: true, loyaltyTier: true, referralCode: true },
   });
   const { balance, held, available } = await availablePoints(ctx.primaryCustomerId);
   const otherRows = await prisma.customer.findMany({
@@ -51,18 +53,33 @@ export async function getWallet(ctx: IdentityContext) {
     select: { id: true, type: true, points: true, balance: true, description: true, createdAt: true, saleId: true },
   });
   const paidSales = await prisma.sale.count({ where: { customerId: { in: ctx.customerIds }, status: 'PAID' } });
+  // K2 Family: tier progress by visits on the primary customer (the row whose tier is promoted).
+  const visits = await countCustomerVisits(prisma, ctx.primaryCustomerId);
+  const progress = loyaltyProgress(customer?.loyaltyTier, visits);
   return {
     balance,
     heldPoints: held,
     availablePoints: available,
     pointValuePaise: cfg.pointValuePaise,
-    tier: customer?.loyaltyTier ?? 'BRONZE',
-    lifetimeSpendPaise: Math.round((customer?.totalSpent || 0) * 100),
+    tier: progress.tier.key,
+    // Deprecated: spend is no longer shown to customers (K2 Family rewards visits). Always 0.
+    lifetimeSpendPaise: 0,
+    loyalty: {
+      tierName: progress.tier.name,
+      earnRate: progress.tier.earnRate,
+      visits: progress.visits,
+      nextTierName: progress.next?.name ?? null,
+      nextTierEarnRate: progress.next?.earnRate ?? null,
+      nextTierVisits: progress.next?.minVisits ?? null,
+      visitsToNext: progress.visitsToNext,
+      progress: progress.progress,
+      tiers: LOYALTY_TIERS.map((t) => ({ key: t.key, name: t.name, minVisits: t.minVisits, earnRate: t.earnRate })),
+    },
     otherStoreBalances: otherRows.map((r) => ({ storeName: r.store?.name ?? 'Store', points: Math.floor(r.loyaltyPoints) })),
     milestone: milestoneProgress(paidSales, cfg),
     rules: {
-      earnDescription: `Earn ${+(cfg.earnRate * 100).toFixed(2)} points for every ₹100 on settled bills (points credited after payment).`,
-      earnRatePerRupee: cfg.earnRate,
+      earnDescription: `As a ${progress.tier.name} you earn ${formatEarnRate(progress.tier.earnRate)} of every paid bill as points, at the counter or in the app.`,
+      earnRatePerRupee: progress.tier.earnRate,
       redeemDescription: `Use points on app orders: up to ${cfg.maxRedeemPercent}% of the item value, minimum ${cfg.minPointsToRedeem} points. 1 point = ₹${cfg.pointValuePaise / 100}.`,
       maxRedeemPercent: cfg.maxRedeemPercent,
       minPointsToRedeem: cfg.minPointsToRedeem,

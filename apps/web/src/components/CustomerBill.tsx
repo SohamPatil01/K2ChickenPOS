@@ -22,6 +22,7 @@ function formatQty(item: BillSale["items"][0]) {
   return "-";
 }
 
+/** Fallback only when the server didn't send loyaltyEarned (base 1.25% rate). */
 function loyaltyPointsForBill(grandTotal: number) {
   return Math.floor(Math.max(0, Number(grandTotal) || 0) * 0.0125);
 }
@@ -50,7 +51,7 @@ export default function CustomerBill({ sale, store }: CustomerBillProps) {
   // Points credit only after real settlement (not CREDIT/pending).
   const pointsEarned =
     !isPending && String(sale.status).toUpperCase() === "PAID"
-      ? loyaltyPointsForBill(sale.grandTotal)
+      ? (sale.loyaltyEarned ?? loyaltyPointsForBill(sale.grandTotal))
       : 0;
   const upiCfg = getUpiConfig();
   const loyaltyHost = LOYALTY.portalUrl.replace(/^https?:\/\//, "");

@@ -3,6 +3,8 @@
  * Everything flows over a single Ably channel `store:{storeId}:display`.
  */
 
+import { computeTierEarnPoints } from "@azela-pos/shared";
+
 export const DISPLAY_EVENTS = {
   BILL_UPDATE: "bill.update",
   MODE_PAYMENT: "mode.payment",
@@ -170,9 +172,12 @@ export function displayInboundChannelName(storeId: string): string {
   return `${DISPLAY_CHANNEL_PREFIX}${storeId}:display:in`;
 }
 
-/** Loyalty rule mirrored from the server: 1.25% of the purchase total. */
-export function estimateLoyaltyPoints(grandTotal: number): number {
-  return Math.floor(Math.max(0, grandTotal) * 0.0125);
+/**
+ * Loyalty rule mirrored from the server: the customer's K2 Family tier rate
+ * (1.25% Member … 2.75% K2 Family). Unknown tier → base rate.
+ */
+export function estimateLoyaltyPoints(grandTotal: number, tierKey?: string | null): number {
+  return computeTierEarnPoints(grandTotal, tierKey);
 }
 
 const PAIR_STORAGE_KEY = "k2-customer-display-session";

@@ -1165,7 +1165,7 @@ export default function StorePOSPage() {
           }
           setTimeout(() => router.push("/store/discount-approvals"), 1500);
         },
-        onSuccess: ({ saleNo, saleId, checkoutGrandTotal, loyaltyPointsRedeemed, offline }) => {
+        onSuccess: ({ saleNo, saleId, checkoutGrandTotal, loyaltyPointsRedeemed, offline, loyaltyTier }) => {
           setCompletedSale({
             saleNo,
             grandTotal: checkoutGrandTotal,
@@ -1176,6 +1176,7 @@ export default function StorePOSPage() {
           publishSuccessMode(checkoutGrandTotal, offline ? null : saleNo, saleId, {
             loyaltyPointsRedeemed,
             loyaltyPointsBalance: null,
+            loyaltyTier,
           });
           // Keep scanner ready so the next barcode jumps to a new bill.
           requestAnimationFrame(() => barcodeInputRef.current?.focus());

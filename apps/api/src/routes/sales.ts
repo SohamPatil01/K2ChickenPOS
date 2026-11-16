@@ -59,9 +59,14 @@ async function fetchSaleForPayResponse(saleId: string) {
       createdBy: { select: { id: true, name: true } },
       store: { select: { id: true, name: true, type: true } },
       deliveryOrder: { select: { id: true, deliveryFee: true } },
+      // Points actually credited for this bill (K2 Family tier rate), for the printed bill.
+      loyaltyTransactions: { where: { type: 'EARN' }, select: { points: true } },
     },
   });
-  return sale ? enrichSaleResponse(sale) : null;
+  if (!sale) return null;
+  const { loyaltyTransactions, ...rest } = sale;
+  const loyaltyEarned = loyaltyTransactions.reduce((sum, t) => sum + Math.max(0, t.points || 0), 0);
+  return { ...enrichSaleResponse(rest), loyaltyEarned };
 }
 
 function enrichSaleResponse(sale: any) {

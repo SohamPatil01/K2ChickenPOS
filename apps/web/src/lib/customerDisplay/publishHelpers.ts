@@ -73,7 +73,7 @@ export function buildBillPayload(): Omit<BillUpdatePayload, "seq"> {
     tax: taxTotal,
     deliveryFee,
     grandTotal,
-    loyaltyPointsEst: estimateLoyaltyPoints(grandTotal),
+    loyaltyPointsEst: estimateLoyaltyPoints(grandTotal, cart.customerLoyaltyTier),
     loyaltyPointsAvailable: Math.max(0, Math.floor(cart.customerLoyaltyPoints || 0)),
     loyaltyPointsRedeemed: loyaltyPointsApplied,
     loyaltyDiscount,
@@ -173,6 +173,8 @@ export function publishSuccessMode(
     loyaltyPointsRedeemed?: number;
     loyaltyPointsEarned?: number;
     loyaltyPointsBalance?: number | null;
+    /** Customer's K2 Family tier key, for the tier-rate estimate. */
+    loyaltyTier?: string | null;
   }
 ): void {
   const store = useCustomerDisplayStore.getState();
@@ -181,7 +183,7 @@ export function publishSuccessMode(
     amountPaid,
     invoiceNo,
     loyaltyPointsEarned:
-      options?.loyaltyPointsEarned ?? estimateLoyaltyPoints(amountPaid),
+      options?.loyaltyPointsEarned ?? estimateLoyaltyPoints(amountPaid, options?.loyaltyTier),
     loyaltyPointsRedeemed: Math.max(0, Math.floor(options?.loyaltyPointsRedeemed || 0)),
     loyaltyPointsBalance:
       options?.loyaltyPointsBalance == null

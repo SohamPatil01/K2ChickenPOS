@@ -1,8 +1,24 @@
 import type { PrismaClient } from '@azela-pos/db';
-import { computeLoyaltyEarnPoints } from '@azela-pos/shared';
+import { computeTierEarnPoints, formatEarnRate, loyaltyTier, promoteTier } from '@azela-pos/shared';
 import { maybeAwardReferralBonus } from './referral.js';
 
 type Db = PrismaClient;
+type Tx = Pick<PrismaClient, '$queryRaw'>;
+
+/**
+ * K2 Family "visits": distinct IST calendar days with at least one PAID bill for this customer
+ * (counter or app). `includeSaleId` always counts that sale's day, even if its status write
+ * hasn't landed yet. Bill size never matters.
+ */
+export async function countCustomerVisits(db: Tx, customerId: string, includeSaleId?: string): Promise<number> {
+  const rows = await db.$queryRaw<Array<{ visits: bigint | number }>>`
+    SELECT COUNT(DISTINCT ((s."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Kolkata')::date) AS visits
+    FROM "Sale" s
+    WHERE s."customerId" = ${customerId}
+      AND (s.status = 'PAID' OR s.id = ${includeSaleId ?? ''})
+  `;
+  return Number(rows[0]?.visits ?? 0);
+}
 
 export type AwardLoyaltyArgs = {
   saleId: string;
@@ -47,14 +63,26 @@ export async function awardSaleLoyaltyEarn(
       });
       if (alreadyEarned) return 0;
 
-      const pts = computeLoyaltyEarnPoints(grandTotal);
-      if (pts <= 0) return 0;
-
       const customer = await tx.customer.findFirst({
         where: { id: customerId },
-        select: { loyaltyPoints: true, totalSpent: true },
+        select: { loyaltyPoints: true, totalSpent: true, loyaltyTier: true },
       });
       if (!customer) return 0;
+
+      // Rate = the tier held when this bill is paid; an upgrade applies from the next bill.
+      const tierAtBill = loyaltyTier(customer.loyaltyTier);
+      const pts = computeTierEarnPoints(grandTotal, tierAtBill.key);
+      // This bill is a visit even when it earns 0 points; promote (never demote) on visits.
+      const visits = await countCustomerVisits(tx, customerId, saleId);
+      const promoted = promoteTier(customer.loyaltyTier, visits);
+      const tierChanged = promoted.key !== (customer.loyaltyTier || 'BRONZE');
+
+      if (pts <= 0) {
+        if (tierChanged) {
+          await tx.customer.update({ where: { id: customerId }, data: { loyaltyTier: promoted.key } });
+        }
+        return 0;
+      }
 
       const newBalance = (customer.loyaltyPoints || 0) + pts;
       const newTotalSpent = (customer.totalSpent || 0) + Number(grandTotal);
@@ -64,6 +92,7 @@ export async function awardSaleLoyaltyEarn(
         data: {
           loyaltyPoints: newBalance,
           totalSpent: newTotalSpent,
+          ...(tierChanged ? { loyaltyTier: promoted.key } : {}),
         },
       });
 
@@ -75,7 +104,7 @@ export async function awardSaleLoyaltyEarn(
             type: 'EARN',
             points: pts,
             balance: newBalance,
-            description: `Earned ${pts} points from purchase ${saleNo}`,
+            description: `Earned ${pts} points from purchase ${saleNo} (${tierAtBill.name}, ${formatEarnRate(tierAtBill.earnRate)})`,
             saleId,
             createdBy: userId || null,
           },

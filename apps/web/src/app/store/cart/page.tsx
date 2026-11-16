@@ -236,6 +236,8 @@ export default function StoreCartPage() {
         if (!cancelled) {
           setCustomerPoints(pts);
           setCustomerLoyaltyPoints(pts);
+          // K2 Family tier → tier-rate points estimate on the customer display.
+          useCartStore.getState().setCustomerLoyaltyTier(res.data?.customer?.loyaltyTier ?? null);
         }
       } catch (err) {
         console.error('[Cart] Failed to load loyalty balance:', err);
@@ -689,7 +691,7 @@ export default function StoreCartPage() {
           }
           setTimeout(() => router.push('/store/discount-approvals'), 1500);
         },
-        onSuccess: ({ saleNo, saleId, checkoutGrandTotal, loyaltyPointsRedeemed, offline }) => {
+        onSuccess: ({ saleNo, saleId, checkoutGrandTotal, loyaltyPointsRedeemed, offline, loyaltyTier }) => {
           setCompletedSale({
             saleNo,
             grandTotal: checkoutGrandTotal,
@@ -699,6 +701,7 @@ export default function StoreCartPage() {
           publishSuccessMode(checkoutGrandTotal, offline ? null : saleNo, saleId, {
             loyaltyPointsRedeemed,
             loyaltyPointsBalance: null,
+            loyaltyTier,
           });
         },
       });

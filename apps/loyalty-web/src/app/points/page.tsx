@@ -15,7 +15,7 @@ import {
 } from '@/lib/api';
 import { SHOP } from '@/lib/shop';
 import { loadLocale, saveLocale, t, type Locale } from '@/lib/i18n';
-import { nextTierProgress, titleCaseTier } from '@/lib/tiers';
+import { formatRate, tierDisplayName } from '@/lib/tiers';
 
 function maskPhone(phone: string): string {
   const d = phone.replace(/\D/g, '');
@@ -92,17 +92,16 @@ export default function PointsPage() {
   }, [router]);
 
   const points = customer ? Math.round(customer.loyaltyPoints) : 0;
-  const tierInfo = useMemo(
-    () => nextTierProgress(customer?.totalSpent || 0, customer?.loyaltyTier || 'BRONZE'),
-    [customer?.totalSpent, customer?.loyaltyTier]
-  );
+  // K2 Family: tier progress is in visits (from the API); no spend is shown.
+  const tierName = tierDisplayName(customer?.loyaltyTier, customer?.tierName);
+  const earnRate = customer?.earnRate ?? 0.0125;
 
   const redeemPlan = useMemo(() => {
     const used = Math.min(points, billAmount);
     const pay = Math.max(0, billAmount - used);
-    const earn = Math.round(pay * 0.0125);
+    const earn = Math.floor(pay * earnRate);
     return { used, pay, earn };
-  }, [points, billAmount]);
+  }, [points, billAmount, earnRate]);
 
   const onSaveProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -211,7 +210,7 @@ export default function PointsPage() {
           <div className="flex items-baseline gap-2.5 flex-wrap">
             <PointsReels value={customer ? customer.loyaltyPoints : null} />
             {customer && (
-              <span className="pp-pill self-center">{titleCaseTier(customer.loyaltyTier)}</span>
+              <span className="pp-pill self-center">{tierName}</span>
             )}
           </div>
           {customer && (
@@ -256,34 +255,33 @@ export default function PointsPage() {
           </div>
         )}
 
-        {/* Next tier */}
+        {/* Next tier — K2 Family rewards visits, not spend */}
         {customer && (
           <div className="pp-sec">
             <div className="flex justify-between mb-2">
               <span className="pp-lab">{t(locale, 'nextTier')}</span>
               <span className="pp-mute text-[12px]">
-                {tierInfo.next
-                  ? `${titleCaseTier(tierInfo.next)} · ${inr(tierInfo.target)}`
-                  : titleCaseTier(tierInfo.current)}
+                {customer.nextTierName
+                  ? `${customer.visits ?? 0} / ${(customer.visits ?? 0) + (customer.visitsToNext ?? 0)} visits`
+                  : tierName}
               </span>
             </div>
             <div className="pp-bar">
               <span
                 className="pp-bar-fill"
-                style={{ width: `${Math.round(tierInfo.progress * 100)}%` }}
+                style={{ width: `${Math.round((customer.tierProgress ?? 0) * 100)}%` }}
               />
             </div>
             <p className="pp-mute mt-2">
-              {tierInfo.next ? (
-                <>
-                  {t(locale, 'spendMorePrefix')} {inr(tierInfo.remaining)}{' '}
-                  {t(locale, 'spendMoreSuffix')} {titleCaseTier(tierInfo.next)}{' '}
-                  {t(locale, 'andEarnMore')}
-                </>
-              ) : (
-                t(locale, 'tierMax')
-              )}
+              {customer.nextTierName
+                ? t(locale, 'visitsToNextTier', {
+                    n: customer.visitsToNext ?? 0,
+                    tier: customer.nextTierName,
+                    rate: formatRate(customer.nextTierEarnRate),
+                  })
+                : t(locale, 'tierMax')}
             </p>
+            <p className="pp-mute mt-1">{t(locale, 'youEarnRate', { rate: formatRate(earnRate) })}</p>
           </div>
         )}
 
