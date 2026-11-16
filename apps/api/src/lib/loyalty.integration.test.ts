@@ -155,6 +155,30 @@ run('K2 Family loyalty tiers (real Postgres)', () => {
     expect(await tierOf(family.id)).toBe('PLATINUM');
   });
 
+  it('a counter bill still earns its points even if the app-order table is missing (never blocks the POS)', async () => {
+    const c = await newCustomer('Table missing');
+    const s = await sale(c.id, 0, 1000);
+    await prisma.$executeRawUnsafe('ALTER TABLE "MobileOrder" RENAME TO "MobileOrder_hidden"');
+    try {
+      expect((await award(c.id, s)).pointsEarned).toBe(12); // base 1.25%, exactly as before the tiers existed
+    } finally {
+      await prisma.$executeRawUnsafe('ALTER TABLE "MobileOrder_hidden" RENAME TO "MobileOrder"');
+    }
+    expect((await prisma.customer.findUnique({ where: { id: c.id } })).loyaltyPoints).toBe(12);
+  });
+
+  it('the app-order check is cheap: one lookup keyed on the sale, not a scan of all app orders', async () => {
+    const c = await newCustomer('Plan check');
+    const s = await sale(c.id, 0, 500);
+    const plan: Array<Record<string, string>> = await prisma.$queryRawUnsafe(
+      `EXPLAIN SELECT 1 AS one FROM "PreOrder" po JOIN "MobileOrder" mo ON mo."preOrderId" = po.id WHERE po."saleId" = '${s.id}'
+       UNION ALL SELECT 1 AS one FROM "SaleItem" si JOIN "MobileOrder" mo ON mo."preOrderId" = si."metaJson"->>'preOrderId' WHERE si."saleId" = '${s.id}' LIMIT 1`
+    );
+    const text = plan.map((r) => Object.values(r)[0]).join('\n');
+    expect(text).not.toMatch(/Seq Scan on "?MobileOrder"?\s+mo\s+\(cost=[^)]*\)\s*$/m); // never the outer loop over every app order
+    expect(await isAppOrderSale(prisma, s.id)).toBe(false);
+  });
+
   it('a tiny bill that earns 0 points still counts as a visit (scope=all promotes)', async () => {
     process.env.LOYALTY_TIERS_SCOPE = 'all';
     const c = await newCustomer('Small bills');
