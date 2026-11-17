@@ -3,7 +3,7 @@ import { buildTimeline, deriveStatus, isOpenStatus, statusLabel, type CustomerOr
 import { kgToGrams, rupeesToPaise } from '../domain/money.js';
 import { WEIGHT_RULES, type Quote, type RequestedLine } from '../domain/quote.js';
 import { HttpError } from '../errors.js';
-import { getStoreConfig } from './config.js';
+import { appStoreNames, getStoreConfig } from './config.js';
 import type { IdentityContext } from './identity.js';
 import { enqueueOutbox } from './outbox.js';
 
@@ -80,6 +80,7 @@ export async function listOrders(ctx: IdentityContext, opts: { before?: Date; li
     (await prisma.mobileOrder.findMany({ where: { preOrderId: { in: preOrders.map((p) => p.id) } } })).map((m) => [m.preOrderId, m])
   );
 
+  const names = await appStoreNames([...preOrders.map((p) => ({ id: p.storeId, name: p.store?.name ?? '' })), ...sales.map((x) => ({ id: x.storeId, name: x.store?.name ?? '' }))]);
   const rows: OrderSummary[] = [
     ...preOrders.map((po) => {
       const status = deriveStatus(po, po.sale);
@@ -89,7 +90,7 @@ export async function listOrders(ctx: IdentityContext, opts: { before?: Date; li
         id: `po_${po.id}`,
         channel: channelOf(po.source),
         storeId: po.storeId,
-        storeName: po.store?.name ?? null,
+        storeName: po.store ? (names.get(po.storeId) ?? po.store.name) : null,
         placedAt: po.createdAt.toISOString(),
         status,
         statusLabel: statusLabel(status, po.fulfillment),
@@ -108,7 +109,7 @@ export async function listOrders(ctx: IdentityContext, opts: { before?: Date; li
         id: `sale_${s.id}`,
         channel: 'STORE' as const,
         storeId: s.storeId,
-        storeName: s.store?.name ?? null,
+        storeName: s.store ? (names.get(s.storeId) ?? s.store.name) : null,
         placedAt: s.createdAt.toISOString(),
         status,
         statusLabel: status === 'COMPLETED' ? 'Purchased in store' : statusLabel(status, 'PICKUP'),
@@ -166,7 +167,7 @@ export async function getOrder(ctx: IdentityContext, rawId: string) {
     return {
       id: rawId,
       channel: 'STORE' as const,
-      store: sale.store,
+      store: sale.store ? { ...sale.store, name: cfg.appDisplayName?.trim() || sale.store.name } : sale.store,
       placedAt: sale.createdAt.toISOString(),
       status,
       statusLabel: status === 'COMPLETED' ? 'Purchased in store' : statusLabel(status, 'PICKUP'),
@@ -203,7 +204,7 @@ export async function getOrder(ctx: IdentityContext, rawId: string) {
   return {
     id: rawId,
     channel: channelOf(po.source),
-    store: po.store,
+    store: po.store ? { ...po.store, name: cfg.appDisplayName?.trim() || po.store.name } : po.store,
     placedAt: po.createdAt.toISOString(),
     status,
     statusLabel: statusLabel(status, po.fulfillment),

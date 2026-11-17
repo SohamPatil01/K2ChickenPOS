@@ -3,6 +3,7 @@ import { LOYALTY_EARN_RATE, LOYALTY_TIERS, formatEarnRate, loyaltyProgress } fro
 import { countCustomerVisits, loyaltyTiersScope } from '../../lib/loyalty.js';
 import { getRewardsConfig, milestoneProgress } from '../domain/rewards.js';
 import type { IdentityContext } from './identity.js';
+import { appStoreNames } from './config.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -52,8 +53,9 @@ export async function getWallet(ctx: IdentityContext) {
   const { balance, held, available } = await availablePoints(ctx.primaryCustomerId);
   const otherRows = await prisma.customer.findMany({
     where: { id: { in: ctx.customerIds.filter((id) => id !== ctx.primaryCustomerId) }, loyaltyPoints: { gt: 0 } },
-    select: { id: true, loyaltyPoints: true, store: { select: { name: true } } },
+    select: { id: true, loyaltyPoints: true, storeId: true, store: { select: { name: true } } },
   });
+  const otherNames = await appStoreNames(otherRows.map((r) => ({ id: r.storeId, name: r.store?.name ?? 'Store' })));
   const transactions = await prisma.loyaltyTransaction.findMany({
     where: { customerId: { in: ctx.customerIds } },
     orderBy: { createdAt: 'desc' },
@@ -85,7 +87,7 @@ export async function getWallet(ctx: IdentityContext) {
       progress: progress.progress,
       tiers: LOYALTY_TIERS.map((t) => ({ key: t.key, name: t.name, minVisits: t.minVisits, earnRate: t.earnRate })),
     },
-    otherStoreBalances: otherRows.map((r) => ({ storeName: r.store?.name ?? 'Store', points: Math.floor(r.loyaltyPoints) })),
+    otherStoreBalances: otherRows.map((r) => ({ storeName: otherNames.get(r.storeId) ?? r.store?.name ?? 'Store', points: Math.floor(r.loyaltyPoints) })),
     milestone: milestoneProgress(paidSales, cfg),
     rules: {
       earnDescription:

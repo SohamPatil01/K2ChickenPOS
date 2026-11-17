@@ -30,6 +30,9 @@ export type StoreCommerceConfig = {
   cutOptions: CutOption[];
   customerCancelWindow: 'PENDING_ONLY' | 'NONE';
   supportPhone: string | null;
+  addressText: string | null;
+  mapsUrl: string | null;
+  appDisplayName: string | null;
   /** Null = daily random in-stock pick on the customer app. */
   todaysSpecialProductId: string | null;
 };
@@ -59,8 +62,21 @@ export async function getStoreConfig(storeId: string): Promise<StoreCommerceConf
     cutOptions: row?.cutOptionsJson ? parseCuts(row.cutOptionsJson) : DEFAULT_CUT_OPTIONS,
     customerCancelWindow: row?.customerCancelWindow === 'NONE' ? 'NONE' : 'PENDING_ONLY',
     supportPhone: row?.supportPhone ?? process.env.MOBILE_SUPPORT_PHONE ?? null,
+    addressText: row?.addressText ?? null,
+    mapsUrl: row?.mapsUrl ?? null,
+    appDisplayName: row?.appDisplayName ?? null,
     todaysSpecialProductId: row?.todaysSpecialProductId ?? null,
   };
+}
+
+/** App-facing store names: the per-store app display name when set, else the POS store name. */
+export async function appStoreNames(stores: Array<{ id: string; name: string }>): Promise<Map<string, string>> {
+  const rows = await prisma.mobileStoreConfig.findMany({
+    where: { storeId: { in: stores.map((s) => s.id) }, appDisplayName: { not: null } },
+    select: { storeId: true, appDisplayName: true },
+  });
+  const custom = new Map(rows.map((r) => [r.storeId, r.appDisplayName as string]));
+  return new Map(stores.map((s) => [s.id, custom.get(s.id)?.trim() || s.name]));
 }
 
 export function isPincodeServiceable(cfg: StoreCommerceConfig, pincode: string | null | undefined): boolean {

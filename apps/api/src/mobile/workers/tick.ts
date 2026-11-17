@@ -10,6 +10,7 @@ import { maybeSendWhatsApp } from '../services/whatsapp.js';
 import { reconcileLoyaltyHolds } from '../services/loyalty.js';
 import { computeAndStorePrediction, identitiesNeedingPrediction } from '../services/personalization.js';
 import { loadIdentity } from '../services/identity.js';
+import { appStoreNames } from '../services/config.js';
 import { lastReorderable } from '../services/orders.js';
 
 /** Inbox cursor. First run starts "now" — we never blast customers with historical events. */
@@ -42,7 +43,7 @@ export async function ingestPreOrderEvents(now: Date, limit = 500): Promise<numb
     where: { ...afterCursor(cursor), visibleToCustomer: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     take: limit,
-    include: { preOrder: { select: { id: true, fulfillment: true, store: { select: { name: true } } } } },
+    include: { preOrder: { select: { id: true, fulfillment: true, storeId: true, store: { select: { name: true } } } } },
   });
   if (!events.length) return 0;
   const mobile = new Map(
@@ -52,7 +53,7 @@ export async function ingestPreOrderEvents(now: Date, limit = 500): Promise<numb
   for (const e of events) {
     const mo = mobile.get(e.preOrderId);
     if (!mo) continue;
-    const store = e.preOrder.store?.name ?? 'K2 Chicken';
+    const store = (await appStoreNames([{ id: e.preOrder.storeId, name: e.preOrder.store?.name ?? 'K2 Chicken' }])).get(e.preOrder.storeId) ?? 'K2 Chicken';
     let n: NotificationPayload | null = null;
     if (e.kind === 'STATUS' && e.status && STATUS_PUSH[e.status]) {
       // Customer-initiated cancellation needs no push back to the same customer.

@@ -22,6 +22,9 @@ const configSchema = z.object({
   cutOptions: z.array(z.object({ id: z.string().regex(/^[a-z0-9-]{1,32}$/), label: z.string().min(1).max(60) })).max(12),
   customerCancelWindow: z.enum(['PENDING_ONLY', 'NONE']),
   supportPhone: z.string().regex(/^\+?\d{10,13}$/).nullable(),
+  addressText: z.string().trim().min(5).max(200).nullable().optional(),
+  appDisplayName: z.string().trim().min(2).max(80).nullable().optional(),
+  mapsUrl: z.string().url().startsWith('https://').max(500).nullable().optional(),
   todaysSpecialProductId: z.string().min(1).max(64).nullable(),
 });
 
@@ -74,6 +77,10 @@ export async function mobileAdminRoutes(app: FastifyInstance) {
       cutOptionsJson: c.cutOptions as Prisma.InputJsonValue,
       customerCancelWindow: c.customerCancelWindow,
       supportPhone: c.supportPhone,
+      // Optional so older admin clients don't wipe them; undefined leaves the column unchanged.
+      addressText: c.addressText,
+      mapsUrl: c.mapsUrl,
+      appDisplayName: c.appDisplayName,
       todaysSpecialProductId: c.todaysSpecialProductId,
     };
     if (c.todaysSpecialProductId) {

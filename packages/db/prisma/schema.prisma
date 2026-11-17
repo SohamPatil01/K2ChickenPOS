@@ -1768,6 +1768,12 @@ model MobileStoreConfig {
   cutOptionsJson         Json?
   customerCancelWindow   String   @default("PENDING_ONLY") // PENDING_ONLY | NONE
   supportPhone           String?
+  /// Shown on the app's store info screen, e.g. "Shop 4, Baner Road, Pune 411045"
+  addressText            String?
+  /// Google Maps link for directions
+  mapsUrl                String?
+  /// Name shown in the customer app only (the POS keeps Store.name). Null = use Store.name.
+  appDisplayName         String?
   /// When set, mobile Home "Today's Specials" uses this product; otherwise a daily random in-stock pick.
   todaysSpecialProductId String?
   updatedAt              DateTime @updatedAt

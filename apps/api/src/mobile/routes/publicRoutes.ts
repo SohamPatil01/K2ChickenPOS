@@ -11,6 +11,7 @@ import { PAYMENT_METHODS, WEIGHT_PRICING_DISCLOSURE } from '../providers/payment
 import { getCatalog, getProduct, listStores } from '../services/catalog.js';
 import { computeQuote, quoteResponse } from '../services/checkout.js';
 import { CONSENT_POLICY_VERSION } from '../services/consents.js';
+import { getStoreInfo } from '../services/storeInfo.js';
 
 const storeParams = z.object({ storeId: z.string().min(1).max(64) });
 
@@ -39,6 +40,13 @@ export async function mobilePublicRoutes(app: FastifyInstance) {
     // private/no-store: public CDN cache can pin a single Access-Control-Allow-Origin
     reply.header('Cache-Control', 'private, no-store');
     return { stores: await listStores() };
+  });
+
+  app.get('/stores/:storeId/info', async (request, reply) => {
+    const { storeId } = storeParams.parse(request.params);
+    // private: public CDN cache can pin a single Access-Control-Allow-Origin and break the web app.
+    reply.header('Cache-Control', 'private, no-store');
+    return getStoreInfo(storeId);
   });
 
   app.get('/stores/:storeId/catalog', async (request, reply) => {

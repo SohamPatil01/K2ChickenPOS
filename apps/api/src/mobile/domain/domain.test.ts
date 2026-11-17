@@ -4,6 +4,7 @@ import { lineSubtotalPaise, roundToRupee, rupeesToPaise, taxPaise } from './mone
 import { buildQuote, type ProductSnapshot, type QuoteInput } from './quote.js';
 import { getRewardsConfig, maxRedeemablePoints } from './rewards.js';
 import { generateSlots, DEFAULT_HOURS, isValidSlot } from './slots.js';
+import { openStatus, weekHours } from './storeHours.js';
 import { istDateAt, istParts, isWithinWindow } from './time.js';
 import { medianIntervalPredictor, isReorderReminderDue, median } from './prediction.js';
 import { nextPlanOccurrence, upcomingPlanDates } from './weeklyPlan.js';
@@ -293,6 +294,33 @@ describe('analytics & otp', () => {
     expect(otpMatches(h, '9876543210', code, 'c1')).toBe(true);
     expect(otpMatches(h, '9876543210', code, 'c2')).toBe(false);
     expect(otpMatches(h, '9876543211', code, 'c1')).toBe(false);
+  });
+});
+
+describe('store hours', () => {
+  // DEFAULT_HOURS: Mon closed, Thu 08:00–13:00, other days 08:00–20:00 (IST)
+  it('is open during hours with the closing time', () => {
+    expect(openStatus(istDateAt('2026-11-10', 10 * 60), DEFAULT_HOURS)).toEqual({ openNow: true, closesAt: '20:00', nextOpen: null }); // Tue
+  });
+  it('before opening shows today’s opening', () => {
+    expect(openStatus(istDateAt('2026-11-10', 6 * 60), DEFAULT_HOURS)).toEqual({ openNow: false, closesAt: null, nextOpen: { ymd: '2026-11-10', time: '08:00' } });
+  });
+  it('after closing on Sunday skips closed Monday to Tuesday', () => {
+    expect(openStatus(istDateAt('2026-11-08', 21 * 60), DEFAULT_HOURS).nextOpen).toEqual({ ymd: '2026-11-10', time: '08:00' });
+  });
+  it('Thursday closes at 13:00', () => {
+    expect(openStatus(istDateAt('2026-11-12', 12 * 60 + 59), DEFAULT_HOURS).closesAt).toBe('13:00');
+    expect(openStatus(istDateAt('2026-11-12', 13 * 60), DEFAULT_HOURS).openNow).toBe(false);
+  });
+  it('all-closed week has no next opening', () => {
+    const closed = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [String(d), null]));
+    expect(openStatus(new Date(), closed)).toEqual({ openNow: false, closesAt: null, nextOpen: null });
+  });
+  it('lists the week Monday first', () => {
+    const w = weekHours(DEFAULT_HOURS);
+    expect(w.map((d) => d.weekday)).toEqual([1, 2, 3, 4, 5, 6, 0]);
+    expect(w[0]).toEqual({ weekday: 1, open: null, close: null });
+    expect(w[3]).toEqual({ weekday: 4, open: '08:00', close: '13:00' });
   });
 });
 

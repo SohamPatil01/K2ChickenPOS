@@ -1,10 +1,11 @@
-import { prisma } from '@azela-pos/db';
+import { prisma, Prisma } from '@azela-pos/db';
 import { isMasaleProduct } from '@azela-pos/shared';
 import { stockByProductIds } from '../../routes/preOrders.js';
 import { kgToGrams, rupeesToPaise, type UnitType } from '../domain/money.js';
 import type { ProductSnapshot } from '../domain/quote.js';
 import { resolveTodaysSpecialProductId } from '../domain/todaysSpecial.js';
 import { HttpError } from '../errors.js';
+import { appStoreNames } from './config.js';
 
 export function resolveImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -20,9 +21,10 @@ export async function listStores() {
   const list = franchises.length ? franchises : stores; // same rule as the public booking page
   const configs = await prisma.mobileStoreConfig.findMany({ where: { storeId: { in: list.map((s) => s.id) } } });
   const byId = new Map(configs.map((c) => [c.storeId, c]));
+  const names = await appStoreNames(list);
   return list
     .filter((s) => byId.get(s.id)?.appOrderingEnabled !== false)
-    .map((s) => ({ id: s.id, name: s.name, deliveryEnabled: byId.get(s.id)?.deliveryEnabled ?? false }));
+    .map((s) => ({ id: s.id, name: names.get(s.id) ?? s.name, deliveryEnabled: byId.get(s.id)?.deliveryEnabled ?? false }));
 }
 
 async function storeContext(storeId: string) {
@@ -97,15 +99,26 @@ export async function getCatalog(storeId: string) {
     where: { storeId },
     select: { todaysSpecialProductId: true },
   });
+  // Today's Special: chicken cuts only (exclude masala / eggs / carcass).
+  const specialPool = items.filter((p) => {
+    if (!p.inStock) return false;
+    if (isMasaleProduct(p.categoryName, p.name)) return false;
+    const hay = `${p.categoryName ?? ''} ${p.name}`.toLowerCase();
+    if (/(carcas|carcass|soup bone)/.test(hay)) return false;
+    if (/\beggs?\b/.test(hay)) return false;
+    return true;
+  });
   const special = resolveTodaysSpecialProductId({
     storeId,
-    inStockProductIds: items.filter((p) => p.inStock).map((p) => p.id),
+    inStockProductIds: specialPool.map((p) => p.id),
     manualProductId: cfg?.todaysSpecialProductId ?? null,
   });
+  const popularProductIds = await popularAtStore(storeId, items.filter((p) => p.inStock).map((p) => p.id));
   return {
     store: { id: store.id, name: store.name },
     categories,
     products: items,
+    popularProductIds,
     todaysSpecialProductId: special.productId,
     todaysSpecialMode: special.mode,
     generatedAt: new Date().toISOString(),
@@ -152,4 +165,27 @@ export async function getProduct(storeId: string, productId: string) {
     .filter((p) => p.id !== productId && p.categoryId === product.categoryId && p.inStock)
     .slice(0, 6);
   return { store: catalog.store, product, similar };
+}
+
+/**
+ * Best sellers: in-stock products ranked by how many PAID bills at this store included them in the
+ * last 30 days. Real counter sales, not invented popularity; empty until the store has sales.
+ */
+export async function popularAtStore(storeId: string, candidateIds: string[], limit = 6): Promise<string[]> {
+  if (!candidateIds.length) return [];
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rows = await prisma.$queryRaw<Array<{ productId: string; bills: number }>>`
+    SELECT si."productId", COUNT(DISTINCT si."saleId")::int AS bills
+    FROM "SaleItem" si
+    JOIN "Sale" s ON s.id = si."saleId"
+    WHERE s."storeId" = ${storeId}
+      AND s.status = 'PAID'
+      AND s."createdAt" >= ${since}
+      AND si."productId" IN (${Prisma.join(candidateIds)})
+    GROUP BY si."productId"
+    HAVING COUNT(DISTINCT si."saleId") >= 2
+    ORDER BY bills DESC, si."productId" ASC
+    LIMIT ${limit}
+  `;
+  return rows.map((r) => r.productId);
 }
