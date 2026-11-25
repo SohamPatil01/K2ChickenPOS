@@ -28,6 +28,7 @@ export interface DashboardStats {
     soldStock: number;
     currentStock: number;
   };
+  stockCheck: { negativeProducts: number };
   topProducts: Array<{
     productId: string;
     productName: string;
@@ -147,6 +148,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
             total: paymentBreakdown.total || 0,
           },
           todayStock: d.todayStock || emptyStock,
+          stockCheck: d.stockCheck || { negativeProducts: 0 },
           topProducts: d.topProducts || [],
           topItems: light ? statsRef.current!.topItems : [],
           recentSales: (d.recentSales || []).map((s: any) => ({

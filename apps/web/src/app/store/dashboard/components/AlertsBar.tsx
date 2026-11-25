@@ -17,10 +17,12 @@ export default function AlertsBar({ stats, userRole }: AlertsBarProps) {
         <div className="flex-1">
           <h3 className="font-bold text-orange-900 dark:text-orange-200 mb-2">Alerts & Notifications</h3>
           <div className="space-y-2">
-            {stats.todayStock.currentStock < 100 && (
+            {stats.stockCheck.negativeProducts > 0 && (
               <div className="text-sm text-orange-800 dark:text-orange-300 flex items-center gap-2">
-                <span className="font-semibold">📦 Low Stock:</span>
-                <span>Current stock is {stats.todayStock.currentStock.toFixed(0)} units. Consider restocking.</span>
+                <span className="font-semibold">📦 Stock Check:</span>
+                <span>
+                  {stats.stockCheck.negativeProducts} product{stats.stockCheck.negativeProducts === 1 ? '' : 's'} sold more than received. Stock counts may be off, check receiving.
+                </span>
               </div>
             )}
             {stats.today.revenue < stats.yesterday.revenue * 0.7 && stats.yesterday.revenue > 0 && (
@@ -44,7 +46,9 @@ export default function AlertsBar({ stats, userRole }: AlertsBarProps) {
             {stats.today.revenue > 0 && stats.yesterday.revenue > 0 && stats.today.revenue > stats.yesterday.revenue * 1.5 && (
               <div className="text-sm text-green-800 dark:text-green-300 flex items-center gap-2">
                 <span className="font-semibold">🎉 Great Day:</span>
-                <span>Revenue is 50% higher than yesterday! Keep it up!</span>
+                <span>
+                  Revenue is {(((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue) * 100).toFixed(0)}% higher than yesterday! Keep it up!
+                </span>
               </div>
             )}
             {stats.today.count === 0 && stats.yesterday.revenue === 0 && stats.lastWeek.revenue === 0 && (

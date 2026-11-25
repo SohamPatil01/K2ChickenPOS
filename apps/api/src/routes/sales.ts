@@ -505,6 +505,21 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const receivedStock = Number(stockRow?.received) || 0;
       const soldStock = Number(stockRow?.sold) || 0;
 
+      // Products whose ledger balance is negative (sold more than received) — stock is not reliable for these.
+      const [negativeStockRow] = await prisma.$queryRaw<Array<{ negative: number }>>`
+        SELECT COUNT(*) FILTER (WHERE qty < -0.001)::int AS negative
+        FROM (
+          SELECT COALESCE(SUM(
+            CASE WHEN type = 'IN'
+              THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)
+              ELSE -(COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)) END
+          ), 0)::float AS qty
+          FROM "InventoryLedger"
+          WHERE "storeId" = ${storeId}
+          GROUP BY "productId"
+        ) b
+      `;
+
       const topProducts = (todayProductRows || []).map((row) => ({
         productId: row.productId,
         productName: row.name,
@@ -540,6 +555,9 @@ export async function saleRoutes(fastify: FastifyInstance) {
           receivedStock,
           soldStock,
           currentStock: 0,
+        },
+        stockCheck: {
+          negativeProducts: Number(negativeStockRow?.negative) || 0,
         },
         paymentBreakdown: {
           cash: tallied.cash,
