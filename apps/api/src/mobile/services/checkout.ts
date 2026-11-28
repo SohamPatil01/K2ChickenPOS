@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { prisma, Prisma } from '@azela-pos/db';
 import type { z } from 'zod';
 import { buildQuote, type Quote, type RequestedLine } from '../domain/quote.js';
+import { withLegacyQuoteFields } from '../domain/legacyQuote.js';
 import { getRewardsConfig } from '../domain/rewards.js';
 import { generateSlots, isValidSlot } from '../domain/slots.js';
 import { formatInr, gramsToKg } from '../domain/money.js';
@@ -53,7 +54,7 @@ export async function computeQuote(
 
 export function quoteResponse(quote: Quote, config: StoreCommerceConfig, now = new Date()) {
   return {
-    quote,
+    quote: withLegacyQuoteFields(quote),
     slots: generateSlots({
       now,
       hours: config.hours,
@@ -131,13 +132,13 @@ export async function placeOrder(ctx: IdentityContext, req: PlaceOrderRequest, i
 
   const { quote, config, address } = await computeQuote(ctx, req);
   if (!quote.canCheckout) {
-    throw new HttpError(422, 'QUOTE_NOT_ORDERABLE', quote.issues[0]?.message ?? 'Cart cannot be ordered', { quote });
+    throw new HttpError(422, 'QUOTE_NOT_ORDERABLE', quote.issues[0]?.message ?? 'Cart cannot be ordered', { quote: withLegacyQuoteFields(quote) });
   }
   if (quote.totalPaise !== req.confirmedTotalPaise) {
-    throw new HttpError(409, 'QUOTE_CHANGED', 'Your total was updated. Please review and confirm.', { quote });
+    throw new HttpError(409, 'QUOTE_CHANGED', 'Your total was updated. Please review and confirm.', { quote: withLegacyQuoteFields(quote) });
   }
   if (req.redeemPoints > 0 && quote.loyalty.appliedPoints !== req.redeemPoints) {
-    throw new HttpError(409, 'QUOTE_CHANGED', 'Your available points changed. Please review your updated total.', { quote });
+    throw new HttpError(409, 'QUOTE_CHANGED', 'Your available points changed. Please review your updated total.', { quote: withLegacyQuoteFields(quote) });
   }
   const methods = methodsFor(req.fulfillment).map((m) => m.id);
   if (!methods.includes(req.paymentMethod)) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeIndianMobile, posPhoneVariants } from './phone.js';
 import { lineSubtotalPaise, roundToRupee, rupeesToPaise, taxPaise } from './money.js';
 import { buildQuote, type ProductSnapshot, type QuoteInput } from './quote.js';
+import { withLegacyQuoteFields } from './legacyQuote.js';
 import { getRewardsConfig, maxRedeemablePoints } from './rewards.js';
 import { generateSlots, DEFAULT_HOURS, isValidSlot } from './slots.js';
 import { openStatus, weekHours } from './storeHours.js';
@@ -112,6 +113,12 @@ describe('quote', () => {
     expect(q.lines[0]).toMatchObject({ status: 'OK', ratePaise: 28000, message: null });
     expect(q.canCheckout).toBe(true);
     expect(q.lines[0]).not.toHaveProperty('previousRatePaise');
+  });
+  it('keeps legacy price-change keys in the response for pre-b0a6774 app builds', () => {
+    const q = withLegacyQuoteFields(buildQuote(quoteInput({ lines: [{ productId: 'p1', grams: 1000 }] })));
+    expect(q.hasPriceChanges).toBe(false);
+    expect(q.lines[0]).toHaveProperty('previousRatePaise', null);
+    expect(q.totalPaise).toBe(28000);
   });
   it('caps loyalty redemption at 5% of merchandise and the balance', () => {
     const q = buildQuote(
