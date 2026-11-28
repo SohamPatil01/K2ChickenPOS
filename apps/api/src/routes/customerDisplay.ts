@@ -34,6 +34,13 @@ function channelForStoreInbound(storeId: string): string {
   return `store:${storeId}:display:in`;
 }
 
+/** Cashier↔cashier till coordination (e.g. live "being billed on another till"
+ * pre-order claims). Staff-only, no presence, tiny event-driven payloads so it
+ * stays well inside Ably Free Tier. */
+function channelForStorePos(storeId: string): string {
+  return `store:${storeId}:pos`;
+}
+
 /**
  * Build a signed Ably TokenRequest with the account API key, without pulling in
  * the full `ably` SDK on the serverless function. Mirrors Ably's documented
@@ -198,6 +205,7 @@ export async function customerDisplayRoutes(fastify: FastifyInstance) {
       capability = {
         [channelForStore(storeId)]: ['publish', 'subscribe', 'presence'],
         [channelForStoreInbound(storeId)]: ['subscribe'],
+        [channelForStorePos(storeId)]: ['publish', 'subscribe'],
       };
       clientId = `cashier:${(request.user as any).userId || storeId}`;
     }

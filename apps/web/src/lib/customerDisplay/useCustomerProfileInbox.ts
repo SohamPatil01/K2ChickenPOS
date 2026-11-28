@@ -8,6 +8,10 @@ import api from "@/lib/api";
 import { createCustomerProfileInbox } from "./ablyClient";
 import { publishCustomerSelection } from "./publishHelpers";
 import {
+  attachPreOrderTillSyncSession,
+  handleIncomingTillEvent,
+} from "@/lib/preOrderTillSync";
+import {
   DISPLAY_EVENTS,
   type CustomerFeedbackPayload,
   type CustomerLoyaltyChoicePayload,
@@ -144,10 +148,14 @@ export function useCustomerProfileInbox(): void {
     if (!storeId) return;
     let cancelled = false;
     let handle: { close: () => void } | null = null;
+    let detachTillSync: (() => void) | null = null;
 
     void createCustomerProfileInbox({
       storeId,
       getAccessToken,
+      onPosEvent: (name, data) => {
+        handleIncomingTillEvent(name, data, storeId);
+      },
       onEvent: (name, data) => {
         if (name === DISPLAY_EVENTS.CUSTOMER_PROFILE_SUBMIT) {
           const payload = data as CustomerProfileSubmitPayload;
@@ -192,12 +200,20 @@ export function useCustomerProfileInbox(): void {
         }
       },
     }).then((h) => {
-      if (cancelled) h.close();
-      else handle = h;
+      if (cancelled) {
+        h.close();
+      } else {
+        handle = h;
+        detachTillSync = attachPreOrderTillSyncSession({
+          storeId,
+          publishPosEvent: h.publishPosEvent,
+        });
+      }
     });
 
     return () => {
       cancelled = true;
+      detachTillSync?.();
       handle?.close();
     };
   }, [storeId]);

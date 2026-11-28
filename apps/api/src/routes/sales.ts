@@ -26,6 +26,7 @@ import {
 } from '../lib/profileReward.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from '../services/shiftService.js';
 import {
+  asPreOrderClaimError,
   PreOrderClaimError,
   completePreOrderClaimForSale,
   extractPreOrderIdsFromSaleInput,
@@ -1334,14 +1335,15 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       return enrichSaleResponse(finalSale);
     } catch (error: any) {
-      if (error instanceof PreOrderClaimError) {
-        reply.code(error.statusCode).send({
-          error: error.message,
-          code: error.code,
-          preOrderIds: error.preOrderIds,
-          existingSaleId: error.existingSaleId,
-          existingSaleNo: error.existingSaleNo,
-          trackingCode: error.trackingCode,
+      const claimErr = asPreOrderClaimError(error, preOrderIds);
+      if (claimErr) {
+        reply.code(claimErr.statusCode).send({
+          error: claimErr.message,
+          code: claimErr.code,
+          preOrderIds: claimErr.preOrderIds,
+          existingSaleId: claimErr.existingSaleId,
+          existingSaleNo: claimErr.existingSaleNo,
+          trackingCode: claimErr.trackingCode,
         });
         return;
       }

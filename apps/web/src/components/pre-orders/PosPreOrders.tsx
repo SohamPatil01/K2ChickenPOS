@@ -6,6 +6,10 @@ import api from '@/lib/api';
 import { Button, Card } from '@/components/ui';
 import { useNotificationStore } from '@/store/notification';
 import { loadPreOrderIntoCart } from '@/lib/loadPreOrderIntoCart';
+import {
+  requestPreOrderTillSync,
+  usePreOrderTillSyncStore,
+} from '@/lib/preOrderTillSync';
 
 export type PreOrderRow = {
   id: string;
@@ -71,6 +75,8 @@ export default function PosPreOrders({
   }>;
 }) {
   const { showNotification } = useNotificationStore();
+  const remoteClaims = usePreOrderTillSyncStore((s) => s.remoteClaims);
+  const lastRemoteChangeAt = usePreOrderTillSyncStore((s) => s.lastRemoteChangeAt);
 
   const [open, setOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -112,8 +118,17 @@ export default function PosPreOrders({
   }, [refresh]);
 
   useEffect(() => {
-    if (open) refresh();
+    if (open) {
+      refresh();
+      requestPreOrderTillSync();
+    }
   }, [open, refresh]);
+
+  // Refresh immediately when another till bills/releases an order over Ably
+  useEffect(() => {
+    if (!lastRemoteChangeAt) return;
+    void refresh();
+  }, [lastRemoteChangeAt, refresh]);
 
   // Light poll while panel open
   useEffect(() => {
@@ -324,6 +339,16 @@ export default function PosPreOrders({
       {po.notes && (
         <p className="text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1">{po.notes}</p>
       )}
+      {!closed && remoteClaims[po.id]?.length ? (
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-300 rounded-lg px-2.5 py-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-600 animate-pulse shrink-0" />
+          <span>
+            Being billed on another till (
+            {[...new Set(remoteClaims[po.id].map((c) => c.cashierName || 'Staff'))].join(', ')}
+            )
+          </span>
+        </div>
+      ) : null}
       {po.cancelReason && (
         <p className="text-xs text-red-800 bg-red-100/70 rounded-lg px-2 py-1">
           Cancel reason: {po.cancelReason}

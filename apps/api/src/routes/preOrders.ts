@@ -4,6 +4,7 @@ import { prisma, Prisma } from '@azela-pos/db';
 import { z } from 'zod';
 import { getUser, requireRole } from '../utils/auth.js';
 import { ymdInStoreTz, STORE_TZ_OFFSET, isMasaleProduct } from '@azela-pos/shared';
+import { asPreOrderClaimError } from '../services/preOrderClaim.js';
 
 /** On-hand qty for products at a physical store (same math as inventory summary). */
 export async function stockByProductIds(
@@ -815,28 +816,37 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
       }
 
       for (const po of candidates) {
-        const claimed = await prisma.$transaction(async (tx) => {
-          const updated = await tx.preOrder.updateMany({
-            where: {
-              id: po.id,
-              saleId: null,
-              status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
-            },
-            data: { status: 'FULFILLED', saleId },
+        let claimed = false;
+        try {
+          claimed = await prisma.$transaction(async (tx) => {
+            const updated = await tx.preOrder.updateMany({
+              where: {
+                id: po.id,
+                saleId: null,
+                status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
+              },
+              data: { status: 'FULFILLED', saleId },
+            });
+            if (updated.count === 0) return false;
+            await tx.preOrderEvent.create({
+              data: {
+                preOrderId: po.id,
+                kind: 'STATUS',
+                status: 'FULFILLED',
+                message: `Completed — billed as sale (${saleId.slice(0, 8)}…)`,
+                visibleToCustomer: true,
+                createdByUserId: user.userId,
+              },
+            });
+            return true;
           });
-          if (updated.count === 0) return false;
-          await tx.preOrderEvent.create({
-            data: {
-              preOrderId: po.id,
-              kind: 'STATUS',
-              status: 'FULFILLED',
-              message: `Completed — billed as sale (${saleId.slice(0, 8)}…)`,
-              visibleToCustomer: true,
-              createdByUserId: user.userId,
-            },
-          });
-          return true;
-        });
+        } catch (err) {
+          if (asPreOrderClaimError(err, [po.id])) {
+            claimed = false;
+          } else {
+            throw err;
+          }
+        }
         if (claimed) {
           fulfilled.push({ id: po.id, trackingCode: po.trackingCode, customerName: po.customerName });
         }
@@ -909,10 +919,13 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
         return;
       }
 
-      // Never allow a stale screen (e.g. "Load to cart" on another counter) to overwrite an already-billed order.
+      // Never allow a stale screen (e.g. "Load to cart" on another counter) to overwrite an already-billed order,
+      // nor allow replacing an active saleId with a different saleId.
       const hasActiveSale = Boolean(existing.saleId && existing.sale && existing.sale.status !== 'VOID');
       const alreadyFulfilled = existing.status === 'FULFILLED' && (!existing.saleId || hasActiveSale);
-      if ((hasActiveSale || alreadyFulfilled) && data.status !== 'FULFILLED') {
+      const tryingToOverwriteActiveSale =
+        hasActiveSale && data.saleId !== undefined && data.saleId !== existing.saleId;
+      if (((hasActiveSale || alreadyFulfilled) && data.status !== 'FULFILLED') || tryingToOverwriteActiveSale) {
         const billLabel = existing.sale?.saleNo ? ` (${existing.sale.saleNo})` : '';
         reply.code(409).send({
           error: `Order #${existing.trackingCode} has already been billed${billLabel} and cannot be modified.`,
@@ -939,38 +952,53 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
           : null) ||
         (statusChanged ? statusLabel(data.status) : null);
 
-      const updated = await prisma.$transaction(async (tx) => {
-        const po = await tx.preOrder.update({
-          where: { id },
-          data: {
-            status: data.status,
-            notes: data.notes !== undefined ? data.notes : undefined,
-            saleId: data.saleId !== undefined ? data.saleId : undefined,
-            cancelReason:
-              data.status === 'CANCELLED'
-                ? data.cancelReason?.trim() || data.customerMessage?.trim() || existing.cancelReason
-                : undefined,
-          },
-        });
-
-        if (statusChanged || customerFacing) {
-          await tx.preOrderEvent.create({
+      let updated;
+      try {
+        updated = await prisma.$transaction(async (tx) => {
+          const po = await tx.preOrder.update({
+            where: { id },
             data: {
-              preOrderId: id,
-              kind: statusChanged ? 'STATUS' : 'MESSAGE',
               status: data.status,
-              message: customerFacing || statusLabel(data.status),
-              visibleToCustomer: true,
-              createdByUserId: user.userId,
+              notes: data.notes !== undefined ? data.notes : undefined,
+              saleId: data.saleId !== undefined ? data.saleId : undefined,
+              cancelReason:
+                data.status === 'CANCELLED'
+                  ? data.cancelReason?.trim() || data.customerMessage?.trim() || existing.cancelReason
+                  : undefined,
             },
           });
-        }
 
-        return tx.preOrder.findUnique({
-          where: { id: po.id },
-          include: includeFull,
+          if (statusChanged || customerFacing) {
+            await tx.preOrderEvent.create({
+              data: {
+                preOrderId: id,
+                kind: statusChanged ? 'STATUS' : 'MESSAGE',
+                status: data.status,
+                message: customerFacing || statusLabel(data.status),
+                visibleToCustomer: true,
+                createdByUserId: user.userId,
+              },
+            });
+          }
+
+          return tx.preOrder.findUnique({
+            where: { id: po.id },
+            include: includeFull,
+          });
         });
-      });
+      } catch (err) {
+        const claimErr = asPreOrderClaimError(err, [id]);
+        if (claimErr) {
+          reply.code(409).send({
+            error: claimErr.message,
+            code: claimErr.code,
+            existingSaleId: existing.saleId,
+            existingSaleNo: existing.sale?.saleNo || null,
+          });
+          return;
+        }
+        throw err;
+      }
 
       return { ok: true, preOrder: await attachPrices(storeId, updated) };
     }

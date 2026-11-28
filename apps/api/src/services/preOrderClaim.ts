@@ -35,6 +35,36 @@ export class PreOrderClaimError extends Error {
 }
 
 /**
+ * Translate a PostgreSQL/Prisma DB-level constraint violation on `PreOrderSaleLink`
+ * (`PreOrderSaleLink_one_active_sale_key` or `trg_preorder_guard_sale_link_overwrite`)
+ * into a structured 409 `PreOrderClaimError` — catching any code path that skipped
+ * application-level row locking.
+ */
+export function asPreOrderClaimError(
+  err: unknown,
+  fallbackPreOrderIds: string[] = []
+): PreOrderClaimError | null {
+  if (err instanceof PreOrderClaimError) return err;
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  const code = (err as any)?.code;
+  const metaStr = JSON.stringify((err as any)?.meta ?? '');
+  const hitDbConstraint =
+    msg.includes('PreOrderSaleLink_one_active_sale_key') ||
+    msg.includes('already linked to active Sale') ||
+    msg.includes('on active Sale') ||
+    metaStr.includes('PreOrderSaleLink_one_active_sale_key') ||
+    (code === 'P2002' &&
+      (msg.includes('PreOrderSaleLink') || metaStr.includes('PreOrderSaleLink')));
+  if (!hitDbConstraint) return null;
+  return new PreOrderClaimError({
+    statusCode: 409,
+    code: 'PRE_ORDER_ALREADY_BILLED',
+    message: 'This app/pre-order already has an active bill and cannot be billed twice.',
+    preOrderIds: fallbackPreOrderIds,
+  });
+}
+
+/**
  * Collect every pre-order ID referenced by a sale payload — both top-level `preOrderIds`
  * and per-line `items[].metaJson.preOrderId` — deduplicated and sorted for deterministic lock order.
  */

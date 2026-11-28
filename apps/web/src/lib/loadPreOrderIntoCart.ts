@@ -126,6 +126,8 @@ export async function loadPreOrderIntoCart(options: {
       lineTotal,
       metaJson: {
         preOrderId: po.id,
+        preOrderTrackingCode: po.trackingCode || undefined,
+        preOrderCustomerName: po.customerName || undefined,
         preOrderItemId: it.id,
         unitType,
         imageUrl: product?.imageUrl || null,

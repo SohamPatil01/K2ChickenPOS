@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import {
   displayChannelName,
   displayInboundChannelName,
+  posCoordinationChannelName,
   DISPLAY_EVENTS,
   type CustomerProfileSubmitPayload,
   type CustomerLoyaltyChoicePayload,
@@ -399,9 +400,13 @@ interface ProfileInboxOptions extends BaseOptions {
   /** Cashier app access token (JWT) used to authorize the Ably token request. */
   getAccessToken: () => string | null;
   onEvent: (event: string, data: any) => void;
+  /** Optional staff till-coordination handler sharing the exact same WebSocket. */
+  onPosEvent?: (event: string, data: any) => void;
 }
 
 export interface CustomerProfileInboxHandle {
+  /** Publish a lightweight till-coordination event on `store:{storeId}:pos` (best-effort, no-op if disabled). */
+  publishPosEvent: (event: string, data: any) => Promise<boolean>;
   close: () => void;
 }
 
@@ -410,11 +415,18 @@ export interface CustomerProfileInboxHandle {
  * display device is allowed to publish on — kept separate from
  * `createDisplayPublisher` so a compromised/misbehaving display can never
  * reach the main channel that drives the display's own bill/mode state.
+ *
+ * Also multiplexes `store:{storeId}:pos` over this exact same Ably Realtime
+ * connection so live till coordination uses ZERO extra WebSocket connections
+ * on the Ably Free Tier.
  */
 export async function createCustomerProfileInbox(
   opts: ProfileInboxOptions
 ): Promise<CustomerProfileInboxHandle> {
-  const noop: CustomerProfileInboxHandle = { close: () => {} };
+  const noop: CustomerProfileInboxHandle = {
+    publishPosEvent: async () => false,
+    close: () => {},
+  };
 
   const token = opts.getAccessToken();
   if (!token || !opts.storeId) {
@@ -437,6 +449,9 @@ export async function createCustomerProfileInbox(
   }
 
   const channel = client.channels.get(displayInboundChannelName(opts.storeId));
+  const posChannel = opts.onPosEvent
+    ? client.channels.get(posCoordinationChannelName(opts.storeId))
+    : null;
 
   client.connection.on((stateChange: any) => {
     opts.onStatus?.(mapState(stateChange.current));
@@ -450,7 +465,26 @@ export async function createCustomerProfileInbox(
     opts.onStatus?.("failed");
   }
 
+  if (posChannel && opts.onPosEvent) {
+    try {
+      await posChannel.subscribe((message: any) => {
+        opts.onPosEvent?.(message.name, message.data);
+      });
+    } catch {
+      // Best-effort: never let till-coordination capability/network blips affect POS or display inbox.
+    }
+  }
+
   return {
+    publishPosEvent: async (event: string, data: any) => {
+      if (!posChannel) return false;
+      try {
+        await posChannel.publish(event, data);
+        return true;
+      } catch {
+        return false;
+      }
+    },
     close: () => {
       try {
         client.close();

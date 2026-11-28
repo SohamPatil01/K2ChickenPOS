@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  asPreOrderClaimError,
   completePreOrderClaimForSale,
   extractPreOrderIdsFromSaleInput,
   lockAndVerifyPreOrdersForSale,
@@ -213,5 +214,29 @@ describe('preOrderClaim', () => {
       storeId: 'store_1',
     });
     expect(locked).toHaveLength(1);
+  });
+
+  it('translates DB-level PreOrderSaleLink unique/overwrite violations into 409 PRE_ORDER_ALREADY_BILLED', () => {
+    const prismaUniqueErr = Object.assign(
+      new Error('Unique constraint failed on the constraint: `PreOrderSaleLink_one_active_sale_key`'),
+      { code: 'P2002', meta: { target: ['PreOrderSaleLink_one_active_sale_key'] } }
+    );
+    const mapped = asPreOrderClaimError(prismaUniqueErr, ['po_1']);
+    expect(mapped).toBeInstanceOf(PreOrderClaimError);
+    expect(mapped).toMatchObject({
+      statusCode: 409,
+      code: 'PRE_ORDER_ALREADY_BILLED',
+      preOrderIds: ['po_1'],
+    });
+
+    const overwriteTriggerErr = new Error(
+      'PreOrder po_1 is already linked to active Sale sale_1 and cannot be overwritten'
+    );
+    expect(asPreOrderClaimError(overwriteTriggerErr, ['po_1'])).toMatchObject({
+      statusCode: 409,
+      code: 'PRE_ORDER_ALREADY_BILLED',
+    });
+
+    expect(asPreOrderClaimError(new Error('unrelated database timeout'), ['po_1'])).toBeNull();
   });
 });

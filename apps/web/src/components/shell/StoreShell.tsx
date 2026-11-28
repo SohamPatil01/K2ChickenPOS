@@ -16,6 +16,7 @@ import Sidebar from "./Sidebar";
 import StatusPills from "./StatusPills";
 import { getMenuSections, getActiveItem } from "./navConfig";
 import PosDaySession from "../day-session/PosDaySession";
+import PreOrderTillConflictBanner from "../pre-orders/PreOrderTillConflictBanner";
 
 // Drivers stay on delivery-only console — no Day In/Out cash drawer UI
 const DAY_SESSION_ROLES = new Set(["OWNER", "MANAGER", "CASHIER"]);
@@ -238,6 +239,7 @@ export default function StoreShell({ children }: StoreShellProps) {
           <div className="h-full w-full p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 overflow-y-auto min-h-0">
             {/* Day In/Out on every console (POS, cart, cashier, delivery) + cross-device sync */}
             {user && DAY_SESSION_ROLES.has(user.role) && <PosDaySession />}
+            {user && DAY_SESSION_ROLES.has(user.role) && <PreOrderTillConflictBanner />}
             {children}
           </div>
         </main>

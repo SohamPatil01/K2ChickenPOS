@@ -8,6 +8,7 @@ import {
   loadPreOrderIntoCart,
   type LoadablePreOrder,
 } from '@/lib/loadPreOrderIntoCart';
+import { usePreOrderTillSyncStore } from '@/lib/preOrderTillSync';
 
 /**
  * When a customer is attached on cart/POS, offer to load their open pre-order.
@@ -18,6 +19,8 @@ export default function CustomerPreOrderBanner() {
   const customerPhone = useCartStore((s) => s.customerPhone);
   const customerName = useCartStore((s) => s.customerName);
   const linkedPreOrderIds = useCartStore((s) => s.linkedPreOrderIds);
+  const remoteClaims = usePreOrderTillSyncStore((s) => s.remoteClaims);
+  const lastRemoteChangeAt = usePreOrderTillSyncStore((s) => s.lastRemoteChangeAt);
   const { showNotification } = useNotificationStore();
 
   const [openOrders, setOpenOrders] = useState<LoadablePreOrder[]>([]);
@@ -51,6 +54,11 @@ export default function CustomerPreOrderBanner() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!lastRemoteChangeAt) return;
+    void refresh();
+  }, [lastRemoteChangeAt, refresh]);
 
   useEffect(() => {
     setDismissedIds([]);
@@ -125,6 +133,14 @@ export default function CustomerPreOrderBanner() {
                   {po.customerPhone ? ` · ${po.customerPhone}` : ''}
                 </p>
                 <p className="text-xs text-ink-muted truncate">{summary || 'No items'}</p>
+                {remoteClaims[po.id]?.length ? (
+                  <p className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-amber-100 border border-amber-300 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse" />
+                    Being billed on another till (
+                    {[...new Set(remoteClaims[po.id].map((c) => c.cashierName || 'Staff'))].join(', ')}
+                    )
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button

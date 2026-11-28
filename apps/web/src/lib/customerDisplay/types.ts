@@ -170,6 +170,11 @@ export function displayInboundChannelName(storeId: string): string {
   return `${DISPLAY_CHANNEL_PREFIX}${storeId}:display:in`;
 }
 
+/** Staff-only till-coordination channel (reuses the single session Ably socket; no presence). */
+export function posCoordinationChannelName(storeId: string): string {
+  return `${DISPLAY_CHANNEL_PREFIX}${storeId}:pos`;
+}
+
 /** Loyalty rule mirrored from the server: 1.25% of the purchase total. */
 export function estimateLoyaltyPoints(grandTotal: number): number {
   return Math.floor(Math.max(0, grandTotal) * 0.0125);

@@ -21,6 +21,7 @@ import { ensureDeliveryForSale } from './ensureDeliveryForSale.js';
 import { applyStoreCredit } from './storeCredit.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from './shiftService.js';
 import {
+  asPreOrderClaimError,
   PreOrderClaimError,
   completePreOrderClaimForSale,
   extractPreOrderIdsFromSaleInput,
@@ -435,7 +436,8 @@ export async function applyOfflineCheckoutFromSync(
     return created;
   });
   } catch (err) {
-    if (err instanceof PreOrderClaimError) {
+    const claimErr = asPreOrderClaimError(err, preOrderIds);
+    if (claimErr) {
       // Another counter already billed this pre-order while this device was offline.
       // Record for audit and return cleanly so sync ACKs the stale queued event instead of double-billing or retrying forever.
       await prisma.auditLog
@@ -449,10 +451,10 @@ export async function applyOfflineCheckoutFromSync(
             metaJson: {
               offlineIdempotencyKey: data.idempotencyKey,
               preOrderIds,
-              code: err.code,
-              reason: err.message,
-              existingSaleId: err.existingSaleId || null,
-              existingSaleNo: err.existingSaleNo || null,
+              code: claimErr.code,
+              reason: claimErr.message,
+              existingSaleId: claimErr.existingSaleId || null,
+              existingSaleNo: claimErr.existingSaleNo || null,
             },
           },
         })

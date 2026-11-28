@@ -13,6 +13,10 @@ import {
 } from '@/lib/offlineCheckout';
 import { runPostCheckoutSideEffects } from '@/lib/checkoutPostSuccess';
 import { checkCartAgainstStockSnapshot } from '@/lib/stockSnapshot';
+import {
+  announcePreOrdersBilled,
+  setPreOrderCheckoutInFlight,
+} from '@/lib/preOrderTillSync';
 
 export type CheckoutPayment = { method: string; amount: number };
 
@@ -214,6 +218,7 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     return;
   }
 
+  setPreOrderCheckoutInFlight(true);
   try {
     const fulfillmentType = useCartStore.getState().fulfillmentType;
     const couponCode = useCartStore.getState().couponCode;
@@ -293,6 +298,10 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     const preOrderIds = [
       ...new Set([...(cartSnap.linkedPreOrderIds || []), ...fromMeta]),
     ];
+
+    if (preOrderIds.length > 0) {
+      announcePreOrdersBilled(preOrderIds, sale.saleNo || 'paid');
+    }
 
     // [checkout-success] Clear the paid cart BEFORE the success UI so the next
     // barcode/scan cannot merge into the previous bill.
@@ -421,5 +430,7 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
     onPaymentFailedUi?.();
     onNotify(errorMessage, 'error', 5000);
     throw error;
+  } finally {
+    setPreOrderCheckoutInFlight(false);
   }
 }

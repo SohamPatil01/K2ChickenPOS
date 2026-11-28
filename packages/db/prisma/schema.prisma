@@ -448,6 +448,7 @@ model Sale {
   loyaltyTransactions LoyaltyTransaction[]
   storeCreditTransactions StoreCreditTransaction[]
   preOrders     PreOrder[]
+  preOrderSaleLinks PreOrderSaleLink[]
 
   @@unique([storeId, saleNo])
   @@unique([storeId, offlineIdempotencyKey])
@@ -573,6 +574,7 @@ model PreOrder {
   createdBy       User?           @relation("PreOrderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   saleId          String?
   sale            Sale?           @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  saleLinks       PreOrderSaleLink[]
   items           PreOrderItem[]
   events          PreOrderEvent[]
   createdAt       DateTime        @default(now())
@@ -583,6 +585,23 @@ model PreOrder {
   @@index([storeId, readyAt])
   @@index([customerPhone])
   @@index([trackingCode])
+  @@index([saleId])
+}
+
+/// Append-only ledger of every Sale linked to a PreOrder.
+/// A partial unique index on ("preOrderId") WHERE "isActive" = true enforces at the
+/// database level that at most one non-VOID Sale can ever link to a PreOrder, while
+/// keeping full VOID history without deleting or overwriting any rows.
+model PreOrderSaleLink {
+  preOrderId String
+  preOrder   PreOrder @relation(fields: [preOrderId], references: [id], onDelete: Restrict)
+  saleId     String
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  voidedAt   DateTime?
+
+  @@id([preOrderId, saleId])
   @@index([saleId])
 }
 
