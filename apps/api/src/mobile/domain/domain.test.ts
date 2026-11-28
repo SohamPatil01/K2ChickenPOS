@@ -107,11 +107,11 @@ describe('quote', () => {
     const q = buildQuote(quoteInput({ lines: [{ productId: 'p1', grams: 300 }] }));
     expect(q.lines[0].status).toBe('INVALID_QUANTITY');
   });
-  it('detects price changes for reorder', () => {
-    const q = buildQuote(quoteInput({ lines: [{ productId: 'p1', grams: 1000, previousRatePaise: 26000 }] }));
-    expect(q.lines[0].status).toBe('PRICE_CHANGED');
-    expect(q.hasPriceChanges).toBe(true);
+  it('always quotes today’s price with no earlier-price comparison', () => {
+    const q = buildQuote(quoteInput({ lines: [{ productId: 'p1', grams: 1000 }] }));
+    expect(q.lines[0]).toMatchObject({ status: 'OK', ratePaise: 28000, message: null });
     expect(q.canCheckout).toBe(true);
+    expect(q.lines[0]).not.toHaveProperty('previousRatePaise');
   });
   it('caps loyalty redemption at 5% of merchandise and the balance', () => {
     const q = buildQuote(

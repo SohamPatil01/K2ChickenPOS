@@ -17,8 +17,6 @@ export type RequestedLine = {
   pieces?: number | null;
   cutOptionId?: string | null;
   notes?: string | null;
-  /** Rate the customer saw previously (reorder / cart refresh), paise per unit. */
-  previousRatePaise?: number | null;
 };
 
 export type ProductSnapshot = {
@@ -35,7 +33,6 @@ export type ProductSnapshot = {
 
 export type LineStatus =
   | 'OK'
-  | 'PRICE_CHANGED'
   | 'UNAVAILABLE'
   | 'OUT_OF_STOCK'
   | 'INSUFFICIENT_STOCK'
@@ -52,7 +49,6 @@ export type QuoteLine = {
   notes: string | null;
   imageUrl: string | null;
   ratePaise: number | null;
-  previousRatePaise: number | null;
   taxRate: number;
   subtotalPaise: number;
   taxPaise: number;
@@ -108,7 +104,6 @@ export type Quote = {
   estimatedEarnPoints: number;
   issues: Array<{ code: QuoteIssueCode; message: string }>;
   canCheckout: boolean;
-  hasPriceChanges: boolean;
 };
 
 export function validateQuantity(unitType: UnitType, line: RequestedLine): string | null {
@@ -138,7 +133,6 @@ export function buildQuote(input: QuoteInput): Quote {
       cutOptionId: null as string | null,
       cutLabel: null as string | null,
       notes: req.notes?.trim() || null,
-      previousRatePaise: req.previousRatePaise ?? null,
       subtotalPaise: 0,
       taxPaise: 0,
     };
@@ -205,13 +199,12 @@ export function buildQuote(input: QuoteInput): Quote {
 
     const subtotalPaise = lineSubtotalPaise(p.unitType, p.ratePaise, { grams: grams ?? 0, pieces: pieces ?? 0 });
     const lineTax = taxPaise(subtotalPaise, p.taxRate);
-    const priceChanged = req.previousRatePaise != null && req.previousRatePaise !== p.ratePaise;
     return {
       ...common,
       subtotalPaise,
       taxPaise: lineTax,
-      status: priceChanged ? ('PRICE_CHANGED' as const) : ('OK' as const),
-      message: priceChanged ? 'Price has changed since you last ordered' : null,
+      status: 'OK' as const,
+      message: null,
       orderable: true,
     };
   });
@@ -263,6 +256,5 @@ export function buildQuote(input: QuoteInput): Quote {
     estimatedEarnPoints: estimateEarnPoints(totalPaise, input.loyalty.tierKey),
     issues,
     canCheckout: issues.length === 0 && orderable.length > 0,
-    hasPriceChanges: lines.some((l) => l.status === 'PRICE_CHANGED'),
   };
 }

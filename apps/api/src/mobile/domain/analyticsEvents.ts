@@ -36,7 +36,6 @@ const ALLOWED_PROPS = new Set([
   'totalPaise',
   'itemCount',
   'unavailableCount',
-  'priceChangedCount',
   'points',
   'reason',
   'notificationKind',

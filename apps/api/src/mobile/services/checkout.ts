@@ -134,7 +134,7 @@ export async function placeOrder(ctx: IdentityContext, req: PlaceOrderRequest, i
     throw new HttpError(422, 'QUOTE_NOT_ORDERABLE', quote.issues[0]?.message ?? 'Cart cannot be ordered', { quote });
   }
   if (quote.totalPaise !== req.confirmedTotalPaise) {
-    throw new HttpError(409, 'QUOTE_CHANGED', 'Prices or availability changed. Please review your updated total.', { quote });
+    throw new HttpError(409, 'QUOTE_CHANGED', 'Your total was updated. Please review and confirm.', { quote });
   }
   if (req.redeemPoints > 0 && quote.loyalty.appliedPoints !== req.redeemPoints) {
     throw new HttpError(409, 'QUOTE_CHANGED', 'Your available points changed. Please review your updated total.', { quote });

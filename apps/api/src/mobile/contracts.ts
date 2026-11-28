@@ -6,7 +6,6 @@ export const lineSchema = z.object({
   pieces: z.number().int().positive().max(50).optional().nullable(),
   cutOptionId: z.string().max(32).optional().nullable(),
   notes: z.string().max(200).optional().nullable(),
-  previousRatePaise: z.number().int().nonnegative().optional().nullable(),
 });
 
 export const quoteRequestSchema = z.object({

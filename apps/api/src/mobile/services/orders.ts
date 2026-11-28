@@ -295,9 +295,9 @@ export async function reorderLines(ctx: IdentityContext, rawId: string): Promise
           const g = kgToGrams(i.qtyKg);
           const rounded = roundGramsToStep(g);
           if (rounded !== g) adjusted++;
-          return { productId: i.productId, grams: rounded, previousRatePaise: rupeesToPaise(i.rate) };
+          return { productId: i.productId, grams: rounded };
         }
-        return { productId: i.productId, pieces: Math.max(1, i.qtyPcs || 1), previousRatePaise: rupeesToPaise(i.rate) };
+        return { productId: i.productId, pieces: Math.max(1, i.qtyPcs || 1) };
       });
     return { storeId: sale.storeId, lines, adjustedWeights: adjusted };
   }
@@ -313,9 +313,9 @@ export async function reorderLines(ctx: IdentityContext, rawId: string): Promise
         const g = kgToGrams(i.qtyKg);
         const rounded = roundGramsToStep(g);
         if (rounded !== g) adjusted++;
-        return { productId: i.productId!, grams: rounded, cutOptionId: prev?.cutOptionId ?? null, notes: prev?.notes ?? null, previousRatePaise: prev?.ratePaise ?? null };
+        return { productId: i.productId!, grams: rounded, cutOptionId: prev?.cutOptionId ?? null, notes: prev?.notes ?? null };
       }
-      return { productId: i.productId!, pieces: Math.max(1, i.qtyPcs || 1), previousRatePaise: prev?.ratePaise ?? null };
+      return { productId: i.productId!, pieces: Math.max(1, i.qtyPcs || 1) };
     });
   return { storeId: po.storeId, lines, adjustedWeights: adjusted };
 }

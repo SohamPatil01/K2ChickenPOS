@@ -347,11 +347,13 @@ run('mobile API (real Postgres)', () => {
     expect(list.filter((o: Json) => o.id === `sale_${sale.id}`)).toHaveLength(0);
   });
 
-  it('reorders with fresh prices, flags changes and rounds walk-in weights', async () => {
+  it('reorders at today’s prices and rounds walk-in weights', async () => {
     await prisma.storeProductPrice.create({ data: { storeId: ids.store, productId: ids.curry, pricePerUnit: 300, effectiveFrom: new Date() } });
     const r = await inject('POST', `/api/v1/mobile/me/orders/${orderId}/reorder-quote`, { token: tokenA, body: {} });
     expect(r.status).toBe(200);
-    expect(r.body.quote.lines[0]).toMatchObject({ status: 'PRICE_CHANGED', previousRatePaise: 28000, ratePaise: 30000, cutOptionId: 'small', grams: 1000 });
+    expect(r.body.quote.lines[0]).toMatchObject({ status: 'OK', ratePaise: 30000, cutOptionId: 'small', grams: 1000 });
+    expect(r.body.quote.lines[0]).not.toHaveProperty('previousRatePaise');
+    expect(r.body.quote).not.toHaveProperty('hasPriceChanges');
     const w = await inject('POST', `/api/v1/mobile/me/orders/sale_${ids.walkinSale}/reorder-quote`, { token: tokenA, body: {} });
     expect(w.body.adjustedWeights).toBe(1);
     expect(w.body.quote.lines[0].grams).toBe(1250); // weighed 1.13 kg → nearest 250 g step
