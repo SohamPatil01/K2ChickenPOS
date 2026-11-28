@@ -123,6 +123,7 @@ export default function CartPage() {
           qtyPcs: item.qtyPcs,
           rate: item.rate,
           taxRate: item.taxRate,
+          metaJson: item.metaJson || undefined,
         })),
         customerId: customerId || undefined,
         customerPhone: customerPhone || undefined,

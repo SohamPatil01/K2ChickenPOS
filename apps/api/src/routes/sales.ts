@@ -15,6 +15,8 @@ import {
 import { resolveSaleItemsForCreate } from '../utils/resolveSaleItemProduct.js';
 import { generateSaleNo } from '../utils/saleNo.js';
 import { applyPaymentsToSale } from '../services/applySalePayment.js';
+import { alertService } from '../services/alertService.js';
+import { buildDashboardAlerts, storeHourNow } from '../services/dashboardAlerts.js';
 import { ensureDeliveryForSale } from '../services/ensureDeliveryForSale.js';
 import { applyStoreCredit } from '../services/storeCredit.js';
 import { canAccessCustomerStore, canAccessStoreResource } from '../utils/storeScope.js';
@@ -23,6 +25,13 @@ import {
   redeemProfileReward,
 } from '../lib/profileReward.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from '../services/shiftService.js';
+import {
+  PreOrderClaimError,
+  completePreOrderClaimForSale,
+  extractPreOrderIdsFromSaleInput,
+  lockAndVerifyPreOrdersForSale,
+  releasePreOrdersOnSaleVoid,
+} from '../services/preOrderClaim.js';
 
 async function loadProductUnitTypes(productIds) {
   const ids = [...new Set((productIds || []).filter(Boolean))];
@@ -505,20 +514,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const receivedStock = Number(stockRow?.received) || 0;
       const soldStock = Number(stockRow?.sold) || 0;
 
-      // Products whose ledger balance is negative (sold more than received) — stock is not reliable for these.
-      const [negativeStockRow] = await prisma.$queryRaw<Array<{ negative: number }>>`
-        SELECT COUNT(*) FILTER (WHERE qty < -0.001)::int AS negative
-        FROM (
-          SELECT COALESCE(SUM(
-            CASE WHEN type = 'IN'
-              THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)
-              ELSE -(COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)) END
-          ), 0)::float AS qty
-          FROM "InventoryLedger"
-          WHERE "storeId" = ${storeId}
-          GROUP BY "productId"
-        ) b
-      `;
+      // Stock (shared with the Alerts page) and yesterday up to this same clock time.
+      const [stockSummary, sameTimeYesterdayAgg] = await Promise.all([
+        alertService.stockBalances(storeId),
+        prisma.sale.aggregate({
+          where: {
+            ...yesterdayWhere,
+            createdAt: { lte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+          },
+          _sum: { grandTotal: true },
+          _count: { _all: true },
+        }),
+      ]);
 
       const topProducts = (todayProductRows || []).map((row) => ({
         productId: row.productId,
@@ -526,6 +533,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
         qtySold: Number(row.qty) || 0,
         revenue: Number(row.revenue) || 0,
       }));
+
+      const dashboardAlerts = buildDashboardAlerts({
+        today: { revenue: todayRevenue, count: todayCount },
+        sameTimeYesterday: {
+          revenue: round3(sameTimeYesterdayAgg._sum.grandTotal || 0),
+          count: sameTimeYesterdayAgg._count._all || 0,
+        },
+        payments: { cash: tallied.cash, total: tallied.total },
+        stock: { negativeProducts: stockSummary.negative.length },
+        hourIst: storeHourNow(),
+      });
 
       return {
         today: {
@@ -556,9 +574,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
           soldStock,
           currentStock: 0,
         },
-        stockCheck: {
-          negativeProducts: Number(negativeStockRow?.negative) || 0,
-        },
+        alerts: dashboardAlerts,
         paymentBreakdown: {
           cash: tallied.cash,
           upi: tallied.upi,
@@ -765,6 +781,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       const checkoutPaymentsEarly = Array.isArray((data as any).payments)
         ? (data as any).payments
         : null;
+      const preOrderIds = extractPreOrderIdsFromSaleInput(data as any);
 
       // Parallel prep: line resolve + saleNo + franchise config + attached customer
       const [resolvedItems, saleNo, config, attachedCustomer] = await Promise.all([
@@ -898,64 +915,76 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       // If discount exceeds limit, require override approval
       if (!skipLimitForProfileReward && data.discountTotal > maxAllowedDiscount) {
-        // Create sale first with original discount
-        const sale = await prisma.sale.create({
-          data: {
-            storeId,
-            saleNo,
-            customerId,
-            status: 'OPEN',
-            businessDate: businessDateForNow(),
-            subTotal,
-            discountTotal: 0, // Start with 0, will be updated after approval
-            taxTotal,
-            grandTotal: Math.round(subTotal + taxTotal + deliveryFee),
-            createdByUserId: userId,
-            shiftId: openShiftId,
-            ...(clientSaleId ? { offlineIdempotencyKey: clientSaleId } : {}),
-            items: {
-              create: saleItems.map((item: any) => {
-                const qty = item.qtyKg || item.qtyPcs || 0;
-                const lineTotal = Math.round(qty * item.rate * 100) / 100;
-                const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
-                return {
-                  productId: item.productId,
-                  qtyKg: item.qtyKg,
-                  qtyPcs: item.qtyPcs,
-                  rate: item.rate,
-                  lineTotal,
-                  taxRate: item.taxRate,
-                  taxAmount,
-                  metaJson: item.metaJson,
-                };
-              }),
+        // Atomically lock pre-orders (if any), create the OPEN sale, deduct stock, and record the override.
+        const { sale, override } = await prisma.$transaction(async (tx) => {
+          await lockAndVerifyPreOrdersForSale(tx as any, { preOrderIds, storeId });
+
+          const created = await tx.sale.create({
+            data: {
+              storeId,
+              saleNo,
+              customerId,
+              status: 'OPEN',
+              businessDate: businessDateForNow(),
+              subTotal,
+              discountTotal: 0, // Start with 0, will be updated after approval
+              taxTotal,
+              grandTotal: Math.round(subTotal + taxTotal + deliveryFee),
+              createdByUserId: userId,
+              shiftId: openShiftId,
+              ...(clientSaleId ? { offlineIdempotencyKey: clientSaleId } : {}),
+              items: {
+                create: saleItems.map((item: any) => {
+                  const qty = item.qtyKg || item.qtyPcs || 0;
+                  const lineTotal = Math.round(qty * item.rate * 100) / 100;
+                  const taxAmount = Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
+                  return {
+                    productId: item.productId,
+                    qtyKg: item.qtyKg,
+                    qtyPcs: item.qtyPcs,
+                    rate: item.rate,
+                    lineTotal,
+                    taxRate: item.taxRate,
+                    taxAmount,
+                    metaJson: item.metaJson,
+                  };
+                }),
+              },
             },
-          },
-          include: {
-            items: true,
-          },
-        });
+            include: {
+              items: true,
+            },
+          });
 
-        // Deduct inventory for OPEN orders (even when discount override is required)
-        await ensureInventoryDeductedForSale(
-          prisma,
-          sale.id,
-          storeId,
-          sale.items,
-          unitMapCreate
-        );
+          await completePreOrderClaimForSale(tx as any, {
+            preOrderIds,
+            saleId: created.id,
+            saleNo: created.saleNo,
+            actorUserId: userId,
+          });
 
-        // Create discount override request
-        const override = await prisma.discountOverride.create({
-          data: {
-            saleId: sale.id,
+          // Deduct inventory for OPEN orders (even when discount override is required)
+          await ensureInventoryDeductedForSale(
+            tx,
+            created.id,
             storeId,
-            requestedBy: userId,
-            originalDiscount: 0,
-            overrideDiscount: data.discountTotal,
-            reason: `Discount of ${discountPercent.toFixed(2)}% exceeds allowed limit of ${allowedDiscountPercent}%`,
-            status: 'PENDING',
-          },
+            created.items,
+            unitMapCreate
+          );
+
+          const createdOverride = await tx.discountOverride.create({
+            data: {
+              saleId: created.id,
+              storeId,
+              requestedBy: userId,
+              originalDiscount: 0,
+              overrideDiscount: data.discountTotal,
+              reason: `Discount of ${discountPercent.toFixed(2)}% exceeds allowed limit of ${allowedDiscountPercent}%`,
+              status: 'PENDING',
+            },
+          });
+
+          return { sale: created, override: createdOverride };
         });
 
         // Create audit log
@@ -1074,7 +1103,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
       }
 
       // Light duplicate guard when no clientSaleId (indexed key covers normal Quick Pay retries)
-      if (!clientSaleId) {
+      if (!clientSaleId && preOrderIds.length === 0) {
         const fiveSecondsAgo = new Date(Date.now() - 5000);
         const recentDuplicate = await prisma.sale.findFirst({
           where: {
@@ -1108,10 +1137,12 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // Create sale and sync inventory atomically
+      // Create sale, claim any pre-orders, and sync inventory atomically
       let sale;
       try {
         sale = await prisma.$transaction(async (tx) => {
+        await lockAndVerifyPreOrdersForSale(tx as any, { preOrderIds, storeId });
+
         const created = await tx.sale.create({
           data: {
             storeId,
@@ -1148,6 +1179,13 @@ export async function saleRoutes(fastify: FastifyInstance) {
             items: true,
             customer: customerWithAreaInclude,
           },
+        });
+
+        await completePreOrderClaimForSale(tx as any, {
+          preOrderIds,
+          saleId: created.id,
+          saleNo: created.saleNo,
+          actorUserId: userId,
         });
 
         await ensureInventoryDeductedForSale(
@@ -1296,6 +1334,18 @@ export async function saleRoutes(fastify: FastifyInstance) {
 
       return enrichSaleResponse(finalSale);
     } catch (error: any) {
+      if (error instanceof PreOrderClaimError) {
+        reply.code(error.statusCode).send({
+          error: error.message,
+          code: error.code,
+          preOrderIds: error.preOrderIds,
+          existingSaleId: error.existingSaleId,
+          existingSaleNo: error.existingSaleNo,
+          trackingCode: error.trackingCode,
+        });
+        return;
+      }
+
       console.error('Failed to create sale:', error);
 
       // Check for specific error types
@@ -1832,9 +1882,17 @@ export async function saleRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const updatedSale = await prisma.sale.update({
-        where: { id },
-        data: { status: 'VOID' },
+      const { updatedSale, preOrdersReleased } = await prisma.$transaction(async (tx) => {
+        const voided = await tx.sale.update({
+          where: { id },
+          data: { status: 'VOID' },
+        });
+        const released = await releasePreOrdersOnSaleVoid(tx as any, {
+          saleId: id,
+          saleNo: sale.saleNo,
+          actorUserId: userId,
+        });
+        return { updatedSale: voided, preOrdersReleased: released };
       });
 
       // Use sale's storeId for audit log to track which store the sale belongs to
@@ -1851,6 +1909,7 @@ export async function saleRoutes(fastify: FastifyInstance) {
             inventoryRestored: restoredCount,
             loyaltyPointsRestored: pointsRestored,
             loyaltyPointsReversed: pointsReversed,
+            ...(preOrdersReleased > 0 ? { preOrdersReleased } : {}),
           }, // Include user's storeId in metadata
         },
       });

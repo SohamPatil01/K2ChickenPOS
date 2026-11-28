@@ -5,6 +5,14 @@ import { tallyPaymentsFromSales, paymentBreakdownBuckets } from '@azela-pos/shar
 import api from '@/lib/api';
 import { localDateRangeToApiBounds } from '@/lib/dateRangeParams';
 
+/** Built by the API (apps/api/src/services/dashboardAlerts.ts). UI only renders these. */
+export interface DashboardAlert {
+  key: string;
+  severity: 'critical' | 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+}
+
 export interface DashboardStats {
   today: {
     revenue: number;
@@ -28,7 +36,7 @@ export interface DashboardStats {
     soldStock: number;
     currentStock: number;
   };
-  stockCheck: { negativeProducts: number };
+  alerts: DashboardAlert[];
   topProducts: Array<{
     productId: string;
     productName: string;
@@ -148,7 +156,7 @@ export function useDashboardStats({ user }: UseDashboardStatsOptions) {
             total: paymentBreakdown.total || 0,
           },
           todayStock: d.todayStock || emptyStock,
-          stockCheck: d.stockCheck || { negativeProducts: 0 },
+          alerts: d.alerts || [],
           topProducts: d.topProducts || [],
           topItems: light ? statsRef.current!.topItems : [],
           recentSales: (d.recentSales || []).map((s: any) => ({

@@ -29,6 +29,8 @@ export type OfflineCreateSalePayload = {
   discountSource?: string;
   profileRewardApplied?: boolean;
   couponCode?: string;
+  /** Pre-order IDs linked to this cart — claimed atomically on the server. */
+  preOrderIds?: string[];
 };
 
 /** True when the browser reports no connectivity. */

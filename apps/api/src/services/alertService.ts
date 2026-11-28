@@ -1,4 +1,4 @@
-import { prisma, Prisma } from '@azela-pos/db';
+import { prisma } from '@azela-pos/db';
 import {
   salesInStoreDayWhere,
   storeDayBoundsFromYmd,
@@ -53,6 +53,21 @@ export interface Alert {
   data?: any;
 }
 
+const STOCK_EPSILON = 0.001;
+const STOCK_LOW_THRESHOLD = 10;
+
+export interface StockBalanceItem {
+  productId: string;
+  name: string;
+  qty: number;
+}
+
+export interface StockBalanceSummary {
+  negative: StockBalanceItem[];
+  outOfStock: StockBalanceItem[];
+  low: StockBalanceItem[];
+}
+
 export class AlertService {
   /**
    * Generate all alerts for a store
@@ -94,70 +109,83 @@ export class AlertService {
   }
 
   /**
+   * Per-product stock for one store, from the ledger (IN − OUT).
+   * Only products this store has ledger rows for: never-stocked catalog items are not "out of stock".
+   */
+  async stockBalances(storeId: string): Promise<StockBalanceSummary> {
+    const rows = await prisma.$queryRaw<Array<{ productId: string; name: string; qty: number }>>`
+      SELECT
+        l."productId",
+        p.name,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN l.type = 'IN' THEN COALESCE(l."qtyKg", 0) + COALESCE(l."qtyPcs", 0)
+              ELSE -(COALESCE(l."qtyKg", 0) + COALESCE(l."qtyPcs", 0))
+            END
+          ),
+          0
+        )::float AS qty
+      FROM "InventoryLedger" l
+      INNER JOIN "Product" p ON p.id = l."productId"
+      WHERE l."storeId" = ${storeId} AND p."isActive" = true
+      GROUP BY l."productId", p.name
+    `;
+
+    const summary: StockBalanceSummary = { negative: [], outOfStock: [], low: [] };
+    for (const row of rows) {
+      const item = { productId: row.productId, name: row.name, qty: Number(row.qty) || 0 };
+      if (item.qty < -STOCK_EPSILON) summary.negative.push(item);
+      else if (item.qty <= STOCK_EPSILON) summary.outOfStock.push(item);
+      else if (item.qty < STOCK_LOW_THRESHOLD) summary.low.push(item);
+    }
+    return summary;
+  }
+
+  /**
    * Inventory Alerts
    */
-  private async checkInventoryAlerts(storeId: string): Promise<Alert[]> {
+  async checkInventoryAlerts(storeId: string): Promise<Alert[]> {
     const alerts: Alert[] = [];
 
     try {
-      const products = await prisma.product.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true, sku: true },
-      });
+      const { negative, outOfStock, low } = await this.stockBalances(storeId);
 
-      if (products.length === 0) return alerts;
+      // Sold more than received: data problem, not "out of stock". One summary alert.
+      if (negative.length > 0) {
+        alerts.push({
+          id: 'inv-mismatch',
+          type: 'inventory',
+          severity: 'warning',
+          title: 'Stock Mismatch',
+          message: `${negative.length} product(s) sold more than received. Check receiving.`,
+          timestamp: new Date(),
+          data: { products: negative.map((r) => r.name) },
+        });
+      }
 
-      const balanceRows = await prisma.$queryRaw<
-        Array<{ productId: string; qty: number }>
-      >`
-        SELECT
-          "productId",
-          COALESCE(
-            SUM(
-              CASE
-                WHEN type = 'IN' THEN COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0)
-                ELSE -(COALESCE("qtyKg", 0) + COALESCE("qtyPcs", 0))
-              END
-            ),
-            0
-          )::float AS qty
-        FROM "InventoryLedger"
-        WHERE "storeId" = ${storeId}
-          AND "productId" IN (${Prisma.join(products.map((p) => p.id))})
-        GROUP BY "productId"
-      `;
+      for (const item of outOfStock) {
+        alerts.push({
+          id: `inv-out-${item.productId}`,
+          type: 'inventory',
+          severity: 'critical',
+          title: 'Out of Stock',
+          message: `${item.name} is out of stock`,
+          timestamp: new Date(),
+          data: { productId: item.productId, productName: item.name, stock: 0 },
+        });
+      }
 
-      const stockByProduct = new Map(
-        balanceRows.map((row) => [row.productId, Number(row.qty) || 0])
-      );
-
-      for (const product of products) {
-        const currentStock = stockByProduct.get(product.id) ?? 0;
-
-        // Out of stock
-        if (currentStock <= 0) {
-          alerts.push({
-            id: `inv-out-${product.id}`,
-            type: 'inventory',
-            severity: 'critical',
-            title: 'Out of Stock',
-            message: `${product.name} is out of stock`,
-            timestamp: new Date(),
-            data: { productId: product.id, productName: product.name, stock: 0 },
-          });
-        }
-        // Low stock (using simple threshold)
-        else if (currentStock < 10) {
-          alerts.push({
-            id: `inv-low-${product.id}`,
-            type: 'inventory',
-            severity: 'warning',
-            title: 'Low Stock',
-            message: `${product.name} is running low (${currentStock.toFixed(2)} remaining)`,
-            timestamp: new Date(),
-            data: { productId: product.id, productName: product.name, stock: currentStock },
-          });
-        }
+      for (const item of low) {
+        alerts.push({
+          id: `inv-low-${item.productId}`,
+          type: 'inventory',
+          severity: 'warning',
+          title: 'Low Stock',
+          message: `${item.name} is running low (${item.qty.toFixed(2)} remaining)`,
+          timestamp: new Date(),
+          data: { productId: item.productId, productName: item.name, stock: item.qty },
+        });
       }
     } catch (error) {
       console.error('[AlertService] Inventory alerts error:', error);

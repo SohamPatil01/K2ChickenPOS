@@ -105,6 +105,8 @@ export const createSaleSchema = z.object({
   payments: z.array(paymentSchema).min(1).optional(),
   /** When DELIVERY and sale settles, server creates the delivery row. */
   fulfillmentType: z.enum(['PICKUP', 'DELIVERY']).optional(),
+  /** App / pre-order IDs loaded into this cart — claimed atomically so an order can only be billed once. */
+  preOrderIds: z.array(z.string().min(1).max(64)).max(20).optional(),
 });
 
 /** Monetary value of one loyalty point when redeemed at checkout (₹). */

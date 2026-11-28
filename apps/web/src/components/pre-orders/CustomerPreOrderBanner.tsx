@@ -84,7 +84,11 @@ export default function CustomerPreOrderBanner() {
       );
       setDismissedIds((ids) => [...ids, po.id]);
     } catch (e: any) {
-      showNotification(e?.response?.data?.error || 'Could not load pre-order', 'error');
+      showNotification(
+        e?.response?.data?.error || e?.message || 'Could not load pre-order',
+        'warning'
+      );
+      void refresh();
     } finally {
       setBusyId(null);
     }

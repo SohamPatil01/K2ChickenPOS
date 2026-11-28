@@ -135,6 +135,12 @@ function serializePreOrder(po: any, opts?: { includePrivate?: boolean }) {
     notes: po.notes,
     cancelReason: po.cancelReason,
     saleId: po.saleId,
+    ...(opts?.includePrivate
+      ? {
+          saleNo: po.sale?.saleNo || null,
+          saleStatus: po.sale?.status || null,
+        }
+      : {}),
     createdByUserId: po.createdByUserId,
     createdBy: po.createdBy
       ? { id: po.createdBy.id, name: po.createdBy.name }
@@ -354,6 +360,7 @@ const includeFull = {
   createdBy: { select: { id: true, name: true } },
   customer: { select: { id: true, name: true, phone: true } },
   store: { select: { name: true } },
+  sale: { select: { id: true, saleNo: true, status: true } },
   events: {
     orderBy: { createdAt: 'asc' as const },
     include: { createdBy: { select: { id: true, name: true } } },
@@ -760,6 +767,7 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
 
       const openWhere: any = {
         storeId,
+        saleId: null,
         status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
         OR: [
           { readyAt: { gte: dayStart, lte: dayEnd } },
@@ -767,12 +775,26 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
         ],
       };
 
+      const fulfilled = [];
       let candidates = [];
       if (explicitIds.length > 0) {
-        candidates = await prisma.preOrder.findMany({
-          where: { ...openWhere, id: { in: explicitIds } },
+        // Orders already claimed atomically inside POST /sales for this same saleId are already fulfilled — return idempotently.
+        const alreadyByThisSale = await prisma.preOrder.findMany({
+          where: { storeId, id: { in: explicitIds }, saleId, status: 'FULFILLED' },
           select: { id: true, trackingCode: true, customerName: true },
         });
+        for (const po of alreadyByThisSale) {
+          fulfilled.push({ id: po.id, trackingCode: po.trackingCode, customerName: po.customerName });
+        }
+        const remainingIds = explicitIds.filter(
+          (id: string) => !alreadyByThisSale.some((a) => a.id === id)
+        );
+        if (remainingIds.length > 0) {
+          candidates = await prisma.preOrder.findMany({
+            where: { ...openWhere, id: { in: remainingIds } },
+            select: { id: true, trackingCode: true, customerName: true },
+          });
+        }
       } else {
         const identityOr: any[] = [];
         if (customerId) identityOr.push({ customerId });
@@ -792,13 +814,17 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
         });
       }
 
-      const fulfilled = [];
       for (const po of candidates) {
-        await prisma.$transaction(async (tx) => {
-          await tx.preOrder.update({
-            where: { id: po.id },
+        const claimed = await prisma.$transaction(async (tx) => {
+          const updated = await tx.preOrder.updateMany({
+            where: {
+              id: po.id,
+              saleId: null,
+              status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
+            },
             data: { status: 'FULFILLED', saleId },
           });
+          if (updated.count === 0) return false;
           await tx.preOrderEvent.create({
             data: {
               preOrderId: po.id,
@@ -809,8 +835,11 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
               createdByUserId: user.userId,
             },
           });
+          return true;
         });
-        fulfilled.push({ id: po.id, trackingCode: po.trackingCode, customerName: po.customerName });
+        if (claimed) {
+          fulfilled.push({ id: po.id, trackingCode: po.trackingCode, customerName: po.customerName });
+        }
       }
 
       return { ok: true, fulfilled };
@@ -873,9 +902,24 @@ export async function preOrderRoutes(fastify: FastifyInstance) {
 
       const existing = await prisma.preOrder.findFirst({
         where: { id, storeId },
+        include: { sale: { select: { id: true, saleNo: true, status: true } } },
       });
       if (!existing) {
         reply.code(404).send({ error: 'Pre-order not found' });
+        return;
+      }
+
+      // Never allow a stale screen (e.g. "Load to cart" on another counter) to overwrite an already-billed order.
+      const hasActiveSale = Boolean(existing.saleId && existing.sale && existing.sale.status !== 'VOID');
+      const alreadyFulfilled = existing.status === 'FULFILLED' && (!existing.saleId || hasActiveSale);
+      if ((hasActiveSale || alreadyFulfilled) && data.status !== 'FULFILLED') {
+        const billLabel = existing.sale?.saleNo ? ` (${existing.sale.saleNo})` : '';
+        reply.code(409).send({
+          error: `Order #${existing.trackingCode} has already been billed${billLabel} and cannot be modified.`,
+          code: 'PRE_ORDER_ALREADY_BILLED',
+          existingSaleId: existing.saleId,
+          existingSaleNo: existing.sale?.saleNo || null,
+        });
         return;
       }
 

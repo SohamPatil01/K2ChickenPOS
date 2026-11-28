@@ -1,14 +1,32 @@
 'use client';
 
-import type { DashboardStats } from '../hooks/useDashboardStats';
+import type { DashboardAlert, DashboardStats } from '../hooks/useDashboardStats';
 
 interface AlertsBarProps {
   stats: DashboardStats;
   userRole: string;
 }
 
+// Rules and thresholds live in the API (apps/api/src/services/dashboardAlerts.ts).
+const SEVERITY_TEXT: Record<DashboardAlert['severity'], string> = {
+  critical: 'text-red-800 dark:text-red-300',
+  warning: 'text-orange-800 dark:text-orange-300',
+  info: 'text-orange-800 dark:text-orange-300',
+  success: 'text-green-800 dark:text-green-300',
+};
+
+const ICON: Record<string, string> = {
+  'stock-mismatch': '📦',
+  'no-sales': '🚨',
+  'great-day': '🎉',
+  'revenue-drop': '📉',
+  'cash-heavy': '💵',
+};
+
 export default function AlertsBar({ stats, userRole }: AlertsBarProps) {
   if (userRole !== 'MANAGER' && userRole !== 'OWNER') return null;
+
+  const alerts = stats.alerts ?? [];
 
   return (
     <div className="bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20 border border-orange-200 dark:border-orange-800 rounded-2xl p-4 mb-4 sm:mb-6">
@@ -17,46 +35,20 @@ export default function AlertsBar({ stats, userRole }: AlertsBarProps) {
         <div className="flex-1">
           <h3 className="font-bold text-orange-900 dark:text-orange-200 mb-2">Alerts & Notifications</h3>
           <div className="space-y-2">
-            {stats.stockCheck.negativeProducts > 0 && (
-              <div className="text-sm text-orange-800 dark:text-orange-300 flex items-center gap-2">
-                <span className="font-semibold">📦 Stock Check:</span>
-                <span>
-                  {stats.stockCheck.negativeProducts} product{stats.stockCheck.negativeProducts === 1 ? '' : 's'} sold more than received. Stock counts may be off, check receiving.
+            {alerts.length === 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">✓ No alerts right now.</div>
+            )}
+            {alerts.map((alert) => (
+              <div
+                key={alert.key}
+                className={`text-sm flex items-center gap-2 ${SEVERITY_TEXT[alert.severity]}`}
+              >
+                <span className="font-semibold">
+                  {ICON[alert.key] ?? '•'} {alert.title}:
                 </span>
+                <span>{alert.message}</span>
               </div>
-            )}
-            {stats.today.revenue < stats.yesterday.revenue * 0.7 && stats.yesterday.revenue > 0 && (
-              <div className="text-sm text-orange-800 dark:text-orange-300 flex items-center gap-2">
-                <span className="font-semibold">📉 Revenue Alert:</span>
-                <span>Today&apos;s revenue is significantly lower than yesterday.</span>
-              </div>
-            )}
-            {stats.paymentBreakdown.cash > stats.paymentBreakdown.total * 0.8 && stats.paymentBreakdown.total > 1000 && (
-              <div className="text-sm text-orange-800 dark:text-orange-300 flex items-center gap-2">
-                <span className="font-semibold">💵 Cash Heavy:</span>
-                <span>Over 80% of today&apos;s sales are in cash. Consider daily closing soon.</span>
-              </div>
-            )}
-            {stats.today.count === 0 && new Date().getHours() > 12 && (
-              <div className="text-sm text-red-800 dark:text-red-300 flex items-center gap-2">
-                <span className="font-semibold">🚨 No Sales:</span>
-                <span>No sales recorded today yet. Check system status.</span>
-              </div>
-            )}
-            {stats.today.revenue > 0 && stats.yesterday.revenue > 0 && stats.today.revenue > stats.yesterday.revenue * 1.5 && (
-              <div className="text-sm text-green-800 dark:text-green-300 flex items-center gap-2">
-                <span className="font-semibold">🎉 Great Day:</span>
-                <span>
-                  Revenue is {(((stats.today.revenue - stats.yesterday.revenue) / stats.yesterday.revenue) * 100).toFixed(0)}% higher than yesterday! Keep it up!
-                </span>
-              </div>
-            )}
-            {stats.today.count === 0 && stats.yesterday.revenue === 0 && stats.lastWeek.revenue === 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                <span className="font-semibold">✓ All Clear:</span>
-                <span>No alerts at this time. Everything looks good!</span>
-              </div>
-            )}
+            ))}
           </div>
         </div>
       </div>

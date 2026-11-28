@@ -91,6 +91,7 @@ interface CartState {
   removeItem: (id: number) => Promise<void>;
   updateItem: (id: number, updates: Partial<CartItem>) => Promise<void>;
   linkPreOrderId: (preOrderId: string) => void;
+  unlinkPreOrderIds: (preOrderIds: string[]) => void;
   clearLinkedPreOrders: () => void;
   setCustomer: (customerId: string | null, phone: string | null, name?: string | null, area?: string | null) => void;
   setCustomerLoyaltyPoints: (points: number | null) => void;
@@ -247,6 +248,13 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (prev.includes(id)) return;
     set({ linkedPreOrderIds: [...prev, id] });
   },
+  unlinkPreOrderIds: (preOrderIds) => {
+    const drop = new Set((preOrderIds || []).map((id) => String(id).trim()).filter(Boolean));
+    if (drop.size === 0) return;
+    set({
+      linkedPreOrderIds: (get().linkedPreOrderIds || []).filter((id) => !drop.has(id)),
+    });
+  },
   clearLinkedPreOrders: () => {
     set({ linkedPreOrderIds: [] });
   },
@@ -278,6 +286,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         pendingSettlements: [],
         referredByPhone: null,
         referredByCode: null,
+        linkedPreOrderIds: [],
       });
       get().clearProfileReward();
       return;
@@ -297,6 +306,7 @@ export const useCartStore = create<CartState>((set, get) => ({
             pendingSettlements: [],
             referredByPhone: null,
             referredByCode: null,
+            linkedPreOrderIds: [],
             loyaltyRedeemPoints: 0,
             customerLoyaltyPoints: null,
             customerStoreCredit: null,

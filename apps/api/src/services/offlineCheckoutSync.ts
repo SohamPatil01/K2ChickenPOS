@@ -20,6 +20,12 @@ import { applyPaymentsToSale } from './applySalePayment.js';
 import { ensureDeliveryForSale } from './ensureDeliveryForSale.js';
 import { applyStoreCredit } from './storeCredit.js';
 import { DAY_IN_REQUIRED, requireOpenShiftId } from './shiftService.js';
+import {
+  PreOrderClaimError,
+  completePreOrderClaimForSale,
+  extractPreOrderIdsFromSaleInput,
+  lockAndVerifyPreOrdersForSale,
+} from './preOrderClaim.js';
 
 const offlinePayloadSchema = z.object({
   idempotencyKey: z.string().min(8),
@@ -298,50 +304,63 @@ export async function applyOfflineCheckoutFromSync(
     offlineProductRows.map((p) => [p.id, p.unitType])
   );
 
-  const sale = await prisma.$transaction(async (tx) => {
-    const created = await tx.sale.create({
-      data: {
-        storeId,
-        saleNo,
-        customerId: customerId ?? null,
-        status: saleStatus,
-        subTotal,
-        discountTotal: cs.discountTotal,
-        taxTotal,
-        grandTotal: roundedGrandTotal,
-        createdByUserId: userId,
-        shiftId: openShiftId,
-        businessDate: businessDateForNow(),
-        offlineIdempotencyKey: data.idempotencyKey,
-        items: {
-          create: saleItems.map((item: any) => {
-            const qty = item.qtyKg || item.qtyPcs || 0;
-            const lineTotal = Math.round(qty * item.rate * 100) / 100;
-            const taxAmount =
-              Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
-            return {
-              productId: item.productId,
-              qtyKg: item.qtyKg,
-              qtyPcs: item.qtyPcs,
-              rate: item.rate,
-              lineTotal,
-              taxRate: item.taxRate,
-              taxAmount,
-              metaJson: item.metaJson,
-            };
-          }),
-        },
-      },
-      include: { items: true },
-    });
+  const preOrderIds = extractPreOrderIdsFromSaleInput(cs as any);
 
-    await ensureInventoryDeductedForSale(
-      tx,
-      created.id,
-      storeId,
-      created.items,
-      offlineUnitMap
-    );
+  let sale;
+  try {
+    sale = await prisma.$transaction(async (tx) => {
+      await lockAndVerifyPreOrdersForSale(tx as any, { preOrderIds, storeId });
+
+      const created = await tx.sale.create({
+        data: {
+          storeId,
+          saleNo,
+          customerId: customerId ?? null,
+          status: saleStatus,
+          subTotal,
+          discountTotal: cs.discountTotal,
+          taxTotal,
+          grandTotal: roundedGrandTotal,
+          createdByUserId: userId,
+          shiftId: openShiftId,
+          businessDate: businessDateForNow(),
+          offlineIdempotencyKey: data.idempotencyKey,
+          items: {
+            create: saleItems.map((item: any) => {
+              const qty = item.qtyKg || item.qtyPcs || 0;
+              const lineTotal = Math.round(qty * item.rate * 100) / 100;
+              const taxAmount =
+                Math.round(lineTotal * (item.taxRate / 100) * 100) / 100;
+              return {
+                productId: item.productId,
+                qtyKg: item.qtyKg,
+                qtyPcs: item.qtyPcs,
+                rate: item.rate,
+                lineTotal,
+                taxRate: item.taxRate,
+                taxAmount,
+                metaJson: item.metaJson,
+              };
+            }),
+          },
+        },
+        include: { items: true },
+      });
+
+      await completePreOrderClaimForSale(tx as any, {
+        preOrderIds,
+        saleId: created.id,
+        saleNo: created.saleNo,
+        actorUserId: userId,
+      });
+
+      await ensureInventoryDeductedForSale(
+        tx,
+        created.id,
+        storeId,
+        created.items,
+        offlineUnitMap
+      );
 
     const paymentRows = normalizedPayments
       .filter((p) => p.amount > 0)
@@ -415,6 +434,33 @@ export async function applyOfflineCheckoutFromSync(
 
     return created;
   });
+  } catch (err) {
+    if (err instanceof PreOrderClaimError) {
+      // Another counter already billed this pre-order while this device was offline.
+      // Record for audit and return cleanly so sync ACKs the stale queued event instead of double-billing or retrying forever.
+      await prisma.auditLog
+        .create({
+          data: {
+            storeId,
+            actorUserId: userId,
+            action: 'SALE_SKIPPED_PREORDER_CONFLICT',
+            entityType: 'PreOrder',
+            entityId: preOrderIds[0] || 'unknown',
+            metaJson: {
+              offlineIdempotencyKey: data.idempotencyKey,
+              preOrderIds,
+              code: err.code,
+              reason: err.message,
+              existingSaleId: err.existingSaleId || null,
+              existingSaleNo: err.existingSaleNo || null,
+            },
+          },
+        })
+        .catch(() => {});
+      return;
+    }
+    throw err;
+  }
 
   // Award loyalty when offline checkout settled with actual (non-credit) payment.
   if (saleStatus === 'PAID' && sale.customerId) {

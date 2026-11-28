@@ -72,6 +72,13 @@ function buildSalePayload(
   const attachCustomer = !skipCustomer && !!customerId;
   const profileRewardApplied = attachCustomer && discountSource === 'profile_reward';
   const loyaltyPointsRedeemed = attachCustomer ? state.getTotal().loyaltyPointsApplied : 0;
+  const fromMeta = items
+    .map((item: any) => item?.metaJson?.preOrderId)
+    .filter(Boolean)
+    .map(String);
+  const preOrderIds = [
+    ...new Set([...(state.linkedPreOrderIds || []), ...fromMeta]),
+  ];
 
   return {
     clientSaleId,
@@ -83,6 +90,7 @@ function buildSalePayload(
       taxRate: item.taxRate,
       metaJson: item.metaJson || undefined,
     })),
+    ...(preOrderIds.length > 0 ? { preOrderIds } : {}),
     customerId: attachCustomer ? customerId! : undefined,
     customerPhone: !skipCustomer && customerPhone ? customerPhone : undefined,
     customerName: !skipCustomer && customerName ? customerName : undefined,
@@ -342,6 +350,50 @@ export async function executeCheckout(options: ExecuteCheckoutOptions): Promise<
       } catch (queueErr) {
         console.error('[Checkout] Offline queue fallback failed:', queueErr);
       }
+    }
+
+    if (
+      errData?.code === 'PRE_ORDER_ALREADY_BILLED' ||
+      errData?.code === 'PRE_ORDER_CLOSED' ||
+      errData?.code === 'PRE_ORDER_WRONG_STORE'
+    ) {
+      const conflictIds = new Set<string>(
+        (Array.isArray(errData.preOrderIds) ? errData.preOrderIds : saleData.preOrderIds || [])
+          .map((id: any) => String(id).trim())
+          .filter(Boolean)
+      );
+      const current = useCartStore.getState();
+      const nonPreOrderItems = current.items.filter((it: any) => {
+        const poId = it?.metaJson?.preOrderId ? String(it.metaJson.preOrderId).trim() : '';
+        return !poId || !conflictIds.has(poId);
+      });
+
+      try {
+        if (nonPreOrderItems.length === 0) {
+          await clearCart();
+        } else {
+          for (const it of current.items) {
+            const poId = (it as any)?.metaJson?.preOrderId
+              ? String((it as any).metaJson.preOrderId).trim()
+              : '';
+            if (it.id != null && poId && conflictIds.has(poId)) {
+              await current.removeItem(it.id);
+            }
+          }
+          current.unlinkPreOrderIds([...conflictIds]);
+        }
+      } catch (cleanupErr) {
+        console.error('[Checkout] Failed to clear conflicted pre-order from cart:', cleanupErr);
+      }
+
+      onClosePaymentUi?.();
+      onPaymentFailedUi?.();
+      onNotify(
+        errData?.error || 'This app order was already billed at another counter. Cart cleared.',
+        'warning',
+        7000
+      );
+      return;
     }
 
     if (error?.response?.data?.code === 'DAY_IN_REQUIRED') {

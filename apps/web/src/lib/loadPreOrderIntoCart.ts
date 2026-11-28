@@ -1,8 +1,14 @@
 import type { AxiosInstance } from 'axios';
 import { useCartStore } from '@/store/cart';
+import { isOfflineForCheckout } from '@/lib/offlineCheckout';
 
 export type LoadablePreOrder = {
   id: string;
+  trackingCode?: string;
+  status?: string;
+  saleId?: string | null;
+  saleNo?: string | null;
+  saleStatus?: string | null;
   customerId: string | null;
   customerName: string;
   customerPhone: string;
@@ -34,9 +40,24 @@ type CatalogProduct = {
   imageUrl?: string | null;
 };
 
+function assertPreOrderLoadable(po: LoadablePreOrder): void {
+  const label = po.trackingCode ? `#${po.trackingCode}` : po.id.slice(-6);
+  const status = String(po.status || '').toUpperCase();
+  const hasActiveSale = Boolean(po.saleId && po.saleStatus !== 'VOID');
+
+  if (status === 'CANCELLED' || status === 'NO_SHOW') {
+    throw new Error(`Order ${label} is ${status.toLowerCase().replace('_', '-')} and cannot be billed.`);
+  }
+  if (hasActiveSale || (status === 'FULFILLED' && !po.saleId)) {
+    const bill = po.saleNo ? ` (${po.saleNo})` : '';
+    throw new Error(`Order ${label} has already been billed${bill}.`);
+  }
+}
+
 /**
  * Load a pre-order into the POS cart. Weights/qty stay fully editable afterward.
- * Only used for pre-orders — does not change normal cart add behavior.
+ * Checks live server status first (when online) so an already-billed order on
+ * another counter cannot be loaded into a second cart.
  */
 export async function loadPreOrderIntoCart(options: {
   api: AxiosInstance;
@@ -48,11 +69,28 @@ export async function loadPreOrderIntoCart(options: {
 }): Promise<{ loadedCount: number }> {
   const {
     api,
-    preOrder: po,
+    preOrder: initialPo,
     products = [],
     replaceCart = true,
     markConfirmed = true,
   } = options;
+
+  let po: LoadablePreOrder = initialPo;
+  if (!isOfflineForCheckout()) {
+    try {
+      const freshRes = await api.get(`/api/v1/pre-orders/${initialPo.id}`);
+      if (freshRes.data?.preOrder) {
+        po = freshRes.data.preOrder;
+      }
+    } catch (err: any) {
+      if (err?.response?.status === 404 || err?.response?.status === 409) {
+        throw err;
+      }
+      // Network blip: fall back to the passed-in pre-order; POST /sales still locks & guards on Pay.
+    }
+  }
+
+  assertPreOrderLoadable(po);
 
   const cart = useCartStore.getState();
   if (replaceCart) {
@@ -105,7 +143,9 @@ export async function loadPreOrderIntoCart(options: {
   useCartStore.getState().linkPreOrderId(po.id);
   await useCartStore.getState().loadCart();
 
-  if (markConfirmed) {
+  // Only advance PENDING -> CONFIRMED; never downgrade READY back to CONFIRMED.
+  const currentStatus = String(po.status || 'PENDING').toUpperCase();
+  if (markConfirmed && currentStatus === 'PENDING') {
     try {
       await api.patch(`/api/v1/pre-orders/${po.id}`, { status: 'CONFIRMED' });
     } catch (err) {
